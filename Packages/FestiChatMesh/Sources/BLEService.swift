@@ -608,8 +608,8 @@ extension BLEService: CBPeripheralDelegate {
         _ peripheral: CBPeripheral,
         didDiscoverServices error: Error?
     ) {
-        guard error == nil else {
-            logger.error("Service discovery error: \(error!.localizedDescription)")
+        if let error = error {
+            logger.error("Service discovery error: \(error.localizedDescription)")
             return
         }
 
@@ -627,8 +627,8 @@ extension BLEService: CBPeripheralDelegate {
         didDiscoverCharacteristicsFor service: CBService,
         error: Error?
     ) {
-        guard error == nil else {
-            logger.error("Characteristic discovery error: \(error!.localizedDescription)")
+        if let error = error {
+            logger.error("Characteristic discovery error: \(error.localizedDescription)")
             return
         }
 
@@ -649,8 +649,8 @@ extension BLEService: CBPeripheralDelegate {
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        guard error == nil else {
-            logger.error("Value update error: \(error!.localizedDescription)")
+        if let error = error {
+            logger.error("Value update error: \(error.localizedDescription)")
             return
         }
         guard let data = characteristic.value, !data.isEmpty else { return }
