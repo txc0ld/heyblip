@@ -49,7 +49,7 @@ struct RootView: View {
 
     var coordinator: AppCoordinator
 
-    private enum AppPhase {
+    enum AppPhase: Equatable {
         case splash
         case onboarding
         case main
@@ -99,6 +99,3 @@ struct RootView: View {
     }
 }
 
-// MARK: - Equatable conformance for animation
-
-extension RootView.AppPhase: Equatable {}

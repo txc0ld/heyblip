@@ -123,7 +123,7 @@ final class SOSViewModel {
     private let messageService: MessageService
     private let notificationService: NotificationService
     private let logger = Logger(subsystem: "com.festichat", category: "SOSViewModel")
-    private var sosObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
 
     // MARK: - Constants
 
@@ -497,9 +497,13 @@ final class SOSViewModel {
     // MARK: - Private: Broadcasting
 
     private func broadcastSOSAlert(_ alert: SOSAlert, severity: SOSSeverity, fuzzyGeohash: String) async {
-        let identity: MeshIdentity
+        let identity: Identity
         do {
-            identity = try KeyManager.shared.loadIdentity()
+            guard let loaded = try KeyManager.shared.loadIdentity() else {
+                logger.error("No identity found for SOS broadcast")
+                return
+            }
+            identity = loaded
         } catch {
             logger.error("Failed to load identity for SOS alert broadcast: \(error.localizedDescription)")
             return
@@ -545,9 +549,13 @@ final class SOSViewModel {
     }
 
     private func broadcastSOSAccept(alertID: UUID) async {
-        let identity: MeshIdentity
+        let identity: Identity
         do {
-            identity = try KeyManager.shared.loadIdentity()
+            guard let loaded = try KeyManager.shared.loadIdentity() else {
+                logger.error("No identity found for SOS broadcast")
+                return
+            }
+            identity = loaded
         } catch {
             logger.error("Failed to load identity for SOS accept broadcast: \(error.localizedDescription)")
             return
@@ -579,9 +587,13 @@ final class SOSViewModel {
     }
 
     private func broadcastSOSResolve(alertID: UUID) async {
-        let identity: MeshIdentity
+        let identity: Identity
         do {
-            identity = try KeyManager.shared.loadIdentity()
+            guard let loaded = try KeyManager.shared.loadIdentity() else {
+                logger.error("No identity found for SOS broadcast")
+                return
+            }
+            identity = loaded
         } catch {
             logger.error("Failed to load identity for SOS resolve broadcast: \(error.localizedDescription)")
             return

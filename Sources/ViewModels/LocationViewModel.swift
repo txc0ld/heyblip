@@ -128,7 +128,7 @@ final class LocationViewModel {
     private let logger = Logger(subsystem: "com.festichat", category: "LocationViewModel")
     private let modelContainer: ModelContainer
     private let locationService: LocationService
-    private var refreshTimer: Timer?
+    nonisolated(unsafe) private var refreshTimer: Timer?
 
     // MARK: - Constants
 

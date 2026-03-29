@@ -89,7 +89,7 @@ final class StoreViewModel {
 
     private let logger = Logger(subsystem: "com.festichat", category: "StoreViewModel")
     private let modelContainer: ModelContainer
-    private var transactionListener: Task<Void, Error>?
+    nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
     private var loadedProducts: [Product] = []
 
     // MARK: - Product IDs
@@ -302,17 +302,20 @@ final class StoreViewModel {
     // MARK: - Private: Transaction Listener
 
     private func startTransactionListener() {
-        transactionListener = Task.detached {
+        transactionListener = Task.detached { [weak self] in
             for await result in Transaction.updates {
+                guard let self else { return }
                 do {
-                    let transaction = try self.checkVerified(result)
+                    let transaction = try await self.checkVerified(result)
                     if let packInfo = Self.productIDs.first(where: { $0.0 == transaction.productID }) {
                         await self.creditPurchase(packType: packInfo.1, transaction: transaction)
                     }
                     await transaction.finish()
                     await self.refreshBalance()
                 } catch {
-                    self.logger.error("Transaction verification failed: \(error.localizedDescription)")
+                    await MainActor.run {
+                        self.logger.error("Transaction verification failed: \(error.localizedDescription)")
+                    }
                 }
             }
         }

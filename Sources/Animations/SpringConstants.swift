@@ -25,32 +25,16 @@ enum SpringConstants {
     // MARK: - SwiftUI Animation values
 
     /// Page entrance animation wrapping the page entrance spring.
-    static let pageEntranceAnimation: Animation = .spring(
-        mass: 1.0,
-        stiffness: 300,
-        damping: 24
-    )
+    static let pageEntranceAnimation: Animation = .spring(pageEntrance)
 
     /// Message animation wrapping the message spring.
-    static let messageAnimation: Animation = .spring(
-        mass: 1.0,
-        stiffness: 200,
-        damping: 20
-    )
+    static let messageAnimation: Animation = .spring(message)
 
     /// Bouncy animation for micro-interactions.
-    static let bouncyAnimation: Animation = .spring(
-        mass: 1.0,
-        stiffness: 400,
-        damping: 18
-    )
+    static let bouncyAnimation: Animation = .spring(bouncy)
 
     /// Gentle animation for subtle transitions.
-    static let gentleAnimation: Animation = .spring(
-        mass: 1.0,
-        stiffness: 150,
-        damping: 20
-    )
+    static let gentleAnimation: Animation = .spring(gentle)
 
     /// Custom bezier-like reveal animation (approximated with easeOut).
     /// Approximates cubic-bezier(0.16, 1, 0.3, 1) for reveals.

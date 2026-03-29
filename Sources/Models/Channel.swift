@@ -22,7 +22,6 @@ enum MuteStatus: String, Codable, CaseIterable {
 
 @Model
 final class Channel {
-    #Index<Channel>([\.lastActivityAt])
 
     @Attribute(.unique)
     var id: UUID

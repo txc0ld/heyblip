@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - ChatListView
 
@@ -10,9 +11,10 @@ struct ChatListView: View {
     @State private var isRefreshing = false
     @State private var showNewMessage = false
     @State private var selectedConversation: ConversationPreview? = nil
-    @State private var conversations: [ConversationPreview] = ConversationPreview.sampleConversations
+    @State private var chatViewModel: ChatViewModel?
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         NavigationStack {
@@ -35,10 +37,21 @@ struct ChatListView: View {
                 newMessageSheet
             }
             .navigationDestination(item: $selectedConversation) { conversation in
-                ChatView(conversation: conversation)
+                ChatView(conversation: conversation, chatViewModel: chatViewModel)
             }
         }
         .tint(Color.fcAccentPurple)
+        .task {
+            if chatViewModel == nil {
+                let container = modelContext.container
+                let messageService = MessageService(modelContainer: container)
+                chatViewModel = ChatViewModel(
+                    modelContainer: container,
+                    messageService: messageService
+                )
+            }
+            await chatViewModel?.loadChannels()
+        }
     }
 
     // MARK: - Scroll Content
@@ -46,7 +59,14 @@ struct ChatListView: View {
     private var scrollContent: some View {
         ScrollView {
             LazyVStack(spacing: FCSpacing.sm) {
-                if filteredConversations.isEmpty {
+                if chatViewModel?.isLoading == true && conversations.isEmpty {
+                    ProgressView()
+                        .tint(theme.colors.mutedText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, FCSpacing.xxl * 2)
+                } else if let error = chatViewModel?.errorMessage {
+                    errorState(error)
+                } else if filteredConversations.isEmpty {
                     emptyState
                 } else {
                     ForEach(
@@ -169,7 +189,63 @@ struct ChatListView: View {
         }
     }
 
+    // MARK: - Error State
+
+    private func errorState(_ message: String) -> some View {
+        VStack(spacing: FCSpacing.lg) {
+            Spacer()
+                .frame(height: FCSpacing.xxl * 2)
+
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundStyle(theme.colors.mutedText.opacity(0.5))
+
+            Text("Something went wrong")
+                .font(theme.typography.headline)
+                .foregroundStyle(theme.colors.text)
+
+            Text(message)
+                .font(theme.typography.secondary)
+                .foregroundStyle(theme.colors.mutedText)
+                .multilineTextAlignment(.center)
+
+            GlassButton("Retry", icon: "arrow.clockwise") {
+                Task { await chatViewModel?.loadChannels() }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     // MARK: - Helpers
+
+    /// Map ViewModel channels to ConversationPreview for display.
+    private var conversations: [ConversationPreview] {
+        guard let vm = chatViewModel else { return [] }
+        return vm.channels.map { channel in
+            let lastMessage = channel.messages
+                .sorted(by: { $0.createdAt < $1.createdAt })
+                .last
+            let unread = vm.unreadCounts[channel.id] ?? 0
+
+            return ConversationPreview(
+                id: channel.id,
+                displayName: channel.name ?? "Chat",
+                avatarData: nil,
+                lastMessagePreview: lastMessage.flatMap {
+                    String(data: $0.encryptedPayload, encoding: .utf8)
+                } ?? "",
+                timestamp: channel.lastActivityAt,
+                unreadCount: unread,
+                isOnline: false,
+                isPinned: false,
+                isMuted: channel.isMuted,
+                isFromMe: lastMessage?.sender == nil,
+                deliveryStatus: lastMessage.map { Self.mapDeliveryStatus($0.status) } ?? .sent,
+                ringStyle: channel.isGroup ? .none : .friend,
+                messageType: lastMessage.map { $0.type } ?? .text
+            )
+        }
+    }
 
     private var filteredConversations: [ConversationPreview] {
         if searchText.isEmpty {
@@ -184,10 +260,19 @@ struct ChatListView: View {
             .sorted { $0.timestamp > $1.timestamp }
     }
 
+    private static func mapDeliveryStatus(_ status: MessageStatus) -> StatusBadge.DeliveryStatus {
+        switch status {
+        case .composing: return .composing
+        case .queued: return .queued
+        case .sent: return .sent
+        case .delivered: return .delivered
+        case .read: return .read
+        }
+    }
+
     private func performRefresh() async {
         isRefreshing = true
-        // Simulated refresh delay
-        try? await Task.sleep(for: .seconds(1))
+        await chatViewModel?.loadChannels()
         isRefreshing = false
     }
 }

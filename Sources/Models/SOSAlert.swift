@@ -27,8 +27,6 @@ enum SOSResolution: String, Codable, CaseIterable {
 
 @Model
 final class SOSAlert {
-    #Index<SOSAlert>([\.statusRaw, \.severityRaw])
-
     @Attribute(.unique)
     var id: UUID
 

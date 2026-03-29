@@ -10,8 +10,8 @@ import StoreKit
 struct MessagePackStore: View {
 
     @State private var currentBalance: Int = 47
-    @State private var packs: [PackOption] = PackOption.allPacks
-    @State private var selectedPack: PackOption?
+    @State private var packs: [StorePackOption] = StorePackOption.allPacks
+    @State private var selectedPack: StorePackOption?
     @State private var isPurchasing = false
     @State private var purchaseError: String?
     @State private var showPurchaseSuccess = false
@@ -117,7 +117,7 @@ struct MessagePackStore: View {
         }
     }
 
-    private func packCard(_ pack: PackOption) -> some View {
+    private func packCard(_ pack: StorePackOption) -> some View {
         Button(action: { purchasePack(pack) }) {
             VStack(spacing: FCSpacing.md) {
                 // Message icon
@@ -256,7 +256,7 @@ struct MessagePackStore: View {
 
     // MARK: - Purchase Flow
 
-    private func purchasePack(_ pack: PackOption) {
+    private func purchasePack(_ pack: StorePackOption) {
         selectedPack = pack
         isPurchasing = true
 
@@ -269,9 +269,9 @@ struct MessagePackStore: View {
     }
 }
 
-// MARK: - PackOption
+// MARK: - StorePackOption
 
-struct PackOption: Identifiable {
+struct StorePackOption: Identifiable {
     let id = UUID()
     let name: String
     let messageCount: Int
@@ -279,12 +279,12 @@ struct PackOption: Identifiable {
     let productID: String
     let isBestValue: Bool
 
-    static let allPacks: [PackOption] = [
-        PackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.festichat.pack.starter10", isBestValue: false),
-        PackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.festichat.pack.social25", isBestValue: false),
-        PackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.festichat.pack.festival50", isBestValue: true),
-        PackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.festichat.pack.squad100", isBestValue: false),
-        PackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.festichat.pack.season1000", isBestValue: false),
+    static let allPacks: [StorePackOption] = [
+        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.festichat.pack.starter10", isBestValue: false),
+        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.festichat.pack.social25", isBestValue: false),
+        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.festichat.pack.festival50", isBestValue: true),
+        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.festichat.pack.squad100", isBestValue: false),
+        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.festichat.pack.season1000", isBestValue: false),
     ]
 }
 

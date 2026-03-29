@@ -21,9 +21,6 @@ enum BatteryTier: String, Codable, CaseIterable {
 
 @Model
 final class MeshPeer {
-    #Index<MeshPeer>([\.lastSeenAt])
-    #Index<MeshPeer>([\.connectionStateRaw])
-
     @Attribute(.unique)
     var id: UUID
 

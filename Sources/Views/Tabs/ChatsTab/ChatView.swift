@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - ChatView
 
@@ -8,10 +9,9 @@ import SwiftUI
 struct ChatView: View {
 
     let conversation: ConversationPreview
+    var chatViewModel: ChatViewModel?
 
     @State private var messageText: String = ""
-    @State private var messages: [ChatMessage] = ChatMessage.sampleMessages
-    @State private var isTyping = false
     @State private var showImageViewer = false
     @State private var selectedImageData: Data? = nil
     @State private var showPaywall = false
@@ -27,9 +27,12 @@ struct ChatView: View {
             messagesScrollView
 
             // Typing indicator
-            if isTyping {
+            if let typingText = chatViewModel?.typingText(for: conversation.id) {
                 HStack {
                     TypingIndicator()
+                    Text(typingText)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.mutedText)
                     Spacer()
                 }
                 .padding(.horizontal, FCSpacing.md)
@@ -39,9 +42,19 @@ struct ChatView: View {
 
             // Message input (pinned at bottom)
             MessageInput(
-                text: $messageText,
-                onSend: { text in
-                    sendMessage(text)
+                text: Binding(
+                    get: { chatViewModel?.composingText ?? messageText },
+                    set: { newValue in
+                        if chatViewModel != nil {
+                            chatViewModel?.composingText = newValue
+                            chatViewModel?.sendTypingIndicator()
+                        } else {
+                            messageText = newValue
+                        }
+                    }
+                ),
+                onSend: { _ in
+                    Task { await sendMessage() }
                 },
                 onAttachment: {
                     // Attachment handling
@@ -71,6 +84,24 @@ struct ChatView: View {
         }
         .fullScreenCover(isPresented: $showImageViewer) {
             ImageViewer(imageData: selectedImageData, isPresented: $showImageViewer)
+        }
+        .overlay(alignment: .top) {
+            if let error = chatViewModel?.errorMessage {
+                Text(error)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacing.md)
+                    .padding(.vertical, FCSpacing.sm)
+                    .background(Capsule().fill(theme.colors.statusRed))
+                    .padding(.top, FCSpacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .task {
+            await loadConversation()
+        }
+        .onDisappear {
+            chatViewModel?.closeConversation()
         }
     }
 
@@ -183,55 +214,55 @@ struct ChatView: View {
             .map { MessageSection(date: $0.key, messages: $0.value.sorted { $0.timestamp < $1.timestamp }) }
     }
 
-    // MARK: - Send Message
+    // MARK: - Data
 
-    private func sendMessage(_ text: String) {
-        let newMessage = ChatMessage(
-            id: UUID(),
-            senderName: "Me",
-            senderAvatarData: nil,
-            isFromMe: true,
-            showSenderName: false,
-            text: text,
-            contentType: .text,
-            deliveryStatus: .sent,
-            timestamp: Date(),
-            isEdited: false,
-            replyPreview: nil,
-            imageData: nil,
-            voiceNoteDuration: nil,
-            waveformSamples: []
-        )
-        withAnimation(SpringConstants.accessibleMessage) {
-            messages.append(newMessage)
-        }
-
-        // Simulate typing indicator from other side
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation { isTyping = true }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            withAnimation { isTyping = false }
-            let reply = ChatMessage(
-                id: UUID(),
-                senderName: conversation.displayName,
-                senderAvatarData: conversation.avatarData,
-                isFromMe: false,
-                showSenderName: false,
-                text: "Got it! See you there",
-                contentType: .text,
-                deliveryStatus: .delivered,
-                timestamp: Date(),
+    /// Map ViewModel's active messages to UI model, falling back to sample data in preview.
+    private var messages: [ChatMessage] {
+        guard let vm = chatViewModel else { return ChatMessage.sampleMessages }
+        return vm.activeMessages.map { message in
+            ChatMessage(
+                id: message.id,
+                senderName: message.sender?.resolvedDisplayName ?? "Unknown",
+                senderAvatarData: message.sender?.avatarThumbnail,
+                isFromMe: message.sender == nil,
+                showSenderName: conversation.ringStyle == .none,
+                text: String(data: message.encryptedPayload, encoding: .utf8) ?? "",
+                contentType: message.type,
+                deliveryStatus: Self.mapDeliveryStatus(message.status),
+                timestamp: message.createdAt,
                 isEdited: false,
-                replyPreview: text,
-                imageData: nil,
+                replyPreview: message.replyTo.flatMap {
+                    String(data: $0.encryptedPayload, encoding: .utf8)
+                },
+                imageData: message.attachments.first?.fullData ?? message.attachments.first?.thumbnail,
                 voiceNoteDuration: nil,
                 waveformSamples: []
             )
-            withAnimation(SpringConstants.accessibleMessage) {
-                messages.append(reply)
-            }
         }
+    }
+
+    private static func mapDeliveryStatus(_ status: MessageStatus) -> StatusBadge.DeliveryStatus {
+        switch status {
+        case .composing: return .composing
+        case .queued: return .queued
+        case .sent: return .sent
+        case .delivered: return .delivered
+        case .read: return .read
+        }
+    }
+
+    // MARK: - Actions
+
+    private func loadConversation() async {
+        guard let vm = chatViewModel else { return }
+        // Find the channel matching this conversation's ID.
+        guard let channel = vm.channels.first(where: { $0.id == conversation.id }) else { return }
+        await vm.openConversation(channel)
+    }
+
+    private func sendMessage() async {
+        guard let vm = chatViewModel else { return }
+        await vm.sendTextMessage()
     }
 
     // MARK: - Formatting

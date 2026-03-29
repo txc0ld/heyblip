@@ -123,6 +123,13 @@ extension Color {
     )
 }
 
+// MARK: - ShapeStyle convenience for colors
+
+extension ShapeStyle where Self == Color {
+    /// FestiChat accent purple, usable in ShapeStyle contexts (e.g. `.foregroundStyle`).
+    static var fcAccentPurple: Color { Color.fcAccentPurple }
+}
+
 // MARK: - ShapeStyle convenience for gradients
 
 extension LinearGradient {

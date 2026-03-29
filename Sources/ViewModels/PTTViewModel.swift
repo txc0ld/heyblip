@@ -84,7 +84,7 @@ final class PTTViewModel {
     private let audioService: AudioService
     private let messageService: MessageService
     private var audioDelegate: PTTAudioDelegate?
-    private var pttObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var pttObservation: NSObjectProtocol?
 
     // MARK: - Constants
 

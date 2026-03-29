@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import MapKit
 
 // MARK: - NearbyView
@@ -10,17 +11,12 @@ import MapKit
 /// Uses staggered reveal for section entrance and glassmorphism throughout.
 struct NearbyView: View {
 
-    // In production these would be @Query or @EnvironmentObject from a ViewModel.
-    // For now, preview-friendly state.
-    @State private var peerCount: Int = 23
-    @State private var nearbyFriends: [NearbyPeerCard_Data] = NearbyView.sampleFriends
-    @State private var nearbyPeers: [NearbyPeerCard_Data] = NearbyView.samplePeers
-    @State private var channels: [LocationChannelItem] = NearbyView.sampleChannels
-    @State private var friendPins: [FriendMapPin] = NearbyView.sampleFriendPins
+    @State private var meshViewModel: MeshViewModel?
     @State private var beacons: [BeaconPin] = []
     @State private var showMap = false
 
     @Environment(\.theme) private var theme
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         NavigationStack {
@@ -55,6 +51,66 @@ struct NearbyView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.hidden, for: .navigationBar)
         }
+        .task {
+            if meshViewModel == nil {
+                meshViewModel = MeshViewModel(modelContainer: modelContext.container)
+            }
+            meshViewModel?.startMonitoring()
+            await meshViewModel?.refreshMeshState()
+        }
+        .onDisappear {
+            meshViewModel?.stopMonitoring()
+        }
+    }
+
+    // MARK: - ViewModel Bindings
+
+    private var peerCount: Int {
+        meshViewModel?.connectedPeerCount ?? 0
+    }
+
+    private var nearbyFriends: [NearbyPeerCard_Data] {
+        guard let vm = meshViewModel else { return [] }
+        return vm.nearbyFriends.map { friend in
+            NearbyPeerCard_Data(
+                id: friend.id,
+                displayName: friend.displayName,
+                username: friend.username,
+                hopCount: friend.isDirectPeer ? 0 : 1,
+                rssi: friend.rssi,
+                isOnline: true
+            )
+        }
+    }
+
+    private var channels: [LocationChannelItem] {
+        guard let vm = meshViewModel else { return [] }
+        return vm.locationChannels.map { channel in
+            LocationChannelItem(
+                id: channel.id,
+                name: channel.name,
+                iconName: "mappin.and.ellipse",
+                memberCount: channel.peerCount,
+                lastMessagePreview: nil,
+                lastActivityAt: nil,
+                isAutoJoined: channel.isJoined,
+                geohash: channel.geohash
+            )
+        }
+    }
+
+    private var friendPins: [FriendMapPin] {
+        guard let vm = meshViewModel else { return [] }
+        return vm.nearbyFriends.map { friend in
+            FriendMapPin(
+                id: friend.id,
+                displayName: friend.displayName,
+                coordinate: CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856),
+                precision: friend.isDirectPeer ? .precise : .fuzzy,
+                color: .blue,
+                lastUpdated: friend.lastSeen
+            )
+        }
     }
 
     // MARK: - Header Section
@@ -78,12 +134,12 @@ struct NearbyView: View {
 
                 // Signal indicator
                 VStack(spacing: FCSpacing.xs) {
-                    Image(systemName: "wave.3.right")
+                    Image(systemName: meshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
                         .font(.system(size: 24, weight: .medium))
                         .foregroundStyle(.fcAccentPurple)
                         .symbolEffect(.pulse, options: .repeating)
 
-                    Text("Mesh Active")
+                    Text(meshViewModel?.transportState ?? "Scanning...")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
                 }
@@ -98,19 +154,19 @@ struct NearbyView: View {
 
     @ViewBuilder
     private var friendsSection: some View {
-        if !nearbyFriends.isEmpty {
-            VStack(alignment: .leading, spacing: FCSpacing.md) {
-                HStack {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.fcAccentPurple)
+        VStack(alignment: .leading, spacing: FCSpacing.md) {
+            HStack {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.fcAccentPurple)
 
-                    Text("Friends Nearby")
-                        .font(theme.typography.headline)
-                        .foregroundStyle(theme.colors.text)
+                Text("Friends Nearby")
+                    .font(theme.typography.headline)
+                    .foregroundStyle(theme.colors.text)
 
-                    Spacer()
+                Spacer()
 
+                if !nearbyFriends.isEmpty {
                     Text("\(nearbyFriends.count)")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
@@ -118,8 +174,20 @@ struct NearbyView: View {
                         .padding(.vertical, FCSpacing.xs)
                         .background(Capsule().fill(theme.colors.hover))
                 }
-                .padding(.horizontal, FCSpacing.md)
+            }
+            .padding(.horizontal, FCSpacing.md)
 
+            if nearbyFriends.isEmpty {
+                HStack(spacing: FCSpacing.sm) {
+                    ProgressView()
+                        .tint(theme.colors.mutedText)
+                    Text("Scanning for nearby peers...")
+                        .font(theme.typography.secondary)
+                        .foregroundStyle(theme.colors.mutedText)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, FCSpacing.lg)
+            } else {
                 ForEach(Array(nearbyFriends.enumerated()), id: \.element.id) { index, friend in
                     NearbyPeerCard(
                         displayName: friend.displayName,

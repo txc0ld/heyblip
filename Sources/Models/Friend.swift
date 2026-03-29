@@ -19,7 +19,6 @@ enum LocationPrecision: String, Codable, CaseIterable {
 
 @Model
 final class Friend {
-    #Index<Friend>([\.statusRaw])
 
     @Attribute(.unique)
     var id: UUID

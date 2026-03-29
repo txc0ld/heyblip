@@ -127,9 +127,9 @@ final class MeshViewModel {
 
     private let logger = Logger(subsystem: "com.festichat", category: "MeshViewModel")
     private let modelContainer: ModelContainer
-    private var refreshTimer: Timer?
-    private var peerObservation: NSObjectProtocol?
-    private var transportObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var refreshTimer: Timer?
+    nonisolated(unsafe) private var peerObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var transportObservation: NSObjectProtocol?
 
     // MARK: - Constants
 
