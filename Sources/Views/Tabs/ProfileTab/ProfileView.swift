@@ -1,45 +1,37 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - ProfileView
 
 /// Main profile tab showing user avatar, name, username, bio,
-/// message pack balance, and quick action cards.
+/// verified badge, SOS, message pack balance, and quick action cards.
+/// Wired to SwiftData for real user data.
 struct ProfileView: View {
 
-    // In production from @Query/@EnvironmentObject
-    @State private var displayName: String = "Alex Rivers"
-    @State private var username: String = "alexrivers"
-    @State private var bio: String = "Festival lover. Catch me at the Pyramid Stage."
-    @State private var messageBalance: Int = 47
-    @State private var isSubscriber: Bool = false
+    @Query private var users: [User]
+    @AppStorage("messageBalance") private var messageBalance: Int = 0
 
     @State private var showEditProfile = false
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var showMessageStore = false
+    @State private var showVerifiedSheet = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+
+    /// The local user (first User in SwiftData).
+    private var user: User? { users.first }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 GradientBackground()
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: FCSpacing.lg) {
-                        avatarSection
-                            .staggeredReveal(index: 0)
-
-                        balanceCard
-                            .staggeredReveal(index: 1)
-
-                        quickActions
-                            .staggeredReveal(index: 2)
-
-                        Spacer().frame(height: FCSpacing.xxl)
-                    }
-                    .padding(.top, FCSpacing.md)
+                if let user {
+                    userContent(user)
+                } else {
+                    emptyState
                 }
             }
             .navigationTitle("Profile")
@@ -57,56 +49,135 @@ struct ProfileView: View {
                 }
             }
             .sheet(isPresented: $showEditProfile) {
-                EditProfileView(
-                    isPresented: $showEditProfile,
-                    displayName: displayName,
-                    username: username,
-                    bio: bio
-                )
-                .presentationDetents([.large])
+                if let user {
+                    EditProfileView(
+                        isPresented: $showEditProfile,
+                        displayName: user.resolvedDisplayName,
+                        username: user.username,
+                        bio: user.bio ?? ""
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(.ultraThinMaterial)
+                }
             }
             .sheet(isPresented: $showFriends) {
                 NavigationStack {
                     FriendsListView()
                 }
-                .presentationDetents([.large])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack {
                     SettingsView()
                 }
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
             }
             .sheet(isPresented: $showMessageStore) {
                 NavigationStack {
                     MessagePackStore()
                 }
-                .presentationDetents([.large])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
+            }
+            .sheet(isPresented: $showVerifiedSheet) {
+                VerifiedProfileSheet(isPresented: $showVerifiedSheet)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(.ultraThinMaterial)
             }
         }
     }
 
+    // MARK: - User Content
+
+    private func userContent(_ user: User) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: FCSpacing.lg) {
+                avatarSection(user)
+                    .staggeredReveal(index: 0)
+
+                SOSButton.ProfileCard()
+                    .padding(.horizontal, FCSpacing.md)
+                    .staggeredReveal(index: 1)
+
+                balanceCard
+                    .staggeredReveal(index: 2)
+
+                quickActions(user)
+                    .staggeredReveal(index: 3)
+
+                Spacer().frame(height: FCSpacing.xxl)
+            }
+            .padding(.top, FCSpacing.md)
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: FCSpacing.lg) {
+            Image(systemName: "person.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(theme.colors.mutedText)
+
+            Text("No profile found")
+                .font(theme.typography.headline)
+                .foregroundStyle(theme.colors.text)
+
+            Text("Complete setup to create your profile")
+                .font(theme.typography.secondary)
+                .foregroundStyle(theme.colors.mutedText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - Avatar Section
 
-    private var avatarSection: some View {
+    private func avatarSection(_ user: User) -> some View {
         GlassCard(thickness: .regular) {
             VStack(spacing: FCSpacing.md) {
-                // Large avatar
+                // Large avatar with verified badge
                 ZStack {
-                    Circle()
-                        .fill(LinearGradient.fcAccent)
-                        .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
-                        .overlay(
-                            Text(String(displayName.prefix(1)).uppercased())
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundStyle(.white)
-                        )
+                    if let thumbData = user.avatarThumbnail,
+                       let uiImage = UIImage(data: thumbData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                            .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(LinearGradient.fcAccent)
+                            .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                            .overlay(
+                                Text(String(user.resolvedDisplayName.prefix(1)).uppercased())
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundStyle(.white)
+                            )
+                    }
 
-                    // Subscriber ring
-                    if isSubscriber {
+                    // Verified ring
+                    if user.isVerified {
                         Circle()
                             .stroke(LinearGradient.fcAccent, lineWidth: 3)
                             .frame(width: FCSizing.avatarLarge + 8, height: FCSizing.avatarLarge + 8)
+
+                        // Verified badge
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.fcAccentPurple)
+                            .background(
+                                Circle()
+                                    .fill(colorScheme == .dark ? .black : .white)
+                                    .frame(width: 20, height: 20)
+                            )
+                            .offset(x: 30, y: -30)
                     }
 
                     // Edit button
@@ -123,17 +194,25 @@ struct ProfileView: View {
 
                 // Name and username
                 VStack(spacing: FCSpacing.xs) {
-                    Text(displayName)
-                        .font(theme.typography.headline)
-                        .foregroundStyle(theme.colors.text)
+                    HStack(spacing: FCSpacing.xs) {
+                        Text(user.resolvedDisplayName)
+                            .font(theme.typography.headline)
+                            .foregroundStyle(theme.colors.text)
 
-                    Text("@\(username)")
+                        if user.isVerified {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.fcAccentPurple)
+                        }
+                    }
+
+                    Text("@\(user.username)")
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                 }
 
                 // Bio
-                if !bio.isEmpty {
+                if let bio = user.bio, !bio.isEmpty {
                     Text(bio)
                         .font(theme.typography.body)
                         .foregroundStyle(theme.colors.mutedText)
@@ -141,9 +220,17 @@ struct ProfileView: View {
                         .lineLimit(3)
                 }
 
-                // Edit profile button
-                GlassButton("Edit Profile", icon: "pencil", style: .secondary, size: .small) {
-                    showEditProfile = true
+                // Action buttons
+                HStack(spacing: FCSpacing.md) {
+                    GlassButton("Edit Profile", icon: "pencil", style: .secondary, size: .small) {
+                        showEditProfile = true
+                    }
+
+                    if !user.isVerified {
+                        GlassButton("Get Verified", icon: "checkmark.seal", style: .outline, size: .small) {
+                            showVerifiedSheet = true
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -189,10 +276,10 @@ struct ProfileView: View {
 
     // MARK: - Quick Actions
 
-    private var quickActions: some View {
+    private func quickActions(_ user: User) -> some View {
         VStack(spacing: FCSpacing.md) {
             HStack(spacing: FCSpacing.md) {
-                quickActionCard(icon: "person.2.fill", title: "Friends", subtitle: "12 friends") {
+                quickActionCard(icon: "person.2.fill", title: "Friends", subtitle: "\(user.friends.count) friends") {
                     showFriends = true
                 }
 
