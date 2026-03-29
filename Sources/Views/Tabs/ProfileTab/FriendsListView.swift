@@ -362,5 +362,5 @@ extension FriendsListView {
         FriendsListView()
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

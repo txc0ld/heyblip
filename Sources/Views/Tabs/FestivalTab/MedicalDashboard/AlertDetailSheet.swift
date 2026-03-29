@@ -327,7 +327,7 @@ struct AlertDetailSheet: View {
         )
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Alert Detail - Accepted") {
@@ -345,5 +345,5 @@ struct AlertDetailSheet: View {
         )
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

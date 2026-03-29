@@ -435,7 +435,7 @@ struct StorePackOption: Identifiable {
         MessagePackStore()
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Message Pack Store - Light") {
@@ -443,5 +443,5 @@ struct StorePackOption: Identifiable {
         MessagePackStore()
     }
     .preferredColorScheme(.light)
-    .festiChatTheme()
+    .blipTheme()
 }

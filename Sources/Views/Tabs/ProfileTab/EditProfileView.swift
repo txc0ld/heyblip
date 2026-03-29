@@ -371,5 +371,5 @@ struct EditProfileView: View {
         bio: "Festival lover."
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

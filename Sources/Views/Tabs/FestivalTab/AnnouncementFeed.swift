@@ -251,5 +251,5 @@ enum AnnouncementSeverity {
         }
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

@@ -294,5 +294,5 @@ struct MeetingPointData {
         initialCoordinate: CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856)
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

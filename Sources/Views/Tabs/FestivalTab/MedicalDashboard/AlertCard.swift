@@ -345,5 +345,5 @@ enum LocationAccuracy {
         }
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

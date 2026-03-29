@@ -46,7 +46,7 @@ extension EnvironmentValues {
 
 extension View {
     /// Injects a Blip theme into the environment.
-    func festiChatTheme(_ theme: Theme = .shared) -> some View {
+    func blipTheme(_ theme: Theme = .shared) -> some View {
         environment(\.theme, theme)
     }
 }

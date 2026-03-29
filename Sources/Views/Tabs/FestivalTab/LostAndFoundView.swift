@@ -232,5 +232,5 @@ extension LostAndFoundView {
     }
     .frame(height: 500)
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

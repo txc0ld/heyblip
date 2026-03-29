@@ -229,5 +229,5 @@ private struct CropMask: Shape {
 #Preview("Avatar Crop") {
     AvatarCropView(isPresented: .constant(true))
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }

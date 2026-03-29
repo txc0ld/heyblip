@@ -364,7 +364,7 @@ extension MedicalDashboardView {
 #Preview("Medical Dashboard - Locked") {
     MedicalDashboardView()
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("Medical Dashboard - Unlocked") {
@@ -374,5 +374,5 @@ extension MedicalDashboardView {
             // Cannot set @State from preview directly; the locked state will show by default
         }
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }

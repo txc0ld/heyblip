@@ -332,11 +332,11 @@ struct ProfileView: View {
 #Preview("Profile Tab") {
     ProfileView()
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("Profile Tab - Light") {
     ProfileView()
         .preferredColorScheme(.light)
-        .festiChatTheme()
+        .blipTheme()
 }

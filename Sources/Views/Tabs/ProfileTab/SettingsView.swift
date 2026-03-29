@@ -421,7 +421,7 @@ struct SettingsView: View {
         SettingsView()
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Settings - Light") {
@@ -429,5 +429,5 @@ struct SettingsView: View {
         SettingsView()
     }
     .preferredColorScheme(.light)
-    .festiChatTheme()
+    .blipTheme()
 }

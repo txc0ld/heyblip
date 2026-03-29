@@ -231,5 +231,5 @@ struct SetTimeCell: View {
         }
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

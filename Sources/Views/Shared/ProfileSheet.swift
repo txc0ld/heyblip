@@ -238,7 +238,7 @@ struct ProfileSheet: View {
         isPhoneVerified: true
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Profile Sheet - Not Friend") {
@@ -252,5 +252,5 @@ struct ProfileSheet: View {
         mutualFriendsCount: 2
     )
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

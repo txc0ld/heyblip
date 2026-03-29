@@ -222,11 +222,11 @@ struct VerifiedProfileSheet: View {
 #Preview("Verified Sheet") {
     VerifiedProfileSheet(isPresented: .constant(true))
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("Verified Sheet - Light") {
     VerifiedProfileSheet(isPresented: .constant(true))
         .preferredColorScheme(.light)
-        .festiChatTheme()
+        .blipTheme()
 }

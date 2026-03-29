@@ -114,7 +114,7 @@ struct ErrorStateView: View {
         ) {}
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Empty - Nearby") {
@@ -128,7 +128,7 @@ struct ErrorStateView: View {
         ) {}
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }
 
 #Preview("Error State") {
@@ -145,5 +145,5 @@ struct ErrorStateView: View {
         }
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

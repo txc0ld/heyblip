@@ -351,11 +351,11 @@ extension FestivalView {
 #Preview("Festival Tab - Joined") {
     FestivalView()
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("Festival Tab - Light") {
     FestivalView()
         .preferredColorScheme(.light)
-        .festiChatTheme()
+        .blipTheme()
 }

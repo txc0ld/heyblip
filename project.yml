@@ -69,6 +69,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: au.heyblip.BlipTests
+        GENERATE_INFOPLIST_FILE: true
 
 schemes:
   Blip:

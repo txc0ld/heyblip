@@ -266,5 +266,5 @@ struct ScheduleAct: Identifiable {
         ScheduleView(stages: stages)
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

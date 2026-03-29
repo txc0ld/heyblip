@@ -529,7 +529,7 @@ struct SOSConfirmationSheet: View {
 #Preview("SOS Sheet - Selection") {
     SOSConfirmationSheet(isPresented: .constant(true))
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("SOS Sheet - Sent") {
@@ -538,5 +538,5 @@ struct SOSConfirmationSheet: View {
         SOSConfirmationSheet(isPresented: .constant(true))
     }
     .preferredColorScheme(.dark)
-    .festiChatTheme()
+    .blipTheme()
 }

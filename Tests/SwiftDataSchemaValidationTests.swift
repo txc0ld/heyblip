@@ -9,9 +9,14 @@ struct SwiftDataSchemaValidationTests {
     // MARK: - Helpers
 
     private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: BlipSchema.schema,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            for: User.self, Friend.self, Message.self, Attachment.self, Channel.self,
+            GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
+            MeshPeer.self, MessageQueue.self, SOSAlert.self, MedicalResponder.self,
+            FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
+            MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
+            configurations: config
         )
         return container.mainContext
     }
@@ -76,9 +81,14 @@ struct SwiftDataSchemaValidationTests {
 
     @Test("Container creation with in-memory storage")
     func containerCreation() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
-            for: BlipSchema.schema,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            for: User.self, Friend.self, Message.self, Attachment.self, Channel.self,
+            GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
+            MeshPeer.self, MessageQueue.self, SOSAlert.self, MedicalResponder.self,
+            FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
+            MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
+            configurations: config
         )
         let context = container.mainContext
         #expect(context != nil)
@@ -146,7 +156,7 @@ struct SwiftDataSchemaValidationTests {
 
         // SwiftData should enforce unique constraint
         // This test documents the expected behavior
-        #expect(!context.changedModels.isEmpty)
+        #expect(context.hasChanges)
     }
 
     // MARK: - Friend CRUD Tests
@@ -470,7 +480,7 @@ struct SwiftDataSchemaValidationTests {
         context.insert(message)
         try context.save()
 
-        let attachment = Attachment(
+        let attachment = Blip.Attachment(
             message: message,
             type: .image,
             sizeBytes: 1024,
@@ -479,7 +489,7 @@ struct SwiftDataSchemaValidationTests {
         context.insert(attachment)
         try context.save()
 
-        let fetched = try context.fetch(FetchDescriptor<Attachment>())
+        let fetched = try context.fetch(FetchDescriptor<Blip.Attachment>())
         #expect(fetched.count == 1)
         #expect(fetched[0].type == .image)
     }
@@ -495,7 +505,7 @@ struct SwiftDataSchemaValidationTests {
         try context.save()
 
         for i in 0 ..< 3 {
-            let attachment = Attachment(
+            let attachment = Blip.Attachment(
                 message: message,
                 type: i % 2 == 0 ? .image : .voiceNote,
                 sizeBytes: 1024 * (i + 1)
@@ -504,13 +514,13 @@ struct SwiftDataSchemaValidationTests {
         }
         try context.save()
 
-        let attachmentsBefore = try context.fetch(FetchDescriptor<Attachment>())
+        let attachmentsBefore = try context.fetch(FetchDescriptor<Blip.Attachment>())
         #expect(attachmentsBefore.count == 3)
 
         context.delete(message)
         try context.save()
 
-        let attachmentsAfter = try context.fetch(FetchDescriptor<Attachment>())
+        let attachmentsAfter = try context.fetch(FetchDescriptor<Blip.Attachment>())
         #expect(attachmentsAfter.isEmpty)
     }
 
@@ -525,12 +535,12 @@ struct SwiftDataSchemaValidationTests {
         try context.save()
 
         for type in AttachmentType.allCases {
-            let attachment = Attachment(message: message, type: type)
+            let attachment = Blip.Attachment(message: message, type: type)
             context.insert(attachment)
         }
         try context.save()
 
-        let fetched = try context.fetch(FetchDescriptor<Attachment>())
+        let fetched = try context.fetch(FetchDescriptor<Blip.Attachment>())
         #expect(fetched.count == AttachmentType.allCases.count)
     }
 
@@ -850,10 +860,10 @@ struct SwiftDataSchemaValidationTests {
 
         let alert = SOSAlert(
             reporter: user,
-            status: .accepted,
             severity: .red,
             preciseLocation: GeoPoint(latitude: 51.15, longitude: -2.58),
             fuzzyLocation: "test",
+            status: .accepted,
             expiresAt: Date().addingTimeInterval(3600)
         )
         context.insert(alert)
@@ -1640,7 +1650,7 @@ struct SwiftDataSchemaValidationTests {
         try context.save()
 
         let descriptor = FetchDescriptor<Friend>(
-            predicate: #Predicate { $0.status == .accepted }
+            predicate: #Predicate { $0.statusRaw == "accepted" }
         )
         let accepted = try context.fetch(descriptor)
         #expect(accepted.count == 1)

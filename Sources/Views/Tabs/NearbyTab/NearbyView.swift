@@ -310,11 +310,11 @@ extension NearbyView {
 #Preview("Nearby Tab") {
     NearbyView()
         .preferredColorScheme(.dark)
-        .festiChatTheme()
+        .blipTheme()
 }
 
 #Preview("Nearby Tab - Light") {
     NearbyView()
         .preferredColorScheme(.light)
-        .festiChatTheme()
+        .blipTheme()
 }
