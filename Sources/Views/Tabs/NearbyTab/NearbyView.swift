@@ -15,6 +15,8 @@ struct NearbyView: View {
     @State private var showMap = false
     @State private var selectedPeer: MeshViewModel.NearbyPeer?
     @State private var friendRequestSent: Set<UUID> = []
+    @State private var isVisible = false
+    @State private var presenceTimer: Timer?
 
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var modelContext
@@ -81,9 +83,11 @@ struct NearbyView: View {
             }
             meshViewModel?.startMonitoring()
             await meshViewModel?.refreshMeshState()
+            loadVisibilityPreference()
         }
         .onDisappear {
             meshViewModel?.stopMonitoring()
+            stopPresenceBroadcast()
         }
     }
 
@@ -93,10 +97,13 @@ struct NearbyView: View {
         meshViewModel?.connectedPeerCount ?? 0
     }
 
-    /// All connected peers who are NOT yet friends (or have pending status).
+    /// Connected peers who opted into visibility (have a username) and are NOT already friends.
     private var nonFriendPeers: [MeshViewModel.NearbyPeer] {
         guard let vm = meshViewModel else { return [] }
-        return vm.nearbyPeers.filter { $0.friendStatus != .accepted }
+        return vm.nearbyPeers.filter { peer in
+            guard let username = peer.username, !username.isEmpty else { return false }
+            return peer.friendStatus != .accepted
+        }
     }
 
     private var nearbyFriends: [NearbyPeerCard_Data] {
@@ -146,38 +153,72 @@ struct NearbyView: View {
     // MARK: - Header Section
 
     private var headerSection: some View {
-        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
-            HStack(spacing: BlipSpacing.md) {
-                // Animated peer count
-                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                    Text("\(peerCount)")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundStyle(.blipAccentPurple)
-                        .contentTransition(.numericText())
+        VStack(spacing: BlipSpacing.sm) {
+            GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
+                HStack(spacing: BlipSpacing.md) {
+                    // Animated peer count
+                    VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                        Text("\(peerCount)")
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .foregroundStyle(.blipAccentPurple)
+                            .contentTransition(.numericText())
 
-                    Text("people nearby")
-                        .font(theme.typography.body)
-                        .foregroundStyle(theme.colors.text)
-                }
+                        Text("people nearby")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.text)
+                    }
 
-                Spacer()
+                    Spacer()
 
-                // Signal indicator
-                VStack(spacing: BlipSpacing.xs) {
-                    Image(systemName: meshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(.blipAccentPurple)
-                        .symbolEffect(.pulse, options: .repeating)
+                    // Signal indicator
+                    VStack(spacing: BlipSpacing.xs) {
+                        Image(systemName: meshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundStyle(.blipAccentPurple)
+                            .symbolEffect(.pulse, options: .repeating)
 
-                    Text(meshViewModel?.transportState ?? "Scanning...")
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
+                        Text(meshViewModel?.transportState ?? "Scanning...")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
                 }
             }
+            .padding(.horizontal, BlipSpacing.md)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(peerCount) people nearby, mesh active")
+
+            // Visibility toggle
+            Button(action: { toggleVisibility() }) {
+                HStack(spacing: BlipSpacing.sm) {
+                    Image(systemName: isVisible ? "eye.fill" : "eye.slash.fill")
+                        .font(.system(size: 14, weight: .medium))
+
+                    Text(isVisible ? "Visible to Nearby" : "Hidden from Nearby")
+                        .font(theme.typography.secondary)
+                        .fontWeight(.medium)
+
+                    Spacer()
+
+                    Text(isVisible ? "ON" : "OFF")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(isVisible ? .white : theme.colors.mutedText)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
+                        .background(
+                            Capsule()
+                                .fill(isVisible ? AnyShapeStyle(LinearGradient.blipAccent) : AnyShapeStyle(theme.colors.hover))
+                        )
+                }
+                .foregroundStyle(isVisible ? .blipAccentPurple : theme.colors.mutedText)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.vertical, BlipSpacing.sm)
+            }
+            .buttonStyle(.plain)
+            .glassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.lg, borderOpacity: 0.1)
+            .padding(.horizontal, BlipSpacing.md)
+            .frame(minHeight: BlipSizing.minTapTarget)
+            .accessibilityLabel(isVisible ? "Visible to nearby people, tap to hide" : "Hidden from nearby people, tap to show")
         }
-        .padding(.horizontal, BlipSpacing.md)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(peerCount) people nearby, mesh active")
     }
 
     // MARK: - Peers Section (Non-Friends)
@@ -316,6 +357,67 @@ struct NearbyView: View {
             } catch {
                 friendRequestSent.remove(peer.id)
             }
+        }
+    }
+
+    // MARK: - Visibility
+
+    private func toggleVisibility() {
+        withAnimation(SpringConstants.accessiblePageEntrance) {
+            isVisible.toggle()
+        }
+        saveVisibilityPreference()
+
+        if isVisible {
+            startPresenceBroadcast()
+        } else {
+            stopPresenceBroadcast()
+        }
+    }
+
+    private func loadVisibilityPreference() {
+        let context = ModelContext(modelContext.container)
+        let descriptor = FetchDescriptor<UserPreferences>()
+        if let prefs = try? context.fetch(descriptor).first {
+            isVisible = prefs.nearbyVisibilityEnabled
+            if isVisible {
+                startPresenceBroadcast()
+            }
+        }
+    }
+
+    private func saveVisibilityPreference() {
+        let context = ModelContext(modelContext.container)
+        let descriptor = FetchDescriptor<UserPreferences>()
+        if let prefs = try? context.fetch(descriptor).first {
+            prefs.nearbyVisibilityEnabled = isVisible
+            try? context.save()
+        }
+    }
+
+    private func startPresenceBroadcast() {
+        stopPresenceBroadcast()
+        // Broadcast immediately, then every 10 seconds
+        broadcastPresenceOnce()
+        let timer = Timer(timeInterval: 10.0, repeats: true) { [weak coordinator] _ in
+            guard let messageService = coordinator?.messageService else { return }
+            Task { @MainActor in
+                try? await messageService.broadcastPresence()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        presenceTimer = timer
+    }
+
+    private func stopPresenceBroadcast() {
+        presenceTimer?.invalidate()
+        presenceTimer = nil
+    }
+
+    private func broadcastPresenceOnce() {
+        guard let messageService = coordinator.messageService else { return }
+        Task {
+            try? await messageService.broadcastPresence()
         }
     }
 

@@ -93,6 +93,7 @@ final class UserPreferences {
     var pttModeRaw: String
     var autoJoinNearbyChannels: Bool
     var crowdPulseVisible: Bool
+    var nearbyVisibilityEnabled: Bool
     var friendFinderMapStyleRaw: String
     var lastFestivalID: UUID?
 
@@ -130,6 +131,7 @@ final class UserPreferences {
         pttMode: PTTMode = .holdToTalk,
         autoJoinNearbyChannels: Bool = true,
         crowdPulseVisible: Bool = true,
+        nearbyVisibilityEnabled: Bool = false,
         friendFinderMapStyle: MapStyle = .standard,
         lastFestivalID: UUID? = nil
     ) {
@@ -142,6 +144,7 @@ final class UserPreferences {
         self.pttModeRaw = pttMode.rawValue
         self.autoJoinNearbyChannels = autoJoinNearbyChannels
         self.crowdPulseVisible = crowdPulseVisible
+        self.nearbyVisibilityEnabled = nearbyVisibilityEnabled
         self.friendFinderMapStyleRaw = friendFinderMapStyle.rawValue
         self.lastFestivalID = lastFestivalID
     }

@@ -425,6 +425,41 @@ final class MessageService: @unchecked Sendable {
         )
     }
 
+    // MARK: - Nearby Visibility
+
+    /// Broadcast presence to the mesh so nearby peers can see your username.
+    ///
+    /// Sends an `announce` packet with username + display name. Only call this
+    /// when the user has opted in to nearby visibility.
+    @MainActor
+    func broadcastPresence() async throws {
+        guard let identity = getIdentity() else {
+            throw MessageServiceError.senderNotFound
+        }
+
+        let context = ModelContext(modelContainer)
+        let userDescriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+        guard let localUser = try context.fetch(userDescriptor).first else {
+            throw MessageServiceError.senderNotFound
+        }
+
+        // Payload: username + 0x00 + displayName
+        var payload = Data()
+        payload.append(localUser.username.data(using: .utf8) ?? Data())
+        payload.append(0x00)
+        payload.append(localUser.resolvedDisplayName.data(using: .utf8) ?? Data())
+
+        let packet = buildPacket(
+            type: .announce,
+            payload: payload,
+            flags: [.hasSignature],
+            senderID: identity.peerID,
+            recipientID: nil
+        )
+
+        try sendPacket(packet)
+    }
+
     // MARK: - Receive Message
 
     /// Process incoming raw data from the transport layer.
@@ -449,6 +484,8 @@ final class MessageService: @unchecked Sendable {
 
         // Route based on packet type
         switch packet.type {
+        case .announce:
+            try await handleAnnounce(packet, from: peerID)
         case .noiseEncrypted:
             try await handleEncryptedPacket(packet, from: peerID)
         case .meshBroadcast:
@@ -532,6 +569,41 @@ final class MessageService: @unchecked Sendable {
     }
 
     // MARK: - Private: Handle Received Packets
+
+    /// Handle an incoming announce packet — update the MeshPeer's username so
+    /// they appear in the "People Nearby" list.
+    @MainActor
+    private func handleAnnounce(_ packet: Packet, from peerID: PeerID) async throws {
+        let context = ModelContext(modelContainer)
+
+        let (username, displayName) = parseFriendPayload(packet.payload)
+        guard let username, !username.isEmpty else { return }
+
+        // Find the MeshPeer for this sender
+        let senderData = peerID.bytes
+        let peerDescriptor = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.peerID == senderData })
+        if let peer = try context.fetch(peerDescriptor).first {
+            peer.username = username
+            try context.save()
+        }
+
+        // Also ensure a User record exists so the peer can be added as a friend
+        let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
+        if try context.fetch(userDesc).isEmpty {
+            let senderKey = packet.senderID.bytes
+            let user = User(
+                username: username,
+                displayName: displayName,
+                emailHash: "",
+                noisePublicKey: senderKey,
+                signingPublicKey: Data()
+            )
+            context.insert(user)
+            try context.save()
+        }
+
+        logger.debug("Announce received from \(username)")
+    }
 
     @MainActor
     private func handleEncryptedPacket(_ packet: Packet, from peerID: PeerID) async throws {
@@ -887,6 +959,16 @@ final class MessageService: @unchecked Sendable {
         try createOrUpdateFriend(user: senderUser, status: .pending, context: context)
 
         logger.info("Received friend request from \(senderUser.username)")
+
+        // Send local push notification
+        let senderUserID = senderUser.id
+        let friendDesc2 = FetchDescriptor<Friend>(predicate: #Predicate { $0.user?.id == senderUserID })
+        if let friendRecord = try? context.fetch(friendDesc2).first {
+            NotificationService().notifyFriendRequest(
+                fromName: senderUser.resolvedDisplayName,
+                friendID: friendRecord.id
+            )
+        }
 
         // Notify UI
         NotificationCenter.default.post(
