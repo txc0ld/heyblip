@@ -44,6 +44,8 @@ struct RootView: View {
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var appPhase: AppPhase = .splash
+    @State private var showSetupError = false
+    @State private var isRetrying = false
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var modelContext
 
@@ -72,15 +74,14 @@ struct RootView: View {
 
             case .onboarding:
                 OnboardingFlow {
-                    hasCompletedOnboarding = true
-                    coordinator.reconfigureAfterOnboarding(
-                        modelContainer: modelContext.container
-                    )
-                    withAnimation(SpringConstants.accessibleReveal) {
-                        appPhase = .main
-                    }
+                    completeOnboarding()
                 }
                 .transition(.opacity)
+                .overlay {
+                    if showSetupError {
+                        setupErrorOverlay
+                    }
+                }
 
             case .main:
                 MainTabView()
@@ -96,6 +97,90 @@ struct RootView: View {
             }
         }
         .animation(SpringConstants.accessibleReveal, value: appPhase)
+    }
+
+    // MARK: - Onboarding Completion
+
+    private func completeOnboarding() {
+        hasCompletedOnboarding = true
+
+        let ready = coordinator.reconfigureAfterOnboarding(
+            modelContainer: modelContext.container
+        )
+
+        if ready {
+            showSetupError = false
+            withAnimation(SpringConstants.accessibleReveal) {
+                appPhase = .main
+            }
+        } else {
+            withAnimation(SpringConstants.accessibleReveal) {
+                showSetupError = true
+            }
+        }
+    }
+
+    private func retrySetup() {
+        isRetrying = true
+
+        let ready = coordinator.reconfigureAfterOnboarding(
+            modelContainer: modelContext.container
+        )
+
+        isRetrying = false
+
+        if ready {
+            withAnimation(SpringConstants.accessibleReveal) {
+                showSetupError = false
+                appPhase = .main
+            }
+        }
+    }
+
+    // MARK: - Error Overlay
+
+    private var setupErrorOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+
+            VStack(spacing: FCSpacing.lg) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.fcAccentPurple)
+
+                Text("Setup Failed")
+                    .font(theme.typography.headline)
+                    .foregroundStyle(theme.colors.text)
+
+                Text(coordinator.initError ?? "Something went wrong setting up your account.")
+                    .font(theme.typography.secondary)
+                    .foregroundStyle(theme.colors.mutedText)
+                    .multilineTextAlignment(.center)
+
+                VStack(spacing: FCSpacing.md) {
+                    GlassButton("Try Again", icon: "arrow.clockwise", isLoading: isRetrying) {
+                        retrySetup()
+                    }
+                    .fullWidth()
+
+                    Button {
+                        withAnimation(SpringConstants.accessibleReveal) {
+                            hasCompletedOnboarding = false
+                            showSetupError = false
+                            coordinator.resetToOnboarding()
+                        }
+                    } label: {
+                        Text("Restart Onboarding")
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
+                    .frame(minHeight: FCSizing.minTapTarget)
+                }
+            }
+            .padding(FCSpacing.xl)
+        }
+        .transition(.opacity)
     }
 }
 

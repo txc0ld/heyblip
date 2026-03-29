@@ -108,7 +108,9 @@ final class AppCoordinator {
     }
 
     /// Re-initialize after onboarding completes and identity is stored.
-    func reconfigureAfterOnboarding(modelContainer: ModelContainer) {
+    /// Returns `true` only when identity was loaded AND transports were initialized.
+    @discardableResult
+    func reconfigureAfterOnboarding(modelContainer: ModelContainer) -> Bool {
         needsOnboarding = false
         initError = nil
         isReady = false
@@ -117,7 +119,20 @@ final class AppCoordinator {
 
         if identity != nil {
             configure(modelContainer: modelContainer)
+        } else {
+            initError = initError ?? "Identity not available after onboarding"
         }
+
+        return isReady
+    }
+
+    /// Reset to onboarding state (e.g. after a failed setup, user wants to restart).
+    func resetToOnboarding() {
+        isReady = false
+        identity = nil
+        localPeerID = nil
+        initError = nil
+        needsOnboarding = true
     }
 
     // MARK: - Lifecycle
