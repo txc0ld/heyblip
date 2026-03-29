@@ -19,11 +19,11 @@ struct SwiftDataSchemaValidationTests {
     private func makeUser(
         username: String = "alice",
         context: ModelContext,
-        phoneHash: String? = nil
+        emailHash: String? = nil
     ) -> User {
         let user = User(
             username: username,
-            phoneHash: phoneHash ?? "hash_\(username)",
+            emailHash: emailHash ?? "hash_\(username)",
             noisePublicKey: Data(repeating: 1, count: 32),
             signingPublicKey: Data(repeating: 2, count: 32)
         )
@@ -138,7 +138,7 @@ struct SwiftDataSchemaValidationTests {
 
         let user2 = User(
             username: "alice",
-            phoneHash: "different_hash",
+            emailHash: "different_hash",
             noisePublicKey: Data(repeating: 4, count: 32),
             signingPublicKey: Data(repeating: 5, count: 32)
         )

@@ -1,0 +1,15 @@
+name = "festichat-auth"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+
+[vars]
+FROM_EMAIL = "verify@festichat.app"
+CODE_TTL_SECONDS = "600"
+MAX_SENDS_PER_HOUR = "3"
+
+# Set RESEND_API_KEY via `wrangler secret put RESEND_API_KEY`
+
+[[kv_namespaces]]
+binding = "CODES"
+id = "PLACEHOLDER_KV_ID"
+preview_id = "PLACEHOLDER_PREVIEW_KV_ID"

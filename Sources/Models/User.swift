@@ -10,7 +10,7 @@ final class User {
     var username: String
 
     var displayName: String?
-    var phoneHash: String
+    var emailHash: String
     var noisePublicKey: Data
     var signingPublicKey: Data
     var avatarThumbnail: Data?
@@ -50,7 +50,7 @@ final class User {
         id: UUID = UUID(),
         username: String,
         displayName: String? = nil,
-        phoneHash: String,
+        emailHash: String,
         noisePublicKey: Data,
         signingPublicKey: Data,
         avatarThumbnail: Data? = nil,
@@ -61,7 +61,7 @@ final class User {
         self.id = id
         self.username = username
         self.displayName = displayName
-        self.phoneHash = phoneHash
+        self.emailHash = emailHash
         self.noisePublicKey = noisePublicKey
         self.signingPublicKey = signingPublicKey
         self.avatarThumbnail = avatarThumbnail
