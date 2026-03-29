@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
+import FestiChatCrypto
 
 // MARK: - CreateProfileStep
 
-/// Onboarding step 2: Username, phone OTP verification, optional avatar picker.
+/// Onboarding step 2: Username, optional avatar picker, identity generation.
 /// Single glass card layout.
 struct CreateProfileStep: View {
 
@@ -10,24 +12,20 @@ struct CreateProfileStep: View {
     var onComplete: () -> Void = {}
 
     @State private var username: String = ""
-    @State private var phoneNumber: String = ""
-    @State private var otpCode: String = ""
-    @State private var showOTPField = false
-    @State private var isVerifyingPhone = false
-    @State private var isVerified = false
+    @State private var isCreatingIdentity = false
     @State private var showAvatarPicker = false
     @State private var selectedAvatarImage: UIImage? = nil
     @State private var usernameError: String? = nil
+    @State private var identityError: String? = nil
     @State private var contentVisible = false
     @FocusState private var focusedField: Field?
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
 
     private enum Field: Hashable {
         case username
-        case phone
-        case otp
     }
 
     var body: some View {
@@ -39,7 +37,7 @@ struct CreateProfileStep: View {
                         .font(theme.typography.largeTitle)
                         .foregroundStyle(theme.colors.text)
 
-                    Text("Pick a username and verify your phone number.")
+                    Text("Pick a username and optionally add a photo.")
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                         .multilineTextAlignment(.center)
@@ -54,35 +52,29 @@ struct CreateProfileStep: View {
                     VStack(spacing: FCSpacing.md) {
                         // Username field
                         usernameField
-
-                        Divider()
-                            .overlay(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
-
-                        // Phone field
-                        phoneField
-
-                        // OTP field (conditional)
-                        if showOTPField {
-                            Divider()
-                                .overlay(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
-                            otpField
-                        }
                     }
                 }
                 .padding(.horizontal, FCSpacing.md)
 
+                // Identity error alert
+                if let error = identityError {
+                    Text(error)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.statusRed)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, FCSpacing.lg)
+                }
+
                 // Continue button
                 GlassButton(
                     "Continue",
-                    icon: isVerified ? "checkmark" : "arrow.right",
-                    isLoading: isVerifyingPhone
+                    icon: "arrow.right",
+                    isLoading: isCreatingIdentity
                 ) {
-                    if isFormValid {
-                        onComplete()
-                    }
+                    Task { await createProfile() }
                 }
                 .fullWidth()
-                .disabled(!isFormValid)
+                .disabled(!isFormValid || isCreatingIdentity)
                 .padding(.horizontal, FCSpacing.lg)
                 .padding(.bottom, FCSpacing.xl)
             }
@@ -182,95 +174,12 @@ struct CreateProfileStep: View {
         }
     }
 
-    // MARK: - Phone Field
-
-    private var phoneField: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
-            Text("Phone number")
-                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
-                .foregroundStyle(theme.colors.mutedText)
-
-            HStack {
-                TextField("", text: $phoneNumber)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.text)
-                    .textContentType(.telephoneNumber)
-                    .keyboardType(.phonePad)
-                    .focused($focusedField, equals: .phone)
-                    .frame(minHeight: FCSizing.minTapTarget)
-                    .overlay(alignment: .leading) {
-                        if phoneNumber.isEmpty {
-                            Text("+1 (555) 000-0000")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.mutedText.opacity(0.6))
-                                .allowsHitTesting(false)
-                        }
-                    }
-
-                if !showOTPField && !phoneNumber.isEmpty {
-                    Button {
-                        sendVerificationCode()
-                    } label: {
-                        Text("Verify")
-                            .font(.custom(FCFontName.semiBold, size: 14, relativeTo: .footnote))
-                            .foregroundStyle(Color.fcAccentPurple)
-                    }
-                    .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
-                }
-
-                if isVerified {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(theme.colors.statusGreen)
-                }
-            }
-        }
-    }
-
-    // MARK: - OTP Field
-
-    private var otpField: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
-            Text("Verification code")
-                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
-                .foregroundStyle(theme.colors.mutedText)
-
-            HStack {
-                TextField("", text: $otpCode)
-                    .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
-                    .foregroundStyle(theme.colors.text)
-                    .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
-                    .focused($focusedField, equals: .otp)
-                    .frame(minHeight: FCSizing.minTapTarget)
-                    .overlay(alignment: .leading) {
-                        if otpCode.isEmpty {
-                            Text("000000")
-                                .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
-                                .foregroundStyle(theme.colors.mutedText.opacity(0.4))
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    .onChange(of: otpCode) { _, code in
-                        if code.count == 6 {
-                            verifyOTP(code)
-                        }
-                    }
-
-                if isVerifyingPhone {
-                    ProgressView()
-                        .tint(theme.colors.mutedText)
-                }
-            }
-        }
-    }
-
     // MARK: - Validation
 
     private var isFormValid: Bool {
         !username.isEmpty
         && username.count >= 3
         && usernameError == nil
-        && isVerified
     }
 
     private func validateUsername(_ value: String) {
@@ -294,23 +203,38 @@ struct CreateProfileStep: View {
         usernameError = nil
     }
 
-    private func sendVerificationCode() {
-        withAnimation(SpringConstants.accessiblePageEntrance) {
-            showOTPField = true
-        }
-        focusedField = .otp
-    }
+    // MARK: - Identity Generation
 
-    private func verifyOTP(_ code: String) {
-        isVerifyingPhone = true
-        // Simulated verification delay for development
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isVerifyingPhone = false
-            withAnimation(SpringConstants.accessiblePageEntrance) {
-                isVerified = true
-                showOTPField = false
-            }
+    private func createProfile() async {
+        isCreatingIdentity = true
+        identityError = nil
+
+        do {
+            let identity = try KeyManager.shared.generateIdentity()
+            try KeyManager.shared.storeIdentity(identity)
+
+            // Compress avatar for thumbnail if selected.
+            let thumbnailData = selectedAvatarImage?
+                .jpegData(compressionQuality: 0.5)
+
+            let user = User(
+                username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                displayName: username,
+                phoneHash: "",
+                noisePublicKey: identity.noisePublicKey.rawRepresentation,
+                signingPublicKey: identity.signingPublicKey,
+                avatarThumbnail: thumbnailData
+            )
+
+            modelContext.insert(user)
+            try modelContext.save()
+
+            onComplete()
+        } catch {
+            identityError = "Failed to create identity: \(error.localizedDescription)"
         }
+
+        isCreatingIdentity = false
     }
 }
 
