@@ -22,9 +22,6 @@ enum MessageStatus: String, Codable, CaseIterable {
 
 @Model
 final class Message {
-    #Index<Message>([\.createdAt])
-    #Index<Message>([\.statusRaw])
-
     @Attribute(.unique)
     var id: UUID
 

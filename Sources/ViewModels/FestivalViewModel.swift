@@ -114,7 +114,7 @@ final class FestivalViewModel {
     private let modelContainer: ModelContainer
     private let locationService: LocationService
     private let notificationService: NotificationService
-    private var geofenceObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var geofenceObservation: NSObjectProtocol?
 
     // MARK: - Constants
 

@@ -21,8 +21,6 @@ enum QueueStatus: String, Codable, CaseIterable {
 
 @Model
 final class MessageQueue {
-    #Index<MessageQueue>([\.nextRetryAt])
-
     @Attribute(.unique)
     var id: UUID
 
