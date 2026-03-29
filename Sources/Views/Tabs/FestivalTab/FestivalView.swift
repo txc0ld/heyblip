@@ -9,14 +9,16 @@ import MapKit
 /// Greyed out/locked when out of geofence range.
 struct FestivalView: View {
 
-    // In production these would come from a ViewModel/EnvironmentObject.
+    /// Festival view model — provides real data when available, falls back to sample data.
+    var festivalViewModel: FestivalViewModel?
+
     @State private var hasJoinedFestival: Bool = true
     @State private var isInRange: Bool = true
     @State private var selectedSection: FestivalSection = .map
     @State private var showMeetingPointSheet: Bool = false
     @State private var showCrowdPulse: Bool = true
 
-    // Sample data for preview
+    // Data: uses ViewModel when available, sample data as fallback
     @State private var stages: [StageMapItem] = FestivalView.sampleStages
     @State private var announcements: [AnnouncementItem] = FestivalView.sampleAnnouncements
     @State private var scheduleStages: [ScheduleStage] = FestivalView.sampleScheduleStages
@@ -59,6 +61,56 @@ struct FestivalView: View {
                     }
                 )
                 .presentationDetents([.large])
+            }
+            .task {
+                await loadFestivalData()
+            }
+            .onChange(of: festivalViewModel?.isInsideFestival) { _, inside in
+                isInRange = inside ?? true
+            }
+        }
+    }
+
+    // MARK: - ViewModel Data Loading
+
+    private func loadFestivalData() async {
+        guard let vm = festivalViewModel else { return }
+
+        await vm.fetchFestivals()
+        hasJoinedFestival = vm.activeFestival != nil || !vm.availableFestivals.isEmpty
+        isInRange = vm.isInsideFestival
+
+        // Map ViewModel crowd pulse to view cells
+        if !vm.crowdPulseData.isEmpty {
+            crowdPulseData = vm.crowdPulseData.map { info in
+                CrowdPulseCell(
+                    id: info.id,
+                    coordinate: CLLocationCoordinate2D(latitude: info.latitude, longitude: info.longitude),
+                    level: info.heatLevel,
+                    peerCount: info.peerCount,
+                    geohash: info.geohash
+                )
+            }
+        }
+
+        // Map ViewModel schedule to view schedule stages
+        if !vm.schedule.isEmpty {
+            scheduleStages = vm.schedule.map { stageSchedule in
+                ScheduleStage(
+                    id: stageSchedule.id,
+                    name: stageSchedule.stageName,
+                    acts: stageSchedule.sets.map { set in
+                        ScheduleAct(
+                            id: set.id,
+                            artistName: set.artistName,
+                            startTime: set.startTime,
+                            endTime: set.endTime,
+                            isLive: set.isLive,
+                            isSaved: set.isSaved,
+                            hasReminder: set.hasReminder
+                        )
+                    }
+                )
             }
         }
     }
