@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import FestiChatProtocol
+@testable import BlipProtocol
 
 // We test ChatViewModel via its public API. Because it depends on SwiftData and
 // services that are tightly coupled to the real environment, we use a lightweight

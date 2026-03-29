@@ -3,46 +3,46 @@ import UserNotifications
 
 // MARK: - Notification Category
 
-/// Categories of local notifications that FestiChat can send.
-enum FestiChatNotificationCategory: String, Sendable {
+/// Categories of local notifications that Blip can send.
+enum BlipNotificationCategory: String, Sendable {
     /// New message received in a DM or group.
-    case newMessage = "com.festichat.notification.newMessage"
+    case newMessage = "com.blip.notification.newMessage"
     /// A friend is nearby (proximity alert).
-    case friendNearby = "com.festichat.notification.friendNearby"
+    case friendNearby = "com.blip.notification.friendNearby"
     /// A saved set time is about to start.
-    case setTimeAlert = "com.festichat.notification.setTimeAlert"
+    case setTimeAlert = "com.blip.notification.setTimeAlert"
     /// SOS alert: a nearby person needs assistance.
-    case sosAssist = "com.festichat.notification.sosAssist"
+    case sosAssist = "com.blip.notification.sosAssist"
     /// Friend request received.
-    case friendRequest = "com.festichat.notification.friendRequest"
+    case friendRequest = "com.blip.notification.friendRequest"
     /// SOS alert resolved.
-    case sosResolved = "com.festichat.notification.sosResolved"
+    case sosResolved = "com.blip.notification.sosResolved"
     /// Organizer announcement.
-    case organizerAnnouncement = "com.festichat.notification.orgAnnouncement"
+    case organizerAnnouncement = "com.blip.notification.orgAnnouncement"
 }
 
 // MARK: - Notification Action
 
 /// Actions available on notifications.
-enum FestiChatNotificationAction: String, Sendable {
-    case reply = "com.festichat.action.reply"
-    case markRead = "com.festichat.action.markRead"
-    case mute = "com.festichat.action.mute"
-    case acceptFriend = "com.festichat.action.acceptFriend"
-    case declineFriend = "com.festichat.action.declineFriend"
-    case viewMap = "com.festichat.action.viewMap"
-    case respondSOS = "com.festichat.action.respondSOS"
+enum BlipNotificationAction: String, Sendable {
+    case reply = "com.blip.action.reply"
+    case markRead = "com.blip.action.markRead"
+    case mute = "com.blip.action.mute"
+    case acceptFriend = "com.blip.action.acceptFriend"
+    case declineFriend = "com.blip.action.declineFriend"
+    case viewMap = "com.blip.action.viewMap"
+    case respondSOS = "com.blip.action.respondSOS"
 }
 
 // MARK: - Notification Service Delegate
 
 protocol NotificationServiceDelegate: AnyObject, Sendable {
-    func notificationService(_ service: NotificationService, didReceiveAction action: FestiChatNotificationAction, with userInfo: [String: Any])
+    func notificationService(_ service: NotificationService, didReceiveAction action: BlipNotificationAction, with userInfo: [String: Any])
 }
 
 // MARK: - Notification Service
 
-/// Manages local notifications for FestiChat events.
+/// Manages local notifications for Blip events.
 ///
 /// Handles:
 /// - New message notifications (DM, group, channel)
@@ -139,7 +139,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
             content.body = messagePreview
         }
 
-        content.categoryIdentifier = FestiChatNotificationCategory.newMessage.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.newMessage.rawValue
         content.sound = .default
         content.threadIdentifier = channelID.uuidString
         content.userInfo = [
@@ -174,7 +174,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
             content.body = "Somewhere nearby on the mesh"
         }
 
-        content.categoryIdentifier = FestiChatNotificationCategory.friendNearby.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.friendNearby.rawValue
         content.sound = UNNotificationSound(named: UNNotificationSoundName("friend_ping.caf"))
         content.userInfo = [
             "friendID": friendID.uuidString,
@@ -205,7 +205,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
         let content = UNMutableNotificationContent()
         content.title = "\(artistName) starting soon"
         content.body = "\(stageName) in \(reminderMinutes) minutes"
-        content.categoryIdentifier = FestiChatNotificationCategory.setTimeAlert.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.setTimeAlert.rawValue
         content.sound = .default
         content.userInfo = [
             "setTimeID": setTimeID.uuidString,
@@ -274,7 +274,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
             content.body = "Someone about \(distance)m away needs help"
         }
 
-        content.categoryIdentifier = FestiChatNotificationCategory.sosAssist.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.sosAssist.rawValue
         content.interruptionLevel = .critical
         content.userInfo = [
             "alertID": alertID.uuidString,
@@ -291,7 +291,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
         let content = UNMutableNotificationContent()
         content.title = "SOS Alert Resolved"
         content.body = "The nearby emergency has been handled"
-        content.categoryIdentifier = FestiChatNotificationCategory.sosResolved.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.sosResolved.rawValue
         content.sound = .default
         content.userInfo = ["alertID": alertID.uuidString, "type": "sosResolved"]
 
@@ -310,7 +310,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
         let content = UNMutableNotificationContent()
         content.title = "Friend Request"
         content.body = "\(fromName) wants to be friends"
-        content.categoryIdentifier = FestiChatNotificationCategory.friendRequest.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.friendRequest.rawValue
         content.sound = .default
         content.userInfo = [
             "friendID": friendID.uuidString,
@@ -328,7 +328,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
         let content = UNMutableNotificationContent()
         content.title = festivalName
         content.body = message
-        content.categoryIdentifier = FestiChatNotificationCategory.organizerAnnouncement.rawValue
+        content.categoryIdentifier = BlipNotificationCategory.organizerAnnouncement.rawValue
         content.sound = .default
         content.userInfo = ["type": "orgAnnouncement", "festival": festivalName]
 
@@ -364,83 +364,83 @@ final class NotificationService: NSObject, @unchecked Sendable {
     private func registerCategories() {
         // New Message category with reply and mark-read actions
         let replyAction = UNTextInputNotificationAction(
-            identifier: FestiChatNotificationAction.reply.rawValue,
+            identifier: BlipNotificationAction.reply.rawValue,
             title: "Reply",
             textInputButtonTitle: "Send",
             textInputPlaceholder: "Type a message..."
         )
         let markReadAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.markRead.rawValue,
+            identifier: BlipNotificationAction.markRead.rawValue,
             title: "Mark as Read"
         )
         let muteAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.mute.rawValue,
+            identifier: BlipNotificationAction.mute.rawValue,
             title: "Mute",
             options: .destructive
         )
         let messageCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.newMessage.rawValue,
+            identifier: BlipNotificationCategory.newMessage.rawValue,
             actions: [replyAction, markReadAction, muteAction],
             intentIdentifiers: []
         )
 
         // Friend Nearby category
         let viewMapAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.viewMap.rawValue,
+            identifier: BlipNotificationAction.viewMap.rawValue,
             title: "View on Map",
             options: .foreground
         )
         let friendNearbyCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.friendNearby.rawValue,
+            identifier: BlipNotificationCategory.friendNearby.rawValue,
             actions: [viewMapAction],
             intentIdentifiers: []
         )
 
         // Set Time Alert category
         let setTimeCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.setTimeAlert.rawValue,
+            identifier: BlipNotificationCategory.setTimeAlert.rawValue,
             actions: [viewMapAction],
             intentIdentifiers: []
         )
 
         // SOS Assist category
         let respondAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.respondSOS.rawValue,
+            identifier: BlipNotificationAction.respondSOS.rawValue,
             title: "I Can Help",
             options: .foreground
         )
         let sosCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.sosAssist.rawValue,
+            identifier: BlipNotificationCategory.sosAssist.rawValue,
             actions: [respondAction],
             intentIdentifiers: []
         )
 
         // Friend Request category
         let acceptAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.acceptFriend.rawValue,
+            identifier: BlipNotificationAction.acceptFriend.rawValue,
             title: "Accept"
         )
         let declineAction = UNNotificationAction(
-            identifier: FestiChatNotificationAction.declineFriend.rawValue,
+            identifier: BlipNotificationAction.declineFriend.rawValue,
             title: "Decline",
             options: .destructive
         )
         let friendReqCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.friendRequest.rawValue,
+            identifier: BlipNotificationCategory.friendRequest.rawValue,
             actions: [acceptAction, declineAction],
             intentIdentifiers: []
         )
 
         // SOS Resolved category
         let sosResolvedCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.sosResolved.rawValue,
+            identifier: BlipNotificationCategory.sosResolved.rawValue,
             actions: [],
             intentIdentifiers: []
         )
 
         // Organizer Announcement category
         let orgCategory = UNNotificationCategory(
-            identifier: FestiChatNotificationCategory.organizerAnnouncement.rawValue,
+            identifier: BlipNotificationCategory.organizerAnnouncement.rawValue,
             actions: [],
             intentIdentifiers: []
         )
@@ -492,7 +492,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     ) async -> UNNotificationPresentationOptions {
         // Show notifications even when app is in foreground (banners only, no sound for messages)
         let category = notification.request.content.categoryIdentifier
-        if category == FestiChatNotificationCategory.sosAssist.rawValue {
+        if category == BlipNotificationCategory.sosAssist.rawValue {
             return [.banner, .sound, .badge]
         }
         return [.banner, .badge]
@@ -504,7 +504,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     ) async {
         let userInfo = response.notification.request.content.userInfo
 
-        if let action = FestiChatNotificationAction(rawValue: response.actionIdentifier) {
+        if let action = BlipNotificationAction(rawValue: response.actionIdentifier) {
             delegate?.notificationService(self, didReceiveAction: action, with: userInfo as? [String: Any] ?? [:])
         } else if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
             // User tapped the notification body -- delegate should navigate to the relevant screen

@@ -30,13 +30,13 @@ struct SetTimeCell: View {
     }()
 
     var body: some View {
-        HStack(spacing: FCSpacing.md) {
+        HStack(spacing: BlipSpacing.md) {
             // Time column
             timeColumn
 
             // Divider
             Rectangle()
-                .fill(isLive ? .fcAccentPurple : theme.colors.border)
+                .fill(isLive ? .blipAccentPurple : theme.colors.border)
                 .frame(width: isLive ? 2 : 1)
                 .clipShape(RoundedRectangle(cornerRadius: 1))
 
@@ -48,17 +48,17 @@ struct SetTimeCell: View {
             // Actions
             actionsColumn
         }
-        .padding(.vertical, FCSpacing.sm)
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
-                .fill(isLive ? .fcAccentPurple.opacity(0.08) : Color.clear)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
+                .fill(isLive ? .blipAccentPurple.opacity(0.08) : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .stroke(
-                    isLive ? .fcAccentPurple.opacity(0.2) : .clear,
-                    lineWidth: FCSizing.hairline
+                    isLive ? .blipAccentPurple.opacity(0.2) : .clear,
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .accessibilityElement(children: .combine)
@@ -68,11 +68,11 @@ struct SetTimeCell: View {
     // MARK: - Time Column
 
     private var timeColumn: some View {
-        VStack(spacing: FCSpacing.xs) {
+        VStack(spacing: BlipSpacing.xs) {
             Text(Self.timeFormatter.string(from: startTime))
                 .font(theme.typography.body)
                 .fontWeight(.semibold)
-                .foregroundStyle(isLive ? .fcAccentPurple : theme.colors.text)
+                .foregroundStyle(isLive ? .blipAccentPurple : theme.colors.text)
                 .monospacedDigit()
 
             Text(Self.timeFormatter.string(from: endTime))
@@ -86,8 +86,8 @@ struct SetTimeCell: View {
     // MARK: - Artist Column
 
     private var artistColumn: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
-            HStack(spacing: FCSpacing.sm) {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+            HStack(spacing: BlipSpacing.sm) {
                 Text(artistName)
                     .font(theme.typography.body)
                     .fontWeight(.medium)
@@ -102,13 +102,13 @@ struct SetTimeCell: View {
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(.fcAccentPurple)
+                                .fill(.blipAccentPurple)
                         )
                         .accessibilityLabel("Currently live")
                 }
             }
 
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "music.note.house")
                     .font(.system(size: 10))
                     .foregroundStyle(theme.colors.mutedText)
@@ -127,13 +127,13 @@ struct SetTimeCell: View {
     // MARK: - Actions Column
 
     private var actionsColumn: some View {
-        HStack(spacing: FCSpacing.xs) {
+        HStack(spacing: BlipSpacing.xs) {
             // Save/star button
             Button(action: { onSave?() }) {
                 Image(systemName: isSaved ? "star.fill" : "star")
                     .font(.system(size: 16))
-                    .foregroundStyle(isSaved ? .fcAccentPurple : theme.colors.mutedText)
-                    .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                    .foregroundStyle(isSaved ? .blipAccentPurple : theme.colors.mutedText)
+                    .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -143,8 +143,8 @@ struct SetTimeCell: View {
             Button(action: { onToggleReminder?() }) {
                 Image(systemName: hasReminder ? "bell.fill" : "bell")
                     .font(.system(size: 14))
-                    .foregroundStyle(hasReminder ? .fcAccentPurple : theme.colors.mutedText)
-                    .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                    .foregroundStyle(hasReminder ? .blipAccentPurple : theme.colors.mutedText)
+                    .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -155,7 +155,7 @@ struct SetTimeCell: View {
                 Image(systemName: "hand.thumbsup.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(theme.colors.mutedText)
-                    .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                    .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

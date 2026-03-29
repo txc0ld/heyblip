@@ -82,7 +82,7 @@ struct MeshParticleView: View {
 
     private func particleColor(for particle: Particle) -> Color {
         if particle.isRelaying {
-            return .fcAccentPurple.opacity(0.7)
+            return .blipAccentPurple.opacity(0.7)
         }
         return colorScheme == .dark
             ? .white.opacity(0.3)

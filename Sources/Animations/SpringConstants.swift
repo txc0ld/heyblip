@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Spring Animation Constants
 
-/// Shared spring animation configurations used throughout FestiChat.
+/// Shared spring animation configurations used throughout Blip.
 /// All animations respect `UIAccessibility.isReduceMotionEnabled`.
 enum SpringConstants {
 

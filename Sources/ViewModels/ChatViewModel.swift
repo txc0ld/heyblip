@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
-import FestiChatProtocol
-import FestiChatMesh
+import BlipProtocol
+import BlipMesh
 import os.log
 
 // MARK: - Chat View Model
@@ -55,7 +55,7 @@ final class ChatViewModel {
     private let messageService: MessageService
     private let audioService: AudioService
     private let imageService: ImageService
-    private let logger = Logger(subsystem: "com.festichat", category: "ChatViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "ChatViewModel")
 
     /// Set of channel IDs the user has read up to (last read message timestamp).
     private var lastReadTimestamps: [UUID: Date] = [:]

@@ -24,7 +24,7 @@ struct SplashView: View {
             GradientBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: FCSpacing.lg) {
+            VStack(spacing: BlipSpacing.lg) {
                 // Logo icon with accent gradient
                 ZStack {
                     // Glow behind logo
@@ -32,8 +32,8 @@ struct SplashView: View {
                         .fill(
                             RadialGradient(
                                 colors: [
-                                    Color.fcAccentPurple.opacity(0.3),
-                                    Color.fcAccentPurple.opacity(0.0)
+                                    Color.blipAccentPurple.opacity(0.3),
+                                    Color.blipAccentPurple.opacity(0.0)
                                 ],
                                 center: .center,
                                 startRadius: 20,
@@ -49,7 +49,7 @@ struct SplashView: View {
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [
-                                    Color.fcAccentPurple,
+                                    Color.blipAccentPurple,
                                     Color(red: 0.55, green: 0.15, blue: 1.0)
                                 ],
                                 startPoint: .topLeading,
@@ -61,8 +61,8 @@ struct SplashView: View {
                 .opacity(logoOpacity)
 
                 // App name
-                Text("FestiChat")
-                    .font(.custom(FCFontName.bold, size: 38, relativeTo: .largeTitle))
+                Text("Blip")
+                    .font(.custom(BlipFontName.bold, size: 38, relativeTo: .largeTitle))
                     .foregroundStyle(theme.colors.text)
                     .opacity(logoOpacity)
                     .scaleEffect(logoScale)

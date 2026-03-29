@@ -19,12 +19,12 @@ struct PaywallSheet: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     // Handle indicator
                     Capsule()
                         .fill(theme.colors.mutedText.opacity(0.3))
                         .frame(width: 36, height: 4)
-                        .padding(.top, FCSpacing.md)
+                        .padding(.top, BlipSpacing.md)
 
                     // Header
                     headerSection
@@ -38,25 +38,25 @@ struct PaywallSheet: View {
                     // Fine print
                     finePrint
                 }
-                .padding(.horizontal, FCSpacing.lg)
-                .padding(.bottom, FCSpacing.xl)
+                .padding(.horizontal, BlipSpacing.lg)
+                .padding(.bottom, BlipSpacing.xl)
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
-        .presentationCornerRadius(FCCornerRadius.xxl)
+        .presentationCornerRadius(BlipCornerRadius.xxl)
     }
 
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             Image(systemName: "bubble.left.and.text.bubble.right.fill")
                 .font(.system(size: 40))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            Color.fcAccentPurple,
+                            Color.blipAccentPurple,
                             Color(red: 0.55, green: 0.15, blue: 1.0)
                         ],
                         startPoint: .topLeading,
@@ -78,7 +78,7 @@ struct PaywallSheet: View {
     // MARK: - Pack Options
 
     private var packOptionsSection: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             ForEach(PackOption.allOptions) { pack in
                 packCard(pack)
             }
@@ -94,21 +94,21 @@ struct PaywallSheet: View {
             }
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
-                    HStack(spacing: FCSpacing.sm) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                    HStack(spacing: BlipSpacing.sm) {
                         Text(pack.name)
-                            .font(.custom(FCFontName.semiBold, size: 16, relativeTo: .body))
+                            .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
                             .foregroundStyle(theme.colors.text)
 
                         if pack.isBestValue {
                             Text("BEST VALUE")
-                                .font(.custom(FCFontName.bold, size: 9, relativeTo: .caption2))
+                                .font(.custom(BlipFontName.bold, size: 9, relativeTo: .caption2))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(
                                     Capsule()
-                                        .fill(Color.fcAccentPurple)
+                                        .fill(Color.blipAccentPurple)
                                 )
                         }
                     }
@@ -121,25 +121,25 @@ struct PaywallSheet: View {
                 Spacer()
 
                 Text(pack.priceFormatted)
-                    .font(.custom(FCFontName.bold, size: 18, relativeTo: .title3))
+                    .font(.custom(BlipFontName.bold, size: 18, relativeTo: .title3))
                     .foregroundStyle(theme.colors.text)
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
             .background(cardBackground(isSelected: isSelected))
-            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                     .stroke(
                         isSelected
-                            ? Color.fcAccentPurple
+                            ? Color.blipAccentPurple
                             : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
-                        lineWidth: isSelected ? 1.5 : FCSizing.hairline
+                        lineWidth: isSelected ? 1.5 : BlipSizing.hairline
                     )
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(pack.name), \(pack.messageCount) messages, \(pack.priceFormatted)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
@@ -147,14 +147,14 @@ struct PaywallSheet: View {
     @ViewBuilder
     private func cardBackground(isSelected: Bool) -> some View {
         if isSelected {
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .fill(.regularMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
-                        .fill(Color.fcAccentPurple.opacity(0.08))
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
+                        .fill(Color.blipAccentPurple.opacity(0.08))
                 )
         } else {
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .fill(.ultraThinMaterial)
         }
     }
@@ -179,32 +179,32 @@ struct PaywallSheet: View {
     // MARK: - Fine Print
 
     private var finePrint: some View {
-        VStack(spacing: FCSpacing.xs) {
+        VStack(spacing: BlipSpacing.xs) {
             Text("Receiving messages is always free.")
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
 
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 Button("Restore Purchases") {
                     // Restore logic
                 }
                 .font(theme.typography.caption)
-                .foregroundStyle(Color.fcAccentPurple)
-                .frame(minHeight: FCSizing.minTapTarget)
+                .foregroundStyle(Color.blipAccentPurple)
+                .frame(minHeight: BlipSizing.minTapTarget)
 
                 Button("Terms") {
                     // Terms
                 }
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
 
                 Button("Privacy") {
                     // Privacy
                 }
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
             }
         }
     }

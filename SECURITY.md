@@ -2,7 +2,7 @@
 
 ## Reporting Vulnerabilities
 
-If you discover a security vulnerability in FestiChat, please report it responsibly.
+If you discover a security vulnerability in Blip, please report it responsibly.
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
@@ -10,7 +10,7 @@ Contact: Open a private security advisory on this repository.
 
 ## Security Architecture
 
-FestiChat implements defense-in-depth encryption for all communications:
+Blip implements defense-in-depth encryption for all communications:
 
 ### End-to-End Encryption
 - **Protocol**: Noise_XX_25519_ChaChaPoly_SHA256

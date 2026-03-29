@@ -30,10 +30,10 @@ struct LostAndFoundView: View {
     // MARK: - Header
 
     private var headerBanner: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text("Lost & Found")
                 .font(theme.typography.body)
@@ -45,12 +45,12 @@ struct LostAndFoundView: View {
             Text("Public channel")
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
-                .padding(.horizontal, FCSpacing.sm)
-                .padding(.vertical, FCSpacing.xs)
+                .padding(.horizontal, BlipSpacing.sm)
+                .padding(.vertical, BlipSpacing.xs)
                 .background(Capsule().fill(theme.colors.hover))
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .background(.ultraThinMaterial)
     }
 
@@ -59,13 +59,13 @@ struct LostAndFoundView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: FCSpacing.sm) {
+                LazyVStack(spacing: BlipSpacing.sm) {
                     ForEach(messages) { message in
                         LostFoundMessageBubble(message: message)
                             .id(message.id)
                     }
                 }
-                .padding(FCSpacing.md)
+                .padding(BlipSpacing.md)
             }
             .onChange(of: messages.count) { _, _ in
                 if let lastID = messages.last?.id {
@@ -80,22 +80,22 @@ struct LostAndFoundView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             TextField("Describe lost/found item...", text: $inputText, axis: .vertical)
                 .font(theme.typography.body)
                 .foregroundStyle(theme.colors.text)
                 .lineLimit(1...4)
                 .focused($isInputFocused)
-                .padding(FCSpacing.md)
+                .padding(BlipSpacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                         .fill(.ultraThinMaterial)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                         .stroke(
                             colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                            lineWidth: FCSizing.hairline
+                            lineWidth: BlipSizing.hairline
                         )
                 )
                 .submitLabel(.send)
@@ -107,14 +107,14 @@ struct LostAndFoundView: View {
                     .font(.system(size: 28))
                     .foregroundStyle(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     ? theme.colors.mutedText
-                                    : .fcAccentPurple)
+                                    : .blipAccentPurple)
             }
-            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
             .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send message")
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .background(.ultraThinMaterial)
     }
 
@@ -148,11 +148,11 @@ private struct LostFoundMessageBubble: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .top, spacing: FCSpacing.sm) {
+        HStack(alignment: .top, spacing: BlipSpacing.sm) {
             if !message.isOwn {
                 // Sender avatar
                 Circle()
-                    .fill(LinearGradient.fcAccent.opacity(0.6))
+                    .fill(LinearGradient.blipAccent.opacity(0.6))
                     .frame(width: 28, height: 28)
                     .overlay(
                         Text(message.senderInitials)
@@ -161,29 +161,29 @@ private struct LostFoundMessageBubble: View {
                     )
             }
 
-            VStack(alignment: message.isOwn ? .trailing : .leading, spacing: FCSpacing.xs) {
+            VStack(alignment: message.isOwn ? .trailing : .leading, spacing: BlipSpacing.xs) {
                 if !message.isOwn {
                     Text(message.senderName)
                         .font(theme.typography.caption)
                         .fontWeight(.medium)
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                 }
 
                 Text(message.text)
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                     .background(
-                        RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                        RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                             .fill(message.isOwn
-                                  ? .fcAccentPurple.opacity(0.15)
+                                  ? .blipAccentPurple.opacity(0.15)
                                   : (colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.04)))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                        RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                             .stroke(
                                 colorScheme == .dark ? .white.opacity(0.08) : .black.opacity(0.06),
-                                lineWidth: FCSizing.hairline
+                                lineWidth: BlipSizing.hairline
                             )
                     )
 

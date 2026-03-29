@@ -1,10 +1,10 @@
 import SwiftUI
 
-// MARK: - FestiChat Spacing Scale
+// MARK: - Blip Spacing Scale
 
 /// Consistent spacing values used throughout the app.
 /// Based on a 4pt base unit with common multipliers.
-enum FCSpacing {
+enum BlipSpacing {
 
     /// 4pt — Extra small. Icon gaps, tight inline spacing.
     static let xs: CGFloat = 4
@@ -28,7 +28,7 @@ enum FCSpacing {
 // MARK: - Corner radius tokens
 
 /// Corner radius values matching the glassmorphism design language.
-enum FCCornerRadius {
+enum BlipCornerRadius {
 
     /// 8pt — Small elements like badges, chips.
     static let sm: CGFloat = 8
@@ -52,7 +52,7 @@ enum FCCornerRadius {
 // MARK: - Sizing tokens
 
 /// Minimum tap target and component sizing.
-enum FCSizing {
+enum BlipSizing {
 
     /// 44pt — Minimum tap target (Apple HIG).
     static let minTapTarget: CGFloat = 44
@@ -78,26 +78,26 @@ enum FCSizing {
 extension EdgeInsets {
 
     /// Standard card padding (24pt all around).
-    static let fcCard = EdgeInsets(
-        top: FCSpacing.lg,
-        leading: FCSpacing.lg,
-        bottom: FCSpacing.lg,
-        trailing: FCSpacing.lg
+    static let blipCard = EdgeInsets(
+        top: BlipSpacing.lg,
+        leading: BlipSpacing.lg,
+        bottom: BlipSpacing.lg,
+        trailing: BlipSpacing.lg
     )
 
     /// Standard content padding (16pt all around).
-    static let fcContent = EdgeInsets(
-        top: FCSpacing.md,
-        leading: FCSpacing.md,
-        bottom: FCSpacing.md,
-        trailing: FCSpacing.md
+    static let blipContent = EdgeInsets(
+        top: BlipSpacing.md,
+        leading: BlipSpacing.md,
+        bottom: BlipSpacing.md,
+        trailing: BlipSpacing.md
     )
 
     /// Horizontal-only padding (16pt leading/trailing).
-    static let fcHorizontal = EdgeInsets(
+    static let blipHorizontal = EdgeInsets(
         top: 0,
-        leading: FCSpacing.md,
+        leading: BlipSpacing.md,
         bottom: 0,
-        trailing: FCSpacing.md
+        trailing: BlipSpacing.md
     )
 }

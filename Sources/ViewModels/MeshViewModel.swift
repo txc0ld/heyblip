@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 import os.log
-import FestiChatProtocol
-import FestiChatMesh
-import FestiChatCrypto
+import BlipProtocol
+import BlipMesh
+import BlipCrypto
 
 // MARK: - Crowd Scale Mode (UI representation)
 
@@ -125,7 +125,7 @@ final class MeshViewModel {
 
     // MARK: - Dependencies
 
-    private let logger = Logger(subsystem: "com.festichat", category: "MeshViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "MeshViewModel")
     private let modelContainer: ModelContainer
     nonisolated(unsafe) private var refreshTimer: Timer?
     nonisolated(unsafe) private var peerObservation: NSObjectProtocol?
@@ -410,4 +410,4 @@ final class MeshViewModel {
 }
 
 // Notification names (.meshPeerStateChanged, .meshTransportStateChanged)
-// are defined in FestiChatMesh/BLEService.swift
+// are defined in BlipMesh/BLEService.swift

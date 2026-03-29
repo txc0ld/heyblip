@@ -47,7 +47,7 @@ final class AudioService: NSObject, @unchecked Sendable {
 
     // MARK: - Logging
 
-    private let logger = Logger(subsystem: "com.festichat", category: "AudioService")
+    private let logger = Logger(subsystem: "com.blip", category: "AudioService")
 
     // MARK: - Constants
 

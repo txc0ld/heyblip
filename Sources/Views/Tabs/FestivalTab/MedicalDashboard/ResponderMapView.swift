@@ -37,13 +37,13 @@ struct ResponderMapView: View {
             mapContent
 
             // Controls
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 recenterButton
 
                 // Legend
                 legendButton
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
         }
         .onAppear { recenter() }
     }
@@ -54,8 +54,8 @@ struct ResponderMapView: View {
         Map(position: $cameraPosition) {
             // Festival boundary
             MapCircle(center: festivalCenter, radius: festivalRadiusMeters)
-                .foregroundStyle(.fcAccentPurple.opacity(0.03))
-                .stroke(.fcAccentPurple.opacity(0.15), lineWidth: 1)
+                .foregroundStyle(.blipAccentPurple.opacity(0.03))
+                .stroke(.blipAccentPurple.opacity(0.15), lineWidth: 1)
 
             // Medical tent locations
             ForEach(medicalTents) { tent in
@@ -86,18 +86,18 @@ struct ResponderMapView: View {
             MapCompass()
             MapScaleView()
         }
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(
                     colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .overlay(alignment: .bottom) {
             if let alert = selectedAlert {
                 alertQuickCard(for: alert)
-                    .padding(FCSpacing.sm)
+                    .padding(BlipSpacing.sm)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -108,8 +108,8 @@ struct ResponderMapView: View {
 
     @ViewBuilder
     private func alertQuickCard(for alert: SOSAlertItem) -> some View {
-        GlassCard(thickness: .thick, cornerRadius: FCCornerRadius.xl) {
-            HStack(spacing: FCSpacing.md) {
+        GlassCard(thickness: .thick, cornerRadius: BlipCornerRadius.xl) {
+            HStack(spacing: BlipSpacing.md) {
                 Circle()
                     .fill(alert.severityColor)
                     .frame(width: 12, height: 12)
@@ -133,7 +133,7 @@ struct ResponderMapView: View {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
                         .font(.system(size: 18))
                         .foregroundStyle(.white)
-                        .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                        .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                         .background(Circle().fill(alert.severityColor))
                 }
                 .accessibilityLabel("Navigate to alert")
@@ -142,7 +142,7 @@ struct ResponderMapView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(theme.colors.mutedText)
-                        .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                        .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 }
                 .accessibilityLabel("Dismiss")
             }
@@ -155,14 +155,14 @@ struct ResponderMapView: View {
         Button(action: recenter) {
             Image(systemName: "scope")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.fcAccentPurple)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .foregroundStyle(.blipAccentPurple)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
                         .fill(.thickMaterial)
                         .overlay(Circle().stroke(
                             colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.1),
-                            lineWidth: FCSizing.hairline
+                            lineWidth: BlipSizing.hairline
                         ))
                 )
         }
@@ -185,13 +185,13 @@ struct ResponderMapView: View {
             Image(systemName: "info.circle")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(theme.colors.mutedText)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
                         .fill(.thickMaterial)
                         .overlay(Circle().stroke(
                             colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.1),
-                            lineWidth: FCSizing.hairline
+                            lineWidth: BlipSizing.hairline
                         ))
                 )
         }
@@ -247,7 +247,7 @@ private struct SOSPinView: View {
                     )
                     .shadow(color: alert.severityColor.opacity(0.5), radius: 4)
             }
-            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         }
         .buttonStyle(.plain)
         .onAppear {
@@ -315,14 +315,14 @@ private struct ResponderPinView: View {
         VStack(spacing: 0) {
             Image(systemName: "person.badge.shield.checkmark.fill")
                 .font(.system(size: 16))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text(responder.callsign)
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .background(Capsule().fill(.fcAccentPurple))
+                .background(Capsule().fill(.blipAccentPurple))
         }
         .accessibilityLabel("Responder: \(responder.callsign)")
     }
@@ -352,9 +352,9 @@ extension SOSAlertItem {
 
     var severityColor: Color {
         switch severity {
-        case .green: return FCColors.darkColors.statusGreen
-        case .amber: return FCColors.darkColors.statusAmber
-        case .red: return FCColors.darkColors.statusRed
+        case .green: return BlipColors.darkColors.statusGreen
+        case .amber: return BlipColors.darkColors.statusAmber
+        case .red: return BlipColors.darkColors.statusRed
         }
     }
 

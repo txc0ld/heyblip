@@ -44,7 +44,7 @@ struct MessageInput: View {
             }
 
             // Input bar
-            HStack(alignment: .bottom, spacing: FCSpacing.sm) {
+            HStack(alignment: .bottom, spacing: BlipSpacing.sm) {
                 // Attachment button
                 attachmentButton
 
@@ -54,8 +54,8 @@ struct MessageInput: View {
                 // Send / Mic / PTT area
                 actionArea
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(inputBackground)
         }
     }
@@ -69,7 +69,7 @@ struct MessageInput: View {
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 24, weight: .medium))
                 .foregroundStyle(theme.colors.mutedText)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add attachment")
@@ -90,7 +90,7 @@ struct MessageInput: View {
                 Text("Message")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText.opacity(0.6))
-                    .padding(.horizontal, FCSpacing.sm + 4)
+                    .padding(.horizontal, BlipSpacing.sm + 4)
                     .allowsHitTesting(false)
             }
 
@@ -101,7 +101,7 @@ struct MessageInput: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 36, maxHeight: maxTextHeight)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, FCSpacing.xs)
+                .padding(.horizontal, BlipSpacing.xs)
                 .focused($isTextFieldFocused)
                 .onChange(of: text) { _, newValue in
                     withAnimation(SpringConstants.bouncyAnimation) {
@@ -109,18 +109,18 @@ struct MessageInput: View {
                     }
                 }
         }
-        .padding(.vertical, FCSpacing.xs)
+        .padding(.vertical, BlipSpacing.xs)
         .background(
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .stroke(
                     isTextFieldFocused
-                        ? Color.fcAccentPurple.opacity(0.4)
+                        ? Color.blipAccentPurple.opacity(0.4)
                         : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
     }
@@ -142,18 +142,18 @@ struct MessageInput: View {
                 pttButton
             }
         }
-        .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+        .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
     }
 
     private var pttButton: some View {
         ZStack {
             // Ripple effect behind
-            RippleEffect(isActive: $isPTTActive, ringCount: 3, color: .fcAccentPurple)
+            RippleEffect(isActive: $isPTTActive, ringCount: 3, color: .blipAccentPurple)
                 .frame(width: 60, height: 60)
 
             Circle()
-                .fill(isPTTActive ? LinearGradient.fcAccent : LinearGradient(colors: [.clear], startPoint: .top, endPoint: .bottom))
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .fill(isPTTActive ? LinearGradient.blipAccent : LinearGradient(colors: [.clear], startPoint: .top, endPoint: .bottom))
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .overlay(
                     Image(systemName: "mic.fill")
                         .font(.system(size: 18, weight: .medium))
@@ -172,7 +172,7 @@ struct MessageInput: View {
                             colorScheme == .dark
                                 ? Color.white.opacity(0.12)
                                 : Color.black.opacity(0.08),
-                            lineWidth: isPTTActive ? 0 : FCSizing.hairline
+                            lineWidth: isPTTActive ? 0 : BlipSizing.hairline
                         )
                 )
         }
@@ -199,27 +199,27 @@ struct MessageInput: View {
         Button {
             onLowBalanceTap()
         } label: {
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.system(size: 12))
                 Text("\(remaining) message\(remaining == 1 ? "" : "s") left")
-                    .font(.custom(FCFontName.medium, size: 12, relativeTo: .caption2))
+                    .font(.custom(BlipFontName.medium, size: 12, relativeTo: .caption2))
             }
             .foregroundStyle(theme.colors.statusAmber)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.xs + 2)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.xs + 2)
             .background(
                 Capsule()
                     .fill(.ultraThinMaterial)
             )
             .overlay(
                 Capsule()
-                    .stroke(theme.colors.statusAmber.opacity(0.3), lineWidth: FCSizing.hairline)
+                    .stroke(theme.colors.statusAmber.opacity(0.3), lineWidth: BlipSizing.hairline)
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
-        .padding(.bottom, FCSpacing.xs)
+        .frame(minHeight: BlipSizing.minTapTarget)
+        .padding(.bottom, BlipSpacing.xs)
     }
 
     // MARK: - Background
@@ -235,7 +235,7 @@ struct MessageInput: View {
                             ? Color.white.opacity(0.06)
                             : Color.black.opacity(0.04)
                     )
-                    .frame(height: FCSizing.hairline)
+                    .frame(height: BlipSizing.hairline)
             }
     }
 }

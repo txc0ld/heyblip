@@ -69,7 +69,7 @@ function buildPacket(opts: {
 }
 
 function makeUpgradeRequest(publicKey: Uint8Array): Request {
-  return new Request("https://relay.festichat.app/ws", {
+  return new Request("https://relay.heyblip.au/ws", {
     headers: {
       Upgrade: "websocket",
       Authorization: `Bearer ${toBase64(publicKey)}`,
@@ -189,7 +189,7 @@ describe("extractRecipient", () => {
 
 describe("HTTP endpoints", () => {
   it("returns 404 for non-/ws paths", async () => {
-    const req = new Request("https://relay.festichat.app/other");
+    const req = new Request("https://relay.heyblip.au/other");
     const ctx = createExecutionContext();
     const res = await worker.fetch(req, env, ctx);
     await waitOnExecutionContext(ctx);
@@ -198,7 +198,7 @@ describe("HTTP endpoints", () => {
 
   it("returns 426 for /ws without Upgrade header", async () => {
     const key = randomPublicKey();
-    const req = new Request("https://relay.festichat.app/ws", {
+    const req = new Request("https://relay.heyblip.au/ws", {
       headers: { Authorization: `Bearer ${toBase64(key)}` },
     });
     const ctx = createExecutionContext();
@@ -208,7 +208,7 @@ describe("HTTP endpoints", () => {
   });
 
   it("returns 200 for /health", async () => {
-    const req = new Request("https://relay.festichat.app/health");
+    const req = new Request("https://relay.heyblip.au/health");
     const ctx = createExecutionContext();
     const res = await worker.fetch(req, env, ctx);
     await waitOnExecutionContext(ctx);
@@ -216,7 +216,7 @@ describe("HTTP endpoints", () => {
   });
 
   it("rejects missing Authorization", async () => {
-    const req = new Request("https://relay.festichat.app/ws", {
+    const req = new Request("https://relay.heyblip.au/ws", {
       headers: { Upgrade: "websocket" },
     });
     const ctx = createExecutionContext();
@@ -227,7 +227,7 @@ describe("HTTP endpoints", () => {
 
   it("rejects invalid key length", async () => {
     const shortKey = new Uint8Array(16);
-    const req = new Request("https://relay.festichat.app/ws", {
+    const req = new Request("https://relay.heyblip.au/ws", {
       headers: {
         Upgrade: "websocket",
         Authorization: `Bearer ${toBase64(shortKey)}`,

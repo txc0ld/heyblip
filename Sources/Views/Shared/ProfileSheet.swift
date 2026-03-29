@@ -39,12 +39,12 @@ struct ProfileSheet: View {
                 .opacity(0.3)
                 .ignoresSafeArea()
 
-            VStack(spacing: FCSpacing.lg) {
+            VStack(spacing: BlipSpacing.lg) {
                 // Drag handle
                 Capsule()
                     .fill(theme.colors.mutedText.opacity(0.3))
                     .frame(width: 36, height: 4)
-                    .padding(.top, FCSpacing.sm)
+                    .padding(.top, BlipSpacing.sm)
 
                 // Avatar
                 avatarSection
@@ -57,7 +57,7 @@ struct ProfileSheet: View {
 
                 Spacer()
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
         }
         .background(.ultraThinMaterial)
         .alert("Block User", isPresented: $showBlockConfirm) {
@@ -87,12 +87,12 @@ struct ProfileSheet: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                    .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                     .clipShape(Circle())
             } else {
                 Circle()
-                    .fill(LinearGradient.fcAccent)
-                    .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                    .fill(LinearGradient.blipAccent)
+                    .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                     .overlay(
                         Text(String(displayName.prefix(1)).uppercased())
                             .font(.system(size: 32, weight: .bold))
@@ -117,8 +117,8 @@ struct ProfileSheet: View {
     // MARK: - Info Section
 
     private var infoSection: some View {
-        VStack(spacing: FCSpacing.sm) {
-            HStack(spacing: FCSpacing.xs) {
+        VStack(spacing: BlipSpacing.sm) {
+            HStack(spacing: BlipSpacing.xs) {
                 Text(displayName)
                     .font(theme.typography.headline)
                     .foregroundStyle(theme.colors.text)
@@ -126,7 +126,7 @@ struct ProfileSheet: View {
                 if isPhoneVerified {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 16))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                 }
             }
 
@@ -139,29 +139,29 @@ struct ProfileSheet: View {
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.center)
-                    .padding(.top, FCSpacing.xs)
+                    .padding(.top, BlipSpacing.xs)
             }
 
             // Badges
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 if isFriend {
-                    badge(icon: "person.fill.checkmark", text: "Friend", color: .fcAccentPurple)
+                    badge(icon: "person.fill.checkmark", text: "Friend", color: .blipAccentPurple)
                 }
 
                 if isOnline {
-                    badge(icon: "wifi", text: "Online", color: FCColors.darkColors.statusGreen)
+                    badge(icon: "wifi", text: "Online", color: BlipColors.darkColors.statusGreen)
                 }
 
                 if mutualFriendsCount > 0 {
                     badge(icon: "person.2", text: "\(mutualFriendsCount) mutual", color: theme.colors.mutedText)
                 }
             }
-            .padding(.top, FCSpacing.xs)
+            .padding(.top, BlipSpacing.xs)
         }
     }
 
     private func badge(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: FCSpacing.xs) {
+        HStack(spacing: BlipSpacing.xs) {
             Image(systemName: icon)
                 .font(.system(size: 10))
                 .foregroundStyle(color)
@@ -170,8 +170,8 @@ struct ProfileSheet: View {
                 .font(theme.typography.caption)
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, FCSpacing.sm)
-        .padding(.vertical, FCSpacing.xs)
+        .padding(.horizontal, BlipSpacing.sm)
+        .padding(.vertical, BlipSpacing.xs)
         .background(
             Capsule()
                 .fill(color.opacity(0.12))
@@ -181,7 +181,7 @@ struct ProfileSheet: View {
     // MARK: - Action Buttons
 
     private var actionButtons: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             // Primary: Message
             GlassButton("Message", icon: "message.fill") {
                 onMessage?()
@@ -190,7 +190,7 @@ struct ProfileSheet: View {
             .fullWidth()
 
             // Secondary row
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 if !isFriend {
                     GlassButton("Add Friend", icon: "person.badge.plus", style: .secondary, size: .small) {
                         onAddFriend?()
@@ -210,7 +210,7 @@ struct ProfileSheet: View {
                 }
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 
     // MARK: - Helpers

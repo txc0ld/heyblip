@@ -1,4 +1,4 @@
-# FestiChat — Design Specification
+# Blip — Design Specification
 
 **Version:** 1.0
 **Date:** 2026-03-28
@@ -9,9 +9,9 @@
 
 ## 1. Product Overview
 
-### 1.1 What is FestiChat?
+### 1.1 What is Blip?
 
-FestiChat is a Bluetooth mesh chat application designed for festivals and large gatherings where mobile reception is unreliable. Every user's device becomes a node in a self-forming mesh network, relaying messages between peers via Bluetooth Low Energy (BLE). WiFi and cellular act as automatic fallbacks when available.
+Blip is a Bluetooth mesh chat application designed for festivals and large gatherings where mobile reception is unreliable. Every user's device becomes a node in a self-forming mesh network, relaying messages between peers via Bluetooth Low Energy (BLE). WiFi and cellular act as automatic fallbacks when available.
 
 ### 1.2 Core value proposition
 
@@ -57,7 +57,7 @@ Message-based monetization with free tier:
 
 ```
 +-----------------------------------------------------+
-|                   FestiChat App                      |
+|                   Blip App                      |
 |  +-----------------------------------------------+  |
 |  |              SwiftUI Views                     |  |
 |  |  Chat - DMs - Groups - Channels - Map - PTT   |  |
@@ -97,9 +97,9 @@ Pure Swift with modular Swift packages. SwiftUI for all UI. MVVM pattern. No sha
 
 | Package | Responsibility |
 |---|---|
-| `FestiChatProtocol` | Binary packet format, serialization, Bloom filters, GCS sync, fragmentation, compression, padding |
-| `FestiChatMesh` | BLE central/peripheral, peer discovery, gossip routing, store-and-forward, transport abstraction, congestion control |
-| `FestiChatCrypto` | Noise XX handshake, Ed25519 signing, key management (Keychain), replay protection |
+| `BlipProtocol` | Binary packet format, serialization, Bloom filters, GCS sync, fragmentation, compression, padding |
+| `BlipMesh` | BLE central/peripheral, peer discovery, gossip routing, store-and-forward, transport abstraction, congestion control |
+| `BlipCrypto` | Noise XX handshake, Ed25519 signing, key management (Keychain), replay protection |
 
 ### 2.4 Lightweight backend (minimal server-side)
 
@@ -271,13 +271,13 @@ Existing groups above the limit continue to function but cannot add new members 
 
 Every device operates as BOTH a BLE Central (scanner/client) and BLE Peripheral (advertiser/server) simultaneously. This is essential for mesh formation.
 
-- **Central mode:** `CBCentralManager` scans for FestiChat service UUID, connects to discovered peripherals, subscribes to characteristic
+- **Central mode:** `CBCentralManager` scans for Blip service UUID, connects to discovered peripherals, subscribes to characteristic
 - **Peripheral mode:** `CBPeripheralManager` advertises service UUID, accepts connections, notifies subscribers
 - **State restoration:** Background BLE operation via `CBCentralManager` and `CBPeripheralManager` state restoration IDs
 
 ### 5.3 Peer discovery
 
-1. Device advertises FestiChat service UUID via BLE peripheral
+1. Device advertises Blip service UUID via BLE peripheral
 2. Central scans for that UUID, connects
 3. On connection: exchange Announcement packets (TLV-encoded, must fit single packet ~488 bytes):
    - Username (max 32 bytes UTF-8)
@@ -347,7 +347,7 @@ iOS heavily restricts background BLE operations. The app must handle these const
 **Background advertising:**
 - Local name and service data are removed from advertisements by iOS
 - Only the service UUID is advertised
-- Other FestiChat devices can still discover via UUID, but the announcement packet exchange happens after connection (not during advertisement)
+- Other Blip devices can still discover via UUID, but the announcement packet exchange happens after connection (not during advertisement)
 
 **State restoration recovery flow:**
 1. App is suspended/terminated by iOS
@@ -365,7 +365,7 @@ iOS heavily restricts background BLE operations. The app must handle these const
 **WiFi Direct (v2, not in v1):** WiFi Direct peer discovery and data transfer is planned for v2. It offers higher bandwidth (~250 Mbps vs BLE's ~2 Mbps) and longer range (~200m vs ~50m) but requires explicit pairing on iOS (no background discovery). Marked as future enhancement.
 
 **Cellular WebSocket (v1, basic):**
-- WebSocket endpoint: `wss://relay.festichat.app/ws`
+- WebSocket endpoint: `wss://relay.blip.app/ws`
 - Authentication: Noise static public key sent as bearer token (no passwords, no accounts)
 - Message format: identical binary protocol packets wrapped in WebSocket binary frames
 - Server is a dumb relay — receives packets, forwards to connected peers based on recipient ID
@@ -690,7 +690,7 @@ SOS packets at any crowd scale:
 ```json
 {
   "version": 12,
-  "signature": "<Ed25519 signature of festivals array by FestiChat manifest signing key>",
+  "signature": "<Ed25519 signature of festivals array by Blip manifest signing key>",
   "festivals": [
     {
       "id": "uuid",
@@ -699,7 +699,7 @@ SOS packets at any crowd scale:
       "radiusMeters": 3000,
       "startDate": "2026-06-24",
       "endDate": "2026-06-28",
-      "stageMapUrl": "https://cdn.festichat.app/maps/glasto-2026.jpg",
+      "stageMapUrl": "https://cdn.blip.app/maps/glasto-2026.jpg",
       "organizerSigningKey": "<Ed25519 public key for this festival's organizer>",
       "stages": [
         {
@@ -718,7 +718,7 @@ SOS packets at any crowd scale:
 
 ### 9.3 Manifest and organizer authentication
 
-**Manifest integrity:** The festival JSON manifest is signed with the FestiChat manifest Ed25519 key. The corresponding public key is embedded in the app binary. The app verifies the signature before accepting any manifest update. A compromised CDN or DNS hijack cannot inject fake festivals.
+**Manifest integrity:** The festival JSON manifest is signed with the Blip manifest Ed25519 key. The corresponding public key is embedded in the app binary. The app verifies the signature before accepting any manifest update. A compromised CDN or DNS hijack cannot inject fake festivals.
 
 **Organizer authentication:** Each registered festival includes an `organizerSigningKey` in the manifest. Organizer announcement packets (0x30) MUST be signed with this key. Peers verify the signature against the manifest-provided key before displaying or relaying the announcement. Unsigned or incorrectly signed announcements are silently dropped. This prevents attackers from flooding the mesh with fake priority broadcasts.
 
@@ -954,7 +954,7 @@ Theme follows system preference with manual override in settings.
 
 1. **Welcome:** "Chat at festivals, even without signal" + animated gradient hero
 2. **Create profile:** Username, phone (SMS OTP), optional avatar. Single screen.
-3. **Permissions:** "FestiChat needs Bluetooth to connect with people nearby." One tap.
+3. **Permissions:** "Blip needs Bluetooth to connect with people nearby." One tap.
 
 No mention of mesh, nodes, protocols, encryption, or transport. Ever.
 
@@ -1346,12 +1346,12 @@ App target: < 100MB base. Auto-evict media cache beyond 1GB with user prompt.
 ## 15. Project Structure
 
 ```
-FestiChat/
-|-- FestiChat.xcodeproj
+Blip/
+|-- Blip.xcodeproj
 |-- project.yml                          # XcodeGen spec
 |
 |-- App/
-|   |-- FestiChatApp.swift               # @main entry
+|   |-- BlipApp.swift               # @main entry
 |   |-- AppDelegate.swift                # BLE state restoration
 |   |-- Info.plist
 |   |-- Assets.xcassets/
@@ -1364,7 +1364,7 @@ FestiChat/
 |   |   |   +-- Border
 |   |   +-- Images/
 |   +-- Entitlements/
-|       +-- FestiChat.entitlements       # BLE, push, Keychain, IAP
+|       +-- Blip.entitlements       # BLE, push, Keychain, IAP
 |
 |-- Sources/
 |   |-- Views/
@@ -1447,7 +1447,7 @@ FestiChat/
 |       +-- PhoneVerificationService.swift
 |
 |-- Packages/
-|   |-- FestiChatProtocol/
+|   |-- BlipProtocol/
 |   |   |-- Package.swift
 |   |   +-- Sources/
 |   |       |-- Packet.swift
@@ -1462,7 +1462,7 @@ FestiChat/
 |   |       |-- TLVEncoder.swift
 |   |       |-- Compression.swift
 |   |       +-- Padding.swift
-|   |-- FestiChatMesh/
+|   |-- BlipMesh/
 |   |   |-- Package.swift
 |   |   +-- Sources/
 |   |       |-- Transport.swift
@@ -1481,7 +1481,7 @@ FestiChat/
 |   |       |-- WiFiTransport.swift
 |   |       |-- WebSocketTransport.swift
 |   |       +-- TransportCoordinator.swift
-|   +-- FestiChatCrypto/
+|   +-- BlipCrypto/
 |       |-- Package.swift
 |       +-- Sources/
 |           |-- KeyManager.swift

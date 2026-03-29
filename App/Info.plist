@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>FestiChat</string>
+    <string>Blip</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -51,19 +51,19 @@
         <string>remote-notification</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>FestiChat uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
+    <string>Blip uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>FestiChat uses Bluetooth to allow nearby devices to discover and connect with you.</string>
+    <string>Blip uses Bluetooth to allow nearby devices to discover and connect with you.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>FestiChat uses your location to find nearby festivals, show friends on the map, and share your location with friends you choose.</string>
+    <string>Blip uses your location to find nearby festivals, show friends on the map, and share your location with friends you choose.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>FestiChat uses your location in the background to keep your friends updated and detect when you arrive at festivals.</string>
+    <string>Blip uses your location in the background to keep your friends updated and detect when you arrive at festivals.</string>
     <key>NSCameraUsageDescription</key>
-    <string>FestiChat uses the camera to take profile photos and share images in chats.</string>
+    <string>Blip uses the camera to take profile photos and share images in chats.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>FestiChat accesses your photo library to set a profile picture or share images in chats.</string>
+    <string>Blip accesses your photo library to set a profile picture or share images in chats.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>FestiChat uses the microphone for walkie-talkie and voice notes.</string>
+    <string>Blip uses the microphone for walkie-talkie and voice notes.</string>
     <key>UIAppFonts</key>
     <array>
         <string>PlusJakartaSans-Regular.ttf</string>

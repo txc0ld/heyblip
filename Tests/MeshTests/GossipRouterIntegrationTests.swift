@@ -1,6 +1,6 @@
 import XCTest
-@testable import FestiChatMesh
-@testable import FestiChatProtocol
+@testable import BlipMesh
+@testable import BlipProtocol
 
 /// Integration tests for the gossip router: 10-node mesh simulation, Bloom dedup,
 /// TTL decrement, and SOS always-relay override.

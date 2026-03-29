@@ -25,7 +25,7 @@ struct MessageBubble: View {
     private let maxBubbleWidth: CGFloat = 280
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: FCSpacing.sm) {
+        HStack(alignment: .bottom, spacing: BlipSpacing.sm) {
             if message.isFromMe {
                 Spacer(minLength: 60)
             } else {
@@ -38,13 +38,13 @@ struct MessageBubble: View {
                 )
             }
 
-            VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: FCSpacing.xs - 2) {
+            VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: BlipSpacing.xs - 2) {
                 // Sender name for group chats
                 if !message.isFromMe && message.showSenderName {
                     Text(message.senderName)
-                        .font(.custom(FCFontName.semiBold, size: 12, relativeTo: .caption2))
-                        .foregroundStyle(Color.fcAccentPurple)
-                        .padding(.horizontal, FCSpacing.sm)
+                        .font(.custom(BlipFontName.semiBold, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(Color.blipAccentPurple)
+                        .padding(.horizontal, BlipSpacing.sm)
                 }
 
                 // Bubble content
@@ -58,7 +58,7 @@ struct MessageBubble: View {
                 Spacer(minLength: 60)
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
         .opacity(isVisible ? 1.0 : 0.0)
         .offset(x: isVisible ? 0 : (message.isFromMe ? 30 : -30))
         .onAppear {
@@ -69,7 +69,7 @@ struct MessageBubble: View {
     // MARK: - Bubble Content
 
     private var bubbleContent: some View {
-        VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: FCSpacing.xs) {
+        VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: BlipSpacing.xs) {
             // Reply quote
             if let reply = message.replyPreview {
                 replyQuote(reply)
@@ -90,9 +90,9 @@ struct MessageBubble: View {
             }
 
             // Timestamp + status row
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Text(message.formattedTime)
-                    .font(.custom(FCFontName.regular, size: 10, relativeTo: .caption2))
+                    .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
                     .foregroundStyle(
                         message.isFromMe
                             ? Color.white.opacity(0.6)
@@ -101,7 +101,7 @@ struct MessageBubble: View {
 
                 if message.isEdited {
                     Text("edited")
-                        .font(.custom(FCFontName.regular, size: 10, relativeTo: .caption2))
+                        .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
                         .foregroundStyle(
                             message.isFromMe
                                 ? Color.white.opacity(0.5)
@@ -120,14 +120,14 @@ struct MessageBubble: View {
                 }
             }
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm + 2)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm + 2)
         .frame(maxWidth: maxBubbleWidth, alignment: message.isFromMe ? .trailing : .leading)
         .background(bubbleBackground)
         .clipShape(bubbleShape)
         .overlay(
             bubbleShape
-                .stroke(borderColor, lineWidth: FCSizing.hairline)
+                .stroke(borderColor, lineWidth: BlipSizing.hairline)
         )
     }
 
@@ -163,11 +163,11 @@ struct MessageBubble: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: 220, maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.sm, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.sm, style: .continuous))
                 }
                 .buttonStyle(.plain)
             } else {
-                RoundedRectangle(cornerRadius: FCCornerRadius.sm, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.sm, style: .continuous)
                     .fill(
                         message.isFromMe
                             ? Color.white.opacity(0.1)
@@ -190,13 +190,13 @@ struct MessageBubble: View {
     // MARK: - Reply Quote
 
     private func replyQuote(_ preview: String) -> some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(Color.fcAccentPurple)
+                .fill(Color.blipAccentPurple)
                 .frame(width: 3)
 
             Text(preview)
-                .font(.custom(FCFontName.regular, size: 13, relativeTo: .caption))
+                .font(.custom(BlipFontName.regular, size: 13, relativeTo: .caption))
                 .foregroundStyle(
                     message.isFromMe
                         ? Color.white.opacity(0.7)
@@ -204,9 +204,9 @@ struct MessageBubble: View {
                 )
                 .lineLimit(2)
         }
-        .padding(FCSpacing.sm)
+        .padding(BlipSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: FCCornerRadius.sm, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.sm, style: .continuous)
                 .fill(
                     message.isFromMe
                         ? Color.white.opacity(0.1)
@@ -270,13 +270,13 @@ struct MessageBubble: View {
             )
         } else {
             // Neutral glass for incoming
-            RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                 .fill(.ultraThinMaterial)
         }
     }
 
     private var bubbleShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
     }
 
     private var borderColor: Color {
@@ -387,7 +387,7 @@ extension ChatMessage {
 
 #Preview("Message Bubbles") {
     ScrollView {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             ForEach(Array(ChatMessage.sampleMessages.enumerated()), id: \.element.id) { index, message in
                 MessageBubble(message: message, index: index)
             }
@@ -400,7 +400,7 @@ extension ChatMessage {
 
 #Preview("Message Bubble - Light") {
     ScrollView {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             ForEach(Array(ChatMessage.sampleMessages.enumerated()), id: \.element.id) { index, message in
                 MessageBubble(message: message, index: index)
             }

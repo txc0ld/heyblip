@@ -34,11 +34,11 @@ struct FriendFinderMap: View {
             mapContent
 
             // Controls overlay
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 recenterButton
                 dropBeaconButton
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
         }
     }
 
@@ -51,11 +51,11 @@ struct FriendFinderMap: View {
                 Annotation("You", coordinate: userLocation) {
                     ZStack {
                         Circle()
-                            .fill(.fcAccentPurple.opacity(0.2))
+                            .fill(.blipAccentPurple.opacity(0.2))
                             .frame(width: 44, height: 44)
 
                         Circle()
-                            .fill(.fcAccentPurple)
+                            .fill(.blipAccentPurple)
                             .frame(width: 14, height: 14)
 
                         Circle()
@@ -93,18 +93,18 @@ struct FriendFinderMap: View {
             MapCompass()
             MapScaleView()
         }
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(
                     colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .overlay(alignment: .bottom) {
             if let selected = selectedFriend {
                 friendDetailCard(for: selected)
-                    .padding(FCSpacing.sm)
+                    .padding(BlipSpacing.sm)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -115,23 +115,23 @@ struct FriendFinderMap: View {
 
     @ViewBuilder
     private func friendDetailCard(for friend: FriendMapPin) -> some View {
-        GlassCard(thickness: .thick, cornerRadius: FCCornerRadius.xl) {
-            HStack(spacing: FCSpacing.md) {
+        GlassCard(thickness: .thick, cornerRadius: BlipCornerRadius.xl) {
+            HStack(spacing: BlipSpacing.md) {
                 AvatarView(
                     imageData: friend.avatarData,
                     name: friend.displayName,
-                    size: FCSizing.avatarSmall,
+                    size: BlipSizing.avatarSmall,
                     ringStyle: .friend,
                     showOnlineIndicator: !friend.isOutOfRange
                 )
 
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text(friend.displayName)
                         .font(theme.typography.body)
                         .fontWeight(.medium)
                         .foregroundStyle(theme.colors.text)
 
-                    HStack(spacing: FCSpacing.xs) {
+                    HStack(spacing: BlipSpacing.xs) {
                         Text(friend.lastSeenText)
                             .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.mutedText)
@@ -153,10 +153,10 @@ struct FriendFinderMap: View {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(.white)
-                        .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                        .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                         .background(
                             Circle()
-                                .fill(LinearGradient.fcAccent)
+                                .fill(LinearGradient.blipAccent)
                         )
                 }
                 .accessibilityLabel("Navigate to \(friend.displayName)")
@@ -166,7 +166,7 @@ struct FriendFinderMap: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(theme.colors.mutedText)
-                        .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                        .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 }
                 .accessibilityLabel("Close")
             }
@@ -183,8 +183,8 @@ struct FriendFinderMap: View {
         }) {
             Image(systemName: "location.fill")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.fcAccentPurple)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .foregroundStyle(.blipAccentPurple)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
                         .fill(.thickMaterial)
@@ -192,7 +192,7 @@ struct FriendFinderMap: View {
                             Circle()
                                 .stroke(
                                     colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.1),
-                                    lineWidth: FCSizing.hairline
+                                    lineWidth: BlipSizing.hairline
                                 )
                         )
                 )
@@ -205,10 +205,10 @@ struct FriendFinderMap: View {
             Image(systemName: "mappin.and.ellipse")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
-                        .fill(LinearGradient.fcAccent)
+                        .fill(LinearGradient.blipAccent)
                 )
         }
         .accessibilityLabel("Drop I'm Here beacon")
@@ -290,7 +290,7 @@ private struct FriendPinView: View {
                         .frame(width: 10, height: 10)
                 }
             }
-            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(friend.displayName), \(friend.precisionDescription)")
@@ -323,7 +323,7 @@ private struct BeaconPinView: View {
             // Pulse ring
             if !SpringConstants.isReduceMotionEnabled {
                 Circle()
-                    .stroke(.fcAccentPurple.opacity(0.3), lineWidth: 1)
+                    .stroke(.blipAccentPurple.opacity(0.3), lineWidth: 1)
                     .frame(width: 36, height: 36)
                     .scaleEffect(isPulsing ? 1.5 : 1.0)
                     .opacity(isPulsing ? 0 : 0.5)
@@ -333,7 +333,7 @@ private struct BeaconPinView: View {
             VStack(spacing: 0) {
                 Image(systemName: "mappin.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text(beacon.label)
                     .font(.system(size: 9, weight: .semibold))
@@ -342,7 +342,7 @@ private struct BeaconPinView: View {
                     .padding(.vertical, 1)
                     .background(
                         Capsule()
-                            .fill(.fcAccentPurple)
+                            .fill(.blipAccentPurple)
                     )
             }
         }

@@ -34,19 +34,19 @@ struct StageMapView: View {
             Button(action: recenter) {
                 Image(systemName: "scope")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.fcAccentPurple)
-                    .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                    .foregroundStyle(.blipAccentPurple)
+                    .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .background(
                         Circle()
                             .fill(.thickMaterial)
                             .overlay(
                                 Circle()
                                     .stroke(colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.1),
-                                            lineWidth: FCSizing.hairline)
+                                            lineWidth: BlipSizing.hairline)
                             )
                     )
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
             .accessibilityLabel("Recenter map on festival")
         }
         .onAppear { recenter() }
@@ -58,8 +58,8 @@ struct StageMapView: View {
         Map(position: $cameraPosition) {
             // Festival boundary circle
             MapCircle(center: festivalCenter, radius: festivalRadiusMeters)
-                .foregroundStyle(.fcAccentPurple.opacity(0.05))
-                .stroke(.fcAccentPurple.opacity(0.2), lineWidth: 1)
+                .foregroundStyle(.blipAccentPurple.opacity(0.05))
+                .stroke(.blipAccentPurple.opacity(0.2), lineWidth: 1)
 
             // Stage hotspots
             ForEach(stages) { stage in
@@ -83,7 +83,7 @@ struct StageMapView: View {
                                     .stroke(.white, lineWidth: 1.5)
                             )
                             .shadow(color: friend.color.opacity(0.4), radius: 3)
-                            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(friend.displayName), \(friend.precisionDescription)")
@@ -97,16 +97,16 @@ struct StageMapView: View {
                         VStack(spacing: 0) {
                             Image(systemName: "flag.fill")
                                 .font(.system(size: 18))
-                                .foregroundStyle(.fcAccentPurple)
+                                .foregroundStyle(.blipAccentPurple)
 
                             Text(point.label)
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
-                                .background(Capsule().fill(.fcAccentPurple))
+                                .background(Capsule().fill(.blipAccentPurple))
                         }
-                        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Meeting point: \(point.label)")
@@ -118,12 +118,12 @@ struct StageMapView: View {
             MapCompass()
             MapScaleView()
         }
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(
                     colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
     }
@@ -159,8 +159,8 @@ private struct StageHotspotView: View {
             VStack(spacing: 2) {
                 Image(systemName: "music.note.house.fill")
                     .font(.system(size: isSelected ? 22 : 18, weight: .bold))
-                    .foregroundStyle(.fcAccentPurple)
-                    .shadow(color: .fcAccentPurple.opacity(0.5), radius: isSelected ? 6 : 2)
+                    .foregroundStyle(.blipAccentPurple)
+                    .shadow(color: .blipAccentPurple.opacity(0.5), radius: isSelected ? 6 : 2)
 
                 Text(stage.name)
                     .font(.system(size: 9, weight: .bold))
@@ -172,7 +172,7 @@ private struct StageHotspotView: View {
                             .fill(.thickMaterial)
                     )
             }
-            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(stage.name) stage")

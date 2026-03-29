@@ -55,12 +55,12 @@ struct SOSConfirmationSheet: View {
             Color.black.opacity(0.7).ignoresSafeArea()
                 .onTapGesture {} // Prevent dismiss
 
-            VStack(spacing: FCSpacing.lg) {
+            VStack(spacing: BlipSpacing.lg) {
                 // Drag handle
                 Capsule()
                     .fill(.white.opacity(0.3))
                     .frame(width: 36, height: 4)
-                    .padding(.top, FCSpacing.sm)
+                    .padding(.top, BlipSpacing.sm)
 
                 if hasSent {
                     sentConfirmation
@@ -74,7 +74,7 @@ struct SOSConfirmationSheet: View {
 
                 Spacer()
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
         }
         .background(.ultraThickMaterial)
     }
@@ -82,9 +82,9 @@ struct SOSConfirmationSheet: View {
     // MARK: - SOS Content
 
     private var sosContent: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             // Title
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "cross.circle.fill")
                     .font(.system(size: 40))
                     .foregroundStyle(.red)
@@ -100,7 +100,7 @@ struct SOSConfirmationSheet: View {
             }
 
             // Severity selection
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 severityCard(.green)
                 severityCard(.amber)
                 severityCard(.red)
@@ -114,7 +114,7 @@ struct SOSConfirmationSheet: View {
                 Text("Cancel")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText)
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
             }
         }
     }
@@ -125,12 +125,12 @@ struct SOSConfirmationSheet: View {
         let isSelected = selectedSeverity == severity
 
         return Button(action: { selectedSeverity = severity }) {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 Circle()
                     .fill(severityColor(severity))
                     .frame(width: 16, height: 16)
 
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text(severityTitle(severity))
                         .font(theme.typography.body)
                         .fontWeight(.semibold)
@@ -149,18 +149,18 @@ struct SOSConfirmationSheet: View {
                         .foregroundStyle(severityColor(severity))
                 }
             }
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
             .background(
-                RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                     .fill(isSelected ? severityColor(severity).opacity(0.1) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
-                    .stroke(isSelected ? severityColor(severity).opacity(0.4) : theme.colors.border, lineWidth: isSelected ? 1.5 : FCSizing.hairline)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
+                    .stroke(isSelected ? severityColor(severity).opacity(0.4) : theme.colors.border, lineWidth: isSelected ? 1.5 : BlipSizing.hairline)
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(severityTitle(severity)): \(severityDescription(severity))")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -191,8 +191,8 @@ struct SOSConfirmationSheet: View {
     private var amberConfirmation: some View {
         ZStack(alignment: .leading) {
             // Track
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                .fill(FCColors.darkColors.statusAmber.opacity(0.15))
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                .fill(BlipColors.darkColors.statusAmber.opacity(0.15))
                 .frame(height: 56)
                 .overlay(
                     Text("Slide to confirm")
@@ -200,18 +200,18 @@ struct SOSConfirmationSheet: View {
                         .foregroundStyle(theme.colors.mutedText)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                        .stroke(FCColors.darkColors.statusAmber.opacity(0.3), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                        .stroke(BlipColors.darkColors.statusAmber.opacity(0.3), lineWidth: 1)
                 )
 
             // Fill progress
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                .fill(FCColors.darkColors.statusAmber.opacity(0.3))
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                .fill(BlipColors.darkColors.statusAmber.opacity(0.3))
                 .frame(width: amberSlideOffset + 56, height: 56)
 
             // Slider knob
             Circle()
-                .fill(FCColors.darkColors.statusAmber)
+                .fill(BlipColors.darkColors.statusAmber)
                 .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: "chevron.right.2")
@@ -243,17 +243,17 @@ struct SOSConfirmationSheet: View {
 
     // Red: Hold 3 seconds
     private var redConfirmation: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             ZStack {
                 // Background circle
                 Circle()
-                    .stroke(FCColors.darkColors.statusRed.opacity(0.2), lineWidth: 6)
+                    .stroke(BlipColors.darkColors.statusRed.opacity(0.2), lineWidth: 6)
                     .frame(width: 80, height: 80)
 
                 // Progress ring
                 Circle()
                     .trim(from: 0, to: redHoldProgress)
-                    .stroke(FCColors.darkColors.statusRed, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(BlipColors.darkColors.statusRed, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .frame(width: 80, height: 80)
                     .rotationEffect(.degrees(-90))
                     .animation(redIsHolding ? .linear(duration: redHoldDuration) : .easeOut(duration: 0.3), value: redHoldProgress)
@@ -262,12 +262,12 @@ struct SOSConfirmationSheet: View {
                 VStack(spacing: 2) {
                     Image(systemName: "cross.fill")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(FCColors.darkColors.statusRed)
+                        .foregroundStyle(BlipColors.darkColors.statusRed)
 
                     if redIsHolding {
                         Text("\(Int((1.0 - redHoldProgress) * redHoldDuration) + 1)s")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(FCColors.darkColors.statusRed)
+                            .foregroundStyle(BlipColors.darkColors.statusRed)
                             .contentTransition(.numericText())
                     }
                 }
@@ -288,7 +288,7 @@ struct SOSConfirmationSheet: View {
 
             Text(redIsHolding ? "Keep holding..." : "Hold for 3 seconds")
                 .font(theme.typography.secondary)
-                .foregroundStyle(FCColors.darkColors.statusRed)
+                .foregroundStyle(BlipColors.darkColors.statusRed)
         }
         .accessibilityLabel("Hold for 3 seconds to send critical help request")
     }
@@ -296,7 +296,7 @@ struct SOSConfirmationSheet: View {
     // MARK: - Sent Confirmation
 
     private var sentConfirmation: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 60))
                 .foregroundStyle(severityColor(selectedSeverity))
@@ -312,7 +312,7 @@ struct SOSConfirmationSheet: View {
 
             // Cancel banner
             GlassCard(thickness: .regular) {
-                HStack(spacing: FCSpacing.md) {
+                HStack(spacing: BlipSpacing.md) {
                     Text("Cancel in \(cancelCountdown)s")
                         .font(theme.typography.body)
                         .fontWeight(.medium)
@@ -326,15 +326,15 @@ struct SOSConfirmationSheet: View {
                         Text("Cancel SOS")
                             .font(theme.typography.body)
                             .fontWeight(.semibold)
-                            .foregroundStyle(FCColors.darkColors.statusRed)
-                            .padding(.horizontal, FCSpacing.md)
-                            .padding(.vertical, FCSpacing.sm)
+                            .foregroundStyle(BlipColors.darkColors.statusRed)
+                            .padding(.horizontal, BlipSpacing.md)
+                            .padding(.vertical, BlipSpacing.sm)
                             .background(
                                 Capsule()
-                                    .fill(FCColors.darkColors.statusRed.opacity(0.15))
+                                    .fill(BlipColors.darkColors.statusRed.opacity(0.15))
                             )
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
             }
         }
@@ -343,7 +343,7 @@ struct SOSConfirmationSheet: View {
     // MARK: - Proximity Warning
 
     private var proximityWarning: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "iphone.gen3.slash")
                 .font(.system(size: 48))
                 .foregroundStyle(theme.colors.mutedText)
@@ -362,10 +362,10 @@ struct SOSConfirmationSheet: View {
     // MARK: - False Alarm Captcha
 
     private var falseAlarmCaptcha: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(FCColors.darkColors.statusAmber)
+                .foregroundStyle(BlipColors.darkColors.statusAmber)
 
             Text("Confirm This is Real")
                 .font(theme.typography.headline)
@@ -378,7 +378,7 @@ struct SOSConfirmationSheet: View {
 
             // Simple drag captcha
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                     .fill(theme.colors.hover)
                     .frame(height: 56)
                     .overlay(
@@ -388,7 +388,7 @@ struct SOSConfirmationSheet: View {
                     )
 
                 Circle()
-                    .fill(.fcAccentPurple)
+                    .fill(.blipAccentPurple)
                     .frame(width: 48, height: 48)
                     .overlay(
                         Image(systemName: "chevron.right.2")
@@ -501,9 +501,9 @@ struct SOSConfirmationSheet: View {
 
     private func severityColor(_ severity: SOSSeverity) -> Color {
         switch severity {
-        case .green: return FCColors.darkColors.statusGreen
-        case .amber: return FCColors.darkColors.statusAmber
-        case .red: return FCColors.darkColors.statusRed
+        case .green: return BlipColors.darkColors.statusGreen
+        case .amber: return BlipColors.darkColors.statusAmber
+        case .red: return BlipColors.darkColors.statusRed
         }
     }
 

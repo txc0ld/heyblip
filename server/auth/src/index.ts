@@ -1,5 +1,5 @@
 /**
- * FestiChat email verification worker.
+ * Blip email verification worker.
  *
  * POST /v1/auth/send-code   — generate 6-digit code, send via Resend, store in KV
  * POST /v1/auth/verify-code — validate code against KV
@@ -13,7 +13,7 @@ export interface Env {
   FROM_EMAIL: string;
   CODE_TTL_SECONDS: string;
   MAX_SENDS_PER_HOUR: string;
-  /** Set to e.g. "https://festichat.app" in production. Defaults to "*" for dev. */
+  /** Set to e.g. "https://heyblip.au" in production. Defaults to "*" for dev. */
   CORS_ORIGIN?: string;
   /** Set to "true" to skip Resend and use a fixed test code (000000). */
   DEV_BYPASS?: string;
@@ -111,7 +111,7 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
     const { error } = await resend.emails.send({
       from: env.FROM_EMAIL,
       to: email,
-      subject: "FestiChat — Your verification code",
+      subject: "Blip — Your verification code",
       html: emailTemplate(code),
     });
 
@@ -344,7 +344,7 @@ async function handleReceiptVerify(request: Request, env: Env): Promise<Response
   }
 
   // Determine what was purchased
-  const isVerifiedPurchase = body.productID === "com.festichat.verified";
+  const isVerifiedPurchase = body.productID === "com.blip.verified";
   const messageCredits = getMessageCredits(body.productID);
 
   const sql = await getDb(env);
@@ -382,11 +382,11 @@ async function handleReceiptVerify(request: Request, env: Env): Promise<Response
 
 function getMessageCredits(productID: string): number {
   const credits: Record<string, number> = {
-    "com.festichat.starter10": 10,
-    "com.festichat.social25": 25,
-    "com.festichat.festival50": 50,
-    "com.festichat.squad100": 100,
-    "com.festichat.season1000": 1000,
+    "com.blip.starter10": 10,
+    "com.blip.social25": 25,
+    "com.blip.festival50": 50,
+    "com.blip.squad100": 100,
+    "com.blip.season1000": 1000,
   };
   return credits[productID] ?? 0;
 }
@@ -430,7 +430,7 @@ function json(data: unknown, status = 200, env?: Env): Response {
 function emailTemplate(code: string): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 400px; margin: 0 auto; padding: 40px 20px;">
-      <h2 style="color: #6600FF; margin-bottom: 8px;">FestiChat</h2>
+      <h2 style="color: #6600FF; margin-bottom: 8px;">Blip</h2>
       <p style="color: #333; font-size: 16px; margin-bottom: 24px;">Your verification code is:</p>
       <div style="background: #F5F0FF; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
         <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #6600FF;">${code}</span>

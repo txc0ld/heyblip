@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 import CoreLocation
-import FestiChatProtocol
-import FestiChatMesh
-import FestiChatCrypto
+import BlipProtocol
+import BlipMesh
+import BlipCrypto
 import os.log
 
 // MARK: - SOS Flow State
@@ -122,7 +122,7 @@ final class SOSViewModel {
     private let locationService: LocationService
     private let messageService: MessageService
     private let notificationService: NotificationService
-    private let logger = Logger(subsystem: "com.festichat", category: "SOSViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "SOSViewModel")
     nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
 
     // MARK: - Constants
@@ -770,5 +770,5 @@ final class SOSViewModel {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let shouldBroadcastPacket = Notification.Name("com.festichat.shouldBroadcastPacket")
+    static let shouldBroadcastPacket = Notification.Name("com.blip.shouldBroadcastPacket")
 }

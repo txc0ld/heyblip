@@ -2,7 +2,7 @@ import Foundation
 import os.log
 
 /// Handles user registration, profile sync, and receipt verification
-/// with the FestiChat backend API.
+/// with the Blip backend API.
 ///
 /// All calls are gated on connectivity — callers should check transport mode
 /// before invoking (skip if BLE-only mode).
@@ -10,9 +10,9 @@ final class UserSyncService: Sendable {
 
     // MARK: - Configuration
 
-    private static let baseURL = "https://festichat-auth.john-mckean.workers.dev/v1"
+    private static let baseURL = "https://blip-auth.john-mckean.workers.dev/v1"
 
-    private let logger = Logger(subsystem: "com.festichat", category: "UserSync")
+    private let logger = Logger(subsystem: "com.blip", category: "UserSync")
 
     // MARK: - Errors
 

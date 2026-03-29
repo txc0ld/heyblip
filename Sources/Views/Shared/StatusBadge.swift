@@ -136,7 +136,7 @@ struct StatusBadge: View {
     }
 
     private var readColor: Color {
-        tintColor ?? Color.fcAccentPurple
+        tintColor ?? Color.blipAccentPurple
     }
 
     private var accessibilityText: String {

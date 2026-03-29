@@ -77,7 +77,7 @@ struct FestivalView: View {
 
             // Content
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     switch selectedSection {
                     case .map:
                         mapSection
@@ -88,13 +88,13 @@ struct FestivalView: View {
                     case .lostAndFound:
                         LostAndFoundView()
                             .frame(height: 500)
-                            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl))
-                            .padding(.horizontal, FCSpacing.md)
+                            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl))
+                            .padding(.horizontal, BlipSpacing.md)
                     }
 
-                    Spacer().frame(height: FCSpacing.xxl)
+                    Spacer().frame(height: BlipSpacing.xxl)
                 }
-                .padding(.top, FCSpacing.md)
+                .padding(.top, BlipSpacing.md)
             }
             .opacity(isInRange ? 1.0 : 0.5)
             .allowsHitTesting(isInRange)
@@ -105,13 +105,13 @@ struct FestivalView: View {
 
     private var sectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 ForEach(FestivalSection.allCases, id: \.self) { section in
                     sectionTab(section)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
         }
     }
 
@@ -121,7 +121,7 @@ struct FestivalView: View {
                 selectedSection = section
             }
         }) {
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: section.iconName)
                     .font(.system(size: 12, weight: .medium))
 
@@ -130,17 +130,17 @@ struct FestivalView: View {
                     .fontWeight(selectedSection == section ? .semibold : .regular)
             }
             .foregroundStyle(selectedSection == section ? .white : theme.colors.text)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(
                 Capsule()
                     .fill(selectedSection == section
-                          ? AnyShapeStyle(LinearGradient.fcAccent)
+                          ? AnyShapeStyle(LinearGradient.blipAccent)
                           : AnyShapeStyle(theme.colors.hover))
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel(section.displayName)
         .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
     }
@@ -148,7 +148,7 @@ struct FestivalView: View {
     // MARK: - Map Section
 
     private var mapSection: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             // Stage map with crowd pulse overlay
             ZStack {
                 StageMapView(
@@ -174,10 +174,10 @@ struct FestivalView: View {
                 }
             }
             .frame(height: 350)
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             // Map controls
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 CrowdPulseLegend()
 
                 Spacer()
@@ -189,7 +189,7 @@ struct FestivalView: View {
                     Image(systemName: showCrowdPulse ? "eye.fill" : "eye.slash.fill")
                         .font(.system(size: 14))
                         .foregroundStyle(theme.colors.mutedText)
-                        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
                 .accessibilityLabel(showCrowdPulse ? "Hide crowd density" : "Show crowd density")
 
@@ -197,16 +197,16 @@ struct FestivalView: View {
                 Button(action: { showMeetingPointSheet = true }) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(.system(size: 14))
-                        .foregroundStyle(.fcAccentPurple)
-                        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                        .foregroundStyle(.blipAccentPurple)
+                        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
                 .accessibilityLabel("Drop meeting point")
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             // Quick announcements (top 2)
             if !announcements.isEmpty {
-                VStack(alignment: .leading, spacing: FCSpacing.sm) {
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     HStack {
                         Text("Latest Announcements")
                             .font(theme.typography.secondary)
@@ -218,11 +218,11 @@ struct FestivalView: View {
                         Button(action: { selectedSection = .announcements }) {
                             Text("See all")
                                 .font(theme.typography.caption)
-                                .foregroundStyle(.fcAccentPurple)
+                                .foregroundStyle(.blipAccentPurple)
                         }
-                        .frame(minHeight: FCSizing.minTapTarget)
+                        .frame(minHeight: BlipSizing.minTapTarget)
                     }
-                    .padding(.horizontal, FCSpacing.md)
+                    .padding(.horizontal, BlipSpacing.md)
 
                     AnnouncementFeed(
                         announcements: Array(announcements.prefix(2))
@@ -235,10 +235,10 @@ struct FestivalView: View {
     // MARK: - Out of Range Banner
 
     private var outOfRangeBanner: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "location.slash.fill")
                 .font(.system(size: 14))
-                .foregroundStyle(FCColors.darkColors.statusAmber)
+                .foregroundStyle(BlipColors.darkColors.statusAmber)
 
             Text("Out of festival range")
                 .font(theme.typography.secondary)
@@ -250,15 +250,15 @@ struct FestivalView: View {
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
-        .background(FCColors.darkColors.statusAmber.opacity(0.1))
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
+        .background(BlipColors.darkColors.statusAmber.opacity(0.1))
     }
 
     // MARK: - No Festival State
 
     private var noFestivalState: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Spacer()
 
             Image(systemName: "music.note.house")
@@ -273,7 +273,7 @@ struct FestivalView: View {
                 .font(theme.typography.body)
                 .foregroundStyle(theme.colors.mutedText)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, FCSpacing.xl)
+                .padding(.horizontal, BlipSpacing.xl)
 
             GlassButton("Find Festivals", icon: "magnifyingglass") {
                 // Navigate to festival discovery

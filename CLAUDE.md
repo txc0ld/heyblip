@@ -1,10 +1,10 @@
-# FestiChat — Claude Cowork / Xcode Instructions
+# Blip — Claude Cowork / Xcode Instructions
 
 ## Project Identity
 
-FestiChat is a Bluetooth mesh chat app for festivals. iOS-first, SwiftUI, MVVM. The app lets users chat at festivals via BLE mesh when mobile reception is unavailable.
+Blip is a Bluetooth mesh chat app for festivals. iOS-first, SwiftUI, MVVM. The app lets users chat at festivals via BLE mesh when mobile reception is unavailable.
 
-**Design spec:** `docs/superpowers/specs/2026-03-28-festichat-design.md` — read this before any implementation work. It is the single source of truth.
+**Design spec:** `docs/superpowers/specs/2026-03-28-blip-design.md` — read this before any implementation work. It is the single source of truth.
 
 ## Build Configuration
 
@@ -18,12 +18,12 @@ FestiChat is a Bluetooth mesh chat app for festivals. iOS-first, SwiftUI, MVVM. 
 
 **Build command:**
 ```bash
-xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
 ```
 
 **Test command:**
 ```bash
-xcodebuild test -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild test -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
 ```
 
 Always use `-quiet` flag to prevent context overflow from verbose build output.
@@ -54,9 +54,9 @@ Three SPM packages under `Packages/`:
 
 | Package | Responsibility |
 |---|---|
-| `FestiChatProtocol` | Binary packet format, serialization, Bloom filters, GCS sync, fragmentation |
-| `FestiChatMesh` | BLE transport, peer discovery, gossip routing, congestion management |
-| `FestiChatCrypto` | Noise XX handshake, Ed25519 signing, Keychain key management |
+| `BlipProtocol` | Binary packet format, serialization, Bloom filters, GCS sync, fragmentation |
+| `BlipMesh` | BLE transport, peer discovery, gossip routing, congestion management |
+| `BlipCrypto` | Noise XX handshake, Ed25519 signing, Keychain key management |
 
 App source is under `Sources/` with MVVM layout:
 - `Sources/Views/` — SwiftUI views organized by tab (ChatsTab, NearbyTab, FestivalTab, ProfileTab)

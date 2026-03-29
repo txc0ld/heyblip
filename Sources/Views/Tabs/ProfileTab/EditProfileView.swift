@@ -46,14 +46,14 @@ struct EditProfileView: View {
                 GradientBackground()
 
                 ScrollView {
-                    VStack(spacing: FCSpacing.lg) {
+                    VStack(spacing: BlipSpacing.lg) {
                         avatarSection
                         nameSection
                         usernameSection
                         bioSection
                         emailSection
                     }
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                 }
             }
             .navigationTitle("Edit Profile")
@@ -66,7 +66,7 @@ struct EditProfileView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .fontWeight(.semibold)
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                         .disabled(isSaving || !isValid)
                 }
             }
@@ -81,18 +81,18 @@ struct EditProfileView: View {
 
     private var avatarSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 ZStack {
                     if let avatarImage {
                         avatarImage
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                            .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                             .clipShape(Circle())
                     } else {
                         Circle()
-                            .fill(LinearGradient.fcAccent)
-                            .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                            .fill(LinearGradient.blipAccent)
+                            .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                             .overlay(
                                 Image(systemName: "camera.fill")
                                     .font(.system(size: 24))
@@ -101,20 +101,20 @@ struct EditProfileView: View {
                     }
                 }
 
-                HStack(spacing: FCSpacing.md) {
+                HStack(spacing: BlipSpacing.md) {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         Label("Choose Photo", systemImage: "photo.on.rectangle")
                             .font(theme.typography.secondary)
-                            .foregroundStyle(.fcAccentPurple)
+                            .foregroundStyle(.blipAccentPurple)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
 
                     Button(action: { showAvatarCrop = true }) {
                         Label("Take Photo", systemImage: "camera")
                             .font(theme.typography.secondary)
-                            .foregroundStyle(.fcAccentPurple)
+                            .foregroundStyle(.blipAccentPurple)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -129,7 +129,7 @@ struct EditProfileView: View {
                         showAvatarCrop = true
                     }
                 } catch {
-                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "FestiChat", category: "EditProfileView")
+                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "Blip", category: "EditProfileView")
                         .warning("Failed to load photo: \(error.localizedDescription)")
                 }
             }
@@ -140,7 +140,7 @@ struct EditProfileView: View {
 
     private var nameSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Display Name")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
@@ -153,7 +153,7 @@ struct EditProfileView: View {
                     .textInputAutocapitalization(.words)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .username }
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                     .background(fieldBackground)
                     .overlay(fieldBorder)
                     .accessibilityLabel("Display name")
@@ -165,7 +165,7 @@ struct EditProfileView: View {
 
     private var usernameSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Username")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
@@ -175,7 +175,7 @@ struct EditProfileView: View {
                     Text("@")
                         .font(theme.typography.body)
                         .foregroundStyle(theme.colors.mutedText)
-                        .padding(.leading, FCSpacing.md)
+                        .padding(.leading, BlipSpacing.md)
 
                     TextField("username", text: $username)
                         .font(theme.typography.body)
@@ -188,8 +188,8 @@ struct EditProfileView: View {
                         .onChange(of: username) { _, newValue in
                             validateUsername(newValue)
                         }
-                        .padding(.vertical, FCSpacing.md)
-                        .padding(.trailing, FCSpacing.md)
+                        .padding(.vertical, BlipSpacing.md)
+                        .padding(.trailing, BlipSpacing.md)
                 }
                 .background(fieldBackground)
                 .overlay(fieldBorder)
@@ -198,7 +198,7 @@ struct EditProfileView: View {
                 if let error = usernameError {
                     Text(error)
                         .font(theme.typography.caption)
-                        .foregroundStyle(FCColors.darkColors.statusRed)
+                        .foregroundStyle(BlipColors.darkColors.statusRed)
                 }
 
                 Text("\(username.count)/\(maxUsernameLength)")
@@ -213,7 +213,7 @@ struct EditProfileView: View {
 
     private var bioSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Bio")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
@@ -224,7 +224,7 @@ struct EditProfileView: View {
                     .foregroundStyle(theme.colors.text)
                     .focused($focusedField, equals: .bio)
                     .frame(minHeight: 80)
-                    .padding(FCSpacing.sm)
+                    .padding(BlipSpacing.sm)
                     .scrollContentBackground(.hidden)
                     .background(fieldBackground)
                     .overlay(fieldBorder)
@@ -237,7 +237,7 @@ struct EditProfileView: View {
 
                 Text("\(bio.count)/\(maxBioLength)")
                     .font(theme.typography.caption)
-                    .foregroundStyle(bio.count >= maxBioLength ? FCColors.darkColors.statusAmber : theme.colors.mutedText)
+                    .foregroundStyle(bio.count >= maxBioLength ? BlipColors.darkColors.statusAmber : theme.colors.mutedText)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
@@ -248,20 +248,20 @@ struct EditProfileView: View {
     private var emailSection: some View {
         GlassCard(thickness: .regular) {
             HStack {
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text("Email")
                         .font(theme.typography.secondary)
                         .fontWeight(.medium)
                         .foregroundStyle(theme.colors.text)
 
-                    HStack(spacing: FCSpacing.xs) {
+                    HStack(spacing: BlipSpacing.xs) {
                         Text(maskedEmail)
                             .font(theme.typography.body)
                             .foregroundStyle(theme.colors.mutedText)
 
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 12))
-                            .foregroundStyle(FCColors.adaptive.statusGreen)
+                            .foregroundStyle(BlipColors.adaptive.statusGreen)
                     }
                 }
 
@@ -270,15 +270,15 @@ struct EditProfileView: View {
                 Button(action: { showEmailVerify = true }) {
                     Text("Change Email")
                         .font(theme.typography.caption)
-                        .foregroundStyle(.fcAccentPurple)
-                        .padding(.horizontal, FCSpacing.md)
-                        .padding(.vertical, FCSpacing.sm)
+                        .foregroundStyle(.blipAccentPurple)
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.vertical, BlipSpacing.sm)
                         .background(
                             Capsule()
-                                .fill(.fcAccentPurple.opacity(0.12))
+                                .fill(.blipAccentPurple.opacity(0.12))
                         )
                 }
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel("Change email address")
             }
         }
@@ -294,15 +294,15 @@ struct EditProfileView: View {
     // MARK: - Shared Components
 
     private var fieldBackground: some View {
-        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
             .fill(.ultraThinMaterial)
     }
 
     private var fieldBorder: some View {
-        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
             .stroke(
                 colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                lineWidth: FCSizing.hairline
+                lineWidth: BlipSizing.hairline
             )
     }
 
@@ -348,7 +348,7 @@ struct EditProfileView: View {
         do {
             try modelContext.save()
         } catch {
-            Logger(subsystem: "com.festichat", category: "EditProfile")
+            Logger(subsystem: "com.blip", category: "EditProfile")
                 .error("Failed to save profile: \(error.localizedDescription)")
         }
 

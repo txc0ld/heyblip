@@ -16,21 +16,21 @@ struct ChatListCell: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 // Avatar
                 AvatarView(
                     imageData: conversation.avatarData,
                     name: conversation.displayName,
-                    size: FCSizing.avatarMedium,
+                    size: BlipSizing.avatarMedium,
                     ringStyle: conversation.ringStyle,
                     showOnlineIndicator: conversation.isOnline
                 )
 
                 // Text content
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     HStack {
                         Text(conversation.displayName)
-                            .font(.custom(FCFontName.semiBold, size: 16, relativeTo: .body))
+                            .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
                             .foregroundStyle(theme.colors.text)
                             .lineLimit(1)
 
@@ -40,14 +40,14 @@ struct ChatListCell: View {
                             .font(theme.typography.caption)
                             .foregroundStyle(
                                 conversation.unreadCount > 0
-                                    ? Color.fcAccentPurple
+                                    ? Color.blipAccentPurple
                                     : theme.colors.mutedText
                             )
                     }
 
                     HStack {
                         // Last message preview
-                        HStack(spacing: FCSpacing.xs) {
+                        HStack(spacing: BlipSpacing.xs) {
                             if conversation.isFromMe {
                                 StatusBadge(
                                     status: conversation.deliveryStatus,
@@ -76,22 +76,22 @@ struct ChatListCell: View {
                     }
                 }
             }
-            .padding(.vertical, FCSpacing.sm + 2)
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.vertical, BlipSpacing.sm + 2)
+            .padding(.horizontal, BlipSpacing.md)
             .background(cellBackground)
-            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                     .stroke(
                         colorScheme == .dark
                             ? Color.white.opacity(0.06)
                             : Color.black.opacity(0.04),
-                        lineWidth: FCSizing.hairline
+                        lineWidth: BlipSizing.hairline
                     )
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .staggeredReveal(index: index)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
@@ -120,7 +120,7 @@ struct ChatListCell: View {
                     systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill"
                 )
             }
-            .tint(Color.fcAccentPurple)
+            .tint(Color.blipAccentPurple)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
@@ -130,13 +130,13 @@ struct ChatListCell: View {
 
     private var unreadBadge: some View {
         Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
-            .font(.custom(FCFontName.bold, size: 11, relativeTo: .caption2))
+            .font(.custom(BlipFontName.bold, size: 11, relativeTo: .caption2))
             .foregroundStyle(.white)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
                 Capsule()
-                    .fill(Color.fcAccentPurple)
+                    .fill(Color.blipAccentPurple)
             )
             .contentTransition(.numericText())
     }
@@ -145,7 +145,7 @@ struct ChatListCell: View {
 
     @ViewBuilder
     private var cellBackground: some View {
-        RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
             .fill(.ultraThinMaterial)
     }
 
@@ -280,7 +280,7 @@ extension ConversationPreview {
             .ignoresSafeArea()
 
         ScrollView {
-            LazyVStack(spacing: FCSpacing.sm) {
+            LazyVStack(spacing: BlipSpacing.sm) {
                 ForEach(
                     Array(ConversationPreview.sampleConversations.enumerated()),
                     id: \.element.id
@@ -288,7 +288,7 @@ extension ConversationPreview {
                     ChatListCell(conversation: conversation, index: index)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
         }
     }
     .environment(\.theme, Theme.shared)

@@ -11,10 +11,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     // MARK: - State restoration keys
 
     /// Restoration identifier for the BLE central manager.
-    static let centralRestorationID = "app.festichat.central"
+    static let centralRestorationID = "app.blip.central"
 
     /// Restoration identifier for the BLE peripheral manager.
-    static let peripheralRestorationID = "app.festichat.peripheral"
+    static let peripheralRestorationID = "app.blip.peripheral"
 
     // MARK: - Restored state
 
@@ -122,8 +122,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 extension Notification.Name {
     /// Posted when BLE central manager state is restored from background.
-    static let bleCentralStateRestored = Notification.Name("FestiChat.bleCentralStateRestored")
+    static let bleCentralStateRestored = Notification.Name("Blip.bleCentralStateRestored")
 
     /// Posted when BLE peripheral manager state is restored from background.
-    static let blePeripheralStateRestored = Notification.Name("FestiChat.blePeripheralStateRestored")
+    static let blePeripheralStateRestored = Notification.Name("Blip.blePeripheralStateRestored")
 }

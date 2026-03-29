@@ -3,7 +3,7 @@ import SwiftData
 import os.log
 import CoreLocation
 import MapKit
-import FestiChatProtocol
+import BlipProtocol
 
 // MARK: - Location View Model
 
@@ -125,7 +125,7 @@ final class LocationViewModel {
 
     // MARK: - Dependencies
 
-    private let logger = Logger(subsystem: "com.festichat", category: "LocationViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "LocationViewModel")
     private let modelContainer: ModelContainer
     private let locationService: LocationService
     nonisolated(unsafe) private var refreshTimer: Timer?
@@ -451,5 +451,5 @@ final class LocationViewModel {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let didDropBeacon = Notification.Name("com.festichat.didDropBeacon")
+    static let didDropBeacon = Notification.Name("com.blip.didDropBeacon")
 }

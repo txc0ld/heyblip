@@ -1,8 +1,8 @@
 import XCTest
 import SwiftData
 import CoreLocation
-@testable import FestiChatProtocol
-@testable import FestiChatCrypto
+@testable import BlipProtocol
+@testable import BlipCrypto
 
 // MARK: - Mock Services
 

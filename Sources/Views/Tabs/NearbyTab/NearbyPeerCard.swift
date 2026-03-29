@@ -23,7 +23,7 @@ struct NearbyPeerCard: View {
 
     var body: some View {
         Button(action: { onTap?() }) {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 avatarView
                 peerInfo
                 Spacer(minLength: 0)
@@ -31,10 +31,10 @@ struct NearbyPeerCard: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .glassCard(
             thickness: .regular,
-            cornerRadius: FCCornerRadius.xl,
+            cornerRadius: BlipCornerRadius.xl,
             borderOpacity: 0.15
         )
         .accessibilityElement(children: .combine)
@@ -50,12 +50,12 @@ struct NearbyPeerCard: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: FCSizing.avatarSmall, height: FCSizing.avatarSmall)
+                    .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
                     .clipShape(Circle())
             } else {
                 Circle()
-                    .fill(LinearGradient.fcAccent)
-                    .frame(width: FCSizing.avatarSmall, height: FCSizing.avatarSmall)
+                    .fill(LinearGradient.blipAccent)
+                    .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
                     .overlay(
                         Text(initials)
                             .font(theme.typography.caption)
@@ -79,7 +79,7 @@ struct NearbyPeerCard: View {
             // Friend badge
             if isFriend {
                 Circle()
-                    .fill(.fcAccentPurple)
+                    .fill(.blipAccentPurple)
                     .frame(width: 12, height: 12)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -94,14 +94,14 @@ struct NearbyPeerCard: View {
     // MARK: - Peer Info
 
     private var peerInfo: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
             Text(displayName)
                 .font(theme.typography.body)
                 .fontWeight(.medium)
                 .foregroundStyle(theme.colors.text)
                 .lineLimit(1)
 
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 if let username {
                     Text("@\(username)")
                         .font(theme.typography.caption)
@@ -111,7 +111,7 @@ struct NearbyPeerCard: View {
                 Text(hopDescription)
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
-                    .padding(.horizontal, FCSpacing.sm)
+                    .padding(.horizontal, BlipSpacing.sm)
                     .padding(.vertical, 2)
                     .background(
                         Capsule()
@@ -139,10 +139,10 @@ struct NearbyPeerCard: View {
         let level = signalLevel
         if index < level {
             switch level {
-            case 4: return FCColors.darkColors.statusGreen
-            case 3: return FCColors.darkColors.statusGreen
-            case 2: return FCColors.darkColors.statusAmber
-            default: return FCColors.darkColors.statusRed
+            case 4: return BlipColors.darkColors.statusGreen
+            case 3: return BlipColors.darkColors.statusGreen
+            case 2: return BlipColors.darkColors.statusAmber
+            default: return BlipColors.darkColors.statusRed
             }
         }
         return theme.colors.border
@@ -214,7 +214,7 @@ struct NearbyPeerCard: View {
 #Preview("Peer Card - Friend Online") {
     ZStack {
         GradientBackground()
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             NearbyPeerCard(
                 displayName: "Sarah Chen",
                 username: "sarahc",

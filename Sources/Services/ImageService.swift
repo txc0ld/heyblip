@@ -69,7 +69,7 @@ private struct CacheEntry {
 
 // MARK: - Image Service
 
-/// Handles image compression, thumbnail generation, and LRU caching for FestiChat.
+/// Handles image compression, thumbnail generation, and LRU caching for Blip.
 ///
 /// Features:
 /// - JPEG/HEIF compression with configurable quality
@@ -81,7 +81,7 @@ final class ImageService: @unchecked Sendable {
 
     // MARK: - Logging
 
-    private let logger = Logger(subsystem: "com.festichat", category: "ImageService")
+    private let logger = Logger(subsystem: "com.blip", category: "ImageService")
 
     // MARK: - Constants
 
@@ -119,7 +119,7 @@ final class ImageService: @unchecked Sendable {
 
     init() {
         let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        cacheDirectory = paths[0].appendingPathComponent("com.festichat.images", isDirectory: true)
+        cacheDirectory = paths[0].appendingPathComponent("com.blip.images", isDirectory: true)
 
         // Create cache directory if needed
         do {

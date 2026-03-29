@@ -1,5 +1,5 @@
 /**
- * FestiChat zero-knowledge WebSocket relay server.
+ * Blip zero-knowledge WebSocket relay server.
  *
  * Entry point: handles WebSocket upgrade at /ws, validates auth,
  * derives PeerID, and forwards the connection to a RelayRoom Durable Object.

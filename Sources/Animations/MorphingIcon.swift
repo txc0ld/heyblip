@@ -91,7 +91,7 @@ struct MorphingIconButton: View {
     @Binding var isSendMode: Bool
     let action: () -> Void
 
-    var buttonSize: CGFloat = FCSizing.minTapTarget
+    var buttonSize: CGFloat = BlipSizing.minTapTarget
 
     @State private var isPressed = false
     @Environment(\.colorScheme) private var colorScheme
@@ -123,7 +123,7 @@ struct MorphingIconButton: View {
     }
 
     private var backgroundFill: some ShapeStyle {
-        LinearGradient.fcAccent
+        LinearGradient.blipAccent
     }
 }
 

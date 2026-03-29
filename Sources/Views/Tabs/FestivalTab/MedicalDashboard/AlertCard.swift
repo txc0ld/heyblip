@@ -20,8 +20,8 @@ struct AlertCard: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GlassCard(thickness: .regular, cornerRadius: FCCornerRadius.xl) {
-            VStack(alignment: .leading, spacing: FCSpacing.md) {
+        GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
                 // Header: severity + time
                 headerRow
 
@@ -46,7 +46,7 @@ struct AlertCard: View {
             }
         }
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(severityColor.opacity(0.3), lineWidth: 1.5)
         )
         .onAppear {
@@ -60,7 +60,7 @@ struct AlertCard: View {
     // MARK: - Header Row
 
     private var headerRow: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             // Severity indicator
             ZStack {
                 Circle()
@@ -111,7 +111,7 @@ struct AlertCard: View {
     // MARK: - Location Row
 
     private var locationRow: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "location.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(severityColor)
@@ -128,7 +128,7 @@ struct AlertCard: View {
     }
 
     private var accuracyBadge: some View {
-        HStack(spacing: FCSpacing.xs) {
+        HStack(spacing: BlipSpacing.xs) {
             Image(systemName: alert.accuracy.iconName)
                 .font(.system(size: 10))
                 .foregroundStyle(alert.accuracy.color)
@@ -137,7 +137,7 @@ struct AlertCard: View {
                 .font(theme.typography.caption)
                 .foregroundStyle(alert.accuracy.color)
         }
-        .padding(.horizontal, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.sm)
         .padding(.vertical, 2)
         .background(Capsule().fill(alert.accuracy.color.opacity(0.12)))
     }
@@ -145,42 +145,42 @@ struct AlertCard: View {
     // MARK: - Accepted Badge
 
     private func acceptedBadge(callsign: String) -> some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "person.badge.shield.checkmark.fill")
                 .font(.system(size: 14))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text("Accepted by \(callsign)")
                 .font(theme.typography.caption)
                 .fontWeight(.medium)
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: FCCornerRadius.sm, style: .continuous)
-                .fill(.fcAccentPurple.opacity(0.1))
+            RoundedRectangle(cornerRadius: BlipCornerRadius.sm, style: .continuous)
+                .fill(.blipAccentPurple.opacity(0.1))
         )
     }
 
     // MARK: - Action Buttons
 
     private var actionButtons: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             if alert.acceptedBy == nil {
                 Button(action: { onAccept?() }) {
                     Label("Accept", systemImage: "checkmark.circle.fill")
                         .font(theme.typography.secondary)
                         .fontWeight(.semibold)
                         .foregroundStyle(.white)
-                        .padding(.horizontal, FCSpacing.md)
-                        .padding(.vertical, FCSpacing.sm)
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.vertical, BlipSpacing.sm)
                         .background(
                             Capsule()
-                                .fill(LinearGradient.fcAccent)
+                                .fill(LinearGradient.blipAccent)
                         )
                 }
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel("Accept this alert")
             }
 
@@ -188,15 +188,15 @@ struct AlertCard: View {
                 Label("Navigate", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
-                    .foregroundStyle(.fcAccentPurple)
-                    .padding(.horizontal, FCSpacing.md)
-                    .padding(.vertical, FCSpacing.sm)
+                    .foregroundStyle(.blipAccentPurple)
+                    .padding(.horizontal, BlipSpacing.md)
+                    .padding(.vertical, BlipSpacing.sm)
                     .background(
                         Capsule()
-                            .fill(.fcAccentPurple.opacity(0.12))
+                            .fill(.blipAccentPurple.opacity(0.12))
                     )
             }
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
             .accessibilityLabel("Navigate to alert location")
 
             Spacer()
@@ -206,15 +206,15 @@ struct AlertCard: View {
                     Label("Resolve", systemImage: "checkmark.seal.fill")
                         .font(theme.typography.secondary)
                         .fontWeight(.medium)
-                        .foregroundStyle(FCColors.darkColors.statusGreen)
-                        .padding(.horizontal, FCSpacing.md)
-                        .padding(.vertical, FCSpacing.sm)
+                        .foregroundStyle(BlipColors.darkColors.statusGreen)
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.vertical, BlipSpacing.sm)
                         .background(
                             Capsule()
-                                .fill(FCColors.darkColors.statusGreen.opacity(0.12))
+                                .fill(BlipColors.darkColors.statusGreen.opacity(0.12))
                         )
                 }
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel("Resolve this alert")
             }
         }
@@ -224,9 +224,9 @@ struct AlertCard: View {
 
     private var severityColor: Color {
         switch alert.severity {
-        case .green: return FCColors.darkColors.statusGreen
-        case .amber: return FCColors.darkColors.statusAmber
-        case .red: return FCColors.darkColors.statusRed
+        case .green: return BlipColors.darkColors.statusGreen
+        case .amber: return BlipColors.darkColors.statusAmber
+        case .red: return BlipColors.darkColors.statusRed
         }
     }
 
@@ -294,9 +294,9 @@ enum LocationAccuracy {
 
     var color: Color {
         switch self {
-        case .precise: return FCColors.darkColors.statusGreen
-        case .estimated: return FCColors.darkColors.statusAmber
-        case .lastKnown: return FCColors.darkColors.statusRed
+        case .precise: return BlipColors.darkColors.statusGreen
+        case .estimated: return BlipColors.darkColors.statusAmber
+        case .lastKnown: return BlipColors.darkColors.statusRed
         }
     }
 }
@@ -307,7 +307,7 @@ enum LocationAccuracy {
     ZStack {
         GradientBackground()
         ScrollView {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 AlertCard(alert: SOSAlertItem(
                     id: UUID(),
                     shortID: "A7F3",

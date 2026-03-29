@@ -40,7 +40,7 @@ struct ChatListView: View {
                 ChatView(conversation: conversation, chatViewModel: chatViewModel)
             }
         }
-        .tint(Color.fcAccentPurple)
+        .tint(Color.blipAccentPurple)
         .task {
             if chatViewModel == nil {
                 let container = modelContext.container
@@ -58,7 +58,7 @@ struct ChatListView: View {
 
     private var scrollContent: some View {
         ScrollView {
-            LazyVStack(spacing: FCSpacing.sm) {
+            LazyVStack(spacing: BlipSpacing.sm) {
                 if chatViewModel?.isLoading == true && conversations.isEmpty {
                     chatListShimmer
                 } else if let error = chatViewModel?.errorMessage {
@@ -79,8 +79,8 @@ struct ChatListView: View {
                     }
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.top, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.top, BlipSpacing.sm)
             .padding(.bottom, 100) // Space for FAB and tab bar
         }
         .refreshable {
@@ -91,9 +91,9 @@ struct ChatListView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Spacer()
-                .frame(height: FCSpacing.xxl * 2)
+                .frame(height: BlipSpacing.xxl * 2)
 
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 48))
@@ -138,13 +138,13 @@ struct ChatListView: View {
                 .frame(width: 56, height: 56)
                 .background(
                     Circle()
-                        .fill(LinearGradient.fcAccent)
+                        .fill(LinearGradient.blipAccent)
                 )
-                .shadow(color: Color.fcAccentPurple.opacity(0.4), radius: 12, y: 4)
+                .shadow(color: Color.blipAccentPurple.opacity(0.4), radius: 12, y: 4)
         }
         .buttonStyle(.plain)
-        .padding(.trailing, FCSpacing.lg)
-        .padding(.bottom, FCSpacing.sm)
+        .padding(.trailing, BlipSpacing.lg)
+        .padding(.bottom, BlipSpacing.sm)
         .accessibilityLabel("New message")
         .accessibilityAddTraits(.isButton)
     }
@@ -157,10 +157,10 @@ struct ChatListView: View {
                 GradientBackground()
                     .ignoresSafeArea()
 
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     Image(systemName: "plus.bubble.fill")
                         .font(.system(size: 48))
-                        .foregroundStyle(Color.fcAccentPurple)
+                        .foregroundStyle(Color.blipAccentPurple)
 
                     Text("New Message")
                         .font(theme.typography.headline)
@@ -171,7 +171,7 @@ struct ChatListView: View {
                         .foregroundStyle(theme.colors.mutedText)
                         .multilineTextAlignment(.center)
                 }
-                .padding(FCSpacing.xl)
+                .padding(BlipSpacing.xl)
             }
             .navigationTitle("New Message")
             .navigationBarTitleDisplayMode(.inline)
@@ -180,7 +180,7 @@ struct ChatListView: View {
                     Button("Cancel") {
                         showNewMessage = false
                     }
-                    .foregroundStyle(Color.fcAccentPurple)
+                    .foregroundStyle(Color.blipAccentPurple)
                 }
             }
         }
@@ -189,9 +189,9 @@ struct ChatListView: View {
     // MARK: - Error State
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Spacer()
-                .frame(height: FCSpacing.xxl * 2)
+                .frame(height: BlipSpacing.xxl * 2)
 
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
@@ -216,12 +216,12 @@ struct ChatListView: View {
     // MARK: - Shimmer Loading
 
     private var chatListShimmer: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             ForEach(0..<4, id: \.self) { _ in
-                GlassCard(thickness: .regular, cornerRadius: FCCornerRadius.xl, padding: .fcContent) {
-                    HStack(spacing: FCSpacing.md) {
-                        ShimmerCircle(size: FCSizing.avatarSmall)
-                        VStack(alignment: .leading, spacing: FCSpacing.sm) {
+                GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl, padding: .blipContent) {
+                    HStack(spacing: BlipSpacing.md) {
+                        ShimmerCircle(size: BlipSizing.avatarSmall)
+                        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                             ShimmerRect(width: 120, height: 14)
                             ShimmerRect(width: 200, height: 10)
                         }
@@ -324,8 +324,8 @@ extension ConversationPreview: Hashable {
             NavigationStack {
                 ZStack {
                     GradientBackground().ignoresSafeArea()
-                    VStack(spacing: FCSpacing.lg) {
-                        Spacer().frame(height: FCSpacing.xxl * 2)
+                    VStack(spacing: BlipSpacing.lg) {
+                        Spacer().frame(height: BlipSpacing.xxl * 2)
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 48))
                             .foregroundStyle(Color.white.opacity(0.3))

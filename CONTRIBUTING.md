@@ -1,6 +1,6 @@
-# Contributing to FestiChat
+# Contributing to Blip
 
-FestiChat is currently in private development. This document outlines the standards for contributing code.
+Blip is currently in private development. This document outlines the standards for contributing code.
 
 ## Code Standards
 
@@ -30,9 +30,9 @@ FestiChat is currently in private development. This document outlines the standa
 
 ## Testing
 
-- Protocol package: `swift test --package-path Packages/FestiChatProtocol`
-- Crypto package: `swift test --package-path Packages/FestiChatCrypto`
-- Mesh package: `swift test --package-path Packages/FestiChatMesh`
+- Protocol package: `swift test --package-path Packages/BlipProtocol`
+- Crypto package: `swift test --package-path Packages/BlipCrypto`
+- Mesh package: `swift test --package-path Packages/BlipMesh`
 
 All PRs must pass existing tests and include tests for new functionality.
 

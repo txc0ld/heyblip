@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
-import FestiChatProtocol
-import FestiChatMesh
-import FestiChatCrypto
+import BlipProtocol
+import BlipMesh
+import BlipCrypto
 import os.log
 
 /// Wires BLE mesh, WebSocket relay, identity, and MessageService together on launch.
@@ -42,7 +42,7 @@ final class AppCoordinator {
     // MARK: - Dependencies
 
     private let keyManager: KeyManager
-    private let logger = Logger(subsystem: "com.festichat", category: "AppCoordinator")
+    private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
 
     // MARK: - Init
 

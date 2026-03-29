@@ -2,8 +2,8 @@ import Foundation
 import UIKit
 import SwiftData
 import os.log
-import FestiChatProtocol
-import FestiChatCrypto
+import BlipProtocol
+import BlipCrypto
 
 // MARK: - Profile View Model
 
@@ -67,7 +67,7 @@ final class ProfileViewModel {
 
     // MARK: - Dependencies
 
-    private let logger = Logger(subsystem: "com.festichat", category: "ProfileViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "ProfileViewModel")
     private let modelContainer: ModelContainer
     private let keyManager: KeyManager
     private let imageService: ImageService

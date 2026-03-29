@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import FestiChatCrypto
+import BlipCrypto
 
 // MARK: - CreateProfileStep
 
@@ -42,9 +42,9 @@ struct CreateProfileStep: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: FCSpacing.lg) {
+            VStack(spacing: BlipSpacing.lg) {
                 // Title
-                VStack(spacing: FCSpacing.sm) {
+                VStack(spacing: BlipSpacing.sm) {
                     Text("Create your profile")
                         .font(theme.typography.largeTitle)
                         .foregroundStyle(theme.colors.text)
@@ -54,14 +54,14 @@ struct CreateProfileStep: View {
                         .foregroundStyle(theme.colors.mutedText)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.top, FCSpacing.xl)
+                .padding(.top, BlipSpacing.xl)
 
                 // Avatar picker
                 avatarSection
 
                 // Form card
                 GlassCard(thickness: .regular) {
-                    VStack(spacing: FCSpacing.md) {
+                    VStack(spacing: BlipSpacing.md) {
                         usernameField
 
                         Divider()
@@ -76,7 +76,7 @@ struct CreateProfileStep: View {
                         }
                     }
                 }
-                .padding(.horizontal, FCSpacing.md)
+                .padding(.horizontal, BlipSpacing.md)
 
                 // Error alerts
                 if let error = emailError ?? identityError {
@@ -84,7 +84,7 @@ struct CreateProfileStep: View {
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.statusRed)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, FCSpacing.lg)
+                        .padding(.horizontal, BlipSpacing.lg)
                         .transition(.opacity)
                 }
 
@@ -98,8 +98,8 @@ struct CreateProfileStep: View {
                 }
                 .fullWidth()
                 .disabled(!isFormValid || isCreatingIdentity)
-                .padding(.horizontal, FCSpacing.lg)
-                .padding(.bottom, FCSpacing.xl)
+                .padding(.horizontal, BlipSpacing.lg)
+                .padding(.bottom, BlipSpacing.xl)
             }
         }
         .scrollDismissesKeyboard(.interactively)
@@ -123,17 +123,17 @@ struct CreateProfileStep: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                        .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                         .clipShape(Circle())
                 } else {
                     Circle()
                         .fill(.ultraThinMaterial)
-                        .frame(width: FCSizing.avatarLarge, height: FCSizing.avatarLarge)
+                        .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                         .overlay(
                             Circle()
                                 .stroke(
                                     colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.1),
-                                    lineWidth: FCSizing.hairline
+                                    lineWidth: BlipSizing.hairline
                                 )
                         )
                         .overlay(
@@ -144,7 +144,7 @@ struct CreateProfileStep: View {
                 }
 
                 Circle()
-                    .fill(Color.fcAccentPurple)
+                    .fill(Color.blipAccentPurple)
                     .frame(width: 28, height: 28)
                     .overlay(
                         Image(systemName: "plus")
@@ -155,7 +155,7 @@ struct CreateProfileStep: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("Choose profile photo")
         .accessibilityAddTraits(.isButton)
     }
@@ -163,9 +163,9 @@ struct CreateProfileStep: View {
     // MARK: - Username Field
 
     private var usernameField: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
             Text("Username")
-                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
+                .font(.custom(BlipFontName.medium, size: 13, relativeTo: .caption))
                 .foregroundStyle(theme.colors.mutedText)
 
             TextField("", text: $username)
@@ -175,7 +175,7 @@ struct CreateProfileStep: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .username)
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
                 .overlay(alignment: .leading) {
                     if username.isEmpty {
                         Text("Choose a username")
@@ -190,7 +190,7 @@ struct CreateProfileStep: View {
 
             if let error = usernameError {
                 Text(error)
-                    .font(.custom(FCFontName.regular, size: 12, relativeTo: .caption2))
+                    .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
                     .foregroundStyle(theme.colors.statusRed)
             }
         }
@@ -199,9 +199,9 @@ struct CreateProfileStep: View {
     // MARK: - Email Field
 
     private var emailField: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
             Text("Email")
-                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
+                .font(.custom(BlipFontName.medium, size: 13, relativeTo: .caption))
                 .foregroundStyle(theme.colors.mutedText)
 
             HStack {
@@ -213,7 +213,7 @@ struct CreateProfileStep: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: .email)
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                     .overlay(alignment: .leading) {
                         if email.isEmpty {
                             Text("you@example.com")
@@ -230,15 +230,15 @@ struct CreateProfileStep: View {
                     } label: {
                         if isSendingCode {
                             ProgressView()
-                                .tint(Color.fcAccentPurple)
+                                .tint(Color.blipAccentPurple)
                         } else {
                             Text("Verify")
-                                .font(.custom(FCFontName.semiBold, size: 14, relativeTo: .footnote))
-                                .foregroundStyle(Color.fcAccentPurple)
+                                .font(.custom(BlipFontName.semiBold, size: 14, relativeTo: .footnote))
+                                .foregroundStyle(Color.blipAccentPurple)
                         }
                     }
                     .disabled(isSendingCode)
-                    .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                    .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
 
                 if isEmailVerified {
@@ -252,23 +252,23 @@ struct CreateProfileStep: View {
     // MARK: - OTP Field
 
     private var otpField: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
             Text("Verification code")
-                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
+                .font(.custom(BlipFontName.medium, size: 13, relativeTo: .caption))
                 .foregroundStyle(theme.colors.mutedText)
 
             HStack {
                 TextField("", text: $otpCode)
-                    .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
+                    .font(.custom(BlipFontName.semiBold, size: 20, relativeTo: .title3))
                     .foregroundStyle(theme.colors.text)
                     .textContentType(.oneTimeCode)
                     .keyboardType(.numberPad)
                     .focused($focusedField, equals: .otp)
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                     .overlay(alignment: .leading) {
                         if otpCode.isEmpty {
                             Text("000000")
-                                .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
+                                .font(.custom(BlipFontName.semiBold, size: 20, relativeTo: .title3))
                                 .foregroundStyle(theme.colors.mutedText.opacity(0.4))
                                 .allowsHitTesting(false)
                         }
@@ -290,16 +290,16 @@ struct CreateProfileStep: View {
             } label: {
                 if resendCooldown > 0 {
                     Text("Resend in \(resendCooldown)s")
-                        .font(.custom(FCFontName.regular, size: 12, relativeTo: .caption2))
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
                         .foregroundStyle(theme.colors.mutedText)
                 } else {
                     Text("Resend code")
-                        .font(.custom(FCFontName.regular, size: 12, relativeTo: .caption2))
-                        .foregroundStyle(Color.fcAccentPurple)
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(Color.blipAccentPurple)
                 }
             }
             .disabled(isSendingCode || resendCooldown > 0)
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
         }
     }
 

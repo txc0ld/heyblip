@@ -120,8 +120,8 @@ struct CrowdPulseLegend: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        GlassCard(thickness: .ultraThin, cornerRadius: FCCornerRadius.md, padding: .fcContent) {
-            HStack(spacing: FCSpacing.md) {
+        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.md, padding: .blipContent) {
+            HStack(spacing: BlipSpacing.md) {
                 legendItem(color: Color(red: 0.2, green: 0.4, blue: 1.0), label: "Quiet")
                 legendItem(color: Color(red: 0.2, green: 0.8, blue: 0.3), label: "Moderate")
                 legendItem(color: Color(red: 1.0, green: 0.6, blue: 0.1), label: "Busy")
@@ -131,7 +131,7 @@ struct CrowdPulseLegend: View {
     }
 
     private func legendItem(color: Color, label: String) -> some View {
-        HStack(spacing: FCSpacing.xs) {
+        HStack(spacing: BlipSpacing.xs) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
@@ -161,11 +161,11 @@ struct CrowdPulseLegend: View {
         longitudinalMeters: 3000
     )
 
-    VStack(spacing: FCSpacing.md) {
+    VStack(spacing: BlipSpacing.md) {
         CrowdPulseOverlay(pulseData: cells, mapRegion: region)
             .frame(height: 300)
             .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl))
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl))
 
         CrowdPulseLegend()
     }

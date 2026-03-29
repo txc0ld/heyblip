@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - GradientBackground
 
-/// Animated mesh gradient background for FestiChat.
+/// Animated mesh gradient background for Blip.
 ///
 /// Slowly shifts between deep purple, midnight blue, and dark teal.
 /// Respects `UIAccessibility.isReduceMotionEnabled` by disabling the animation.
@@ -56,7 +56,7 @@ struct GradientBackground: View {
                 in: context,
                 center: purpleCenter,
                 radius: purpleRadius,
-                color: Color.fcGradientDeepPurple
+                color: Color.blipGradientDeepPurple
             )
 
             // Midnight blue orb — center, drifts diagonally
@@ -69,7 +69,7 @@ struct GradientBackground: View {
                 in: context,
                 center: blueCenter,
                 radius: blueRadius,
-                color: Color.fcGradientMidnightBlue
+                color: Color.blipGradientMidnightBlue
             )
 
             // Dark teal orb — bottom right, drifts left
@@ -82,7 +82,7 @@ struct GradientBackground: View {
                 in: context,
                 center: tealCenter,
                 radius: tealRadius,
-                color: Color.fcGradientDarkTeal
+                color: Color.blipGradientDarkTeal
             )
         }
         .opacity(0.8)
@@ -148,10 +148,10 @@ extension GradientBackground {
     static var staticGradient: some View {
         LinearGradient(
             colors: [
-                .fcGradientNearBlack,
-                .fcGradientDeepPurple.opacity(0.3),
-                .fcGradientMidnightBlue.opacity(0.2),
-                .fcGradientNearBlack
+                .blipGradientNearBlack,
+                .blipGradientDeepPurple.opacity(0.3),
+                .blipGradientMidnightBlue.opacity(0.2),
+                .blipGradientNearBlack
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

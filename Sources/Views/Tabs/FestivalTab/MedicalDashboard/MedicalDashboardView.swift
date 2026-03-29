@@ -58,21 +58,21 @@ struct MedicalDashboardView: View {
     // MARK: - Access Code Entry
 
     private var accessCodeEntry: some View {
-        VStack(spacing: FCSpacing.xl) {
+        VStack(spacing: BlipSpacing.xl) {
             Spacer()
 
             // Lock icon
             ZStack {
                 Circle()
-                    .fill(.fcAccentPurple.opacity(0.1))
+                    .fill(.blipAccentPurple.opacity(0.1))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "lock.shield.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
             }
 
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 Text("Medical Access Required")
                     .font(theme.typography.headline)
                     .foregroundStyle(theme.colors.text)
@@ -81,12 +81,12 @@ struct MedicalDashboardView: View {
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, FCSpacing.xl)
+                    .padding(.horizontal, BlipSpacing.xl)
             }
 
             // Code input
             GlassCard(thickness: .regular) {
-                VStack(spacing: FCSpacing.md) {
+                VStack(spacing: BlipSpacing.md) {
                     TextField("Access Code", text: $accessCode)
                         .font(.system(size: 24, weight: .bold, design: .monospaced))
                         .foregroundStyle(theme.colors.text)
@@ -94,18 +94,18 @@ struct MedicalDashboardView: View {
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .focused($isCodeFocused)
-                        .padding(FCSpacing.md)
+                        .padding(BlipSpacing.md)
                         .background(
-                            RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+                            RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                                 .fill(.ultraThinMaterial)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+                            RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                                 .stroke(
                                     accessCodeError != nil
-                                        ? FCColors.darkColors.statusRed.opacity(0.5)
+                                        ? BlipColors.darkColors.statusRed.opacity(0.5)
                                         : (colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08)),
-                                    lineWidth: accessCodeError != nil ? 1 : FCSizing.hairline
+                                    lineWidth: accessCodeError != nil ? 1 : BlipSizing.hairline
                                 )
                         )
                         .submitLabel(.go)
@@ -115,7 +115,7 @@ struct MedicalDashboardView: View {
                     if let error = accessCodeError {
                         Text(error)
                             .font(theme.typography.caption)
-                            .foregroundStyle(FCColors.darkColors.statusRed)
+                            .foregroundStyle(BlipColors.darkColors.statusRed)
                     }
 
                     GlassButton("Unlock Dashboard", icon: "lock.open.fill", isLoading: isVerifying) {
@@ -125,7 +125,7 @@ struct MedicalDashboardView: View {
                     .disabled(accessCode.isEmpty || isVerifying)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             Spacer()
         }
@@ -136,7 +136,7 @@ struct MedicalDashboardView: View {
 
     private var dashboardContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: FCSpacing.lg) {
+            VStack(spacing: BlipSpacing.lg) {
                 // Stats bar
                 statsBar
                     .staggeredReveal(index: 0)
@@ -149,9 +149,9 @@ struct MedicalDashboardView: View {
                 alertsSection
                     .staggeredReveal(index: 2)
 
-                Spacer().frame(height: FCSpacing.xxl)
+                Spacer().frame(height: BlipSpacing.xxl)
             }
-            .padding(.top, FCSpacing.md)
+            .padding(.top, BlipSpacing.md)
         }
     }
 
@@ -159,19 +159,19 @@ struct MedicalDashboardView: View {
 
     private var statsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FCSpacing.md) {
-                statCard(value: "\(activeAlerts.count)", label: "Active", color: FCColors.darkColors.statusRed)
-                statCard(value: "\(resolvedCount)", label: "Resolved", color: FCColors.darkColors.statusGreen)
-                statCard(value: avgResponseTimeString, label: "Avg Response", color: .fcAccentPurple)
+            HStack(spacing: BlipSpacing.md) {
+                statCard(value: "\(activeAlerts.count)", label: "Active", color: BlipColors.darkColors.statusRed)
+                statCard(value: "\(resolvedCount)", label: "Resolved", color: BlipColors.darkColors.statusGreen)
+                statCard(value: avgResponseTimeString, label: "Avg Response", color: .blipAccentPurple)
                 statCard(value: "\(responders.count)", label: "Responders", color: theme.colors.text)
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
         }
     }
 
     private func statCard(value: String, label: String, color: Color) -> some View {
-        GlassCard(thickness: .ultraThin, cornerRadius: FCCornerRadius.lg, padding: .fcContent) {
-            VStack(spacing: FCSpacing.xs) {
+        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.lg, padding: .blipContent) {
+            VStack(spacing: BlipSpacing.xs) {
                 Text(value)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(color)
@@ -188,18 +188,18 @@ struct MedicalDashboardView: View {
     // MARK: - Map Section
 
     private var mapSection: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.sm) {
+        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
             HStack {
                 Image(systemName: "map.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text("Live Map")
                     .font(theme.typography.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.text)
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             ResponderMapView(
                 alerts: activeAlerts,
@@ -214,18 +214,18 @@ struct MedicalDashboardView: View {
                 onNavigateToAlert: { _ in }
             )
             .frame(height: 300)
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
         }
     }
 
     // MARK: - Alerts Section
 
     private var alertsSection: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.md) {
+        VStack(alignment: .leading, spacing: BlipSpacing.md) {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(FCColors.darkColors.statusRed)
+                    .foregroundStyle(BlipColors.darkColors.statusRed)
 
                 Text("Active Alerts")
                     .font(theme.typography.body)
@@ -238,25 +238,25 @@ struct MedicalDashboardView: View {
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             if activeAlerts.isEmpty {
                 GlassCard(thickness: .ultraThin) {
-                    VStack(spacing: FCSpacing.sm) {
+                    VStack(spacing: BlipSpacing.sm) {
                         Image(systemName: "checkmark.shield.fill")
                             .font(.system(size: 32))
-                            .foregroundStyle(FCColors.darkColors.statusGreen)
+                            .foregroundStyle(BlipColors.darkColors.statusGreen)
 
                         Text("No active alerts")
                             .font(theme.typography.body)
                             .foregroundStyle(theme.colors.mutedText)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, FCSpacing.lg)
+                    .padding(.vertical, BlipSpacing.lg)
                 }
-                .padding(.horizontal, FCSpacing.md)
+                .padding(.horizontal, BlipSpacing.md)
             } else {
-                LazyVStack(spacing: FCSpacing.md) {
+                LazyVStack(spacing: BlipSpacing.md) {
                     ForEach(Array(sortedAlerts.enumerated()), id: \.element.id) { index, alert in
                         AlertCard(
                             alert: alert,
@@ -271,7 +271,7 @@ struct MedicalDashboardView: View {
                         .staggeredReveal(index: index)
                     }
                 }
-                .padding(.horizontal, FCSpacing.md)
+                .padding(.horizontal, BlipSpacing.md)
             }
         }
     }

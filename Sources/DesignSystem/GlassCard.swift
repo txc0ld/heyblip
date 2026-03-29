@@ -5,7 +5,7 @@ import SwiftUI
 /// A reusable glassmorphism container view.
 ///
 /// Renders a translucent material background with a subtle border and rounded corners,
-/// matching the FestiChat design language. The material thickness is configurable.
+/// matching the Blip design language. The material thickness is configurable.
 ///
 /// Usage:
 /// ```swift
@@ -35,13 +35,13 @@ struct GlassCard<Content: View>: View {
     ///   - thickness: Material blur intensity. Default `.thick`.
     ///   - cornerRadius: Corner radius in points. Default `24`.
     ///   - borderOpacity: Opacity of the 0.5pt border. Default `0.2`.
-    ///   - padding: Inner content padding. Default `.fcCard`.
+    ///   - padding: Inner content padding. Default `.blipCard`.
     ///   - content: The card's body content.
     init(
         thickness: MaterialThickness = .thick,
-        cornerRadius: CGFloat = FCCornerRadius.xl,
+        cornerRadius: CGFloat = BlipCornerRadius.xl,
         borderOpacity: Double = 0.2,
-        padding: EdgeInsets = .fcCard,
+        padding: EdgeInsets = .blipCard,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.thickness = thickness
@@ -78,7 +78,7 @@ struct GlassCard<Content: View>: View {
 
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(borderColor, lineWidth: FCSizing.hairline)
+            .stroke(borderColor, lineWidth: BlipSizing.hairline)
     }
 
     private var borderColor: Color {
@@ -99,7 +99,7 @@ struct GlassCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.fcCard)
+            .padding(.blipCard)
             .background(glassBackground)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(borderOverlay)
@@ -128,7 +128,7 @@ struct GlassCardModifier: ViewModifier {
                 colorScheme == .dark
                     ? .white.opacity(borderOpacity)
                     : .black.opacity(borderOpacity),
-                lineWidth: FCSizing.hairline
+                lineWidth: BlipSizing.hairline
             )
     }
 }
@@ -137,7 +137,7 @@ extension View {
     /// Wraps the view in a glass material container.
     func glassCard(
         thickness: GlassCard<EmptyView>.MaterialThickness = .thick,
-        cornerRadius: CGFloat = FCCornerRadius.xl,
+        cornerRadius: CGFloat = BlipCornerRadius.xl,
         borderOpacity: Double = 0.2
     ) -> some View {
         modifier(GlassCardModifier(

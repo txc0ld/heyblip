@@ -112,7 +112,7 @@ final class FestivalViewModel {
 
     // MARK: - Dependencies
 
-    private let logger = Logger(subsystem: "com.festichat", category: "FestivalViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "FestivalViewModel")
     private let modelContainer: ModelContainer
     private let locationService: LocationService
     private let notificationService: NotificationService
@@ -121,7 +121,7 @@ final class FestivalViewModel {
     // MARK: - Constants
 
     /// Festival manifest CDN URL.
-    private static let manifestURL = "https://cdn.festichat.app/manifests/festivals.json"
+    private static let manifestURL = "https://cdn.blip.app/manifests/festivals.json"
 
     /// Crowd pulse refresh interval.
     private static let crowdPulseRefreshInterval: TimeInterval = 30.0

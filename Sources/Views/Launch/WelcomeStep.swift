@@ -24,17 +24,17 @@ struct WelcomeStep: View {
                 .offset(y: heroVisible ? 0 : 20)
 
             Spacer()
-                .frame(height: FCSpacing.xxl)
+                .frame(height: BlipSpacing.xxl)
 
             // Text content
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Text("Chat at festivals,\neven without signal.")
                     .font(theme.typography.largeTitle)
                     .foregroundStyle(theme.colors.text)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("FestiChat uses Bluetooth to connect you with people nearby. No WiFi or cell signal needed.")
+                Text("Blip uses Bluetooth to connect you with people nearby. No WiFi or cell signal needed.")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.center)
@@ -42,7 +42,7 @@ struct WelcomeStep: View {
             }
             .opacity(textVisible ? 1.0 : 0.0)
             .offset(y: textVisible ? 0 : 15)
-            .padding(.horizontal, FCSpacing.xl)
+            .padding(.horizontal, BlipSpacing.xl)
 
             Spacer()
 
@@ -53,8 +53,8 @@ struct WelcomeStep: View {
             .fullWidth()
             .opacity(buttonVisible ? 1.0 : 0.0)
             .offset(y: buttonVisible ? 0 : 10)
-            .padding(.horizontal, FCSpacing.lg)
-            .padding(.bottom, FCSpacing.xl)
+            .padding(.horizontal, BlipSpacing.lg)
+            .padding(.bottom, BlipSpacing.xl)
         }
         .onAppear {
             animateEntrance()
@@ -70,8 +70,8 @@ struct WelcomeStep: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color.fcAccentPurple.opacity(0.25),
-                            Color.fcAccentPurple.opacity(0.05),
+                            Color.blipAccentPurple.opacity(0.25),
+                            Color.blipAccentPurple.opacity(0.05),
                             Color.clear
                         ],
                         center: .center,
@@ -82,14 +82,14 @@ struct WelcomeStep: View {
                 .frame(width: 240, height: 240)
 
             // Central icon cluster
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 ZStack {
                     // Mesh connection lines (decorative)
                     ForEach(0..<3, id: \.self) { index in
                         let angle = Angle.degrees(Double(index) * 120 - 60)
                         let radius: CGFloat = 50
                         Circle()
-                            .fill(Color.fcAccentPurple.opacity(0.5))
+                            .fill(Color.blipAccentPurple.opacity(0.5))
                             .frame(width: 12, height: 12)
                             .offset(
                                 x: cos(angle.radians) * radius,
@@ -103,7 +103,7 @@ struct WelcomeStep: View {
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [
-                                    Color.fcAccentPurple,
+                                    Color.blipAccentPurple,
                                     Color(red: 0.55, green: 0.15, blue: 1.0)
                                 ],
                                 startPoint: .topLeading,

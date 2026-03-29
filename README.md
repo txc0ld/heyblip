@@ -6,7 +6,7 @@
 </p>
 
 <h1 align="center">
-  FestiChat
+  Blip
 </h1>
 
 <p align="center">
@@ -26,9 +26,9 @@ At large festivals (10,000 - 100,000+ attendees), mobile networks collapse. Towe
 
 ## The Solution
 
-FestiChat creates a **self-forming mesh network** using Bluetooth Low Energy. Every phone running the app becomes a relay node. Messages hop from device to device across the crowd until they reach their destination — no cell towers, no WiFi, no internet required.
+Blip creates a **self-forming mesh network** using Bluetooth Low Energy. Every phone running the app becomes a relay node. Messages hop from device to device across the crowd until they reach their destination — no cell towers, no WiFi, no internet required.
 
-When signal is available, FestiChat seamlessly falls back to WiFi and cellular. But the mesh is always the first choice.
+When signal is available, Blip seamlessly falls back to WiFi and cellular. But the mesh is always the first choice.
 
 ---
 
@@ -77,7 +77,7 @@ When signal is available, FestiChat seamlessly falls back to WiFi and cellular. 
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 FestiChat App                    │
+│                 Blip App                    │
 │                                                  │
 │   SwiftUI Views (Glassmorphism + Animations)     │
 │              ┌─────────────┐                     │
@@ -104,9 +104,9 @@ When signal is available, FestiChat seamlessly falls back to WiFi and cellular. 
 
 | Package | Responsibility |
 |---|---|
-| **FestiChatProtocol** | Binary packet format (16-byte header), serialization, 3-tier Bloom filters, GCS sync, fragmentation, TLV encoding, zlib compression, PKCS#7 padding |
-| **FestiChatCrypto** | Noise XX handshake (Curve25519/ChaChaPoly/SHA256), Ed25519 signing, iOS Keychain management, replay protection, AES-256-GCM sender keys for groups |
-| **FestiChatMesh** | BLE dual-role transport, gossip routing, store-and-forward, adaptive relay probability, directed routing, 4 crowd-scale modes, RSSI clustering, 4-lane traffic shaping, battery-aware power management, WebSocket fallback |
+| **BlipProtocol** | Binary packet format (16-byte header), serialization, 3-tier Bloom filters, GCS sync, fragmentation, TLV encoding, zlib compression, PKCS#7 padding |
+| **BlipCrypto** | Noise XX handshake (Curve25519/ChaChaPoly/SHA256), Ed25519 signing, iOS Keychain management, replay protection, AES-256-GCM sender keys for groups |
+| **BlipMesh** | BLE dual-role transport, gossip routing, store-and-forward, adaptive relay probability, directed routing, 4 crowd-scale modes, RSSI clustering, 4-lane traffic shaping, battery-aware power management, WebSocket fallback |
 
 ---
 
@@ -148,7 +148,7 @@ No accounts. No servers reading your messages. No tracking. Keys are generated o
 
 ## Design Language
 
-FestiChat uses a **glassmorphism** design system with translucent materials, depth, and bold gradients.
+Blip uses a **glassmorphism** design system with translucent materials, depth, and bold gradients.
 
 - **Materials**: `.ultraThinMaterial`, `.regularMaterial`, `.thickMaterial`
 - **Cards**: Glass containers with `cornerRadius(24)` and 0.5pt borders at 20% opacity
@@ -169,7 +169,7 @@ FestiChat uses a **glassmorphism** design system with translucent materials, dep
 ## Project Structure
 
 ```
-FestiChat/
+Blip/
 ├── App/                          # Entry point, Info.plist, entitlements
 ├── Sources/
 │   ├── DesignSystem/             # Colors, typography, spacing, glass components
@@ -186,9 +186,9 @@ FestiChat/
 │           ├── FestivalTab/      # Stage map, schedule, announcements, medical
 │           └── ProfileTab/       # Profile, friends, settings, message packs
 ├── Packages/
-│   ├── FestiChatProtocol/        # Binary wire format + tests
-│   ├── FestiChatCrypto/          # E2E encryption + tests
-│   └── FestiChatMesh/            # BLE mesh networking + tests
+│   ├── BlipProtocol/        # Binary wire format + tests
+│   ├── BlipCrypto/          # E2E encryption + tests
+│   └── BlipMesh/            # BLE mesh networking + tests
 ├── Tests/                        # Integration tests
 ├── Resources/Fonts/              # Plus Jakarta Sans (4 weights)
 └── docs/
@@ -201,7 +201,7 @@ FestiChat/
 
 ## Binary Protocol
 
-FestiChat uses a compact binary protocol designed for BLE's ~512-byte MTU. The protocol spec is the cross-platform contract — any implementation (Swift, Kotlin, or future) that correctly produces these bytes is compatible.
+Blip uses a compact binary protocol designed for BLE's ~512-byte MTU. The protocol spec is the cross-platform contract — any implementation (Swift, Kotlin, or future) that correctly produces these bytes is compatible.
 
 ```
 ┌──────────────────────────────────────────────────────┐
@@ -267,10 +267,10 @@ brew install xcodegen
 xcodegen generate
 
 # Open in Xcode
-open FestiChat.xcodeproj
+open Blip.xcodeproj
 
 # Build
-xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
 ```
 
 ---
@@ -281,8 +281,8 @@ xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16
 |---|---|
 | [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | Cross-platform binary protocol specification |
 | [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md) | Project whitepaper |
-| [`docs/superpowers/specs/2026-03-28-festichat-design.md`](docs/superpowers/specs/2026-03-28-festichat-design.md) | Full design specification (1,500+ lines) |
-| [`docs/superpowers/plans/2026-03-28-festichat-implementation.md`](docs/superpowers/plans/2026-03-28-festichat-implementation.md) | Implementation plan |
+| [`docs/superpowers/specs/2026-03-28-blip-design.md`](docs/superpowers/specs/2026-03-28-blip-design.md) | Full design specification (1,500+ lines) |
+| [`docs/superpowers/plans/2026-03-28-blip-implementation.md`](docs/superpowers/plans/2026-03-28-blip-implementation.md) | Implementation plan |
 
 ---
 
@@ -290,13 +290,13 @@ xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16
 
 ```bash
 # Protocol tests (144 tests)
-swift test --package-path Packages/FestiChatProtocol
+swift test --package-path Packages/BlipProtocol
 
 # Crypto tests (41 tests + 5 Keychain tests on device)
-swift test --package-path Packages/FestiChatCrypto
+swift test --package-path Packages/BlipCrypto
 
 # Mesh tests (68 tests)
-swift test --package-path Packages/FestiChatMesh
+swift test --package-path Packages/BlipMesh
 ```
 
 253+ test cases covering packet serialization, Noise handshakes, gossip routing, congestion management, and ViewModel logic.
@@ -305,7 +305,7 @@ swift test --package-path Packages/FestiChatMesh
 
 ## Contributing
 
-FestiChat is currently in private development. If you're interested in contributing to the Android implementation or the mesh protocol, reach out.
+Blip is currently in private development. If you're interested in contributing to the Android implementation or the mesh protocol, reach out.
 
 ---
 

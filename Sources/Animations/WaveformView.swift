@@ -21,7 +21,7 @@ import SwiftUI
 /// ```swift
 /// WaveformView(
 ///     levels: viewModel.audioLevels,
-///     color: .fcAccentPurple,
+///     color: .blipAccentPurple,
 ///     isActive: true
 /// )
 /// .frame(height: 48)
@@ -62,7 +62,7 @@ struct WaveformView: View {
     ///   - fillOpacity: Opacity of the fill gradient. Default `0.15`.
     init(
         levels: [Float],
-        color: Color = .fcAccentPurple,
+        color: Color = .blipAccentPurple,
         isActive: Bool = true,
         barCount: Int = 24,
         lineWidth: CGFloat = 2,
@@ -315,7 +315,7 @@ extension View {
     /// Overlay an audio waveform visualization on this view.
     func waveformOverlay(
         levels: [Float],
-        color: Color = .fcAccentPurple,
+        color: Color = .blipAccentPurple,
         isActive: Bool = true
     ) -> some View {
         modifier(WaveformOverlayModifier(levels: levels, color: color, isActive: isActive))
@@ -334,7 +334,7 @@ extension View {
             levels: (0 ..< 32).map { i in
                 Float(sin(Double(i) * 0.3) * 0.4 + 0.5)
             },
-            color: .fcAccentPurple,
+            color: .blipAccentPurple,
             isActive: true
         )
         .frame(height: 48)
@@ -360,7 +360,7 @@ extension View {
 
         WaveformView(
             levels: [0.1, 0.2, 0.1, 0.15],
-            color: .fcAccentPurple,
+            color: .blipAccentPurple,
             isActive: false
         )
         .frame(height: 48)

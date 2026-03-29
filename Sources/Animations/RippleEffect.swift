@@ -13,7 +13,7 @@ import SwiftUI
 ///
 /// Usage:
 /// ```swift
-/// RippleEffect(isActive: $isRecording, ringCount: 3, color: .fcAccentPurple)
+/// RippleEffect(isActive: $isRecording, ringCount: 3, color: .blipAccentPurple)
 /// ```
 struct RippleEffect: View {
 
@@ -39,14 +39,14 @@ struct RippleEffect: View {
     /// - Parameters:
     ///   - isActive: Binding controlling animation playback.
     ///   - ringCount: Number of rings. Default `3`.
-    ///   - color: Ring color. Default `.fcAccentPurple`.
+    ///   - color: Ring color. Default `.blipAccentPurple`.
     ///   - maxScale: Max expansion scale. Default `2.5`.
     ///   - cycleDuration: Cycle duration in seconds. Default `1.5`.
     ///   - lineWidth: Ring stroke width. Default `2`.
     init(
         isActive: Binding<Bool>,
         ringCount: Int = 3,
-        color: Color = .fcAccentPurple,
+        color: Color = .blipAccentPurple,
         maxScale: CGFloat = 2.5,
         cycleDuration: Double = 1.5,
         lineWidth: CGFloat = 2
@@ -190,7 +190,7 @@ extension View {
     func rippleEffect(
         isActive: Binding<Bool>,
         ringCount: Int = 3,
-        color: Color = .fcAccentPurple
+        color: Color = .blipAccentPurple
     ) -> some View {
         modifier(RippleEffectModifier(
             isActive: isActive,

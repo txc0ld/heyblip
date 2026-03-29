@@ -35,8 +35,8 @@ struct ChatView: View {
                         .foregroundStyle(theme.colors.mutedText)
                     Spacer()
                 }
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.vertical, FCSpacing.xs)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.vertical, BlipSpacing.xs)
                 .transition(.opacity)
             }
 
@@ -90,10 +90,10 @@ struct ChatView: View {
                 Text(error)
                     .font(theme.typography.caption)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, FCSpacing.md)
-                    .padding(.vertical, FCSpacing.sm)
+                    .padding(.horizontal, BlipSpacing.md)
+                    .padding(.vertical, BlipSpacing.sm)
                     .background(Capsule().fill(theme.colors.statusRed))
-                    .padding(.top, FCSpacing.sm)
+                    .padding(.top, BlipSpacing.sm)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -108,7 +108,7 @@ struct ChatView: View {
     // MARK: - Navigation Title
 
     private var navigationTitleView: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             AvatarView(
                 imageData: conversation.avatarData,
                 name: conversation.displayName,
@@ -119,11 +119,11 @@ struct ChatView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(conversation.displayName)
-                    .font(.custom(FCFontName.semiBold, size: 16, relativeTo: .body))
+                    .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
                     .foregroundStyle(theme.colors.text)
 
                 Text(conversation.isOnline ? "Online" : "Last seen recently")
-                    .font(.custom(FCFontName.regular, size: 12, relativeTo: .caption2))
+                    .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
                     .foregroundStyle(
                         conversation.isOnline
                             ? theme.colors.statusGreen
@@ -138,7 +138,7 @@ struct ChatView: View {
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: FCSpacing.sm) {
+                LazyVStack(spacing: BlipSpacing.sm) {
                     // Date headers + messages
                     ForEach(Array(groupedMessages.enumerated()), id: \.offset) { sectionIndex, section in
                         // Date header
@@ -167,7 +167,7 @@ struct ChatView: View {
                         .frame(height: 1)
                         .id("bottom")
                 }
-                .padding(.vertical, FCSpacing.md)
+                .padding(.vertical, BlipSpacing.md)
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _, _ in
@@ -185,16 +185,16 @@ struct ChatView: View {
 
     private func dateHeader(for date: Date) -> some View {
         Text(formattedDateHeader(date))
-            .font(.custom(FCFontName.medium, size: 12, relativeTo: .caption2))
+            .font(.custom(BlipFontName.medium, size: 12, relativeTo: .caption2))
             .foregroundStyle(theme.colors.mutedText)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.xs + 2)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.xs + 2)
             .background(
                 Capsule()
                     .fill(.ultraThinMaterial)
             )
             .frame(maxWidth: .infinity)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.vertical, BlipSpacing.sm)
     }
 
     // MARK: - Grouped Messages

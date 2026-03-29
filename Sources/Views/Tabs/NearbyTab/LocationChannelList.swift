@@ -14,7 +14,7 @@ struct LocationChannelList: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.md) {
+        VStack(alignment: .leading, spacing: BlipSpacing.md) {
             sectionHeader
 
             if channels.isEmpty {
@@ -31,7 +31,7 @@ struct LocationChannelList: View {
         HStack {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text("Nearby Channels")
                 .font(theme.typography.headline)
@@ -43,19 +43,19 @@ struct LocationChannelList: View {
                 Text("\(channels.count)")
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
-                    .padding(.horizontal, FCSpacing.sm)
-                    .padding(.vertical, FCSpacing.xs)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xs)
                     .background(Capsule().fill(theme.colors.hover))
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 
     // MARK: - Channels List
 
     private var channelsList: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: FCSpacing.md) {
+            LazyHStack(spacing: BlipSpacing.md) {
                 ForEach(Array(channels.enumerated()), id: \.element.id) { index, channel in
                     LocationChannelCard(channel: channel) {
                         onChannelTap?(channel)
@@ -63,15 +63,15 @@ struct LocationChannelList: View {
                     .staggeredReveal(index: index)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
         }
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
-        GlassCard(thickness: .ultraThin, cornerRadius: FCCornerRadius.xl) {
-            VStack(spacing: FCSpacing.sm) {
+        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
+            VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "dot.radiowaves.left.and.right")
                     .font(.system(size: 28))
                     .foregroundStyle(theme.colors.mutedText)
@@ -86,9 +86,9 @@ struct LocationChannelList: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, FCSpacing.md)
+            .padding(.vertical, BlipSpacing.md)
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 }
 
@@ -105,16 +105,16 @@ private struct LocationChannelCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 // Channel icon and name
-                HStack(spacing: FCSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: channel.iconName)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                         .frame(width: 28, height: 28)
                         .background(
                             Circle()
-                                .fill(.fcAccentPurple.opacity(0.15))
+                                .fill(.blipAccentPurple.opacity(0.15))
                         )
 
                     VStack(alignment: .leading, spacing: 1) {
@@ -126,12 +126,12 @@ private struct LocationChannelCard: View {
 
                         Text(channel.isAutoJoined ? "Auto-joined" : "Tap to join")
                             .font(theme.typography.caption)
-                            .foregroundStyle(.fcAccentPurple.opacity(0.8))
+                            .foregroundStyle(.blipAccentPurple.opacity(0.8))
                     }
                 }
 
                 // Member count
-                HStack(spacing: FCSpacing.xs) {
+                HStack(spacing: BlipSpacing.xs) {
                     Image(systemName: "person.2.fill")
                         .font(.system(size: 10))
                         .foregroundStyle(theme.colors.mutedText)
@@ -160,10 +160,10 @@ private struct LocationChannelCard: View {
             .frame(width: 200)
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .glassCard(
             thickness: .regular,
-            cornerRadius: FCCornerRadius.xl,
+            cornerRadius: BlipCornerRadius.xl,
             borderOpacity: 0.12
         )
         .accessibilityElement(children: .combine)

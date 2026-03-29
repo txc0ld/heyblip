@@ -45,7 +45,7 @@ struct OnboardingFlow: View {
 
                 // Custom page indicator
                 pageIndicator
-                    .padding(.bottom, FCSpacing.md)
+                    .padding(.bottom, BlipSpacing.md)
             }
         }
     }
@@ -53,12 +53,12 @@ struct OnboardingFlow: View {
     // MARK: - Page Indicator
 
     private var pageIndicator: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             ForEach(0..<stepCount, id: \.self) { index in
                 Capsule()
                     .fill(
                         index == currentStep
-                            ? Color.fcAccentPurple
+                            ? Color.blipAccentPurple
                             : (colorScheme == .dark
                                 ? Color.white.opacity(0.2)
                                 : Color.black.opacity(0.15))

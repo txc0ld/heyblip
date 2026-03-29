@@ -33,9 +33,9 @@ struct FriendsListView: View {
                 Button(action: { showAddFriend = true }) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 16))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                 }
-                .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel("Add friend")
             }
         }
@@ -72,7 +72,7 @@ struct FriendsListView: View {
     // MARK: - Search Bar
 
     private var searchBar: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14))
                 .foregroundStyle(theme.colors.mutedText)
@@ -88,15 +88,15 @@ struct FriendsListView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(theme.colors.mutedText)
                 }
-                .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
             }
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous))
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .accessibilityLabel("Search friends")
     }
 
@@ -104,13 +104,13 @@ struct FriendsListView: View {
 
     private var sectionPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 ForEach(FriendSection.allCases, id: \.self) { section in
                     sectionChip(section)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.bottom, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.bottom, BlipSpacing.sm)
         }
     }
 
@@ -121,7 +121,7 @@ struct FriendsListView: View {
                 selectedSection = section
             }
         }) {
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Text(section.displayName)
                     .font(theme.typography.caption)
                     .fontWeight(selectedSection == section ? .semibold : .regular)
@@ -133,17 +133,17 @@ struct FriendsListView: View {
                 }
             }
             .foregroundStyle(selectedSection == section ? .white : theme.colors.text)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(
                 Capsule()
                     .fill(selectedSection == section
-                          ? AnyShapeStyle(LinearGradient.fcAccent)
+                          ? AnyShapeStyle(LinearGradient.blipAccent)
                           : AnyShapeStyle(theme.colors.hover))
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(section.displayName), \(count) friends")
         .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
     }
@@ -162,14 +162,14 @@ struct FriendsListView: View {
             if filteredFriends.isEmpty {
                 emptyState
             } else {
-                LazyVStack(spacing: FCSpacing.sm) {
+                LazyVStack(spacing: BlipSpacing.sm) {
                     ForEach(Array(filteredFriends.enumerated()), id: \.element.id) { index, friend in
                         FriendRow(friend: friend, onTap: { selectedFriend = friend })
                             .staggeredReveal(index: index)
                     }
                 }
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.bottom, FCSpacing.xxl)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.bottom, BlipSpacing.xxl)
             }
         }
     }
@@ -177,8 +177,8 @@ struct FriendsListView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: FCSpacing.md) {
-            Spacer().frame(height: FCSpacing.xxl)
+        VStack(spacing: BlipSpacing.md) {
+            Spacer().frame(height: BlipSpacing.xxl)
 
             Image(systemName: selectedSection.emptyIcon)
                 .font(.system(size: 40))
@@ -227,12 +227,12 @@ private struct FriendRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 // Avatar
                 ZStack {
                     Circle()
-                        .fill(LinearGradient.fcAccent.opacity(0.7))
-                        .frame(width: FCSizing.avatarSmall, height: FCSizing.avatarSmall)
+                        .fill(LinearGradient.blipAccent.opacity(0.7))
+                        .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
                         .overlay(
                             Text(String(friend.displayName.prefix(1)).uppercased())
                                 .font(.system(size: 16, weight: .bold))
@@ -249,7 +249,7 @@ private struct FriendRow: View {
                 }
 
                 // Info
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     HStack {
                         Text(friend.displayName)
                             .font(theme.typography.body)
@@ -259,7 +259,7 @@ private struct FriendRow: View {
                         if friend.isPhoneVerified {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.system(size: 12))
-                                .foregroundStyle(.fcAccentPurple)
+                                .foregroundStyle(.blipAccentPurple)
                         }
                     }
 
@@ -274,17 +274,17 @@ private struct FriendRow: View {
                 if friend.status == .pending {
                     Text("Pending")
                         .font(theme.typography.caption)
-                        .foregroundStyle(FCColors.darkColors.statusAmber)
-                        .padding(.horizontal, FCSpacing.sm)
-                        .padding(.vertical, FCSpacing.xs)
-                        .background(Capsule().fill(FCColors.darkColors.statusAmber.opacity(0.12)))
+                        .foregroundStyle(BlipColors.darkColors.statusAmber)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
+                        .background(Capsule().fill(BlipColors.darkColors.statusAmber.opacity(0.12)))
                 } else if friend.status == .blocked {
                     Text("Blocked")
                         .font(theme.typography.caption)
-                        .foregroundStyle(FCColors.darkColors.statusRed)
-                        .padding(.horizontal, FCSpacing.sm)
-                        .padding(.vertical, FCSpacing.xs)
-                        .background(Capsule().fill(FCColors.darkColors.statusRed.opacity(0.12)))
+                        .foregroundStyle(BlipColors.darkColors.statusRed)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
+                        .background(Capsule().fill(BlipColors.darkColors.statusRed.opacity(0.12)))
                 }
 
                 Image(systemName: "chevron.right")
@@ -293,8 +293,8 @@ private struct FriendRow: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
-        .glassCard(thickness: .ultraThin, cornerRadius: FCCornerRadius.lg, borderOpacity: 0.1)
+        .frame(minHeight: BlipSizing.minTapTarget)
+        .glassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.lg, borderOpacity: 0.1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(friend.displayName), @\(friend.username)\(friend.isOnline ? ", online" : "")\(friend.status == .pending ? ", pending" : "")")
     }

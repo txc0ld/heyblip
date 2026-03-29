@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-/// Handles email verification against the FestiChat auth API.
+/// Handles email verification against the Blip auth API.
 ///
 /// Sends a 6-digit code via Resend and verifies it.
 /// All errors are surfaced as ``EmailVerificationError``.
@@ -9,9 +9,9 @@ final class EmailVerificationService: Sendable {
 
     // MARK: - Configuration
 
-    private static let baseURL = "https://festichat-auth.john-mckean.workers.dev/v1/auth"
+    private static let baseURL = "https://blip-auth.john-mckean.workers.dev/v1/auth"
 
-    private let logger = Logger(subsystem: "com.festichat", category: "EmailVerification")
+    private let logger = Logger(subsystem: "com.blip", category: "EmailVerification")
 
     // MARK: - Errors
 

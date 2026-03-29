@@ -360,7 +360,7 @@ extension LocationService: CLLocationManagerDelegate {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let locationServiceDidGetSOSFix = Notification.Name("com.festichat.locationServiceDidGetSOSFix")
+    static let locationServiceDidGetSOSFix = Notification.Name("com.blip.locationServiceDidGetSOSFix")
 }
 
 // MARK: - Geohash Encoder

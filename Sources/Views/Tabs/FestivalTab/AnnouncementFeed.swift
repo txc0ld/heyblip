@@ -14,7 +14,7 @@ struct AnnouncementFeed: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.md) {
+        VStack(alignment: .leading, spacing: BlipSpacing.md) {
             sectionHeader
 
             if announcements.isEmpty {
@@ -31,7 +31,7 @@ struct AnnouncementFeed: View {
         HStack {
             Image(systemName: "megaphone.fill")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text("Announcements")
                 .font(theme.typography.headline)
@@ -43,18 +43,18 @@ struct AnnouncementFeed: View {
                 Text("\(announcements.count)")
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
-                    .padding(.horizontal, FCSpacing.sm)
-                    .padding(.vertical, FCSpacing.xs)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xs)
                     .background(Capsule().fill(theme.colors.hover))
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 
     // MARK: - List
 
     private var announcementList: some View {
-        LazyVStack(spacing: FCSpacing.sm) {
+        LazyVStack(spacing: BlipSpacing.sm) {
             // Emergency announcements pinned at top
             let emergencies = announcements.filter { $0.severity == .emergency }
             let regular = announcements.filter { $0.severity != .emergency }
@@ -73,14 +73,14 @@ struct AnnouncementFeed: View {
                 .staggeredReveal(index: emergencies.count + index)
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "checkmark.circle")
                     .font(.system(size: 28))
                     .foregroundStyle(theme.colors.mutedText)
@@ -95,7 +95,7 @@ struct AnnouncementFeed: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
     }
 }
 
@@ -112,12 +112,12 @@ private struct AnnouncementCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: FCSpacing.md) {
+            HStack(alignment: .top, spacing: BlipSpacing.md) {
                 // Severity indicator
                 severityBadge
 
                 // Content
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     HStack {
                         Text(announcement.title)
                             .font(theme.typography.body)
@@ -140,7 +140,7 @@ private struct AnnouncementCard: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
 
-                    HStack(spacing: FCSpacing.sm) {
+                    HStack(spacing: BlipSpacing.sm) {
                         Text(announcement.timestamp, style: .relative)
                             .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.mutedText.opacity(0.7))
@@ -155,19 +155,19 @@ private struct AnnouncementCard: View {
             }
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
-        .padding(FCSpacing.md)
+        .frame(minHeight: BlipSizing.minTapTarget)
+        .padding(BlipSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .fill(.regularMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(
                     announcement.severity == .emergency
                         ? severityColor.opacity(0.4)
                         : (colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08)),
-                    lineWidth: announcement.severity == .emergency ? 1 : FCSizing.hairline
+                    lineWidth: announcement.severity == .emergency ? 1 : BlipSizing.hairline
                 )
         )
         .accessibilityElement(children: .combine)
@@ -190,9 +190,9 @@ private struct AnnouncementCard: View {
     private var severityColor: Color {
         switch announcement.severity {
         case .info: return .blue
-        case .warning: return FCColors.darkColors.statusAmber
+        case .warning: return BlipColors.darkColors.statusAmber
         case .urgent: return .orange
-        case .emergency: return FCColors.darkColors.statusRed
+        case .emergency: return BlipColors.darkColors.statusRed
         }
     }
 }
@@ -247,7 +247,7 @@ enum AnnouncementSeverity {
         GradientBackground()
         ScrollView {
             AnnouncementFeed(announcements: announcements)
-                .padding(.top, FCSpacing.md)
+                .padding(.top, BlipSpacing.md)
         }
     }
     .preferredColorScheme(.dark)

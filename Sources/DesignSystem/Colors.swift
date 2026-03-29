@@ -1,11 +1,11 @@
 import SwiftUI
 
-// MARK: - FestiChat Color Tokens
+// MARK: - Blip Color Tokens
 
 /// Adaptive color tokens that resolve automatically for light and dark modes.
 /// Dark: #000000 bg, #FFFFFF text, rgba(255,255,255,0.5) muted, #6600FF accent
 /// Light: #FFFFFF bg, #000000 text, rgba(0,0,0,0.5) muted, #6600FF accent
-struct FCColors: Sendable {
+struct BlipColors: Sendable {
 
     // MARK: - Semantic tokens
 
@@ -44,7 +44,7 @@ struct FCColors: Sendable {
     // MARK: - Factory
 
     /// Resolves colors for the given color scheme.
-    static func resolved(for scheme: ColorScheme) -> FCColors {
+    static func resolved(for scheme: ColorScheme) -> BlipColors {
         switch scheme {
         case .dark:
             return darkColors
@@ -57,7 +57,7 @@ struct FCColors: Sendable {
 
     /// Adaptive color set that automatically adapts to the current color scheme.
     /// These use Asset Catalog colors when available, with programmatic fallbacks.
-    static let adaptive = FCColors(
+    static let adaptive = BlipColors(
         background: Color("Background", bundle: nil),
         text: Color("TextPrimary", bundle: nil),
         mutedText: Color("MutedText", bundle: nil),
@@ -72,7 +72,7 @@ struct FCColors: Sendable {
 
     // MARK: - Explicit theme sets (programmatic fallback)
 
-    static let darkColors = FCColors(
+    static let darkColors = BlipColors(
         background: .black,
         text: .white,
         mutedText: .white.opacity(0.5),
@@ -85,7 +85,7 @@ struct FCColors: Sendable {
         statusRed: Color(red: 1.0, green: 0.27, blue: 0.27)
     )
 
-    static let lightColors = FCColors(
+    static let lightColors = BlipColors(
         background: .white,
         text: .black,
         mutedText: .black.opacity(0.5),
@@ -103,17 +103,17 @@ struct FCColors: Sendable {
 
 extension Color {
 
-    /// FestiChat accent purple (#6600FF)
-    static let fcAccentPurple = Color(red: 0.4, green: 0.0, blue: 1.0)
+    /// Blip accent purple (#6600FF)
+    static let blipAccentPurple = Color(red: 0.4, green: 0.0, blue: 1.0)
 
     /// Gradient stops for the animated mesh background
-    static let fcGradientDeepPurple = Color(red: 0.15, green: 0.0, blue: 0.35)
-    static let fcGradientMidnightBlue = Color(red: 0.05, green: 0.05, blue: 0.25)
-    static let fcGradientDarkTeal = Color(red: 0.0, green: 0.12, blue: 0.20)
-    static let fcGradientNearBlack = Color(red: 0.02, green: 0.02, blue: 0.06)
+    static let blipGradientDeepPurple = Color(red: 0.15, green: 0.0, blue: 0.35)
+    static let blipGradientMidnightBlue = Color(red: 0.05, green: 0.05, blue: 0.25)
+    static let blipGradientDarkTeal = Color(red: 0.0, green: 0.12, blue: 0.20)
+    static let blipGradientNearBlack = Color(red: 0.02, green: 0.02, blue: 0.06)
 
     /// Accent purple gradient for buttons and highlights
-    static let fcAccentGradient = LinearGradient(
+    static let blipAccentGradient = LinearGradient(
         colors: [
             Color(red: 0.40, green: 0.0, blue: 1.0),
             Color(red: 0.55, green: 0.15, blue: 1.0)
@@ -126,15 +126,15 @@ extension Color {
 // MARK: - ShapeStyle convenience for colors
 
 extension ShapeStyle where Self == Color {
-    /// FestiChat accent purple, usable in ShapeStyle contexts (e.g. `.foregroundStyle`).
-    static var fcAccentPurple: Color { Color.fcAccentPurple }
+    /// Blip accent purple, usable in ShapeStyle contexts (e.g. `.foregroundStyle`).
+    static var blipAccentPurple: Color { Color.blipAccentPurple }
 }
 
 // MARK: - ShapeStyle convenience for gradients
 
 extension LinearGradient {
     /// Standard accent gradient for interactive elements.
-    static let fcAccent = LinearGradient(
+    static let blipAccent = LinearGradient(
         colors: [
             Color(red: 0.40, green: 0.0, blue: 1.0),
             Color(red: 0.55, green: 0.15, blue: 1.0)

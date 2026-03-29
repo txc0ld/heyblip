@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 import os.log
-import FestiChatProtocol
-import FestiChatMesh
-import FestiChatCrypto
+import BlipProtocol
+import BlipMesh
+import BlipCrypto
 
 // MARK: - Message Service Error
 
@@ -38,16 +38,16 @@ protocol MessageServiceDelegate: AnyObject, Sendable {
 /// Orchestrates message send/receive: encrypt, serialize, transport, decrypt, store, notify.
 ///
 /// Integrates with:
-/// - `FestiChatCrypto.KeyManager` for identity and encryption
-/// - `FestiChatProtocol.PacketSerializer` for wire format
-/// - `FestiChatMesh.Transport` for BLE/WebSocket delivery
+/// - `BlipCrypto.KeyManager` for identity and encryption
+/// - `BlipProtocol.PacketSerializer` for wire format
+/// - `BlipMesh.Transport` for BLE/WebSocket delivery
 /// - SwiftData for persistence
 /// - MessagePack for balance tracking
 final class MessageService: @unchecked Sendable {
 
     // MARK: - Logging
 
-    private let logger = Logger(subsystem: "com.festichat", category: "MessageService")
+    private let logger = Logger(subsystem: "com.blip", category: "MessageService")
 
     // MARK: - Dependencies
 
@@ -855,7 +855,7 @@ final class MessageService: @unchecked Sendable {
     // MARK: - Private: Packet Builder
 
     private func buildPacket(
-        type: FestiChatProtocol.MessageType,
+        type: BlipProtocol.MessageType,
         payload: Data,
         flags: PacketFlags,
         senderID: PeerID,
@@ -1047,10 +1047,10 @@ extension MessageService: TransportDelegate {
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let didReceiveSOSPacket = Notification.Name("com.festichat.didReceiveSOSPacket")
-    static let didReceiveLocationPacket = Notification.Name("com.festichat.didReceiveLocationPacket")
-    static let didReceivePTTAudio = Notification.Name("com.festichat.didReceivePTTAudio")
-    static let didReceiveFriendRequest = Notification.Name("com.festichat.didReceiveFriendRequest")
-    static let didReceiveFriendAccept = Notification.Name("com.festichat.didReceiveFriendAccept")
-    static let didReceiveGroupManagement = Notification.Name("com.festichat.didReceiveGroupManagement")
+    static let didReceiveSOSPacket = Notification.Name("com.blip.didReceiveSOSPacket")
+    static let didReceiveLocationPacket = Notification.Name("com.blip.didReceiveLocationPacket")
+    static let didReceivePTTAudio = Notification.Name("com.blip.didReceivePTTAudio")
+    static let didReceiveFriendRequest = Notification.Name("com.blip.didReceiveFriendRequest")
+    static let didReceiveFriendAccept = Notification.Name("com.blip.didReceiveFriendAccept")
+    static let didReceiveGroupManagement = Notification.Name("com.blip.didReceiveGroupManagement")
 }

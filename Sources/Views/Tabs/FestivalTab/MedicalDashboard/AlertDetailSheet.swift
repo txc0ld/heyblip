@@ -29,14 +29,14 @@ struct AlertDetailSheet: View {
                 GradientBackground()
 
                 ScrollView {
-                    VStack(spacing: FCSpacing.lg) {
+                    VStack(spacing: BlipSpacing.lg) {
                         severityHeader
                         liveMapSection
                         detailsSection
                         responseTimerSection
                         workflowActions
                     }
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                 }
             }
             .navigationTitle("Alert #\(alert.shortID)")
@@ -62,7 +62,7 @@ struct AlertDetailSheet: View {
 
     private var severityHeader: some View {
         GlassCard(thickness: .regular) {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 // Severity badge
                 ZStack {
                     Circle()
@@ -74,7 +74,7 @@ struct AlertDetailSheet: View {
                         .foregroundStyle(severityColor)
                 }
 
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text(severityLabel)
                         .font(theme.typography.headline)
                         .fontWeight(.bold)
@@ -103,14 +103,14 @@ struct AlertDetailSheet: View {
             .font(theme.typography.caption)
             .fontWeight(.bold)
             .foregroundStyle(color)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(Capsule().fill(color.opacity(0.15)))
     }
 
     private var statusInfo: (String, Color) {
         if alert.acceptedBy != nil {
-            return ("ACCEPTED", .fcAccentPurple)
+            return ("ACCEPTED", .blipAccentPurple)
         }
         return ("ACTIVE", severityColor)
     }
@@ -119,7 +119,7 @@ struct AlertDetailSheet: View {
 
     private var liveMapSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 HStack {
                     Image(systemName: "location.fill")
                         .font(.system(size: 14))
@@ -133,7 +133,7 @@ struct AlertDetailSheet: View {
                     Spacer()
 
                     // Accuracy indicator
-                    HStack(spacing: FCSpacing.xs) {
+                    HStack(spacing: BlipSpacing.xs) {
                         Image(systemName: alert.accuracy.iconName)
                             .font(.system(size: 10))
                         Text(alert.accuracy.label)
@@ -179,7 +179,7 @@ struct AlertDetailSheet: View {
                 }
                 .mapStyle(.standard(elevation: .flat))
                 .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
 
                 Text(alert.locationDescription)
                     .font(theme.typography.secondary)
@@ -192,7 +192,7 @@ struct AlertDetailSheet: View {
 
     private var detailsSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.md) {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
                 Text("Details")
                     .font(theme.typography.body)
                     .fontWeight(.semibold)
@@ -207,7 +207,7 @@ struct AlertDetailSheet: View {
                 }
 
                 if let acceptedBy = alert.acceptedBy {
-                    detailRow(label: "Accepted By", value: acceptedBy, color: .fcAccentPurple)
+                    detailRow(label: "Accepted By", value: acceptedBy, color: .blipAccentPurple)
                 }
             }
         }
@@ -260,7 +260,7 @@ struct AlertDetailSheet: View {
     // MARK: - Workflow Actions
 
     private var workflowActions: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             if alert.acceptedBy == nil {
                 GlassButton("Accept Alert", icon: "checkmark.circle.fill") {
                     onAccept?()
@@ -286,9 +286,9 @@ struct AlertDetailSheet: View {
 
     private var severityColor: Color {
         switch alert.severity {
-        case .green: return FCColors.darkColors.statusGreen
-        case .amber: return FCColors.darkColors.statusAmber
-        case .red: return FCColors.darkColors.statusRed
+        case .green: return BlipColors.darkColors.statusGreen
+        case .amber: return BlipColors.darkColors.statusAmber
+        case .red: return BlipColors.darkColors.statusRed
         }
     }
 

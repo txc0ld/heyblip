@@ -43,7 +43,7 @@ struct VoiceNotePlayer: View {
     }
 
     var body: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             // Play/pause button
             playPauseButton
 
@@ -75,7 +75,7 @@ struct VoiceNotePlayer: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
     }
 
     // MARK: - Waveform
@@ -97,7 +97,7 @@ struct VoiceNotePlayer: View {
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(
                             isPlayed
-                                ? (isFromMe ? Color.white : Color.fcAccentPurple)
+                                ? (isFromMe ? Color.white : Color.blipAccentPurple)
                                 : (isFromMe ? Color.white.opacity(0.3) : theme.colors.mutedText.opacity(0.3))
                         )
                         .frame(width: barWidth, height: max(4, CGFloat(amplitude) * geometry.size.height))
@@ -111,7 +111,7 @@ struct VoiceNotePlayer: View {
 
     private var durationLabel: some View {
         Text(isPlaying ? formattedRemaining : formattedDuration(duration))
-            .font(.custom(FCFontName.medium, size: 11, relativeTo: .caption2))
+            .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
             .foregroundStyle(foregroundColor.opacity(0.7))
             .monospacedDigit()
             .frame(width: 38, alignment: .trailing)
@@ -124,7 +124,7 @@ struct VoiceNotePlayer: View {
             playbackSpeed = playbackSpeed.next
         } label: {
             Text(playbackSpeed.label)
-                .font(.custom(FCFontName.bold, size: 10, relativeTo: .caption2))
+                .font(.custom(BlipFontName.bold, size: 10, relativeTo: .caption2))
                 .foregroundStyle(foregroundColor.opacity(0.6))
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
@@ -134,7 +134,7 @@ struct VoiceNotePlayer: View {
                 )
         }
         .buttonStyle(.plain)
-        .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+        .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
     }
 
     // MARK: - Helpers
@@ -206,7 +206,7 @@ struct VoiceNotePlayer: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.fcAccentPurple)
+                .fill(Color.blipAccentPurple)
         )
     }
     .padding()

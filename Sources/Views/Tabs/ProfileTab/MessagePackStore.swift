@@ -24,7 +24,7 @@ struct MessagePackStore: View {
             GradientBackground()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     // Featured: Verified profile
                     verifiedFeatureCard
                         .staggeredReveal(index: 0)
@@ -45,9 +45,9 @@ struct MessagePackStore: View {
                     restoreButton
                         .staggeredReveal(index: 5)
 
-                    Spacer().frame(height: FCSpacing.xxl)
+                    Spacer().frame(height: BlipSpacing.xxl)
                 }
-                .padding(FCSpacing.md)
+                .padding(BlipSpacing.md)
             }
         }
         .navigationTitle("Message Packs")
@@ -88,21 +88,21 @@ struct MessagePackStore: View {
     private var verifiedFeatureCard: some View {
         Button(action: { showVerifiedSheet = true }) {
             GlassCard(thickness: .regular) {
-                HStack(spacing: FCSpacing.md) {
+                HStack(spacing: BlipSpacing.md) {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
 
-                    VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                    VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                         if user?.isVerified == true {
-                            HStack(spacing: FCSpacing.xs) {
+                            HStack(spacing: BlipSpacing.xs) {
                                 Text("Verified")
                                     .font(theme.typography.body)
                                     .fontWeight(.semibold)
                                     .foregroundStyle(theme.colors.mutedText)
                                 Image(systemName: "checkmark")
                                     .font(theme.typography.caption)
-                                    .foregroundStyle(.fcAccentPurple)
+                                    .foregroundStyle(.blipAccentPurple)
                             }
                         } else {
                             Text("Get Verified")
@@ -129,8 +129,8 @@ struct MessagePackStore: View {
         .buttonStyle(.plain)
         .disabled(user?.isVerified == true)
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                .stroke(Color.fcAccentPurple.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                .stroke(Color.blipAccentPurple.opacity(0.3), lineWidth: 1)
         )
     }
 
@@ -138,17 +138,17 @@ struct MessagePackStore: View {
 
     private var balanceHeader: some View {
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 Text("Current Balance")
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
 
                 let balance = storeViewModel?.messageBalance ?? 0
 
-                HStack(alignment: .firstTextBaseline, spacing: FCSpacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: BlipSpacing.xs) {
                     Text(storeViewModel?.balanceDisplay ?? "\(balance)")
                         .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                         .contentTransition(.numericText())
 
                     Text("messages")
@@ -157,14 +157,14 @@ struct MessagePackStore: View {
                 }
 
                 if balance <= 5 && storeViewModel?.isUnlimited != true {
-                    HStack(spacing: FCSpacing.xs) {
+                    HStack(spacing: BlipSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
-                            .foregroundStyle(FCColors.adaptive.statusAmber)
+                            .foregroundStyle(BlipColors.adaptive.statusAmber)
 
                         Text("Running low!")
                             .font(theme.typography.caption)
-                            .foregroundStyle(FCColors.adaptive.statusAmber)
+                            .foregroundStyle(BlipColors.adaptive.statusAmber)
                     }
                 }
             }
@@ -175,7 +175,7 @@ struct MessagePackStore: View {
     // MARK: - Pack Grid
 
     private var packGrid: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             Text("Buy Messages")
                 .font(theme.typography.headline)
                 .foregroundStyle(theme.colors.text)
@@ -186,9 +186,9 @@ struct MessagePackStore: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else if let products = storeViewModel?.products, !products.isEmpty {
                 LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: FCSpacing.md),
-                    GridItem(.flexible(), spacing: FCSpacing.md),
-                ], spacing: FCSpacing.md) {
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                ], spacing: BlipSpacing.md) {
                     ForEach(products.filter { !$0.isSubscription }) { product in
                         packCard(product)
                     }
@@ -196,9 +196,9 @@ struct MessagePackStore: View {
             } else {
                 // Fallback to static data when products haven't loaded
                 LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: FCSpacing.md),
-                    GridItem(.flexible(), spacing: FCSpacing.md),
-                ], spacing: FCSpacing.md) {
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                ], spacing: BlipSpacing.md) {
                     ForEach(StorePackOption.allPacks) { pack in
                         staticPackCard(pack)
                     }
@@ -213,10 +213,10 @@ struct MessagePackStore: View {
         return Button(action: {
             Task { await storeViewModel?.purchase(product) }
         }) {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "message.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text(product.displayName)
                     .font(theme.typography.body)
@@ -230,46 +230,46 @@ struct MessagePackStore: View {
                 Text(product.displayPrice)
                     .font(theme.typography.body)
                     .fontWeight(.bold)
-                    .foregroundStyle(.fcAccentPurple)
-                    .padding(.horizontal, FCSpacing.md)
-                    .padding(.vertical, FCSpacing.sm)
+                    .foregroundStyle(.blipAccentPurple)
+                    .padding(.horizontal, BlipSpacing.md)
+                    .padding(.vertical, BlipSpacing.sm)
                     .background(
                         Capsule()
-                            .fill(.fcAccentPurple.opacity(0.12))
+                            .fill(.blipAccentPurple.opacity(0.12))
                     )
 
                 if isBestValue {
                     Text("BEST VALUE")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, FCSpacing.sm)
+                        .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(LinearGradient.fcAccent))
+                        .background(Capsule().fill(LinearGradient.blipAccent))
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, FCSpacing.md)
+            .padding(.vertical, BlipSpacing.md)
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .glassCard(
             thickness: isBestValue ? .regular : .ultraThin,
-            cornerRadius: FCCornerRadius.xl,
+            cornerRadius: BlipCornerRadius.xl,
             borderOpacity: isBestValue ? 0.3 : 0.1
         )
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                .stroke(isBestValue ? .fcAccentPurple.opacity(0.3) : .clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                .stroke(isBestValue ? .blipAccentPurple.opacity(0.3) : .clear, lineWidth: 1)
         )
         .disabled(storeViewModel?.isPurchasing == true)
         .accessibilityLabel("\(product.displayName): \(product.messageCount) messages for \(product.displayPrice)")
     }
 
     private func staticPackCard(_ pack: StorePackOption) -> some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             Image(systemName: "message.fill")
                 .font(.system(size: 24))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text(pack.name)
                 .font(theme.typography.body)
@@ -283,28 +283,28 @@ struct MessagePackStore: View {
             Text(pack.price)
                 .font(theme.typography.body)
                 .fontWeight(.bold)
-                .foregroundStyle(.fcAccentPurple)
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.vertical, FCSpacing.sm)
+                .foregroundStyle(.blipAccentPurple)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.vertical, BlipSpacing.sm)
                 .background(
                     Capsule()
-                        .fill(.fcAccentPurple.opacity(0.12))
+                        .fill(.blipAccentPurple.opacity(0.12))
                 )
 
             if pack.isBestValue {
                 Text("BEST VALUE")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, FCSpacing.sm)
+                    .padding(.horizontal, BlipSpacing.sm)
                     .padding(.vertical, 3)
-                    .background(Capsule().fill(LinearGradient.fcAccent))
+                    .background(Capsule().fill(LinearGradient.blipAccent))
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, FCSpacing.md)
+        .padding(.vertical, BlipSpacing.md)
         .glassCard(
             thickness: pack.isBestValue ? .regular : .ultraThin,
-            cornerRadius: FCCornerRadius.xl,
+            cornerRadius: BlipCornerRadius.xl,
             borderOpacity: pack.isBestValue ? 0.3 : 0.1
         )
         .opacity(0.6)
@@ -314,11 +314,11 @@ struct MessagePackStore: View {
 
     private var subscriptionCard: some View {
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.md) {
-                HStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.md) {
+                HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: "infinity")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
 
                     Text("Unlimited")
                         .font(theme.typography.headline)
@@ -329,8 +329,8 @@ struct MessagePackStore: View {
                     Text("Coming Soon")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
-                        .padding(.horizontal, FCSpacing.sm)
-                        .padding(.vertical, FCSpacing.xs)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
                         .background(Capsule().fill(theme.colors.hover))
                 }
 
@@ -352,7 +352,7 @@ struct MessagePackStore: View {
         Button(action: {
             Task { await storeViewModel?.restorePurchases() }
         }) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 if storeViewModel?.isRestoring == true {
                     ProgressView()
                         .scaleEffect(0.8)
@@ -361,7 +361,7 @@ struct MessagePackStore: View {
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
         }
         .disabled(storeViewModel?.isRestoring == true)
     }
@@ -370,13 +370,13 @@ struct MessagePackStore: View {
 
     private var freeMessageInfo: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("What counts as a message?")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
                     .foregroundStyle(theme.colors.text)
 
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     infoRow(icon: "text.bubble", text: "1 text = 1 message")
                     infoRow(icon: "mic.fill", text: "1 voice note = 1 message")
                     infoRow(icon: "photo", text: "1 image = 1 message")
@@ -385,7 +385,7 @@ struct MessagePackStore: View {
 
                 Divider().opacity(0.2)
 
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     infoRow(icon: "checkmark.circle", text: "Receiving messages = always free")
                     infoRow(icon: "checkmark.circle", text: "Location broadcasts = free")
                     infoRow(icon: "checkmark.circle", text: "Friend requests = free")
@@ -396,7 +396,7 @@ struct MessagePackStore: View {
     }
 
     private func infoRow(icon: String, text: String) -> some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
                 .font(.system(size: 12))
                 .foregroundStyle(theme.colors.mutedText)
@@ -420,11 +420,11 @@ struct StorePackOption: Identifiable {
     let isBestValue: Bool
 
     static let allPacks: [StorePackOption] = [
-        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.festichat.starter10", isBestValue: false),
-        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.festichat.social25", isBestValue: false),
-        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.festichat.festival50", isBestValue: true),
-        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.festichat.squad100", isBestValue: false),
-        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.festichat.season1000", isBestValue: false),
+        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.blip.starter10", isBestValue: false),
+        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.blip.social25", isBestValue: false),
+        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.blip.festival50", isBestValue: true),
+        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.blip.squad100", isBestValue: false),
+        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.blip.season1000", isBestValue: false),
     ]
 }
 

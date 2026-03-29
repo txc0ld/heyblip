@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Centralized haptic feedback triggers for consistent tactile responses.
 /// All haptics are no-ops on platforms without UIKit.
-enum FCHaptics {
+enum BlipHaptics {
 
     /// Light impact for button taps, card presses.
     static func lightImpact() {
@@ -68,22 +68,22 @@ enum FCHaptics {
 /// Adds haptic feedback when a trigger value changes.
 struct HapticModifier<T: Equatable>: ViewModifier {
     let trigger: T
-    let style: FCHapticStyle
+    let style: BlipHapticStyle
 
     func body(content: Content) -> some View {
         content
             .onChange(of: trigger) { _, _ in
                 switch style {
-                case .soft: FCHaptics.softImpact()
-                case .light: FCHaptics.lightImpact()
-                case .medium: FCHaptics.mediumImpact()
-                case .selection: FCHaptics.selection()
+                case .soft: BlipHaptics.softImpact()
+                case .light: BlipHaptics.lightImpact()
+                case .medium: BlipHaptics.mediumImpact()
+                case .selection: BlipHaptics.selection()
                 }
             }
     }
 }
 
-enum FCHapticStyle {
+enum BlipHapticStyle {
     case soft
     case light
     case medium
@@ -92,7 +92,7 @@ enum FCHapticStyle {
 
 extension View {
     /// Triggers a haptic when the value changes.
-    func hapticFeedback<T: Equatable>(_ style: FCHapticStyle = .soft, trigger: T) -> some View {
+    func hapticFeedback<T: Equatable>(_ style: BlipHapticStyle = .soft, trigger: T) -> some View {
         modifier(HapticModifier(trigger: trigger, style: style))
     }
 }

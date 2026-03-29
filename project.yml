@@ -1,6 +1,6 @@
-name: FestiChat
+name: Blip
 options:
-  bundleIdPrefix: app.festichat
+  bundleIdPrefix: au.heyblip
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "15.0"
@@ -18,15 +18,15 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: false
 
 packages:
-  FestiChatProtocol:
-    path: Packages/FestiChatProtocol
-  FestiChatMesh:
-    path: Packages/FestiChatMesh
-  FestiChatCrypto:
-    path: Packages/FestiChatCrypto
+  BlipProtocol:
+    path: Packages/BlipProtocol
+  BlipMesh:
+    path: Packages/BlipMesh
+  BlipCrypto:
+    path: Packages/BlipCrypto
 
 targets:
-  FestiChat:
+  Blip:
     type: application
     platform: iOS
     sources:
@@ -37,8 +37,8 @@ targets:
       - path: Resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.festichat.FestiChat
-        CODE_SIGN_ENTITLEMENTS: App/Entitlements/FestiChat.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: au.heyblip.Blip
+        CODE_SIGN_ENTITLEMENTS: App/Entitlements/Blip.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: App/Info.plist
@@ -53,29 +53,29 @@ targets:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: ""
           SWIFT_OPTIMIZATION_LEVEL: -O
     dependencies:
-      - package: FestiChatProtocol
-      - package: FestiChatMesh
-      - package: FestiChatCrypto
+      - package: BlipProtocol
+      - package: BlipMesh
+      - package: BlipCrypto
     entitlements:
-      path: App/Entitlements/FestiChat.entitlements
+      path: App/Entitlements/Blip.entitlements
 
-  FestiChatTests:
+  BlipTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     dependencies:
-      - target: FestiChat
+      - target: Blip
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.festichat.FestiChatTests
+        PRODUCT_BUNDLE_IDENTIFIER: au.heyblip.BlipTests
 
 schemes:
-  FestiChat:
+  Blip:
     build:
       targets:
-        FestiChat: all
-        FestiChatTests: [test]
+        Blip: all
+        BlipTests: [test]
     run:
       config: Debug
       environmentVariables:
@@ -85,7 +85,7 @@ schemes:
     test:
       config: Debug
       targets:
-        - FestiChatTests
+        - BlipTests
     profile:
       config: Release
     analyze:
@@ -93,10 +93,10 @@ schemes:
     archive:
       config: Release
 
-  FestiChat-Release:
+  Blip-Release:
     build:
       targets:
-        FestiChat: all
+        Blip: all
     run:
       config: Release
       environmentVariables:

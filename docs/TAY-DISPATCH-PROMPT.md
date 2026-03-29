@@ -7,7 +7,7 @@ Copy the prompt below into Claude Dispatch or Cowork to begin working.
 ## Dispatch Prompt
 
 ```
-I am Tay, working on FestiChat — a BLE mesh chat app for festivals.
+I am Tay, working on Blip — a BLE mesh chat app for festivals.
 
 ## Project
 - Repo: https://github.com/txc0ld/FezChat
@@ -82,9 +82,9 @@ For each task:
 
 ## Rules
 - Work autonomously — don't ask questions the codebase or spec can answer
-- The design spec is the source of truth: docs/superpowers/specs/2026-03-28-festichat-design.md
-- Build command: xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
-- Test commands: swift test --package-path Packages/FestiChatProtocol (and Crypto, Mesh)
+- The design spec is the source of truth: docs/superpowers/specs/2026-03-28-blip-design.md
+- Build command: xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+- Test commands: swift test --package-path Packages/BlipProtocol (and Crypto, Mesh)
 - Keep Linear updated at every state change — it's how John and I track progress
 - If blocked, create a Linear issue tagged "blocker" and move to the next task
 

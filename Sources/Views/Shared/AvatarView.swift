@@ -42,7 +42,7 @@ struct AvatarView: View {
     init(
         imageData: Data? = nil,
         name: String,
-        size: CGFloat = FCSizing.avatarSmall,
+        size: CGFloat = BlipSizing.avatarSmall,
         ringStyle: RingStyle = .none,
         showOnlineIndicator: Bool = false
     ) {
@@ -111,7 +111,7 @@ struct AvatarView: View {
                 .stroke(
                     LinearGradient(
                         colors: [
-                            Color.fcAccentPurple,
+                            Color.blipAccentPurple,
                             Color(red: 0.55, green: 0.15, blue: 1.0)
                         ],
                         startPoint: .topLeading,
@@ -150,7 +150,7 @@ struct AvatarView: View {
                 .stroke(
                     LinearGradient(
                         colors: [
-                            Color.fcAccentPurple,
+                            Color.blipAccentPurple,
                             Color(red: 0.6, green: 0.2, blue: 1.0)
                         ],
                         startPoint: .top,

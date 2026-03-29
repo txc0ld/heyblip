@@ -27,7 +27,7 @@ struct SettingsView: View {
             GradientBackground()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     appearanceSection
                         .staggeredReveal(index: 0)
 
@@ -52,9 +52,9 @@ struct SettingsView: View {
                     dangerZone
                         .staggeredReveal(index: 7)
 
-                    Spacer().frame(height: FCSpacing.xxl)
+                    Spacer().frame(height: BlipSpacing.xxl)
                 }
-                .padding(FCSpacing.md)
+                .padding(BlipSpacing.md)
             }
         }
         .navigationTitle("Settings")
@@ -90,7 +90,7 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         settingsGroup(title: "Appearance", icon: "paintbrush.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Theme") {
                     Picker("Theme", selection: $selectedTheme) {
                         ForEach(AppTheme.allCases, id: \.self) { themeOption in
@@ -109,8 +109,8 @@ struct SettingsView: View {
 
     private var networkSection: some View {
         settingsGroup(title: "Network", icon: "network") {
-            VStack(spacing: FCSpacing.md) {
-                VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.md) {
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     Text("Transport Mode")
                         .font(theme.typography.body)
                         .foregroundStyle(theme.colors.text)
@@ -136,7 +136,7 @@ struct SettingsView: View {
 
     private var locationSection: some View {
         settingsGroup(title: "Location", icon: "location.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Default Sharing") {
                     Picker("Precision", selection: $locationSharing) {
                         Text("Precise").tag(LocationPrecision.precise.rawValue)
@@ -160,7 +160,7 @@ struct SettingsView: View {
 
     private var notificationsSection: some View {
         settingsGroup(title: "Notifications", icon: "bell.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 settingsToggleRow(title: "Push Notifications", subtitle: "Receive notifications for messages", isOn: $notificationsEnabled)
 
                 settingsToggleRow(title: "Auto-Join Channels", subtitle: "Automatically join nearby location channels", isOn: $autoJoinChannels)
@@ -172,7 +172,7 @@ struct SettingsView: View {
 
     private var chatSection: some View {
         settingsGroup(title: "Chat", icon: "message.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Push-to-Talk Mode") {
                     Picker("PTT Mode", selection: $pttModeRaw) {
                         Text("Hold").tag(PTTMode.holdToTalk.rawValue)
@@ -189,10 +189,10 @@ struct SettingsView: View {
 
     private var securitySection: some View {
         settingsGroup(title: "Security", icon: "lock.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Button(action: { showExportRecovery = true }) {
                     HStack {
-                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Export Recovery Kit")
                                 .font(theme.typography.body)
                                 .foregroundStyle(theme.colors.text)
@@ -206,9 +206,9 @@ struct SettingsView: View {
 
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 16))
-                            .foregroundStyle(.fcAccentPurple)
+                            .foregroundStyle(.blipAccentPurple)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Export recovery kit")
@@ -220,7 +220,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         settingsGroup(title: "About", icon: "info.circle.fill") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 settingsInfoRow(title: "Version", value: "1.0.0")
                 settingsInfoRow(title: "Build", value: "2026.03.28")
 
@@ -234,7 +234,7 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(theme.colors.mutedText)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
 
@@ -248,7 +248,7 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(theme.colors.mutedText)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
 
@@ -262,7 +262,7 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(theme.colors.mutedText)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
             }
@@ -273,11 +273,11 @@ struct SettingsView: View {
 
     private var dangerZone: some View {
         settingsGroup(title: "Account", icon: "person.crop.circle") {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 // Sign Out
                 Button(action: { showSignOutConfirm = true }) {
                     HStack {
-                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Sign Out")
                                 .font(theme.typography.body)
                                 .foregroundStyle(theme.colors.text)
@@ -291,7 +291,7 @@ struct SettingsView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(theme.colors.mutedText)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Sign out")
@@ -301,7 +301,7 @@ struct SettingsView: View {
                 // Export My Data
                 Button(action: { exportUserData() }) {
                     HStack {
-                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Export My Data")
                                 .font(theme.typography.body)
                                 .foregroundStyle(theme.colors.text)
@@ -313,9 +313,9 @@ struct SettingsView: View {
                         Spacer()
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 14))
-                            .foregroundStyle(.fcAccentPurple)
+                            .foregroundStyle(.blipAccentPurple)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Export my data as JSON")
@@ -327,13 +327,13 @@ struct SettingsView: View {
                     HStack {
                         Text("Delete Account & Data")
                             .font(theme.typography.body)
-                            .foregroundStyle(FCColors.darkColors.statusRed)
+                            .foregroundStyle(BlipColors.darkColors.statusRed)
                         Spacer()
                         Image(systemName: "trash")
                             .font(.system(size: 14))
-                            .foregroundStyle(FCColors.darkColors.statusRed)
+                            .foregroundStyle(BlipColors.darkColors.statusRed)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Delete account and all data")
@@ -352,11 +352,11 @@ struct SettingsView: View {
 
     private func settingsGroup<Content: View>(title: String, icon: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.md) {
-                HStack(spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
+                HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: icon)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
 
                     Text(title)
                         .font(theme.typography.body)
@@ -379,12 +379,12 @@ struct SettingsView: View {
 
             trailing()
         }
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
     }
 
     private func settingsToggleRow(title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: FCSpacing.xs) {
+            VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                 Text(title)
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
@@ -394,8 +394,8 @@ struct SettingsView: View {
                     .foregroundStyle(theme.colors.mutedText)
             }
         }
-        .tint(.fcAccentPurple)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .tint(.blipAccentPurple)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .sensoryFeedback(.selection, trigger: isOn.wrappedValue)
     }
 

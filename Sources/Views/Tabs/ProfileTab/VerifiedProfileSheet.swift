@@ -4,7 +4,7 @@ import SwiftData
 // MARK: - VerifiedProfileSheet
 
 /// Sheet explaining verified profile benefits and handling the purchase.
-/// One-time $14.99 purchase via StoreKit 2 for `com.festichat.verified`.
+/// One-time $14.99 purchase via StoreKit 2 for `com.blip.verified`.
 struct VerifiedProfileSheet: View {
 
     @Binding var isPresented: Bool
@@ -25,7 +25,7 @@ struct VerifiedProfileSheet: View {
             GradientBackground()
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     headerSection
                     benefitsSection
                     priceSection
@@ -35,7 +35,7 @@ struct VerifiedProfileSheet: View {
                         errorBanner(error)
                     }
                 }
-                .padding(FCSpacing.lg)
+                .padding(BlipSpacing.lg)
             }
         }
     }
@@ -43,15 +43,15 @@ struct VerifiedProfileSheet: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             ZStack {
                 Circle()
-                    .fill(Color.fcAccentPurple.opacity(0.15))
+                    .fill(Color.blipAccentPurple.opacity(0.15))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
             }
 
             Text("Get Verified")
@@ -69,7 +69,7 @@ struct VerifiedProfileSheet: View {
 
     private var benefitsSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.md) {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
                 benefitRow(
                     icon: "checkmark.seal.fill",
                     title: "Purple Verified Badge",
@@ -92,13 +92,13 @@ struct VerifiedProfileSheet: View {
     }
 
     private func benefitRow(icon: String, title: String, description: String) -> some View {
-        HStack(alignment: .top, spacing: FCSpacing.md) {
+        HStack(alignment: .top, spacing: BlipSpacing.md) {
             Image(systemName: icon)
                 .font(.system(size: 18))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
                 .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: FCSpacing.xs) {
+            VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                 Text(title)
                     .font(theme.typography.body)
                     .fontWeight(.medium)
@@ -116,14 +116,14 @@ struct VerifiedProfileSheet: View {
     private var priceSection: some View {
         GlassCard(thickness: .regular) {
             HStack {
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text("One-time purchase")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
 
                     Text("$14.99")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                 }
 
                 Spacer()
@@ -138,7 +138,7 @@ struct VerifiedProfileSheet: View {
     // MARK: - CTA
 
     private var ctaSection: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             if purchaseSuccess {
                 successView
             } else if user?.isVerified == true {
@@ -159,15 +159,15 @@ struct VerifiedProfileSheet: View {
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
         }
     }
 
     private var successView: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
 
             Text("You're Verified!")
                 .font(theme.typography.headline)
@@ -176,9 +176,9 @@ struct VerifiedProfileSheet: View {
     }
 
     private var alreadyVerifiedView: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "checkmark.seal.fill")
-                .foregroundStyle(.fcAccentPurple)
+                .foregroundStyle(.blipAccentPurple)
             Text("Verified")
                 .font(theme.typography.body)
                 .foregroundStyle(theme.colors.mutedText)
@@ -187,9 +187,9 @@ struct VerifiedProfileSheet: View {
 
     private func errorBanner(_ message: String) -> some View {
         GlassCard(thickness: .regular) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(FCColors.adaptive.statusAmber)
+                    .foregroundStyle(BlipColors.adaptive.statusAmber)
                 Text(message)
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)

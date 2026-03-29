@@ -53,7 +53,7 @@ struct SOSButton: View {
                             isPressed
                                 ? theme.colors.statusRed.opacity(0.8)
                                 : (colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1)),
-                            lineWidth: FCSizing.hairline
+                            lineWidth: BlipSizing.hairline
                         )
                 )
                 .scaleEffect(isPressed ? 0.95 : 1.0)
@@ -101,13 +101,13 @@ extension SOSButton {
             Button {
                 showSOSSheet = true
             } label: {
-                GlassCard(thickness: .regular, cornerRadius: FCCornerRadius.xl) {
-                    HStack(spacing: FCSpacing.md) {
+                GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
+                    HStack(spacing: BlipSpacing.md) {
                         Image(systemName: "cross.case.fill")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(theme.colors.statusRed)
 
-                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Emergency SOS")
                                 .font(theme.typography.body)
                                 .fontWeight(.semibold)
@@ -127,7 +127,7 @@ extension SOSButton {
                 }
             }
             .buttonStyle(.plain)
-            .frame(minHeight: FCSizing.minTapTarget + FCSpacing.md)
+            .frame(minHeight: BlipSizing.minTapTarget + BlipSpacing.md)
             .accessibilityLabel("Emergency SOS")
             .accessibilityHint("Double tap to open emergency options")
             .fullScreenCover(isPresented: $showSOSSheet) {
@@ -151,7 +151,7 @@ extension SOSButton {
     ZStack {
         GradientBackground()
         SOSButton.ProfileCard()
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
     }
     .environment(\.theme, Theme.shared)
 }

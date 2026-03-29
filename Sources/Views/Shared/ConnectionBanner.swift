@@ -31,17 +31,17 @@ struct ConnectionBanner: View {
     // MARK: - Content
 
     private var bannerContent: some View {
-        HStack(spacing: FCSpacing.sm) {
+        HStack(spacing: BlipSpacing.sm) {
             Circle()
                 .fill(theme.colors.statusGreen)
                 .frame(width: 8, height: 8)
 
             Text(bannerText)
-                .font(.custom(FCFontName.medium, size: 14, relativeTo: .footnote))
+                .font(.custom(BlipFontName.medium, size: 14, relativeTo: .footnote))
                 .foregroundStyle(theme.colors.text)
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm + 2)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm + 2)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)
@@ -52,7 +52,7 @@ struct ConnectionBanner: View {
                     colorScheme == .dark
                         ? Color.white.opacity(0.15)
                         : Color.black.opacity(0.1),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
@@ -99,7 +99,7 @@ struct ConnectionBannerModifier: ViewModifier {
         content
             .overlay(alignment: .top) {
                 ConnectionBanner(peerCount: peerCount, isVisible: $isVisible)
-                    .padding(.top, FCSpacing.sm)
+                    .padding(.top, BlipSpacing.sm)
             }
     }
 }

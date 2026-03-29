@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
-import FestiChatProtocol
-import FestiChatMesh
+import BlipProtocol
+import BlipMesh
 
 // MARK: - PTT State
 

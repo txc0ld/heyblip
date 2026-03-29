@@ -44,14 +44,14 @@ struct MeetingPointSheet: View {
                 GradientBackground()
 
                 ScrollView {
-                    VStack(spacing: FCSpacing.lg) {
+                    VStack(spacing: BlipSpacing.lg) {
                         mapPinSection
                         labelSection
                         expirySection
                         shareSection
                         confirmButton
                     }
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                 }
             }
             .navigationTitle("Drop Meeting Point")
@@ -69,7 +69,7 @@ struct MeetingPointSheet: View {
 
     private var mapPinSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.sm) {
+            VStack(spacing: BlipSpacing.sm) {
                 Text("Drag to adjust pin location")
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
@@ -79,8 +79,8 @@ struct MeetingPointSheet: View {
                         VStack(spacing: 0) {
                             Image(systemName: "mappin.circle.fill")
                                 .font(.system(size: 30))
-                                .foregroundStyle(.fcAccentPurple)
-                                .shadow(color: .fcAccentPurple.opacity(0.4), radius: 4)
+                                .foregroundStyle(.blipAccentPurple)
+                                .shadow(color: .blipAccentPurple.opacity(0.4), radius: 4)
 
                             if !label.isEmpty {
                                 Text(label)
@@ -88,14 +88,14 @@ struct MeetingPointSheet: View {
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(Capsule().fill(.fcAccentPurple))
+                                    .background(Capsule().fill(.blipAccentPurple))
                             }
                         }
                     }
                 }
                 .mapStyle(.standard(elevation: .flat))
                 .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
             }
         }
     }
@@ -104,7 +104,7 @@ struct MeetingPointSheet: View {
 
     private var labelSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Label")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
@@ -113,16 +113,16 @@ struct MeetingPointSheet: View {
                 TextField("e.g. Meet at the big tree", text: $label)
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
-                    .padding(FCSpacing.md)
+                    .padding(BlipSpacing.md)
                     .background(
-                        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+                        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+                        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                             .stroke(
                                 colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                                lineWidth: FCSizing.hairline
+                                lineWidth: BlipSizing.hairline
                             )
                     )
                     .focused($isLabelFocused)
@@ -141,13 +141,13 @@ struct MeetingPointSheet: View {
 
     private var expirySection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Expires after")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
                     .foregroundStyle(theme.colors.text)
 
-                HStack(spacing: FCSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
                     ForEach(ExpiryOption.allCases, id: \.self) { option in
                         expiryChip(option)
                     }
@@ -162,17 +162,17 @@ struct MeetingPointSheet: View {
                 .font(theme.typography.caption)
                 .fontWeight(selectedExpiry == option ? .semibold : .regular)
                 .foregroundStyle(selectedExpiry == option ? .white : theme.colors.text)
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.vertical, FCSpacing.sm)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.vertical, BlipSpacing.sm)
                 .background(
                     Capsule()
                         .fill(selectedExpiry == option
-                              ? AnyShapeStyle(LinearGradient.fcAccent)
+                              ? AnyShapeStyle(LinearGradient.blipAccent)
                               : AnyShapeStyle(theme.colors.hover))
                 )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("Expire after \(option.displayString)")
         .accessibilityAddTraits(selectedExpiry == option ? .isSelected : [])
     }
@@ -181,13 +181,13 @@ struct MeetingPointSheet: View {
 
     private var shareSection: some View {
         GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 Text("Share with")
                     .font(theme.typography.secondary)
                     .fontWeight(.medium)
                     .foregroundStyle(theme.colors.text)
 
-                HStack(spacing: FCSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
                     shareOption(.friends, icon: "person.2.fill", label: "Friends")
                     shareOption(.group, icon: "person.3.fill", label: "Group")
                     shareOption(.everyone, icon: "globe", label: "Everyone")
@@ -198,31 +198,31 @@ struct MeetingPointSheet: View {
 
     private func shareOption(_ target: ShareTarget, icon: String, label: String) -> some View {
         Button(action: { shareTarget = target }) {
-            VStack(spacing: FCSpacing.xs) {
+            VStack(spacing: BlipSpacing.xs) {
                 Image(systemName: icon)
                     .font(.system(size: 18))
-                    .foregroundStyle(shareTarget == target ? .fcAccentPurple : theme.colors.mutedText)
+                    .foregroundStyle(shareTarget == target ? .blipAccentPurple : theme.colors.mutedText)
 
                 Text(label)
                     .font(theme.typography.caption)
                     .foregroundStyle(shareTarget == target ? theme.colors.text : theme.colors.mutedText)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.vertical, BlipSpacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                     .fill(shareTarget == target
-                          ? .fcAccentPurple.opacity(0.12)
+                          ? .blipAccentPurple.opacity(0.12)
                           : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
-                    .stroke(shareTarget == target ? .fcAccentPurple.opacity(0.4) : .clear,
+                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
+                    .stroke(shareTarget == target ? .blipAccentPurple.opacity(0.4) : .clear,
                             lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("Share with \(label)")
         .accessibilityAddTraits(shareTarget == target ? .isSelected : [])
     }
@@ -242,7 +242,7 @@ struct MeetingPointSheet: View {
         }
         .fullWidth()
         .disabled(label.count > 50)
-        .padding(.top, FCSpacing.sm)
+        .padding(.top, BlipSpacing.sm)
     }
 }
 

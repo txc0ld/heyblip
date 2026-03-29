@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
-@testable import FestiChat
+@testable import Blip
 
 @Suite("SwiftData Schema Validation - T24")
 @MainActor
@@ -10,7 +10,7 @@ struct SwiftDataSchemaValidationTests {
 
     private func makeContext() throws -> ModelContext {
         let container = try ModelContainer(
-            for: FestiChatSchema.schema,
+            for: BlipSchema.schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
         return container.mainContext
@@ -58,8 +58,8 @@ struct SwiftDataSchemaValidationTests {
 
     @Test("Schema contains all 21 models")
     func schemaRegistration() {
-        #expect(FestiChatSchema.models.count == 21)
-        let modelNames = FestiChatSchema.models.map { String(describing: $0) }
+        #expect(BlipSchema.models.count == 21)
+        let modelNames = BlipSchema.models.map { String(describing: $0) }
 
         let expectedModels = [
             "User", "Friend", "Message", "Attachment", "Channel",
@@ -77,7 +77,7 @@ struct SwiftDataSchemaValidationTests {
     @Test("Container creation with in-memory storage")
     func containerCreation() throws {
         let container = try ModelContainer(
-            for: FestiChatSchema.schema,
+            for: BlipSchema.schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
         let context = container.mainContext

@@ -59,7 +59,7 @@ struct ShimmerRect: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    init(width: CGFloat? = nil, height: CGFloat = 16, cornerRadius: CGFloat = FCCornerRadius.sm) {
+    init(width: CGFloat? = nil, height: CGFloat = 16, cornerRadius: CGFloat = BlipCornerRadius.sm) {
         self.width = width
         self.height = height
         self.cornerRadius = cornerRadius
@@ -79,7 +79,7 @@ struct ShimmerCircle: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    init(size: CGFloat = FCSizing.avatarSmall) {
+    init(size: CGFloat = BlipSizing.avatarSmall) {
         self.size = size
     }
 
@@ -94,11 +94,11 @@ struct ShimmerCircle: View {
 // MARK: - Preview
 
 #Preview("Shimmer") {
-    VStack(spacing: FCSpacing.md) {
+    VStack(spacing: BlipSpacing.md) {
         GlassCard(thickness: .regular) {
-            HStack(spacing: FCSpacing.md) {
-                ShimmerCircle(size: FCSizing.avatarSmall)
-                VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.md) {
+                ShimmerCircle(size: BlipSizing.avatarSmall)
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     ShimmerRect(width: 120, height: 14)
                     ShimmerRect(width: 200, height: 10)
                 }
@@ -106,9 +106,9 @@ struct ShimmerCircle: View {
         }
 
         GlassCard(thickness: .regular) {
-            HStack(spacing: FCSpacing.md) {
-                ShimmerCircle(size: FCSizing.avatarSmall)
-                VStack(alignment: .leading, spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.md) {
+                ShimmerCircle(size: BlipSizing.avatarSmall)
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     ShimmerRect(width: 160, height: 14)
                     ShimmerRect(width: 100, height: 10)
                 }
@@ -116,14 +116,14 @@ struct ShimmerCircle: View {
         }
 
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.sm) {
-                ShimmerRect(height: 120, cornerRadius: FCCornerRadius.lg)
+            VStack(spacing: BlipSpacing.sm) {
+                ShimmerRect(height: 120, cornerRadius: BlipCornerRadius.lg)
                 ShimmerRect(width: 180, height: 14)
                 ShimmerRect(height: 10)
             }
         }
     }
-    .padding(FCSpacing.md)
+    .padding(BlipSpacing.md)
     .background(Color.black)
     .preferredColorScheme(.dark)
 }

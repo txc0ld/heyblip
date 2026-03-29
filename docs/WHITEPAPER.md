@@ -1,4 +1,4 @@
-# FestiChat: Decentralized Mesh Communication for Festivals and Large Gatherings
+# Blip: Decentralized Mesh Communication for Festivals and Large Gatherings
 
 **Version:** 1.0
 **Date:** March 2026
@@ -7,7 +7,7 @@
 
 ## Abstract
 
-FestiChat is a mobile communication application that enables text messaging, voice notes, push-to-talk audio, location sharing, and emergency coordination at festivals and large gatherings -- environments where cellular infrastructure is routinely overwhelmed or entirely absent. By forming a self-organizing Bluetooth Low Energy (BLE) mesh network from attendees' smartphones, FestiChat creates a decentralized, zero-infrastructure communication fabric that scales from a campfire of 50 people to a major festival of 100,000 or more. All messages are end-to-end encrypted using the Noise Protocol Framework, relay nodes cannot read the content they forward, and the system operates with no accounts, no servers, and no persistent data collection. A lightweight medical emergency system enables festival-goers to summon help with precise GPS delivery to on-site medical teams, potentially saving lives when seconds matter.
+Blip is a mobile communication application that enables text messaging, voice notes, push-to-talk audio, location sharing, and emergency coordination at festivals and large gatherings -- environments where cellular infrastructure is routinely overwhelmed or entirely absent. By forming a self-organizing Bluetooth Low Energy (BLE) mesh network from attendees' smartphones, Blip creates a decentralized, zero-infrastructure communication fabric that scales from a campfire of 50 people to a major festival of 100,000 or more. All messages are end-to-end encrypted using the Noise Protocol Framework, relay nodes cannot read the content they forward, and the system operates with no accounts, no servers, and no persistent data collection. A lightweight medical emergency system enables festival-goers to summon help with precise GPS delivery to on-site medical teams, potentially saving lives when seconds matter.
 
 ---
 
@@ -46,7 +46,7 @@ A viable solution must satisfy hard constraints:
 
 ## 2. Solution: BLE Mesh Communication
 
-FestiChat turns every user's smartphone into a node in a self-forming BLE mesh network. Messages hop between phones, reaching recipients who may be hundreds of meters away through a chain of intermediate relays. No central server, no cellular connection, and no internet access is required for the core messaging experience.
+Blip turns every user's smartphone into a node in a self-forming BLE mesh network. Messages hop between phones, reaching recipients who may be hundreds of meters away through a chain of intermediate relays. No central server, no cellular connection, and no internet access is required for the core messaging experience.
 
 ### 2.1 Core Principles
 
@@ -57,7 +57,7 @@ FestiChat turns every user's smartphone into a node in a self-forming BLE mesh n
 
 ### 2.2 Transport Stack
 
-FestiChat uses a three-tier transport strategy with automatic failover:
+Blip uses a three-tier transport strategy with automatic failover:
 
 1. **BLE Mesh (primary):** Always attempted first. Zero infrastructure required.
 2. **WebSocket Relay (secondary):** When BLE cannot reach the recipient and internet is available, a zero-knowledge relay server forwards encrypted packets.
@@ -67,18 +67,18 @@ FestiChat uses a three-tier transport strategy with automatic failover:
 
 ## 3. Architecture: Four-Layer Protocol Stack
 
-The FestiChat architecture is organized into four layers, each implemented as an independent Swift package (with equivalent Kotlin modules planned for Android).
+The Blip architecture is organized into four layers, each implemented as an independent Swift package (with equivalent Kotlin modules planned for Android).
 
-### Layer 1: Transport (`FestiChatMesh`)
+### Layer 1: Transport (`BlipMesh`)
 
 The transport layer manages all physical communication channels:
 - **BLE dual-role operation:** Every device simultaneously acts as a BLE Central (scanner) and Peripheral (advertiser). This bidirectional capability is essential for mesh formation.
-- **Peer discovery and connection management:** Devices discover each other via the FestiChat BLE service UUID, establish connections, and exchange announcement packets containing public keys and capabilities.
+- **Peer discovery and connection management:** Devices discover each other via the Blip BLE service UUID, establish connections, and exchange announcement packets containing public keys and capabilities.
 - **Gossip routing:** Packets propagate through the mesh via a gossip protocol with probabilistic relay, Bloom filter deduplication, and TTL-based hop limiting.
 - **Store-and-forward caching:** Packets for unreachable peers are cached with content-type-specific durations (2 hours for DMs, 30 minutes for groups, 5 minutes for channels).
 - **WebSocket fallback:** An encrypted relay channel over standard internet when BLE cannot reach the destination.
 
-### Layer 2: Protocol (`FestiChatProtocol`)
+### Layer 2: Protocol (`BlipProtocol`)
 
 The protocol layer defines the binary wire format:
 - **16-byte fixed header** with version, type, TTL, timestamp, flags, and payload length.
@@ -87,7 +87,7 @@ The protocol layer defines the binary wire format:
 - **Zlib compression** with size-aware policies (skip for small payloads, conditional for medium, mandatory for large).
 - **PKCS#7-style padding** to block boundaries (256, 512, 1024, 2048 bytes) for traffic analysis resistance.
 
-### Layer 3: Cryptography (`FestiChatCrypto`)
+### Layer 3: Cryptography (`BlipCrypto`)
 
 The cryptography layer provides:
 - **Noise XX handshake** for mutual authentication and key agreement using Curve25519.
@@ -111,7 +111,7 @@ The application layer implements the user-facing experience:
 
 ### 4.1 Gossip Routing
 
-FestiChat uses epidemic (gossip) routing as its primary message propagation strategy. The algorithm is simple and robust:
+Blip uses epidemic (gossip) routing as its primary message propagation strategy. The algorithm is simple and robust:
 
 1. A node receives a packet from a peer.
 2. It hashes the packet's identifying fields and checks a multi-tier Bloom filter.
@@ -127,7 +127,7 @@ As crowd density increases, the mesh self-organizes into clusters of 20 to 60 pe
 
 ### 4.3 Directed Routing at Scale
 
-At Mega (5,000-25,000 peers) and Massive (25,000-100,000+) crowd densities, gossip routing becomes inefficient for addressed messages. FestiChat switches to directed routing for DMs:
+At Mega (5,000-25,000 peers) and Massive (25,000-100,000+) crowd densities, gossip routing becomes inefficient for addressed messages. Blip switches to directed routing for DMs:
 
 - Announcement packets include neighbor peer ID lists.
 - Nodes build partial routing tables: "Peer X was last seen via Peer Y."
@@ -169,7 +169,7 @@ A four-lane priority queue ensures critical traffic is never starved:
 
 ### 5.1 Noise XX Handshake
 
-FestiChat uses `Noise_XX_25519_ChaChaPoly_SHA256` for all private communication channels. The XX pattern provides mutual authentication without pre-shared keys -- both parties learn and verify each other's long-term static keys during the handshake itself.
+Blip uses `Noise_XX_25519_ChaChaPoly_SHA256` for all private communication channels. The XX pattern provides mutual authentication without pre-shared keys -- both parties learn and verify each other's long-term static keys during the handshake itself.
 
 The three-message exchange:
 1. Initiator sends ephemeral public key.
@@ -198,9 +198,9 @@ Group messages use a Sender Key scheme: each group member generates a symmetric 
 
 ### 6.1 Festival Discovery
 
-FestiChat supports three modes of festival awareness:
+Blip supports three modes of festival awareness:
 
-1. **Registered festivals:** Organizers submit festival data via a web form. A signed JSON manifest is published to a CDN and fetched daily by the app. The manifest is signed with a FestiChat Ed25519 key embedded in the app binary, preventing CDN compromise from injecting fake festivals.
+1. **Registered festivals:** Organizers submit festival data via a web form. A signed JSON manifest is published to a CDN and fetched daily by the app. The manifest is signed with a Blip Ed25519 key embedded in the app binary, preventing CDN compromise from injecting fake festivals.
 
 2. **Auto-discovery:** When 20 or more mesh peers are detected within a geohash-6 area (~1.2 km) without a registered festival, the app auto-creates an ad-hoc location channel.
 
@@ -224,7 +224,7 @@ Proximity-based public channels that users auto-join when entering a geographic 
 
 ### 7.1 Design Philosophy
 
-At a festival with 50,000 attendees and limited cellular connectivity, a medical emergency -- heat stroke, severe dehydration, allergic anaphylaxis, a fall -- can become fatal if the victim cannot summon help. FestiChat's SOS system is designed to deliver medical assistance requests reliably, even when the cellular network is completely unavailable.
+At a festival with 50,000 attendees and limited cellular connectivity, a medical emergency -- heat stroke, severe dehydration, allergic anaphylaxis, a fall -- can become fatal if the victim cannot summon help. Blip's SOS system is designed to deliver medical assistance requests reliably, even when the cellular network is completely unavailable.
 
 ### 7.2 Activation Flow
 
@@ -282,7 +282,7 @@ On-site medical teams access a dedicated dashboard (unlocked via organizer-issue
 
 ## 8. Scalability
 
-FestiChat adapts its operating profile dynamically based on crowd density, measured by counting unique peers seen in the last 5 minutes.
+Blip adapts its operating profile dynamically based on crowd density, measured by counting unique peers seen in the last 5 minutes.
 
 ### 8.1 Crowd-Scale Modes
 
@@ -295,7 +295,7 @@ FestiChat adapts its operating profile dynamically based on crowd density, measu
 
 ### 8.2 Graceful Degradation
 
-Rather than failing catastrophically, FestiChat progressively sheds features as crowd density increases:
+Rather than failing catastrophically, Blip progressively sheds features as crowd density increases:
 - Voice notes move from mesh to internet-only.
 - Images move from mesh to internet-only.
 - Broadcast TTLs decrease.
@@ -320,7 +320,7 @@ Mesh participation is adjusted based on battery level:
 
 ## 9. Monetization
 
-FestiChat uses a message-based monetization model with a free tier:
+Blip uses a message-based monetization model with a free tier:
 
 | Tier          | Messages | Price   |
 |---------------|----------|---------|
@@ -368,8 +368,8 @@ Integration with national emergency dispatch systems (e.g., 911/112 relay) would
 
 ## Conclusion
 
-FestiChat demonstrates that reliable, secure, and scalable communication at large gatherings does not require cellular infrastructure. By leveraging the BLE radios already present in every smartphone, applying rigorous cryptographic protocols, and adapting dynamically to crowd density, FestiChat transforms a connectivity problem into a cooperative solution where every attendee's device strengthens the network for everyone.
+Blip demonstrates that reliable, secure, and scalable communication at large gatherings does not require cellular infrastructure. By leveraging the BLE radios already present in every smartphone, applying rigorous cryptographic protocols, and adapting dynamically to crowd density, Blip transforms a connectivity problem into a cooperative solution where every attendee's device strengthens the network for everyone.
 
 The system's four-layer architecture -- transport, protocol, cryptography, and application -- provides clean separation of concerns and a binary protocol specification that serves as a language-agnostic contract for cross-platform implementation. The medical SOS system addresses a genuine safety need with reliability guarantees that exceed what degraded cellular networks can offer.
 
-FestiChat is not a replacement for cellular infrastructure. It is a complement that fills the gap where infrastructure fails, using the devices people already carry and the proximity they already share.
+Blip is not a replacement for cellular infrastructure. It is a complement that fills the gap where infrastructure fails, using the devices people already carry and the proximity they already share.

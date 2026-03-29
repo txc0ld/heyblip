@@ -24,7 +24,7 @@ struct MainTabView: View {
 
             // Tab content
             tabContent
-                .padding(.bottom, tabBarHeight + FCSpacing.sm)
+                .padding(.bottom, tabBarHeight + BlipSpacing.sm)
 
             // Custom glass tab bar
             floatingTabBar
@@ -60,22 +60,22 @@ struct MainTabView: View {
                 tabBarItem(for: tab)
             }
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
         .background(tabBarBackground)
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xxl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xxl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xxl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xxl, style: .continuous)
                 .stroke(
                     colorScheme == .dark
                         ? Color.white.opacity(0.12)
                         : Color.black.opacity(0.08),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
-        .padding(.horizontal, FCSpacing.lg)
-        .padding(.bottom, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.lg)
+        .padding(.bottom, BlipSpacing.sm)
     }
 
     private func tabBarItem(for tab: Tab) -> some View {
@@ -83,14 +83,14 @@ struct MainTabView: View {
             withAnimation(SpringConstants.accessiblePageEntrance) {
                 selectedTab = tab
             }
-            FCHaptics.lightImpact()
+            BlipHaptics.lightImpact()
         } label: {
-            VStack(spacing: FCSpacing.xs) {
+            VStack(spacing: BlipSpacing.xs) {
                 ZStack {
                     // Accent glow behind active tab
                     if selectedTab == tab {
                         Circle()
-                            .fill(Color.fcAccentPurple.opacity(0.2))
+                            .fill(Color.blipAccentPurple.opacity(0.2))
                             .frame(width: 40, height: 40)
                             .blur(radius: 8)
                     }
@@ -99,24 +99,24 @@ struct MainTabView: View {
                         .font(.system(size: 20, weight: selectedTab == tab ? .semibold : .regular))
                         .foregroundStyle(
                             selectedTab == tab
-                                ? Color.fcAccentPurple
+                                ? Color.blipAccentPurple
                                 : theme.colors.mutedText
                         )
                         .scaleEffect(selectedTab == tab ? 1.1 : 1.0)
                         .animation(SpringConstants.bouncyAnimation, value: selectedTab)
-                        .frame(width: FCSizing.minTapTarget, height: 32)
+                        .frame(width: BlipSizing.minTapTarget, height: 32)
                 }
 
                 Text(tab.title)
-                    .font(.custom(FCFontName.medium, size: 10, relativeTo: .caption2))
+                    .font(.custom(BlipFontName.medium, size: 10, relativeTo: .caption2))
                     .foregroundStyle(
                         selectedTab == tab
-                            ? Color.fcAccentPurple
+                            ? Color.blipAccentPurple
                             : theme.colors.mutedText
                     )
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -126,7 +126,7 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var tabBarBackground: some View {
-        RoundedRectangle(cornerRadius: FCCornerRadius.xxl, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.xxl, style: .continuous)
             .fill(.thickMaterial)
     }
 
@@ -146,7 +146,7 @@ struct MainTabView: View {
     // MARK: - Placeholder Views
 
     private var nearbyPlaceholder: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(size: 48))
                 .foregroundStyle(theme.colors.mutedText)
@@ -161,7 +161,7 @@ struct MainTabView: View {
     }
 
     private var festivalPlaceholder: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "music.note.house.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(theme.colors.mutedText)
@@ -176,7 +176,7 @@ struct MainTabView: View {
     }
 
     private var profilePlaceholder: some View {
-        VStack(spacing: FCSpacing.lg) {
+        VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "person.circle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(theme.colors.mutedText)

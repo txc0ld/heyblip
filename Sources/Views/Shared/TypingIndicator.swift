@@ -30,17 +30,17 @@ struct TypingIndicator: View {
             dot(isAnimating: animatingDot1)
             dot(isAnimating: animatingDot2)
         }
-        .padding(.horizontal, FCSpacing.md)
-        .padding(.vertical, FCSpacing.sm + 2)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm + 2)
         .background(bubbleBackground)
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
                 .stroke(
                     colorScheme == .dark
                         ? Color.white.opacity(0.1)
                         : Color.black.opacity(0.06),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
         .onAppear {
@@ -67,7 +67,7 @@ struct TypingIndicator: View {
 
     @ViewBuilder
     private var bubbleBackground: some View {
-        RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
             .fill(.ultraThinMaterial)
     }
 

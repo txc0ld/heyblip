@@ -1,4 +1,4 @@
-<h1 align="center">FestiChat — Work Plan</h1>
+<h1 align="center">Blip — Work Plan</h1>
 
 <p align="center">
   <strong>Tay</strong> (Frontend, UX/UI, Design + Backend) &nbsp;&bull;&nbsp; <strong>John</strong> (Backend, Data, SEO, Infrastructure)
@@ -26,7 +26,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | T2 | **Chat UI polish** | Refine MessageBubble glass styling, test light/dark themes thoroughly, fine-tune message entrance spring physics, verify swipe-to-reply rubber-band feel, polish the morphing mic/send button transition. Make it feel as good as iMessage. | Not started |
 | T3 | **Tab bar + navigation** | Polish the custom floating glass tab bar. Fine-tune the accent glow on active tab. Test matched geometry transitions between chat list and chat view. Ensure smooth cross-fade on tab switches. | Not started |
 | T4 | **Avatar system** | Design avatar placeholder graphics (gradient backgrounds with initials). Polish the circular crop editor (AvatarCropView). Design the gradient ring variants (friend, nearby, subscriber). Test with real photos at all sizes. | Not started |
-| T5 | **App icon + branding** | Design the FestiChat app icon (1024x1024). Create all required sizes for App Store. Design a simple wordmark/logo for the splash screen. Accent purple `#6600FF` as the anchor color. | Not started |
+| T5 | **App icon + branding** | Design the Blip app icon (1024x1024). Create all required sizes for App Store. Design a simple wordmark/logo for the splash screen. Accent purple `#6600FF` as the anchor color. | Not started |
 | T6 | **PaywallSheet design** | Polish the message pack purchase sheet. Make it feel inviting, not pushy. Design the pack option cards, "best value" badge, and the soft prompt that appears after free messages are used. | Not started |
 | T7 | **Typing indicator + status badges** | Fine-tune the 3-dot typing indicator pulse timing. Polish delivery status checkmark animations (sent/delivered/read). Ensure they feel subtle, not distracting. | Not started |
 
@@ -89,7 +89,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | J1 | **BLE mesh integration testing** | Test BLEService on real devices (minimum 3 iPhones). Verify dual-role central/peripheral works simultaneously. Test state restoration after app background/kill. Measure connection reliability, MTU negotiation, and throughput. | Not started |
 | J2 | **Gossip routing real-world test** | Test gossip routing with 5+ devices. Verify messages hop correctly, Bloom filter dedup works, TTL decrements, and store-and-forward delivers to offline peers on reconnect. | Not started |
 | J3 | **Phone verification backend** | Set up the Twilio Verify (or Firebase Auth) integration for SMS OTP. Create the minimal API endpoint. Test the full send/verify/store flow. Ensure rate limiting (60s cooldown, 5/hour). | Not started |
-| J4 | **WebSocket relay server** | Build and deploy the `wss://relay.festichat.app/ws` relay. Zero-knowledge: receives binary packets, forwards by recipient ID, stores nothing. Cloudflare Workers with Durable Objects. | Not started |
+| J4 | **WebSocket relay server** | Build and deploy the `wss://relay.blip.app/ws` relay. Zero-knowledge: receives binary packets, forwards by recipient ID, stores nothing. Cloudflare Workers with Durable Objects. | Not started |
 
 ### P0 — Festival Infrastructure
 
@@ -119,7 +119,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | # | Task | Description | Status |
 |---|---|---|---|
 | J19 | **Festival database** | Build the initial festival database. Scrape/collect data for major festivals (coordinates, dates, stages, lineups). Structure as JSON manifest entries. Start with 10-20 festivals for launch. | Not started |
-| J20 | **Landing page + SEO** | Build `festichat.app` landing page. Optimise for: "festival chat app", "bluetooth mesh chat", "festival communication", "no signal festival app". Include App Store links, feature overview, download CTAs. | Not started |
+| J20 | **Landing page + SEO** | Build `blip.app` landing page. Optimise for: "festival chat app", "bluetooth mesh chat", "festival communication", "no signal festival app". Include App Store links, feature overview, download CTAs. | Not started |
 | J21 | **App Store Optimization** | Research keywords, write optimized title/subtitle/description, plan screenshot strategy (coordinate with Tay on design). Target launch categories. | Not started |
 | J22 | **Analytics infrastructure** | Set up privacy-respecting analytics (no PII, no message content). Track: DAU, mesh peer counts, crowd-scale mode distribution, message delivery rates, SOS usage, purchase conversion. | Not started |
 
@@ -188,5 +188,5 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 ---
 
 <p align="center">
-  <strong>Tay makes it beautiful. John makes it work. Together, FestiChat.</strong>
+  <strong>Tay makes it beautiful. John makes it work. Together, Blip.</strong>
 </p>

@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 import os.log
-import FestiChatProtocol
-import FestiChatMesh
-import FestiChatCrypto
+import BlipProtocol
+import BlipMesh
+import BlipCrypto
 
 // MARK: - Retry Configuration
 
@@ -47,7 +47,7 @@ final class MessageRetryService: @unchecked Sendable {
 
     // MARK: - Logging
 
-    private let logger = Logger(subsystem: "com.festichat", category: "MessageRetryService")
+    private let logger = Logger(subsystem: "com.blip", category: "MessageRetryService")
 
     // MARK: - Dependencies
 
@@ -275,7 +275,7 @@ final class MessageRetryService: @unchecked Sendable {
             let senderID = identity.peerID
 
             var flags: PacketFlags = [.hasSignature, .isReliable]
-            let packetType: FestiChatProtocol.MessageType
+            let packetType: BlipProtocol.MessageType
 
             switch message.type {
             case .text:

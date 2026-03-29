@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Central schema and ModelContainer configuration for all FestiChat SwiftData models.
-enum FestiChatSchema {
+/// Central schema and ModelContainer configuration for all Blip SwiftData models.
+enum BlipSchema {
 
     /// All SwiftData model types registered in the app.
     static let models: [any PersistentModel.Type] = [

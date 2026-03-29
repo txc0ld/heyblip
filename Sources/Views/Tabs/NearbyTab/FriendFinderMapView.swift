@@ -34,8 +34,8 @@ struct FriendFinderMapView: View {
                     Spacer()
                     controlButtons
                 }
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.top, FCSpacing.sm)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.top, BlipSpacing.sm)
 
                 Spacer()
             }
@@ -100,21 +100,21 @@ struct FriendFinderMapView: View {
             // Sharing pulse ring
             if isSharingLocation, !SpringConstants.isReduceMotionEnabled {
                 Circle()
-                    .stroke(.fcAccentPurple.opacity(0.3), lineWidth: 1.5)
+                    .stroke(.blipAccentPurple.opacity(0.3), lineWidth: 1.5)
                     .frame(width: 56, height: 56)
                     .scaleEffect(sharingPulse ? 1.8 : 1.0)
                     .opacity(sharingPulse ? 0 : 0.6)
             }
 
             Circle()
-                .fill(.fcAccentPurple.opacity(0.2))
+                .fill(.blipAccentPurple.opacity(0.2))
                 .frame(width: 44, height: 44)
 
             Circle()
-                .fill(.fcAccentPurple)
+                .fill(.blipAccentPurple)
                 .frame(width: 16, height: 16)
                 .overlay(Circle().stroke(.white, lineWidth: 2.5))
-                .shadow(color: .fcAccentPurple.opacity(0.5), radius: 6)
+                .shadow(color: .blipAccentPurple.opacity(0.5), radius: 6)
         }
         .onAppear {
             guard isSharingLocation, !SpringConstants.isReduceMotionEnabled else { return }
@@ -140,7 +140,7 @@ struct FriendFinderMapView: View {
     // MARK: - Control Buttons
 
     private var controlButtons: some View {
-        VStack(spacing: FCSpacing.sm) {
+        VStack(spacing: BlipSpacing.sm) {
             // Recenter
             mapButton(icon: "location.fill", label: "Recenter") {
                 withAnimation { cameraPosition = .automatic }
@@ -193,18 +193,18 @@ struct FriendFinderMapView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(isAccent ? .white : (isActive ? .white : .fcAccentPurple))
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .foregroundStyle(isAccent ? .white : (isActive ? .white : .blipAccentPurple))
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
-                        .fill(isAccent ? AnyShapeStyle(LinearGradient.fcAccent) :
-                              isActive ? AnyShapeStyle(Color.fcAccentPurple) :
+                        .fill(isAccent ? AnyShapeStyle(LinearGradient.blipAccent) :
+                              isActive ? AnyShapeStyle(Color.blipAccentPurple) :
                               AnyShapeStyle(.thickMaterial))
                         .overlay(
                             Circle()
                                 .stroke(
                                     colorScheme == .dark ? .white.opacity(0.15) : .black.opacity(0.1),
-                                    lineWidth: FCSizing.hairline
+                                    lineWidth: BlipSizing.hairline
                                 )
                         )
                 )
@@ -220,7 +220,7 @@ struct FriendFinderMapView: View {
             Capsule()
                 .fill(theme.colors.mutedText.opacity(0.3))
                 .frame(width: 36, height: 4)
-                .padding(.top, FCSpacing.sm)
+                .padding(.top, BlipSpacing.sm)
 
             // Header
             HStack {
@@ -234,8 +234,8 @@ struct FriendFinderMapView: View {
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
 
             Divider()
                 .overlay(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
@@ -251,16 +251,16 @@ struct FriendFinderMapView: View {
             .frame(maxHeight: 240)
         }
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(
                     colorScheme == .dark ? .white.opacity(0.1) : .black.opacity(0.08),
-                    lineWidth: FCSizing.hairline
+                    lineWidth: BlipSizing.hairline
                 )
         )
-        .padding(.horizontal, FCSpacing.sm)
-        .padding(.bottom, FCSpacing.sm)
+        .padding(.horizontal, BlipSpacing.sm)
+        .padding(.bottom, BlipSpacing.sm)
     }
 
     private func friendRow(_ friend: FriendMapPin) -> some View {
@@ -275,7 +275,7 @@ struct FriendFinderMapView: View {
                 }
             }
         } label: {
-            HStack(spacing: FCSpacing.md) {
+            HStack(spacing: BlipSpacing.md) {
                 AvatarView(
                     imageData: friend.avatarData,
                     name: friend.displayName,
@@ -295,7 +295,7 @@ struct FriendFinderMapView: View {
                             .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.statusRed)
                     } else {
-                        HStack(spacing: FCSpacing.xs) {
+                        HStack(spacing: BlipSpacing.xs) {
                             // Accuracy indicator dot
                             Circle()
                                 .fill(friend.accuracyColor)
@@ -321,11 +321,11 @@ struct FriendFinderMapView: View {
                 if !friend.isOutOfRange {
                     Image(systemName: "location.circle")
                         .font(.system(size: 18))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(
                 selectedFriend?.id == friend.id
                     ? theme.colors.hover
@@ -333,7 +333,7 @@ struct FriendFinderMapView: View {
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(friend.displayName), \(friend.isOutOfRange ? "out of range" : friend.lastSeenText)")
     }
 }
@@ -400,7 +400,7 @@ private struct FriendFinderPinView: View {
                     }
                 }
             }
-            .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(friend.displayName), \(friend.lastSeenText)")
@@ -429,7 +429,7 @@ private struct BeaconAnnotationView: View {
         ZStack {
             if !SpringConstants.isReduceMotionEnabled {
                 Circle()
-                    .stroke(.fcAccentPurple.opacity(0.3), lineWidth: 1)
+                    .stroke(.blipAccentPurple.opacity(0.3), lineWidth: 1)
                     .frame(width: 36, height: 36)
                     .scaleEffect(isPulsing ? 1.5 : 1.0)
                     .opacity(isPulsing ? 0 : 0.5)
@@ -438,14 +438,14 @@ private struct BeaconAnnotationView: View {
             VStack(spacing: 0) {
                 Image(systemName: "mappin.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text(beacon.label)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(Capsule().fill(.fcAccentPurple))
+                    .background(Capsule().fill(.blipAccentPurple))
             }
         }
         .onAppear {

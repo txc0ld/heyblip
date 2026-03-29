@@ -31,15 +31,15 @@ struct ScheduleView: View {
 
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 ForEach(ScheduleFilter.allCases, id: \.self) { option in
                     filterChip(option)
                 }
 
                 Spacer()
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
         }
     }
 
@@ -49,7 +49,7 @@ struct ScheduleView: View {
                 filter = option
             }
         }) {
-            HStack(spacing: FCSpacing.xs) {
+            HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: option.iconName)
                     .font(.system(size: 12, weight: .medium))
 
@@ -58,17 +58,17 @@ struct ScheduleView: View {
                     .fontWeight(filter == option ? .semibold : .regular)
             }
             .foregroundStyle(filter == option ? .white : theme.colors.text)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
             .background(
                 Capsule()
                     .fill(filter == option
-                          ? AnyShapeStyle(LinearGradient.fcAccent)
+                          ? AnyShapeStyle(LinearGradient.blipAccent)
                           : AnyShapeStyle(theme.colors.hover))
             )
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel(option.displayName)
         .accessibilityAddTraits(filter == option ? .isSelected : [])
     }
@@ -77,7 +77,7 @@ struct ScheduleView: View {
 
     private var scheduleList: some View {
         ScrollView {
-            LazyVStack(spacing: FCSpacing.md, pinnedViews: .sectionHeaders) {
+            LazyVStack(spacing: BlipSpacing.md, pinnedViews: .sectionHeaders) {
                 ForEach(filteredStages) { stage in
                     Section {
                         stageSection(stage)
@@ -90,8 +90,8 @@ struct ScheduleView: View {
                     emptyFilterState
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.bottom, FCSpacing.xxl)
+            .padding(.horizontal, BlipSpacing.md)
+            .padding(.bottom, BlipSpacing.xxl)
         }
     }
 
@@ -111,7 +111,7 @@ struct ScheduleView: View {
             HStack {
                 Image(systemName: "music.note.house.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text(stage.name)
                     .font(theme.typography.headline)
@@ -127,13 +127,13 @@ struct ScheduleView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .padding(.vertical, FCSpacing.sm)
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.vertical, BlipSpacing.sm)
+            .padding(.horizontal, BlipSpacing.md)
             .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.md, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
         }
         .buttonStyle(.plain)
-        .frame(minHeight: FCSizing.minTapTarget)
+        .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(stage.name), \(stage.acts.count) acts")
         .accessibilityHint(expandedStages.contains(stage.id) ? "Collapse" : "Expand")
     }
@@ -164,7 +164,7 @@ struct ScheduleView: View {
 
     private var emptyFilterState: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Image(systemName: filter == .saved ? "star" : "music.note")
                     .font(.system(size: 32))
                     .foregroundStyle(theme.colors.mutedText)
@@ -179,7 +179,7 @@ struct ScheduleView: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, FCSpacing.xl)
+            .padding(.vertical, BlipSpacing.xl)
         }
     }
 

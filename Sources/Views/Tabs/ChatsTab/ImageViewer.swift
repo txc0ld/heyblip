@@ -44,7 +44,7 @@ struct ImageViewer: View {
                     .gesture(panGesture)
                     .simultaneousGesture(dismissDragGesture)
             } else {
-                VStack(spacing: FCSpacing.md) {
+                VStack(spacing: BlipSpacing.md) {
                     Image(systemName: "photo.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(.white.opacity(0.3))
@@ -61,8 +61,8 @@ struct ImageViewer: View {
                     Spacer()
                     shareButton
                 }
-                .padding(.horizontal, FCSpacing.md)
-                .padding(.top, FCSpacing.sm)
+                .padding(.horizontal, BlipSpacing.md)
+                .padding(.top, BlipSpacing.sm)
 
                 Spacer()
             }
@@ -79,7 +79,7 @@ struct ImageViewer: View {
             Image(systemName: "xmark")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
                         .fill(.ultraThinMaterial)
@@ -98,7 +98,7 @@ struct ImageViewer: View {
             Image(systemName: "square.and.arrow.up")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: FCSizing.minTapTarget, height: FCSizing.minTapTarget)
+                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
                     Circle()
                         .fill(.ultraThinMaterial)

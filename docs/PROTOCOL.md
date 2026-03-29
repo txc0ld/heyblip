@@ -1,4 +1,4 @@
-# FestiChat Binary Protocol Specification
+# Blip Binary Protocol Specification
 
 **Version:** 1.0
 **Status:** Authoritative cross-platform contract
@@ -9,7 +9,7 @@
 
 ## 1. Packet Structure
 
-Every FestiChat packet on the wire has the following layout:
+Every Blip packet on the wire has the following layout:
 
 ```
 +-------------------+  offset 0
@@ -308,7 +308,7 @@ For data exceeding 2048 bytes, pad to the next multiple of 256 bytes.
 ### 11.1 Dual-Role Operation
 
 Every device operates simultaneously as:
-- **BLE Central** (scanner/client): discovers and connects to other FestiChat peripherals.
+- **BLE Central** (scanner/client): discovers and connects to other Blip peripherals.
 - **BLE Peripheral** (advertiser/server): advertises the service UUID and accepts connections.
 
 ### 11.2 Connection Limits
@@ -323,8 +323,8 @@ Every device operates simultaneously as:
 
 | Role       | Restoration ID                    |
 |------------|-----------------------------------|
-| Central    | `com.festichat.ble.central`       |
-| Peripheral | `com.festichat.ble.peripheral`    |
+| Central    | `com.blip.ble.central`       |
+| Peripheral | `com.blip.ble.peripheral`    |
 
 ---
 

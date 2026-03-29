@@ -1,10 +1,10 @@
 import SwiftUI
 
-// MARK: - FestiChat Typography
+// MARK: - Blip Typography
 
 /// Typography system using Plus Jakarta Sans with system font fallback.
 /// Supports Dynamic Type scaling for accessibility.
-struct FCTypography: Sendable {
+struct BlipTypography: Sendable {
 
     /// Large titles — Bold 34pt
     let largeTitle: Font
@@ -25,16 +25,16 @@ struct FCTypography: Sendable {
 
     /// Standard typography set using Plus Jakarta Sans with system fallback.
     /// Fonts scale automatically with Dynamic Type via `.relativeTo`.
-    static let standard = FCTypography(
-        largeTitle: .custom(FCFontName.bold, size: 34, relativeTo: .largeTitle),
-        headline: .custom(FCFontName.semiBold, size: 22, relativeTo: .headline),
-        body: .custom(FCFontName.regular, size: 17, relativeTo: .body),
-        secondary: .custom(FCFontName.regular, size: 13, relativeTo: .footnote),
-        caption: .custom(FCFontName.medium, size: 11, relativeTo: .caption2)
+    static let standard = BlipTypography(
+        largeTitle: .custom(BlipFontName.bold, size: 34, relativeTo: .largeTitle),
+        headline: .custom(BlipFontName.semiBold, size: 22, relativeTo: .headline),
+        body: .custom(BlipFontName.regular, size: 17, relativeTo: .body),
+        secondary: .custom(BlipFontName.regular, size: 13, relativeTo: .footnote),
+        caption: .custom(BlipFontName.medium, size: 11, relativeTo: .caption2)
     )
 
     /// System font fallback if custom fonts are not available.
-    static let system = FCTypography(
+    static let system = BlipTypography(
         largeTitle: .system(size: 34, weight: .bold, design: .rounded),
         headline: .system(size: 22, weight: .semibold, design: .rounded),
         body: .system(size: 17, weight: .regular, design: .default),
@@ -47,7 +47,7 @@ struct FCTypography: Sendable {
 
 /// PostScript names for Plus Jakarta Sans font files.
 /// The actual .ttf files must be added to Resources/Fonts/ and registered in Info.plist.
-enum FCFontName {
+enum BlipFontName {
     static let regular = "PlusJakartaSans-Regular"
     static let medium = "PlusJakartaSans-Medium"
     static let semiBold = "PlusJakartaSans-SemiBold"
@@ -56,7 +56,7 @@ enum FCFontName {
 
 // MARK: - Font registration helper
 
-enum FCFontRegistration {
+enum BlipFontRegistration {
 
     /// Checks if Plus Jakarta Sans is available in the system.
     /// Returns `true` if at least one weight is registered.
@@ -73,15 +73,15 @@ enum FCFontRegistration {
     }
 
     /// Returns the appropriate typography based on font availability.
-    static var resolved: FCTypography {
+    static var resolved: BlipTypography {
         isCustomFontAvailable ? .standard : .system
     }
 }
 
 // MARK: - View modifier for consistent text styling
 
-/// Applies FestiChat typography styles to text views.
-struct FCTextStyle: ViewModifier {
+/// Applies Blip typography styles to text views.
+struct BlipTextStyle: ViewModifier {
 
     enum Style {
         case largeTitle
@@ -111,8 +111,8 @@ struct FCTextStyle: ViewModifier {
 }
 
 extension View {
-    /// Applies a FestiChat text style.
-    func fcTextStyle(_ style: FCTextStyle.Style) -> some View {
-        modifier(FCTextStyle(style: style))
+    /// Applies a Blip text style.
+    func blipTextStyle(_ style: BlipTextStyle.Style) -> some View {
+        modifier(BlipTextStyle(style: style))
     }
 }

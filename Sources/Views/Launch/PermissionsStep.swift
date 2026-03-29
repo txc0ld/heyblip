@@ -4,7 +4,7 @@ import CoreBluetooth
 // MARK: - PermissionsStep
 
 /// Onboarding step 3: Bluetooth permission request.
-/// "FestiChat needs Bluetooth to connect with people nearby."
+/// "Blip needs Bluetooth to connect with people nearby."
 /// One-tap grant with friendly illustration.
 struct PermissionsStep: View {
 
@@ -24,42 +24,42 @@ struct PermissionsStep: View {
             illustrationSection
 
             Spacer()
-                .frame(height: FCSpacing.xxl)
+                .frame(height: BlipSpacing.xxl)
 
             // Text
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Text("Stay connected\nwithout signal")
                     .font(theme.typography.largeTitle)
                     .foregroundStyle(theme.colors.text)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("FestiChat needs Bluetooth to connect with people nearby. Your device becomes part of a mesh network that relays messages.")
+                Text("Blip needs Bluetooth to connect with people nearby. Your device becomes part of a mesh network that relays messages.")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, FCSpacing.xl)
+            .padding(.horizontal, BlipSpacing.xl)
 
             Spacer()
-                .frame(height: FCSpacing.lg)
+                .frame(height: BlipSpacing.lg)
 
             // Permission status
             if permissionGranted {
-                HStack(spacing: FCSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(theme.colors.statusGreen)
                     Text("Bluetooth enabled")
-                        .font(.custom(FCFontName.medium, size: 15, relativeTo: .body))
+                        .font(.custom(BlipFontName.medium, size: 15, relativeTo: .body))
                         .foregroundStyle(theme.colors.statusGreen)
                 }
-                .padding(.bottom, FCSpacing.md)
+                .padding(.bottom, BlipSpacing.md)
             }
 
             if permissionDenied {
-                VStack(spacing: FCSpacing.sm) {
-                    Text("Bluetooth is required for FestiChat to work.")
+                VStack(spacing: BlipSpacing.sm) {
+                    Text("Bluetooth is required for Blip to work.")
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.statusAmber)
                         .multilineTextAlignment(.center)
@@ -68,19 +68,19 @@ struct PermissionsStep: View {
                         openSettings()
                     } label: {
                         Text("Open Settings")
-                            .font(.custom(FCFontName.medium, size: 14, relativeTo: .footnote))
-                            .foregroundStyle(Color.fcAccentPurple)
+                            .font(.custom(BlipFontName.medium, size: 14, relativeTo: .footnote))
+                            .foregroundStyle(Color.blipAccentPurple)
                     }
-                    .frame(minHeight: FCSizing.minTapTarget)
+                    .frame(minHeight: BlipSizing.minTapTarget)
                 }
-                .padding(.horizontal, FCSpacing.xl)
-                .padding(.bottom, FCSpacing.md)
+                .padding(.horizontal, BlipSpacing.xl)
+                .padding(.bottom, BlipSpacing.md)
             }
 
             Spacer()
 
             // Action buttons
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 GlassButton(
                     permissionGranted ? "Get started" : "Enable Bluetooth",
                     icon: permissionGranted ? "arrow.right" : "antenna.radiowaves.left.and.right"
@@ -94,13 +94,13 @@ struct PermissionsStep: View {
                 .fullWidth()
 
                 if !permissionGranted {
-                    Text("Required for FestiChat to work")
+                    Text("Required for Blip to work")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
                 }
             }
-            .padding(.horizontal, FCSpacing.lg)
-            .padding(.bottom, FCSpacing.xl)
+            .padding(.horizontal, BlipSpacing.lg)
+            .padding(.bottom, BlipSpacing.xl)
         }
         .opacity(contentVisible ? 1.0 : 0.0)
         .offset(y: contentVisible ? 0 : 15)
@@ -121,7 +121,7 @@ struct PermissionsStep: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color.fcAccentPurple.opacity(0.2),
+                            Color.blipAccentPurple.opacity(0.2),
                             Color.clear
                         ],
                         center: .center,
@@ -138,7 +138,7 @@ struct PermissionsStep: View {
                     let angle = Angle.degrees(Double(index) * 60)
                     let radius: CGFloat = 60
                     Circle()
-                        .fill(Color.fcAccentPurple.opacity(0.4))
+                        .fill(Color.blipAccentPurple.opacity(0.4))
                         .frame(width: 10, height: 10)
                         .offset(
                             x: cos(angle.radians) * radius,
@@ -151,7 +151,7 @@ struct PermissionsStep: View {
                     let angle = Angle.degrees(Double(index) * 120 + 30)
                     let radius: CGFloat = 35
                     Circle()
-                        .fill(Color.fcAccentPurple.opacity(0.6))
+                        .fill(Color.blipAccentPurple.opacity(0.6))
                         .frame(width: 14, height: 14)
                         .offset(
                             x: cos(angle.radians) * radius,
@@ -162,7 +162,7 @@ struct PermissionsStep: View {
                 // Center Bluetooth icon
                 Image(systemName: "bluetooth")
                     .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(Color.fcAccentPurple)
+                    .foregroundStyle(Color.blipAccentPurple)
             }
         }
     }

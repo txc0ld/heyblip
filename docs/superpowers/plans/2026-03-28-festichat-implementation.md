@@ -1,4 +1,4 @@
-# FestiChat Implementation Plan
+# Blip Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Swift 5.9+, SwiftUI, SwiftData, CoreBluetooth, CryptoKit, swift-sodium, swift-opus, MapKit, StoreKit 2, XcodeGen
 
-**Spec:** `docs/superpowers/specs/2026-03-28-festichat-design.md`
+**Spec:** `docs/superpowers/specs/2026-03-28-blip-design.md`
 
 ---
 
@@ -19,9 +19,9 @@
 **Files:**
 - Create: `project.yml`
 - Create: `.gitignore`
-- Create: `App/FestiChatApp.swift`
+- Create: `App/BlipApp.swift`
 - Create: `App/Info.plist`
-- Create: `App/Entitlements/FestiChat.entitlements`
+- Create: `App/Entitlements/Blip.entitlements`
 
 - [ ] **Step 1: Create `.gitignore` for Swift/Xcode**
 
@@ -50,7 +50,7 @@ Packages/*/Package.resolved
 
 Defines the full project: iOS 16.0 deployment target, Swift 5.9, 3 local SPM packages, all capabilities (BLE, push, IAP, Keychain, location), debug/release schemes with separate BLE UUIDs.
 
-- [ ] **Step 3: Create `App/FestiChatApp.swift`**
+- [ ] **Step 3: Create `App/BlipApp.swift`**
 
 Minimal `@main` entry point with SwiftData model container, environment setup.
 
@@ -173,16 +173,16 @@ git commit -m "feat(design): add glass components and animation system"
 ### Task 2.1: Packet Header & Core Types
 
 **Files:**
-- Create: `Packages/FestiChatProtocol/Package.swift`
-- Create: `Packages/FestiChatProtocol/Sources/Packet.swift`
-- Create: `Packages/FestiChatProtocol/Sources/MessageType.swift`
-- Create: `Packages/FestiChatProtocol/Sources/PacketFlags.swift`
-- Create: `Packages/FestiChatProtocol/Sources/PeerID.swift`
-- Test: `Packages/FestiChatProtocol/Tests/PacketTests.swift`
+- Create: `Packages/BlipProtocol/Package.swift`
+- Create: `Packages/BlipProtocol/Sources/Packet.swift`
+- Create: `Packages/BlipProtocol/Sources/MessageType.swift`
+- Create: `Packages/BlipProtocol/Sources/PacketFlags.swift`
+- Create: `Packages/BlipProtocol/Sources/PeerID.swift`
+- Test: `Packages/BlipProtocol/Tests/PacketTests.swift`
 
 - [ ] **Step 1: Create `Package.swift`**
 
-SPM package definition. Name: `FestiChatProtocol`. Swift 5.9. No external dependencies.
+SPM package definition. Name: `BlipProtocol`. Swift 5.9. No external dependencies.
 
 - [ ] **Step 2: Write failing test for packet header serialization**
 
@@ -207,7 +207,7 @@ Test encoding a packet header to 16 bytes and decoding it back. Verify version, 
 - [ ] **Step 7: Run tests, verify pass**
 
 ```bash
-swift test --package-path Packages/FestiChatProtocol
+swift test --package-path Packages/BlipProtocol
 ```
 
 - [ ] **Step 8: Commit**
@@ -219,10 +219,10 @@ git commit -m "feat(protocol): implement packet header, message types, flags, pe
 ### Task 2.2: Packet Serializer & Validator
 
 **Files:**
-- Create: `Packages/FestiChatProtocol/Sources/PacketSerializer.swift`
-- Create: `Packages/FestiChatProtocol/Sources/PacketValidator.swift`
-- Create: `Packages/FestiChatProtocol/Sources/EncryptedSubType.swift`
-- Test: `Packages/FestiChatProtocol/Tests/PacketSerializerTests.swift`
+- Create: `Packages/BlipProtocol/Sources/PacketSerializer.swift`
+- Create: `Packages/BlipProtocol/Sources/PacketValidator.swift`
+- Create: `Packages/BlipProtocol/Sources/EncryptedSubType.swift`
+- Test: `Packages/BlipProtocol/Tests/PacketSerializerTests.swift`
 
 - [ ] **Step 1: Write failing tests**
 
@@ -251,11 +251,11 @@ git commit -m "feat(protocol): add packet serializer, validator, encrypted sub-t
 ### Task 2.3: TLV Encoding, Compression, Padding
 
 **Files:**
-- Create: `Packages/FestiChatProtocol/Sources/TLVEncoder.swift`
-- Create: `Packages/FestiChatProtocol/Sources/Compression.swift`
-- Create: `Packages/FestiChatProtocol/Sources/Padding.swift`
-- Test: `Packages/FestiChatProtocol/Tests/TLVTests.swift`
-- Test: `Packages/FestiChatProtocol/Tests/CompressionTests.swift`
+- Create: `Packages/BlipProtocol/Sources/TLVEncoder.swift`
+- Create: `Packages/BlipProtocol/Sources/Compression.swift`
+- Create: `Packages/BlipProtocol/Sources/Padding.swift`
+- Test: `Packages/BlipProtocol/Tests/TLVTests.swift`
+- Test: `Packages/BlipProtocol/Tests/CompressionTests.swift`
 
 - [ ] **Step 1: Write failing tests for TLV**
 
@@ -292,12 +292,12 @@ git commit -m "feat(protocol): add TLV encoding, zlib compression, PKCS#7 paddin
 ### Task 2.4: Fragmentation & Bloom Filter
 
 **Files:**
-- Create: `Packages/FestiChatProtocol/Sources/FragmentSplitter.swift`
-- Create: `Packages/FestiChatProtocol/Sources/FragmentAssembler.swift`
-- Create: `Packages/FestiChatProtocol/Sources/BloomFilter.swift`
-- Create: `Packages/FestiChatProtocol/Sources/GCSFilter.swift`
-- Test: `Packages/FestiChatProtocol/Tests/FragmentTests.swift`
-- Test: `Packages/FestiChatProtocol/Tests/BloomFilterTests.swift`
+- Create: `Packages/BlipProtocol/Sources/FragmentSplitter.swift`
+- Create: `Packages/BlipProtocol/Sources/FragmentAssembler.swift`
+- Create: `Packages/BlipProtocol/Sources/BloomFilter.swift`
+- Create: `Packages/BlipProtocol/Sources/GCSFilter.swift`
+- Test: `Packages/BlipProtocol/Tests/FragmentTests.swift`
+- Test: `Packages/BlipProtocol/Tests/BloomFilterTests.swift`
 
 - [ ] **Step 1: Write failing tests for fragmentation**
 
@@ -338,12 +338,12 @@ git commit -m "feat(protocol): add fragmentation, bloom filter, GCS sync"
 ### Task 3.1: Key Management & Keychain
 
 **Files:**
-- Create: `Packages/FestiChatCrypto/Package.swift`
-- Create: `Packages/FestiChatCrypto/Sources/KeyManager.swift`
-- Create: `Packages/FestiChatCrypto/Sources/Signer.swift`
-- Create: `Packages/FestiChatCrypto/Sources/PhoneHasher.swift`
-- Test: `Packages/FestiChatCrypto/Tests/KeyManagerTests.swift`
-- Test: `Packages/FestiChatCrypto/Tests/SignerTests.swift`
+- Create: `Packages/BlipCrypto/Package.swift`
+- Create: `Packages/BlipCrypto/Sources/KeyManager.swift`
+- Create: `Packages/BlipCrypto/Sources/Signer.swift`
+- Create: `Packages/BlipCrypto/Sources/PhoneHasher.swift`
+- Test: `Packages/BlipCrypto/Tests/KeyManagerTests.swift`
+- Test: `Packages/BlipCrypto/Tests/SignerTests.swift`
 
 - [ ] **Step 1: Create `Package.swift`**
 
@@ -380,13 +380,13 @@ git commit -m "feat(crypto): add key management, Ed25519 signing, phone hashing"
 ### Task 3.2: Noise Protocol Implementation
 
 **Files:**
-- Create: `Packages/FestiChatCrypto/Sources/NoiseHandshake.swift`
-- Create: `Packages/FestiChatCrypto/Sources/NoiseCipherState.swift`
-- Create: `Packages/FestiChatCrypto/Sources/NoiseSessionManager.swift`
-- Create: `Packages/FestiChatCrypto/Sources/ReplayProtection.swift`
-- Create: `Packages/FestiChatCrypto/Sources/SenderKeyManager.swift`
-- Test: `Packages/FestiChatCrypto/Tests/NoiseHandshakeTests.swift`
-- Test: `Packages/FestiChatCrypto/Tests/ReplayProtectionTests.swift`
+- Create: `Packages/BlipCrypto/Sources/NoiseHandshake.swift`
+- Create: `Packages/BlipCrypto/Sources/NoiseCipherState.swift`
+- Create: `Packages/BlipCrypto/Sources/NoiseSessionManager.swift`
+- Create: `Packages/BlipCrypto/Sources/ReplayProtection.swift`
+- Create: `Packages/BlipCrypto/Sources/SenderKeyManager.swift`
+- Test: `Packages/BlipCrypto/Tests/NoiseHandshakeTests.swift`
+- Test: `Packages/BlipCrypto/Tests/ReplayProtectionTests.swift`
 
 - [ ] **Step 1: Write failing tests for Noise XX handshake**
 
@@ -431,16 +431,16 @@ git commit -m "feat(crypto): add Noise XX handshake, cipher state, session manag
 ### Task 4.1: Transport Protocol & BLE Service
 
 **Files:**
-- Create: `Packages/FestiChatMesh/Package.swift`
-- Create: `Packages/FestiChatMesh/Sources/Transport.swift`
-- Create: `Packages/FestiChatMesh/Sources/BLEConstants.swift`
-- Create: `Packages/FestiChatMesh/Sources/BLEService.swift`
-- Create: `Packages/FestiChatMesh/Sources/PeerManager.swift`
-- Test: `Packages/FestiChatMesh/Tests/PeerManagerTests.swift`
+- Create: `Packages/BlipMesh/Package.swift`
+- Create: `Packages/BlipMesh/Sources/Transport.swift`
+- Create: `Packages/BlipMesh/Sources/BLEConstants.swift`
+- Create: `Packages/BlipMesh/Sources/BLEService.swift`
+- Create: `Packages/BlipMesh/Sources/PeerManager.swift`
+- Test: `Packages/BlipMesh/Tests/PeerManagerTests.swift`
 
 - [ ] **Step 1: Create `Package.swift`**
 
-Dependencies: FestiChatProtocol, FestiChatCrypto (local packages).
+Dependencies: BlipProtocol, BlipCrypto (local packages).
 
 - [ ] **Step 2: Implement `Transport.swift`**
 
@@ -477,11 +477,11 @@ git commit -m "feat(mesh): add transport protocol, BLE service, peer manager"
 ### Task 4.2: Gossip Router & Store-Forward
 
 **Files:**
-- Create: `Packages/FestiChatMesh/Sources/GossipRouter.swift`
-- Create: `Packages/FestiChatMesh/Sources/StoreForwardCache.swift`
-- Create: `Packages/FestiChatMesh/Sources/AdaptiveRelay.swift`
-- Create: `Packages/FestiChatMesh/Sources/DirectedRouter.swift`
-- Test: `Packages/FestiChatMesh/Tests/GossipRouterTests.swift`
+- Create: `Packages/BlipMesh/Sources/GossipRouter.swift`
+- Create: `Packages/BlipMesh/Sources/StoreForwardCache.swift`
+- Create: `Packages/BlipMesh/Sources/AdaptiveRelay.swift`
+- Create: `Packages/BlipMesh/Sources/DirectedRouter.swift`
+- Test: `Packages/BlipMesh/Tests/GossipRouterTests.swift`
 
 - [ ] **Step 1: Write failing tests for gossip routing**
 
@@ -512,12 +512,12 @@ git commit -m "feat(mesh): add gossip router, store-forward cache, adaptive rela
 ### Task 4.3: Congestion Management & Power
 
 **Files:**
-- Create: `Packages/FestiChatMesh/Sources/CrowdScaleManager.swift`
-- Create: `Packages/FestiChatMesh/Sources/ClusterManager.swift`
-- Create: `Packages/FestiChatMesh/Sources/TrafficShaper.swift`
-- Create: `Packages/FestiChatMesh/Sources/PowerManager.swift`
-- Create: `Packages/FestiChatMesh/Sources/ReputationManager.swift`
-- Test: `Packages/FestiChatMesh/Tests/CrowdScaleTests.swift`
+- Create: `Packages/BlipMesh/Sources/CrowdScaleManager.swift`
+- Create: `Packages/BlipMesh/Sources/ClusterManager.swift`
+- Create: `Packages/BlipMesh/Sources/TrafficShaper.swift`
+- Create: `Packages/BlipMesh/Sources/PowerManager.swift`
+- Create: `Packages/BlipMesh/Sources/ReputationManager.swift`
+- Test: `Packages/BlipMesh/Tests/CrowdScaleTests.swift`
 
 - [ ] **Step 1: Implement `CrowdScaleManager.swift`**
 
@@ -548,9 +548,9 @@ git commit -m "feat(mesh): add crowd-scale modes, clustering, traffic shaping, p
 ### Task 4.4: Transport Coordinator & WebSocket Fallback
 
 **Files:**
-- Create: `Packages/FestiChatMesh/Sources/TransportCoordinator.swift`
-- Create: `Packages/FestiChatMesh/Sources/WebSocketTransport.swift`
-- Create: `Packages/FestiChatMesh/Sources/WiFiTransport.swift`
+- Create: `Packages/BlipMesh/Sources/TransportCoordinator.swift`
+- Create: `Packages/BlipMesh/Sources/WebSocketTransport.swift`
+- Create: `Packages/BlipMesh/Sources/WiFiTransport.swift`
 
 - [ ] **Step 1: Implement `TransportCoordinator.swift`**
 
@@ -558,7 +558,7 @@ Owns all transports. Routes messages: BLE first (100ms timeout) → WebSocket fa
 
 - [ ] **Step 2: Implement `WebSocketTransport.swift`**
 
-`URLSessionWebSocketTask` to `wss://relay.festichat.app/ws`. Auth: Noise public key as bearer token. Binary frames with protocol packets. Reconnection: exponential backoff 1s-60s, max 10 attempts.
+`URLSessionWebSocketTask` to `wss://relay.blip.app/ws`. Auth: Noise public key as bearer token. Binary frames with protocol packets. Reconnection: exponential backoff 1s-60s, max 10 attempts.
 
 - [ ] **Step 3: Implement `WiFiTransport.swift`**
 
@@ -744,7 +744,7 @@ git commit -m "feat(viewmodels): add all view models — chat, mesh, profile, st
 
 **Files:**
 - Create: `App/AppDelegate.swift`
-- Modify: `App/FestiChatApp.swift`
+- Modify: `App/BlipApp.swift`
 - Create: `Sources/Views/Tabs/MainTabView.swift`
 - Create: `Sources/Views/Shared/ConnectionBanner.swift`
 - Create: `Sources/Views/Shared/SOSButton.swift`
@@ -753,7 +753,7 @@ git commit -m "feat(viewmodels): add all view models — chat, mesh, profile, st
 
 BLE state restoration handlers. `willRestoreState` for central and peripheral managers.
 
-- [ ] **Step 2: Update `FestiChatApp.swift`**
+- [ ] **Step 2: Update `BlipApp.swift`**
 
 SwiftData model container with all models. Environment injection: theme, view models, services. Root view: onboarding if first launch, else MainTabView.
 
@@ -802,7 +802,7 @@ Username field (real-time validation), phone number field + OTP verification inl
 
 - [ ] **Step 5: Implement `PermissionsStep.swift`**
 
-"FestiChat needs Bluetooth to connect with people nearby." Single permission request. Friendly illustration. One-tap grant.
+"Blip needs Bluetooth to connect with people nearby." Single permission request. Friendly illustration. One-tap grant.
 
 - [ ] **Step 6: Commit**
 
@@ -1107,7 +1107,7 @@ Cross-platform binary protocol specification extracted from design spec Section 
 
 - [ ] **Step 2: Create `WHITEPAPER.md`**
 
-FestiChat whitepaper: problem statement, solution architecture, mesh networking approach, scalability, security model, festival integration. Public-facing document.
+Blip whitepaper: problem statement, solution architecture, mesh networking approach, scalability, security model, festival integration. Public-facing document.
 
 - [ ] **Step 3: Commit**
 
@@ -1147,9 +1147,9 @@ ChatViewModel: send message, receive message, typing indicator, channel switchin
 - [ ] **Step 5: Run all tests**
 
 ```bash
-swift test --package-path Packages/FestiChatProtocol && \
-swift test --package-path Packages/FestiChatCrypto && \
-swift test --package-path Packages/FestiChatMesh
+swift test --package-path Packages/BlipProtocol && \
+swift test --package-path Packages/BlipCrypto && \
+swift test --package-path Packages/BlipMesh
 ```
 
 - [ ] **Step 6: Commit**

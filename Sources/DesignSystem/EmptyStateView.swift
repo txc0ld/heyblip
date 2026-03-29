@@ -29,7 +29,7 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: FCSpacing.md) {
+        VStack(spacing: BlipSpacing.md) {
             Image(systemName: icon)
                 .font(.system(size: 48))
                 .foregroundStyle(theme.colors.mutedText)
@@ -42,11 +42,11 @@ struct EmptyStateView: View {
                 .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, FCSpacing.xl)
+                .padding(.horizontal, BlipSpacing.xl)
 
             if let ctaTitle, let ctaAction {
                 GlassButton(ctaTitle, style: .secondary, size: .small, action: ctaAction)
-                    .padding(.top, FCSpacing.sm)
+                    .padding(.top, BlipSpacing.sm)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -77,10 +77,10 @@ struct ErrorStateView: View {
 
     var body: some View {
         GlassCard(thickness: .regular) {
-            VStack(spacing: FCSpacing.md) {
+            VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 28))
-                    .foregroundStyle(FCColors.adaptive.statusAmber)
+                    .foregroundStyle(BlipColors.adaptive.statusAmber)
 
                 Text(title)
                     .font(theme.typography.body)
@@ -140,7 +140,7 @@ struct ErrorStateView: View {
                 title: "Connection lost",
                 subtitle: "Check your Bluetooth settings"
             ) {}
-            .padding(FCSpacing.md)
+            .padding(BlipSpacing.md)
             Spacer()
         }
     }

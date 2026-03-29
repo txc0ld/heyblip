@@ -1,5 +1,5 @@
 /**
- * FestiChat relay server types.
+ * Blip relay server types.
  *
  * These mirror the binary protocol from Packet.swift — the relay only
  * reads enough of the header to extract the recipient PeerID for routing.

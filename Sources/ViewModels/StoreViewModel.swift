@@ -87,7 +87,7 @@ final class StoreViewModel {
 
     // MARK: - Dependencies
 
-    private let logger = Logger(subsystem: "com.festichat", category: "StoreViewModel")
+    private let logger = Logger(subsystem: "com.blip", category: "StoreViewModel")
     private let modelContainer: ModelContainer
     nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
     private var loadedProducts: [Product] = []
@@ -96,18 +96,18 @@ final class StoreViewModel {
 
     /// StoreKit product identifiers mapped to pack types.
     private static let productIDs: [(String, PackType)] = [
-        ("com.festichat.starter10", .starter10),
-        ("com.festichat.social25", .social25),
-        ("com.festichat.festival50", .festival50),
-        ("com.festichat.squad100", .squad100),
-        ("com.festichat.season1000", .season1000),
-        ("com.festichat.unlimited", .unlimited)
+        ("com.blip.starter10", .starter10),
+        ("com.blip.social25", .social25),
+        ("com.blip.festival50", .festival50),
+        ("com.blip.squad100", .squad100),
+        ("com.blip.season1000", .season1000),
+        ("com.blip.unlimited", .unlimited)
     ]
 
     private static let allProductIDs: Set<String> = Set(productIDs.map(\.0))
 
     /// Backend URL for receipt verification.
-    private static let verifyReceiptURL = "https://api.festichat.app/v1/receipts/verify"
+    private static let verifyReceiptURL = "https://api.blip.app/v1/receipts/verify"
 
     // MARK: - Init
 

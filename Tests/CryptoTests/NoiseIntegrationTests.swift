@@ -1,7 +1,7 @@
 import XCTest
 import CryptoKit
-@testable import FestiChatCrypto
-@testable import FestiChatProtocol
+@testable import BlipCrypto
+@testable import BlipProtocol
 
 /// Integration tests for the full Noise XX handshake, encryption/decryption,
 /// forward secrecy, and session manager caching with IK upgrade.

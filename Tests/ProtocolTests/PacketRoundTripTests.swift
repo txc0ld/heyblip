@@ -1,5 +1,5 @@
 import XCTest
-@testable import FestiChatProtocol
+@testable import BlipProtocol
 
 /// Round-trip serialization tests for every message type, fragmentation, compression, and padding.
 final class PacketRoundTripTests: XCTestCase {

@@ -29,7 +29,7 @@ struct AvatarCropView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                VStack(spacing: FCSpacing.lg) {
+                VStack(spacing: BlipSpacing.lg) {
                     Spacer()
                     cropArea
                     instructions
@@ -54,7 +54,7 @@ struct AvatarCropView: View {
         ZStack {
             // Placeholder image (in production, use the actual selected image)
             LinearGradient(
-                colors: [.fcGradientDeepPurple, .fcGradientMidnightBlue, .fcGradientDarkTeal],
+                colors: [.blipGradientDeepPurple, .blipGradientMidnightBlue, .blipGradientDarkTeal],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -127,7 +127,7 @@ struct AvatarCropView: View {
     // MARK: - Action Buttons
 
     private var actionButtons: some View {
-        HStack(spacing: FCSpacing.lg) {
+        HStack(spacing: BlipSpacing.lg) {
             GlassButton("Reset", icon: "arrow.counterclockwise", style: .secondary) {
                 withAnimation(SpringConstants.accessiblePageEntrance) {
                     scale = 1.0
@@ -143,7 +143,7 @@ struct AvatarCropView: View {
                 isPresented = false
             }
         }
-        .padding(.horizontal, FCSpacing.xl)
+        .padding(.horizontal, BlipSpacing.xl)
     }
 
     // MARK: - Gestures

@@ -1,6 +1,6 @@
-# FestiChat — John's Onboarding Guide
+# Blip — John's Onboarding Guide
 
-Hey John, welcome to FestiChat. Here's everything you need to get started.
+Hey John, welcome to Blip. Here's everything you need to get started.
 
 ---
 
@@ -19,7 +19,7 @@ cd FezChat
 | `WORKPLAN.md` | Your tasks are in the **"John"** section | 10 min |
 | `docs/WHITEPAPER.md` | How the mesh network works | 10 min |
 | `docs/PROTOCOL.md` | Binary protocol spec (you'll need this for server work) | 15 min |
-| `docs/superpowers/specs/2026-03-28-festichat-design.md` | Full design spec (1,500+ lines, reference as needed) | Skim 20 min |
+| `docs/superpowers/specs/2026-03-28-blip-design.md` | Full design spec (1,500+ lines, reference as needed) | Skim 20 min |
 | `CLAUDE.md` | Instructions that Claude/Codex auto-loads when working in this repo | 5 min |
 | `CONTRIBUTING.md` | Code standards, git conventions | 5 min |
 
@@ -79,7 +79,7 @@ Follow the execution lifecycle in AGENTS.md.
 ### Paste this into your LLM's first message:
 
 ```
-I am John, working on the FestiChat project (BLE mesh chat app for festivals).
+I am John, working on the Blip project (BLE mesh chat app for festivals).
 
 My role: Backend, data, infrastructure, SEO.
 
@@ -88,7 +88,7 @@ Read these files in order:
 2. WORKPLAN.md — find ALL tasks prefixed with "J" (those are mine)
 3. CLAUDE.md — project rules and build commands
 4. docs/PROTOCOL.md — binary protocol spec
-5. docs/superpowers/specs/2026-03-28-festichat-design.md — full design spec
+5. docs/superpowers/specs/2026-03-28-blip-design.md — full design spec
 
 Start with my P0 Sprint 1 tasks (J1-J4). For each task:
 1. Read the relevant spec sections
@@ -113,14 +113,14 @@ john/J4-websocket-relay
 ## 6. Key technical context for your tasks
 
 ### J1 — BLE mesh testing
-- `Packages/FestiChatMesh/Sources/BLEService.swift` — dual-role BLE implementation
+- `Packages/BlipMesh/Sources/BLEService.swift` — dual-role BLE implementation
 - Service UUID: `FC000001-0000-1000-8000-00805F9B34FB`
 - Needs 3+ iPhones running the app simultaneously
 - Test: peer discovery, connection, data exchange, state restoration after backgrounding
 
 ### J2 — Gossip routing
-- `Packages/FestiChatMesh/Sources/GossipRouter.swift` — core routing
-- `Packages/FestiChatProtocol/Sources/BloomFilter.swift` — dedup
+- `Packages/BlipMesh/Sources/GossipRouter.swift` — core routing
+- `Packages/BlipProtocol/Sources/BloomFilter.swift` — dedup
 - Test with 5+ devices in a line: send from device 1, verify delivery at device 5 via hops
 
 ### J3 — Phone verification backend
@@ -130,8 +130,8 @@ john/J4-websocket-relay
 - Rate limiting: 60s cooldown, 5 sends/hour, 5 verify attempts
 
 ### J4 — WebSocket relay server
-- `Packages/FestiChatMesh/Sources/WebSocketTransport.swift` — client-side code exists
-- Endpoint: `wss://relay.festichat.app/ws`
+- `Packages/BlipMesh/Sources/WebSocketTransport.swift` — client-side code exists
+- Endpoint: `wss://relay.blip.app/ws`
 - Auth: Noise public key as Bearer token
 - Receives binary protocol packets, forwards by recipient PeerID
 - Stores NOTHING — zero-knowledge relay
@@ -155,21 +155,21 @@ brew install xcodegen
 xcodegen generate
 
 # Build
-xcodebuild -scheme FestiChat -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
 
 # Run package tests
-swift test --package-path Packages/FestiChatProtocol
-swift test --package-path Packages/FestiChatCrypto
-swift test --package-path Packages/FestiChatMesh
+swift test --package-path Packages/BlipProtocol
+swift test --package-path Packages/BlipCrypto
+swift test --package-path Packages/BlipMesh
 ```
 
 ## 8. Architecture quick reference
 
 ```
 Packages/
-  FestiChatProtocol/   — Binary wire format (you'll reference this a lot)
-  FestiChatCrypto/     — E2E encryption (Noise XX)
-  FestiChatMesh/       — BLE transport + routing (your main territory)
+  BlipProtocol/   — Binary wire format (you'll reference this a lot)
+  BlipCrypto/     — E2E encryption (Noise XX)
+  BlipMesh/       — BLE transport + routing (your main territory)
 
 Sources/
   Models/              — 21 SwiftData models
@@ -185,7 +185,7 @@ docs/
 ## 9. Questions?
 
 Don't ask Tay unless it's about UI/design decisions. For everything else:
-- Check the design spec first (`docs/superpowers/specs/2026-03-28-festichat-design.md`)
+- Check the design spec first (`docs/superpowers/specs/2026-03-28-blip-design.md`)
 - Check the protocol spec (`docs/PROTOCOL.md`)
 - Check the existing code
 - If genuinely blocked, create a GitHub issue

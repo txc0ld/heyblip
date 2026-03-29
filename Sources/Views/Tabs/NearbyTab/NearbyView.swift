@@ -28,7 +28,7 @@ struct NearbyView: View {
                     .opacity(0.6)
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: FCSpacing.lg) {
+                    VStack(alignment: .leading, spacing: BlipSpacing.lg) {
                         headerSection
                             .staggeredReveal(index: 0)
 
@@ -42,9 +42,9 @@ struct NearbyView: View {
                             .staggeredReveal(index: 3)
 
                         // Bottom spacer for tab bar
-                        Spacer().frame(height: FCSpacing.xxl)
+                        Spacer().frame(height: BlipSpacing.xxl)
                     }
-                    .padding(.top, FCSpacing.md)
+                    .padding(.top, BlipSpacing.md)
                 }
             }
             .navigationTitle("Nearby")
@@ -116,13 +116,13 @@ struct NearbyView: View {
     // MARK: - Header Section
 
     private var headerSection: some View {
-        GlassCard(thickness: .ultraThin, cornerRadius: FCCornerRadius.xl) {
-            HStack(spacing: FCSpacing.md) {
+        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
+            HStack(spacing: BlipSpacing.md) {
                 // Animated peer count
-                VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     Text("\(peerCount)")
                         .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                         .contentTransition(.numericText())
 
                     Text("people nearby")
@@ -133,10 +133,10 @@ struct NearbyView: View {
                 Spacer()
 
                 // Signal indicator
-                VStack(spacing: FCSpacing.xs) {
+                VStack(spacing: BlipSpacing.xs) {
                     Image(systemName: meshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
                         .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(.fcAccentPurple)
+                        .foregroundStyle(.blipAccentPurple)
                         .symbolEffect(.pulse, options: .repeating)
 
                     Text(meshViewModel?.transportState ?? "Scanning...")
@@ -145,7 +145,7 @@ struct NearbyView: View {
                 }
             }
         }
-        .padding(.horizontal, FCSpacing.md)
+        .padding(.horizontal, BlipSpacing.md)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(peerCount) people nearby, mesh active")
     }
@@ -154,11 +154,11 @@ struct NearbyView: View {
 
     @ViewBuilder
     private var friendsSection: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.md) {
+        VStack(alignment: .leading, spacing: BlipSpacing.md) {
             HStack {
                 Image(systemName: "person.2.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text("Friends Nearby")
                     .font(theme.typography.headline)
@@ -170,15 +170,15 @@ struct NearbyView: View {
                     Text("\(nearbyFriends.count)")
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
-                        .padding(.horizontal, FCSpacing.sm)
-                        .padding(.vertical, FCSpacing.xs)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
                         .background(Capsule().fill(theme.colors.hover))
                 }
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             if nearbyFriends.isEmpty {
-                HStack(spacing: FCSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
                     ProgressView()
                         .tint(theme.colors.mutedText)
                     Text("Scanning for nearby peers...")
@@ -186,7 +186,7 @@ struct NearbyView: View {
                         .foregroundStyle(theme.colors.mutedText)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, FCSpacing.lg)
+                .padding(.vertical, BlipSpacing.lg)
             } else {
                 ForEach(Array(nearbyFriends.enumerated()), id: \.element.id) { index, friend in
                     NearbyPeerCard(
@@ -198,7 +198,7 @@ struct NearbyView: View {
                         isOnline: friend.isOnline,
                         isFriend: true
                     )
-                    .padding(.horizontal, FCSpacing.md)
+                    .padding(.horizontal, BlipSpacing.md)
                     .staggeredReveal(index: index)
                 }
             }
@@ -214,11 +214,11 @@ struct NearbyView: View {
     // MARK: - Map Section
 
     private var mapSection: some View {
-        VStack(alignment: .leading, spacing: FCSpacing.md) {
+        VStack(alignment: .leading, spacing: BlipSpacing.md) {
             HStack {
                 Image(systemName: "map.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.fcAccentPurple)
+                    .foregroundStyle(.blipAccentPurple)
 
                 Text("Friend Finder")
                     .font(theme.typography.headline)
@@ -229,18 +229,18 @@ struct NearbyView: View {
                 Button(action: { withAnimation { showMap.toggle() } }) {
                     Text(showMap ? "Hide Map" : "Show Map")
                         .font(theme.typography.caption)
-                        .foregroundStyle(.fcAccentPurple)
-                        .padding(.horizontal, FCSpacing.sm)
-                        .padding(.vertical, FCSpacing.xs)
+                        .foregroundStyle(.blipAccentPurple)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
                         .background(
                             Capsule()
-                                .fill(.fcAccentPurple.opacity(0.12))
+                                .fill(.blipAccentPurple.opacity(0.12))
                         )
                 }
-                .frame(minHeight: FCSizing.minTapTarget)
+                .frame(minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel(showMap ? "Hide friend finder map" : "Show friend finder map")
             }
-            .padding(.horizontal, FCSpacing.md)
+            .padding(.horizontal, BlipSpacing.md)
 
             if showMap {
                 FriendFinderMap(
@@ -259,7 +259,7 @@ struct NearbyView: View {
                     }
                 )
                 .frame(height: 350)
-                .padding(.horizontal, FCSpacing.md)
+                .padding(.horizontal, BlipSpacing.md)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }

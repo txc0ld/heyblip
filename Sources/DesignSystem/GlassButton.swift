@@ -25,25 +25,25 @@ struct GlassButton: View {
 
         var verticalPadding: CGFloat {
             switch self {
-            case .small: return FCSpacing.sm
-            case .regular: return FCSpacing.md - 2
-            case .large: return FCSpacing.md
+            case .small: return BlipSpacing.sm
+            case .regular: return BlipSpacing.md - 2
+            case .large: return BlipSpacing.md
             }
         }
 
         var horizontalPadding: CGFloat {
             switch self {
-            case .small: return FCSpacing.md
-            case .regular: return FCSpacing.lg
-            case .large: return FCSpacing.xl
+            case .small: return BlipSpacing.md
+            case .regular: return BlipSpacing.lg
+            case .large: return BlipSpacing.xl
             }
         }
 
         var font: Font {
             switch self {
-            case .small: return .custom(FCFontName.medium, size: 13, relativeTo: .footnote)
-            case .regular: return .custom(FCFontName.semiBold, size: 15, relativeTo: .body)
-            case .large: return .custom(FCFontName.semiBold, size: 17, relativeTo: .body)
+            case .small: return .custom(BlipFontName.medium, size: 13, relativeTo: .footnote)
+            case .regular: return .custom(BlipFontName.semiBold, size: 15, relativeTo: .body)
+            case .large: return .custom(BlipFontName.semiBold, size: 17, relativeTo: .body)
             }
         }
     }
@@ -88,7 +88,7 @@ struct GlassButton: View {
             guard !isLoading else { return }
             action()
         }) {
-            HStack(spacing: FCSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(.circular)
@@ -105,9 +105,9 @@ struct GlassButton: View {
             .foregroundStyle(foregroundColor)
             .padding(.vertical, size.verticalPadding)
             .padding(.horizontal, size.horizontalPadding)
-            .frame(minHeight: FCSizing.minTapTarget)
+            .frame(minHeight: BlipSizing.minTapTarget)
             .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
             .overlay(borderOverlay)
             .opacity(isEnabled ? 1.0 : 0.5)
             .scaleEffect(isPressed ? 0.97 : 1.0)
@@ -128,19 +128,19 @@ struct GlassButton: View {
     private var background: some View {
         switch style {
         case .primary:
-            LinearGradient.fcAccent
+            LinearGradient.blipAccent
                 .opacity(isPressed ? 0.85 : 1.0)
         case .secondary:
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                         .fill(isPressed ? hoverFill : Color.clear)
                 )
         case .outline:
             Color.clear
                 .overlay(
-                    RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
+                    RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                         .fill(isPressed ? hoverFill : Color.clear)
                 )
         }
@@ -152,11 +152,11 @@ struct GlassButton: View {
         case .primary:
             EmptyView()
         case .secondary:
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
-                .stroke(borderColor, lineWidth: FCSizing.hairline)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
+                .stroke(borderColor, lineWidth: BlipSizing.hairline)
         case .outline:
-            RoundedRectangle(cornerRadius: FCCornerRadius.lg, style: .continuous)
-                .stroke(Color.fcAccentPurple.opacity(0.6), lineWidth: 1)
+            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
+                .stroke(Color.blipAccentPurple.opacity(0.6), lineWidth: 1)
         }
     }
 
