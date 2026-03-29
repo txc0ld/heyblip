@@ -14,6 +14,7 @@ struct FriendFinderMapView: View {
     @State private var isSharingLocation = false
     @State private var selectedFriend: FriendMapPin? = nil
     @State private var showFriendList = true
+    @State private var showCrowdPulse = false
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var sharingPulse = false
 
@@ -23,10 +24,27 @@ struct FriendFinderMapView: View {
 
     private let userLocation = CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856)
 
+    /// Map region for crowd pulse coordinate normalization.
+    private var crowdPulseRegion: MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: userLocation,
+            span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)
+        )
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Map layer
             mapLayer
+
+            // Crowd pulse overlay
+            if showCrowdPulse {
+                CrowdPulseOverlay(
+                    pulseData: Self.sampleCrowdPulse,
+                    mapRegion: crowdPulseRegion
+                )
+                .transition(.opacity)
+            }
 
             // Controls
             VStack {
@@ -38,6 +56,18 @@ struct FriendFinderMapView: View {
                 .padding(.top, BlipSpacing.sm)
 
                 Spacer()
+            }
+
+            // Crowd pulse legend
+            if showCrowdPulse {
+                VStack {
+                    CrowdPulseLegend()
+                        .padding(.horizontal, BlipSpacing.md)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+
+                    Spacer()
+                }
+                .padding(.top, 52)
             }
 
             // Friend list bottom sheet
@@ -168,6 +198,17 @@ struct FriendFinderMapView: View {
                 )
                 withAnimation(SpringConstants.accessiblePageEntrance) {
                     beacons.append(beacon)
+                }
+            }
+
+            // Crowd pulse overlay
+            mapButton(
+                icon: showCrowdPulse ? "aqi.medium" : "aqi.low",
+                label: showCrowdPulse ? "Hide crowd" : "Show crowd",
+                isActive: showCrowdPulse
+            ) {
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    showCrowdPulse.toggle()
                 }
             }
 
@@ -461,6 +502,18 @@ private struct BeaconAnnotationView: View {
 // MARK: - Sample Data
 
 extension FriendFinderMapView {
+
+    /// Sample crowd density data for simulator testing.
+    static let sampleCrowdPulse: [CrowdPulseCell] = [
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0048, longitude: -2.5862), level: .packed, peerCount: 320, geohash: "gcpu2e1"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0055, longitude: -2.5845), level: .busy, peerCount: 180, geohash: "gcpu2e2"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0040, longitude: -2.5870), level: .moderate, peerCount: 80, geohash: "gcpu2e3"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0060, longitude: -2.5830), level: .quiet, peerCount: 15, geohash: "gcpu2e4"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0035, longitude: -2.5855), level: .busy, peerCount: 150, geohash: "gcpu2e5"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0050, longitude: -2.5840), level: .moderate, peerCount: 65, geohash: "gcpu2e6"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0042, longitude: -2.5880), level: .packed, peerCount: 280, geohash: "gcpu2e7"),
+        CrowdPulseCell(id: UUID(), coordinate: CLLocationCoordinate2D(latitude: 51.0058, longitude: -2.5855), level: .quiet, peerCount: 22, geohash: "gcpu2e8"),
+    ]
 
     static let sampleFriends: [FriendMapPin] = [
         FriendMapPin(
