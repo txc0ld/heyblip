@@ -1,6 +1,23 @@
 import SwiftUI
 import CoreBluetooth
 
+// MARK: - BLE Permission Observer
+
+/// Delegate that keeps the CBCentralManager alive and forwards state changes.
+private final class BLEPermissionObserver: NSObject, CBCentralManagerDelegate {
+    var onStateChange: ((CBManagerAuthorization) -> Void)?
+    private(set) var manager: CBCentralManager?
+
+    func startRequest() {
+        guard manager == nil else { return }
+        manager = CBCentralManager(delegate: self, queue: .main)
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        onStateChange?(CBManager.authorization)
+    }
+}
+
 // MARK: - PermissionsStep
 
 /// Onboarding step 3: Bluetooth permission request.
@@ -14,6 +31,7 @@ struct PermissionsStep: View {
     @State private var contentVisible = false
     @State private var permissionGranted = false
     @State private var permissionDenied = false
+    @State private var observer = BLEPermissionObserver()
     #if DEBUG
     @State private var autoAdvanceTask: Task<Void, Never>?
     #endif
@@ -185,36 +203,34 @@ struct PermissionsStep: View {
     // MARK: - Bluetooth Permission
 
     private func checkCurrentPermission() {
-        let authorization = CBManager.authorization
-        switch authorization {
-        case .allowedAlways:
-            permissionGranted = true
-        case .denied, .restricted:
-            permissionDenied = true
-        default:
-            break
-        }
+        handleAuthorization(CBManager.authorization)
     }
 
     private func requestBluetoothPermission() {
-        // Creating a CBCentralManager triggers the system permission dialog.
-        // The actual manager lifecycle is handled by the mesh service layer.
-        let _ = CBCentralManager(delegate: nil, queue: nil)
+        observer.onStateChange = { authorization in
+            handleAuthorization(authorization)
+        }
+        observer.startRequest()
+    }
 
-        // Check permission after a brief delay to let the dialog resolve
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            let authorization = CBManager.authorization
-            withAnimation(SpringConstants.accessiblePageEntrance) {
-                switch authorization {
-                case .allowedAlways:
-                    permissionGranted = true
-                    permissionDenied = false
-                case .denied, .restricted:
-                    permissionDenied = true
-                default:
-                    // Still undetermined, user may still be seeing the dialog
-                    break
-                }
+    private func handleAuthorization(_ authorization: CBManagerAuthorization) {
+        withAnimation(SpringConstants.accessiblePageEntrance) {
+            switch authorization {
+            case .allowedAlways:
+                permissionGranted = true
+                permissionDenied = false
+            case .denied, .restricted:
+                permissionDenied = true
+                permissionGranted = false
+            default:
+                break
+            }
+        }
+
+        if authorization == .allowedAlways {
+            // Auto-advance after a beat so the user sees the confirmation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                onComplete()
             }
         }
     }
