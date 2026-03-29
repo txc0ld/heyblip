@@ -91,6 +91,11 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
     /// Messages queued for delivery when a transport becomes available.
     private var localQueue: [PendingMessage] = []
 
+    // MARK: - Location rate limiting
+
+    /// Last location broadcast time per peer, for rate limiting (max 1/30s).
+    private var lastLocationBroadcast: [PeerID: Date] = [:]
+
     // MARK: - Internals
 
     private let lock = NSLock()
@@ -189,6 +194,49 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         if webSocketTransport.state == .running {
             webSocketTransport.broadcast(data: data)
         }
+    }
+
+    /// Send a location update, rate-limited to 1 per 30 seconds per peer.
+    /// Returns `false` if rate limited (caller should skip this update).
+    public func sendLocationUpdate(data: Data, to peerID: PeerID) -> Bool {
+        let now = Date()
+        let allowed: Bool = lock.withLock {
+            if let last = lastLocationBroadcast[peerID],
+               now.timeIntervalSince(last) < LocationPayload.updateInterval {
+                return false
+            }
+            lastLocationBroadcast[peerID] = now
+            return true
+        }
+
+        guard allowed else {
+            logger.debug("Location update to \(peerID) rate limited")
+            return false
+        }
+
+        send(data: data, to: peerID)
+        return true
+    }
+
+    /// Broadcast a location update to all peers, rate-limited.
+    public func broadcastLocationUpdate(data: Data, localPeerID: PeerID) -> Bool {
+        let now = Date()
+        let allowed: Bool = lock.withLock {
+            if let last = lastLocationBroadcast[localPeerID],
+               now.timeIntervalSince(last) < LocationPayload.updateInterval {
+                return false
+            }
+            lastLocationBroadcast[localPeerID] = now
+            return true
+        }
+
+        guard allowed else {
+            logger.debug("Location broadcast rate limited")
+            return false
+        }
+
+        broadcast(data: data)
+        return true
     }
 
     /// All connected peers across all transports.
