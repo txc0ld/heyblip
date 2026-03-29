@@ -43,6 +43,7 @@ final class AppCoordinator {
 
     private let keyManager: KeyManager
     private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
+    nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
 
     // MARK: - Init
 
@@ -103,8 +104,24 @@ final class AppCoordinator {
         coordinator.delegate = msgService
         self.messageService = msgService
 
+        // Listen for broadcast requests from ViewModels (e.g. SOSViewModel).
+        setupBroadcastForwarding(coordinator: coordinator)
+
         isReady = true
         logger.info("AppCoordinator configured — services ready")
+    }
+
+    /// Forward `.shouldBroadcastPacket` notifications to TransportCoordinator.
+    private func setupBroadcastForwarding(coordinator: TransportCoordinator) {
+        broadcastObservation = NotificationCenter.default.addObserver(
+            forName: .shouldBroadcastPacket,
+            object: nil,
+            queue: nil
+        ) { [weak coordinator, logger] notification in
+            guard let data = notification.userInfo?["data"] as? Data else { return }
+            coordinator?.broadcast(data: data)
+            logger.debug("Forwarded broadcast packet (\(data.count) bytes)")
+        }
     }
 
     /// Re-initialize after onboarding completes and identity is stored.
