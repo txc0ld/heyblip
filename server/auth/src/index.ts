@@ -15,6 +15,8 @@ export interface Env {
   MAX_SENDS_PER_HOUR: string;
   /** Set to e.g. "https://festichat.app" in production. Defaults to "*" for dev. */
   CORS_ORIGIN?: string;
+  /** Set to "true" to skip Resend and use a fixed test code (000000). */
+  DEV_BYPASS?: string;
 }
 
 /** KV value stored alongside each code. */
@@ -86,23 +88,26 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
     return json({ error: "Too many requests. Try again later." }, 429, env);
   }
 
-  const code = generateCode();
+  const devBypass = env.DEV_BYPASS === "true";
+  const code = devBypass ? "000000" : generateCode();
   const ttl = parseInt(env.CODE_TTL_SECONDS, 10) || 600;
 
-  // Send email FIRST — only store code if delivery succeeds.
-  const resend = new Resend(env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
-    from: env.FROM_EMAIL,
-    to: email,
-    subject: "FestiChat — Your verification code",
-    html: emailTemplate(code),
-  });
+  // In dev bypass mode, skip Resend entirely — use code 000000.
+  if (!devBypass) {
+    const resend = new Resend(env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: env.FROM_EMAIL,
+      to: email,
+      subject: "FestiChat — Your verification code",
+      html: emailTemplate(code),
+    });
 
-  if (error) {
-    return json({ error: "Failed to send email" }, 502, env);
+    if (error) {
+      return json({ error: "Failed to send email" }, 502, env);
+    }
   }
 
-  // Email sent — now store code in KV with TTL.
+  // Store code in KV with TTL.
   const stored: StoredCode = {
     code,
     attempts: 0,

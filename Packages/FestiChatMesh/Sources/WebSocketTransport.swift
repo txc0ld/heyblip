@@ -15,7 +15,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     // MARK: - Constants
 
     /// WebSocket relay endpoint.
-    public static let relayURL = URL(string: "wss://relay.festichat.app/ws")!
+    public static let relayURL = URL(string: "wss://festichat-relay.john-mckean.workers.dev/ws")!
 
     /// Minimum reconnect delay in seconds.
     public static let minReconnectDelay: TimeInterval = 1.0

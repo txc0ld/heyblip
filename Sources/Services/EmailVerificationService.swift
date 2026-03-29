@@ -9,7 +9,7 @@ final class EmailVerificationService: Sendable {
 
     // MARK: - Configuration
 
-    private static let baseURL = "https://api.festichat.app/v1/auth"
+    private static let baseURL = "https://festichat-auth.john-mckean.workers.dev/v1/auth"
 
     private let logger = Logger(subsystem: "com.festichat", category: "EmailVerification")
 
