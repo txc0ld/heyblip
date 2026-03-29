@@ -60,10 +60,7 @@ struct ChatListView: View {
         ScrollView {
             LazyVStack(spacing: FCSpacing.sm) {
                 if chatViewModel?.isLoading == true && conversations.isEmpty {
-                    ProgressView()
-                        .tint(theme.colors.mutedText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, FCSpacing.xxl * 2)
+                    chatListShimmer
                 } else if let error = chatViewModel?.errorMessage {
                     errorState(error)
                 } else if filteredConversations.isEmpty {
@@ -214,6 +211,26 @@ struct ChatListView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Shimmer Loading
+
+    private var chatListShimmer: some View {
+        VStack(spacing: FCSpacing.sm) {
+            ForEach(0..<4, id: \.self) { _ in
+                GlassCard(thickness: .regular, cornerRadius: FCCornerRadius.xl, padding: .fcContent) {
+                    HStack(spacing: FCSpacing.md) {
+                        ShimmerCircle(size: FCSizing.avatarSmall)
+                        VStack(alignment: .leading, spacing: FCSpacing.sm) {
+                            ShimmerRect(width: 120, height: 14)
+                            ShimmerRect(width: 200, height: 10)
+                        }
+                        Spacer()
+                        ShimmerRect(width: 40, height: 10)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Helpers

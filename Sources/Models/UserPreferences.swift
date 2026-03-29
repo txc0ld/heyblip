@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 // MARK: - Enums
 
@@ -7,11 +8,68 @@ enum AppTheme: String, Codable, CaseIterable {
     case system
     case light
     case dark
+
+    /// Returns the explicit color scheme, or `nil` to follow device setting.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    /// Display label for the picker.
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    /// SF Symbol icon for each mode.
+    var icon: String {
+        switch self {
+        case .system: return "gearshape.fill"
+        case .light: return "sun.max.fill"
+        case .dark: return "moon.fill"
+        }
+    }
 }
 
 enum PTTMode: String, Codable, CaseIterable {
     case holdToTalk
     case toggleTalk
+}
+
+enum TransportMode: String, Codable, CaseIterable {
+    case bleOnly
+    case bleAndWifi
+    case allRadios
+
+    var label: String {
+        switch self {
+        case .bleOnly: return "BLE Only"
+        case .bleAndWifi: return "BLE + WiFi"
+        case .allRadios: return "All Radios"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bleOnly: return "antenna.radiowaves.left.and.right.slash"
+        case .bleAndWifi: return "wifi"
+        case .allRadios: return "antenna.radiowaves.left.and.right"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .bleOnly: return "Mesh only, zero internet. Best for festivals."
+        case .bleAndWifi: return "Mesh + WiFi relay for better range."
+        case .allRadios: return "BLE + WiFi + Cellular. Maximum connectivity."
+        }
+    }
 }
 
 enum MapStyle: String, Codable, CaseIterable {

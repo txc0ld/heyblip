@@ -16,6 +16,7 @@ final class User {
     var avatarThumbnail: Data?
     var avatarFullRes: Data?
     var bio: String?
+    var isVerified: Bool
     var createdAt: Date
 
     // MARK: - Inverse Relationships
@@ -56,6 +57,7 @@ final class User {
         avatarThumbnail: Data? = nil,
         avatarFullRes: Data? = nil,
         bio: String? = nil,
+        isVerified: Bool = false,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -67,6 +69,7 @@ final class User {
         self.avatarThumbnail = avatarThumbnail
         self.avatarFullRes = avatarFullRes
         self.bio = bio
+        self.isVerified = isVerified
         self.createdAt = createdAt
     }
 }

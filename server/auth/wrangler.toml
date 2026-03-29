@@ -10,6 +10,7 @@ MAX_SENDS_PER_HOUR = "3"
 DEV_BYPASS = "true"
 
 # Set RESEND_API_KEY via `wrangler secret put RESEND_API_KEY`
+# Set DATABASE_URL via `wrangler secret put DATABASE_URL`
 
 [[kv_namespaces]]
 binding = "CODES"

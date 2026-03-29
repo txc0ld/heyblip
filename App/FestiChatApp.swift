@@ -6,7 +6,7 @@ struct FestiChatApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
     @State private var coordinator = AppCoordinator()
 
@@ -26,7 +26,8 @@ struct FestiChatApp: App {
             RootView(coordinator: coordinator)
                 .environment(coordinator)
                 .environment(\.theme, Theme.shared)
-                .preferredColorScheme(nil)
+                .preferredColorScheme(appTheme.colorScheme)
+                .animation(.easeInOut(duration: 0.3), value: appTheme)
                 .onAppear {
                     if !coordinator.isReady && !coordinator.needsOnboarding {
                         coordinator.configure(modelContainer: sharedModelContainer)

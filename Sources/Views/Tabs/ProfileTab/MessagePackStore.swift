@@ -1,23 +1,23 @@
 import SwiftUI
+import SwiftData
 import StoreKit
 
 // MARK: - MessagePackStore
 
 /// StoreKit 2 product cards for message packs, purchase flow, and balance.
-///
-/// Displays pack options as glass cards with message count and price.
-/// Purchase flow uses StoreKit 2 async APIs. Balance shown at top.
+/// Wired to real StoreViewModel for product loading and purchases.
 struct MessagePackStore: View {
 
-    @State private var currentBalance: Int = 47
-    @State private var packs: [StorePackOption] = StorePackOption.allPacks
-    @State private var selectedPack: StorePackOption?
-    @State private var isPurchasing = false
-    @State private var purchaseError: String?
+    @State private var storeViewModel: StoreViewModel?
     @State private var showPurchaseSuccess = false
+    @State private var showVerifiedSheet = false
 
+    @Query private var users: [User]
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
+
+    private var user: User? { users.first }
 
     var body: some View {
         ZStack {
@@ -25,17 +25,25 @@ struct MessagePackStore: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: FCSpacing.lg) {
-                    balanceHeader
+                    // Featured: Verified profile
+                    verifiedFeatureCard
                         .staggeredReveal(index: 0)
 
-                    packGrid
+                    balanceHeader
                         .staggeredReveal(index: 1)
 
-                    subscriptionCard
+                    packGrid
                         .staggeredReveal(index: 2)
 
-                    freeMessageInfo
+                    subscriptionCard
                         .staggeredReveal(index: 3)
+
+                    freeMessageInfo
+                        .staggeredReveal(index: 4)
+
+                    // Restore purchases
+                    restoreButton
+                        .staggeredReveal(index: 5)
 
                     Spacer().frame(height: FCSpacing.xxl)
                 }
@@ -44,21 +52,86 @@ struct MessagePackStore: View {
         }
         .navigationTitle("Message Packs")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            let vm = StoreViewModel(modelContainer: modelContext.container)
+            storeViewModel = vm
+            await vm.start()
+        }
         .alert("Purchase Complete", isPresented: $showPurchaseSuccess) {
-            Button("OK") {}
+            Button("OK") { storeViewModel?.clearMessages() }
         } message: {
-            if let pack = selectedPack {
-                Text("You now have \(currentBalance) messages. \(pack.messageCount) messages added!")
+            Text(storeViewModel?.successMessage ?? "Purchase successful!")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { storeViewModel?.errorMessage != nil },
+            set: { if !$0 { storeViewModel?.clearMessages() } }
+        )) {
+            Button("OK") { storeViewModel?.clearMessages() }
+        } message: {
+            Text(storeViewModel?.errorMessage ?? "")
+        }
+        .onChange(of: storeViewModel?.successMessage) { _, newValue in
+            if newValue != nil {
+                showPurchaseSuccess = true
             }
         }
-        .alert("Purchase Error", isPresented: Binding(
-            get: { purchaseError != nil },
-            set: { if !$0 { purchaseError = nil } }
-        )) {
-            Button("OK") { purchaseError = nil }
-        } message: {
-            Text(purchaseError ?? "")
+        .sheet(isPresented: $showVerifiedSheet) {
+            VerifiedProfileSheet(isPresented: $showVerifiedSheet)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
         }
+    }
+
+    // MARK: - Verified Feature Card
+
+    private var verifiedFeatureCard: some View {
+        Button(action: { showVerifiedSheet = true }) {
+            GlassCard(thickness: .regular) {
+                HStack(spacing: FCSpacing.md) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.fcAccentPurple)
+
+                    VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                        if user?.isVerified == true {
+                            HStack(spacing: FCSpacing.xs) {
+                                Text("Verified")
+                                    .font(theme.typography.body)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(theme.colors.mutedText)
+                                Image(systemName: "checkmark")
+                                    .font(theme.typography.caption)
+                                    .foregroundStyle(.fcAccentPurple)
+                            }
+                        } else {
+                            Text("Get Verified")
+                                .font(theme.typography.body)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("One-time purchase \u{00B7} $14.99")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
+                    }
+
+                    Spacer()
+
+                    if user?.isVerified != true {
+                        Image(systemName: "chevron.right")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(user?.isVerified == true)
+        .overlay(
+            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+                .stroke(Color.fcAccentPurple.opacity(0.3), lineWidth: 1)
+        )
     }
 
     // MARK: - Balance Header
@@ -70,8 +143,10 @@ struct MessagePackStore: View {
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
 
+                let balance = storeViewModel?.messageBalance ?? 0
+
                 HStack(alignment: .firstTextBaseline, spacing: FCSpacing.xs) {
-                    Text("\(currentBalance)")
+                    Text(storeViewModel?.balanceDisplay ?? "\(balance)")
                         .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundStyle(.fcAccentPurple)
                         .contentTransition(.numericText())
@@ -81,15 +156,15 @@ struct MessagePackStore: View {
                         .foregroundStyle(theme.colors.mutedText)
                 }
 
-                if currentBalance <= 5 {
+                if balance <= 5 && storeViewModel?.isUnlimited != true {
                     HStack(spacing: FCSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
-                            .foregroundStyle(FCColors.darkColors.statusAmber)
+                            .foregroundStyle(FCColors.adaptive.statusAmber)
 
                         Text("Running low!")
                             .font(theme.typography.caption)
-                            .foregroundStyle(FCColors.darkColors.statusAmber)
+                            .foregroundStyle(FCColors.adaptive.statusAmber)
                     }
                 }
             }
@@ -106,38 +181,53 @@ struct MessagePackStore: View {
                 .foregroundStyle(theme.colors.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: FCSpacing.md),
-                GridItem(.flexible(), spacing: FCSpacing.md),
-            ], spacing: FCSpacing.md) {
-                ForEach(packs) { pack in
-                    packCard(pack)
+            if storeViewModel?.isLoadingProducts == true {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else if let products = storeViewModel?.products, !products.isEmpty {
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: FCSpacing.md),
+                    GridItem(.flexible(), spacing: FCSpacing.md),
+                ], spacing: FCSpacing.md) {
+                    ForEach(products.filter { !$0.isSubscription }) { product in
+                        packCard(product)
+                    }
+                }
+            } else {
+                // Fallback to static data when products haven't loaded
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: FCSpacing.md),
+                    GridItem(.flexible(), spacing: FCSpacing.md),
+                ], spacing: FCSpacing.md) {
+                    ForEach(StorePackOption.allPacks) { pack in
+                        staticPackCard(pack)
+                    }
                 }
             }
         }
     }
 
-    private func packCard(_ pack: StorePackOption) -> some View {
-        Button(action: { purchasePack(pack) }) {
+    private func packCard(_ product: ProductInfo) -> some View {
+        let isBestValue = product.packType == .festival50
+
+        return Button(action: {
+            Task { await storeViewModel?.purchase(product) }
+        }) {
             VStack(spacing: FCSpacing.md) {
-                // Message icon
                 Image(systemName: "message.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(.fcAccentPurple)
 
-                // Pack name
-                Text(pack.name)
+                Text(product.displayName)
                     .font(theme.typography.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.text)
 
-                // Message count
-                Text("\(pack.messageCount) messages")
+                Text("\(product.messageCount) messages")
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
 
-                // Price
-                Text(pack.price)
+                Text(product.displayPrice)
                     .font(theme.typography.body)
                     .fontWeight(.bold)
                     .foregroundStyle(.fcAccentPurple)
@@ -148,12 +238,11 @@ struct MessagePackStore: View {
                             .fill(.fcAccentPurple.opacity(0.12))
                     )
 
-                // Value badge
-                if pack.isBestValue {
+                if isBestValue {
                     Text("BEST VALUE")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, FCSpacing.sm)
                         .padding(.vertical, 3)
                         .background(Capsule().fill(LinearGradient.fcAccent))
                 }
@@ -164,16 +253,61 @@ struct MessagePackStore: View {
         .buttonStyle(.plain)
         .frame(minHeight: FCSizing.minTapTarget)
         .glassCard(
+            thickness: isBestValue ? .regular : .ultraThin,
+            cornerRadius: FCCornerRadius.xl,
+            borderOpacity: isBestValue ? 0.3 : 0.1
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
+                .stroke(isBestValue ? .fcAccentPurple.opacity(0.3) : .clear, lineWidth: 1)
+        )
+        .disabled(storeViewModel?.isPurchasing == true)
+        .accessibilityLabel("\(product.displayName): \(product.messageCount) messages for \(product.displayPrice)")
+    }
+
+    private func staticPackCard(_ pack: StorePackOption) -> some View {
+        VStack(spacing: FCSpacing.md) {
+            Image(systemName: "message.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(.fcAccentPurple)
+
+            Text(pack.name)
+                .font(theme.typography.body)
+                .fontWeight(.semibold)
+                .foregroundStyle(theme.colors.text)
+
+            Text("\(pack.messageCount) messages")
+                .font(theme.typography.secondary)
+                .foregroundStyle(theme.colors.mutedText)
+
+            Text(pack.price)
+                .font(theme.typography.body)
+                .fontWeight(.bold)
+                .foregroundStyle(.fcAccentPurple)
+                .padding(.horizontal, FCSpacing.md)
+                .padding(.vertical, FCSpacing.sm)
+                .background(
+                    Capsule()
+                        .fill(.fcAccentPurple.opacity(0.12))
+                )
+
+            if pack.isBestValue {
+                Text("BEST VALUE")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, FCSpacing.sm)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(LinearGradient.fcAccent))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, FCSpacing.md)
+        .glassCard(
             thickness: pack.isBestValue ? .regular : .ultraThin,
             cornerRadius: FCCornerRadius.xl,
             borderOpacity: pack.isBestValue ? 0.3 : 0.1
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: FCCornerRadius.xl, style: .continuous)
-                .stroke(pack.isBestValue ? .fcAccentPurple.opacity(0.3) : .clear, lineWidth: 1)
-        )
-        .disabled(isPurchasing)
-        .accessibilityLabel("\(pack.name): \(pack.messageCount) messages for \(pack.price)")
+        .opacity(0.6)
     }
 
     // MARK: - Subscription Card
@@ -210,6 +344,26 @@ struct MessagePackStore: View {
                 }
             }
         }
+    }
+
+    // MARK: - Restore Button
+
+    private var restoreButton: some View {
+        Button(action: {
+            Task { await storeViewModel?.restorePurchases() }
+        }) {
+            HStack(spacing: FCSpacing.sm) {
+                if storeViewModel?.isRestoring == true {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+                Text("Restore Purchases")
+                    .font(theme.typography.secondary)
+                    .foregroundStyle(theme.colors.mutedText)
+            }
+            .frame(minHeight: FCSizing.minTapTarget)
+        }
+        .disabled(storeViewModel?.isRestoring == true)
     }
 
     // MARK: - Free Message Info
@@ -253,20 +407,6 @@ struct MessagePackStore: View {
                 .foregroundStyle(theme.colors.mutedText)
         }
     }
-
-    // MARK: - Purchase Flow
-
-    private func purchasePack(_ pack: StorePackOption) {
-        selectedPack = pack
-        isPurchasing = true
-
-        // In production: use StoreKit 2 Product.purchase()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isPurchasing = false
-            currentBalance += pack.messageCount
-            showPurchaseSuccess = true
-        }
-    }
 }
 
 // MARK: - StorePackOption
@@ -280,11 +420,11 @@ struct StorePackOption: Identifiable {
     let isBestValue: Bool
 
     static let allPacks: [StorePackOption] = [
-        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.festichat.pack.starter10", isBestValue: false),
-        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.festichat.pack.social25", isBestValue: false),
-        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.festichat.pack.festival50", isBestValue: true),
-        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.festichat.pack.squad100", isBestValue: false),
-        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.festichat.pack.season1000", isBestValue: false),
+        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.festichat.starter10", isBestValue: false),
+        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.festichat.social25", isBestValue: false),
+        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.festichat.festival50", isBestValue: true),
+        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.festichat.squad100", isBestValue: false),
+        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.festichat.season1000", isBestValue: false),
     ]
 }
 
@@ -298,7 +438,7 @@ struct StorePackOption: Identifiable {
     .festiChatTheme()
 }
 
-#Preview("Message Pack Store - Low Balance") {
+#Preview("Message Pack Store - Light") {
     NavigationStack {
         MessagePackStore()
     }

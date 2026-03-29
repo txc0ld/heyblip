@@ -17,6 +17,8 @@ export interface Env {
   CORS_ORIGIN?: string;
   /** Set to "true" to skip Resend and use a fixed test code (000000). */
   DEV_BYPASS?: string;
+  /** Neon Postgres connection string. Set via `wrangler secret put DATABASE_URL`. */
+  DATABASE_URL?: string;
 }
 
 /** KV value stored alongside each code. */
@@ -53,6 +55,11 @@ export default {
       return json({ status: "ok" }, 200, env);
     }
 
+    // GET routes (besides health)
+    if (request.method === "GET" && url.pathname.startsWith("/v1/users/")) {
+        return handleGetUser(url, env);
+    }
+
     if (request.method !== "POST") {
       return json({ error: "Method not allowed" }, 405, env);
     }
@@ -62,6 +69,12 @@ export default {
         return handleSendCode(request, env);
       case "/v1/auth/verify-code":
         return handleVerifyCode(request, env);
+      case "/v1/users/register":
+        return handleRegister(request, env);
+      case "/v1/users/sync":
+        return handleSync(request, env);
+      case "/v1/receipts/verify":
+        return handleReceiptVerify(request, env);
       default:
         return json({ error: "Not found" }, 404, env);
     }
@@ -194,6 +207,188 @@ async function recordSend(env: Env, email: string): Promise<void> {
   await env.CODES.put(rateKey(email), JSON.stringify(entry), {
     expirationTtl: 3600,
   });
+}
+
+// ─── Neon Database ──────────────────────────────────────────
+
+async function getDb(env: Env) {
+  if (!env.DATABASE_URL) {
+    return null;
+  }
+  const { neon } = await import("@neondatabase/serverless");
+  return neon(env.DATABASE_URL);
+}
+
+// ─── Register User ──────────────────────────────────────────
+
+async function handleRegister(request: Request, env: Env): Promise<Response> {
+  const body = await parseBody<{
+    emailHash?: string;
+    username?: string;
+    createdAt?: string;
+    isVerified?: boolean;
+  }>(request);
+
+  if (!body || !body.emailHash || !body.username) {
+    return json({ error: "Missing emailHash or username" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const result = await sql`
+      INSERT INTO users (email_hash, username, is_verified, created_at)
+      VALUES (${body.emailHash}, ${body.username}, ${body.isVerified ?? false}, ${body.createdAt ?? new Date().toISOString()})
+      ON CONFLICT (email_hash) DO UPDATE SET
+        username = EXCLUDED.username,
+        updated_at = NOW()
+      RETURNING id
+    `;
+    return json({ userId: result[0]?.id }, 201, env);
+  } catch (error: any) {
+    if (error.message?.includes("users_username_key")) {
+      return json({ error: "Username already taken" }, 409, env);
+    }
+    return json({ error: "Registration failed" }, 500, env);
+  }
+}
+
+// ─── Sync User ──────────────────────────────────────────────
+
+async function handleSync(request: Request, env: Env): Promise<Response> {
+  const body = await parseBody<{
+    emailHash?: string;
+    isVerified?: boolean;
+    messageBalance?: number;
+    lastActiveAt?: string;
+  }>(request);
+
+  if (!body || !body.emailHash) {
+    return json({ error: "Missing emailHash" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const result = await sql`
+      UPDATE users SET
+        is_verified = COALESCE(${body.isVerified ?? null}, is_verified),
+        message_balance = COALESCE(${body.messageBalance ?? null}, message_balance),
+        last_active_at = COALESCE(${body.lastActiveAt ?? null}, last_active_at),
+        updated_at = NOW()
+      WHERE email_hash = ${body.emailHash}
+      RETURNING id, is_verified, message_balance
+    `;
+
+    if (result.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+
+    return json({ synced: true, user: result[0] }, 200, env);
+  } catch {
+    return json({ error: "Sync failed" }, 500, env);
+  }
+}
+
+// ─── Get User ───────────────────────────────────────────────
+
+async function handleGetUser(url: URL, env: Env): Promise<Response> {
+  const parts = url.pathname.split("/");
+  const emailHash = parts[parts.length - 1];
+
+  if (!emailHash || emailHash === "users") {
+    return json({ error: "Missing emailHash" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const result = await sql`
+      SELECT id, username, is_verified, message_balance, last_active_at, created_at
+      FROM users WHERE email_hash = ${emailHash}
+    `;
+
+    if (result.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+
+    return json({ user: result[0] }, 200, env);
+  } catch {
+    return json({ error: "Lookup failed" }, 500, env);
+  }
+}
+
+// ─── Receipt Verification ───────────────────────────────────
+
+async function handleReceiptVerify(request: Request, env: Env): Promise<Response> {
+  const body = await parseBody<{
+    transactionID?: string;
+    productID?: string;
+    originalID?: string;
+    purchaseDate?: string;
+    emailHash?: string;
+    environment?: string;
+  }>(request);
+
+  if (!body || !body.transactionID || !body.productID) {
+    return json({ error: "Missing transactionID or productID" }, 400, env);
+  }
+
+  // Determine what was purchased
+  const isVerifiedPurchase = body.productID === "com.festichat.verified";
+  const messageCredits = getMessageCredits(body.productID);
+
+  const sql = await getDb(env);
+  if (!sql && body.emailHash) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  // Update user in database if we have emailHash and database
+  if (sql && body.emailHash) {
+    try {
+      if (isVerifiedPurchase) {
+        await sql`
+          UPDATE users SET is_verified = TRUE, updated_at = NOW()
+          WHERE email_hash = ${body.emailHash}
+        `;
+      } else if (messageCredits > 0) {
+        await sql`
+          UPDATE users SET
+            message_balance = message_balance + ${messageCredits},
+            updated_at = NOW()
+          WHERE email_hash = ${body.emailHash}
+        `;
+      }
+    } catch {
+      // Log but don't fail — the local purchase is already credited
+    }
+  }
+
+  return json({
+    valid: true,
+    isVerified: isVerifiedPurchase,
+    credits: messageCredits,
+  }, 200, env);
+}
+
+function getMessageCredits(productID: string): number {
+  const credits: Record<string, number> = {
+    "com.festichat.starter10": 10,
+    "com.festichat.social25": 25,
+    "com.festichat.festival50": 50,
+    "com.festichat.squad100": 100,
+    "com.festichat.season1000": 1000,
+  };
+  return credits[productID] ?? 0;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────

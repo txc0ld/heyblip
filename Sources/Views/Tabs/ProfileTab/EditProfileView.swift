@@ -1,31 +1,37 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 import os.log
 
 // MARK: - EditProfileView
 
-/// Edit screen for display name, username, bio, and avatar.
-/// Includes phone re-verification option.
+/// Edit screen for display name, username, bio, avatar, and email.
+/// Persists changes to SwiftData.
 struct EditProfileView: View {
 
     @Binding var isPresented: Bool
 
+    @Query private var users: [User]
     @State private var displayName: String
     @State private var username: String
     @State private var bio: String
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var avatarImage: Image?
+    @State private var avatarData: Data?
     @State private var showAvatarCrop = false
-    @State private var showPhoneVerify = false
+    @State private var showEmailVerify = false
     @State private var usernameError: String?
     @State private var isSaving = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @FocusState private var focusedField: EditField?
 
     private let maxBioLength = 140
     private let maxUsernameLength = 32
+
+    private var user: User? { users.first }
 
     init(isPresented: Binding<Bool>, displayName: String, username: String, bio: String) {
         self._isPresented = isPresented
@@ -45,7 +51,7 @@ struct EditProfileView: View {
                         nameSection
                         usernameSection
                         bioSection
-                        phoneSection
+                        emailSection
                     }
                     .padding(FCSpacing.md)
                 }
@@ -119,6 +125,7 @@ struct EditProfileView: View {
                     if let data = try await newItem?.loadTransferable(type: Data.self),
                        let uiImage = UIImage(data: data) {
                         avatarImage = Image(uiImage: uiImage)
+                        avatarData = uiImage.jpegData(compressionQuality: 0.8)
                         showAvatarCrop = true
                     }
                 } catch {
@@ -236,26 +243,32 @@ struct EditProfileView: View {
         }
     }
 
-    // MARK: - Phone Section
+    // MARK: - Email Section
 
-    private var phoneSection: some View {
+    private var emailSection: some View {
         GlassCard(thickness: .regular) {
             HStack {
                 VStack(alignment: .leading, spacing: FCSpacing.xs) {
-                    Text("Phone Verification")
+                    Text("Email")
                         .font(theme.typography.secondary)
                         .fontWeight(.medium)
                         .foregroundStyle(theme.colors.text)
 
-                    Text("Verified")
-                        .font(theme.typography.caption)
-                        .foregroundStyle(FCColors.darkColors.statusGreen)
+                    HStack(spacing: FCSpacing.xs) {
+                        Text(maskedEmail)
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.mutedText)
+
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(FCColors.adaptive.statusGreen)
+                    }
                 }
 
                 Spacer()
 
-                Button(action: { showPhoneVerify = true }) {
-                    Text("Re-verify")
+                Button(action: { showEmailVerify = true }) {
+                    Text("Change Email")
                         .font(theme.typography.caption)
                         .foregroundStyle(.fcAccentPurple)
                         .padding(.horizontal, FCSpacing.md)
@@ -266,9 +279,16 @@ struct EditProfileView: View {
                         )
                 }
                 .frame(minHeight: FCSizing.minTapTarget)
-                .accessibilityLabel("Re-verify phone number")
+                .accessibilityLabel("Change email address")
             }
         }
+    }
+
+    /// Masked email display (e.g., "t***@gmail.com").
+    private var maskedEmail: String {
+        // Email hash is stored, not raw email — show masked placeholder.
+        // In production, the raw email could be stored locally for display.
+        "Verified email"
     }
 
     // MARK: - Shared Components
@@ -311,11 +331,29 @@ struct EditProfileView: View {
 
     private func save() {
         isSaving = true
-        // In production: persist via ViewModel
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+
+        guard let user else {
             isSaving = false
-            isPresented = false
+            return
         }
+
+        user.displayName = displayName.trimmingCharacters(in: .whitespaces)
+        user.username = username.trimmingCharacters(in: .whitespaces)
+        user.bio = bio.trimmingCharacters(in: .whitespaces)
+
+        if let avatarData {
+            user.avatarThumbnail = avatarData
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            Logger(subsystem: "com.festichat", category: "EditProfile")
+                .error("Failed to save profile: \(error.localizedDescription)")
+        }
+
+        isSaving = false
+        isPresented = false
     }
 
     private enum EditField {

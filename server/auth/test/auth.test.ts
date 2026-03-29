@@ -83,15 +83,18 @@ describe("POST /v1/auth/send-code", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 502 when Resend fails (fake API key)", async () => {
+  it("sends code successfully in DEV_BYPASS mode", async () => {
+    // DEV_BYPASS=true in wrangler.toml skips Resend and uses code 000000
     const res = await request("POST", "/v1/auth/send-code", {
       email: "test@example.com",
     });
-    // With fake API key, Resend returns an error -> 502
-    expect(res.status).toBe(502);
-    // Code should NOT be stored since email failed
+    expect(res.status).toBe(200);
+    expect(await json(res)).toEqual({ sent: true });
+    // Code should be stored with bypass code
     const raw = await env.CODES.get("code:test@example.com");
-    expect(raw).toBeNull();
+    expect(raw).not.toBeNull();
+    const stored = JSON.parse(raw!);
+    expect(stored.code).toBe("000000");
   });
 
   it("rate limits after max sends per hour", async () => {

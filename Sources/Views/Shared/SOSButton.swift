@@ -2,48 +2,62 @@ import SwiftUI
 
 // MARK: - SOSButton
 
-/// Persistent floating SOS pill visible on every screen.
-/// Subtle glass material in default state, red accent on press.
-/// Tap opens SOSConfirmationSheet.
+/// Icon-only SOS button — red medical cross on glass.
+/// No text label. Tap opens the real SOSConfirmationSheet.
 struct SOSButton: View {
+
+    /// Controls overall button size. Default `.regular` for profile placement.
+    enum Size {
+        case compact  // Smaller for inline use
+        case regular  // Standard 60pt tap target
+    }
+
+    let size: Size
 
     @State private var isPressed = false
     @State private var showSOSSheet = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.theme) private var theme
 
-    /// Minimum tap target is 60pt for SOS (larger than standard 44pt).
-    private let buttonHeight: CGFloat = 36
-    private let minTapTarget: CGFloat = 60
+    private var iconSize: CGFloat {
+        switch size {
+        case .compact: return 18
+        case .regular: return 22
+        }
+    }
+
+    private var buttonSize: CGFloat {
+        switch size {
+        case .compact: return 44
+        case .regular: return 60
+        }
+    }
+
+    init(size: Size = .regular) {
+        self.size = size
+    }
 
     var body: some View {
         Button {
             showSOSSheet = true
         } label: {
-            HStack(spacing: FCSpacing.xs) {
-                Image(systemName: "cross.circle.fill")
-                    .font(.system(size: 14, weight: .bold))
-
-                Text("SOS")
-                    .font(.custom(FCFontName.bold, size: 13, relativeTo: .caption))
-            }
-            .foregroundStyle(isPressed ? .white : theme.colors.statusRed)
-            .padding(.horizontal, FCSpacing.md)
-            .padding(.vertical, FCSpacing.sm)
-            .frame(minHeight: buttonHeight)
-            .background(buttonBackground)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(
-                        isPressed
-                            ? theme.colors.statusRed.opacity(0.8)
-                            : (colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1)),
-                        lineWidth: FCSizing.hairline
-                    )
-            )
-            .scaleEffect(isPressed ? 0.95 : 1.0)
-            .animation(SpringConstants.bouncyAnimation, value: isPressed)
+            Image(systemName: "cross.case.fill")
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(isPressed ? .white : theme.colors.statusRed)
+                .frame(width: buttonSize, height: buttonSize)
+                .background(buttonBackground)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(
+                            isPressed
+                                ? theme.colors.statusRed.opacity(0.8)
+                                : (colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1)),
+                            lineWidth: FCSizing.hairline
+                        )
+                )
+                .scaleEffect(isPressed ? 0.95 : 1.0)
+                .animation(SpringConstants.bouncyAnimation, value: isPressed)
         }
         .buttonStyle(.plain)
         .simultaneousGesture(
@@ -51,14 +65,14 @@ struct SOSButton: View {
                 .onChanged { _ in isPressed = true }
                 .onEnded { _ in isPressed = false }
         )
-        .frame(minWidth: minTapTarget, minHeight: minTapTarget)
-        .contentShape(Rectangle())
-        .accessibilityLabel("SOS Emergency")
+        .frame(minWidth: buttonSize, minHeight: buttonSize)
+        .contentShape(Circle())
+        .accessibilityLabel("Emergency")
         .accessibilityHint("Double tap to open emergency options")
         .accessibilityAddTraits(.isButton)
         .accessibilitySortPriority(1)
-        .sheet(isPresented: $showSOSSheet) {
-            SOSConfirmationPlaceholder()
+        .fullScreenCover(isPresented: $showSOSSheet) {
+            SOSConfirmationSheet(isPresented: $showSOSSheet)
         }
     }
 
@@ -67,56 +81,77 @@ struct SOSButton: View {
     @ViewBuilder
     private var buttonBackground: some View {
         if isPressed {
-            Capsule()
-                .fill(theme.colors.statusRed)
+            Circle().fill(theme.colors.statusRed)
         } else {
-            Capsule()
-                .fill(.ultraThinMaterial)
+            Circle().fill(.ultraThinMaterial)
         }
     }
 }
 
-// MARK: - SOSConfirmationPlaceholder
+// MARK: - Full-width SOS button for profile placement
 
-/// Placeholder for SOSConfirmationSheet (built in Phase 12).
-private struct SOSConfirmationPlaceholder: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.theme) private var theme
+extension SOSButton {
+    /// Full-width glass card variant for prominent placement (e.g., profile screen).
+    struct ProfileCard: View {
+        @State private var showSOSSheet = false
+        @Environment(\.theme) private var theme
+        @Environment(\.colorScheme) private var colorScheme
 
-    var body: some View {
-        ZStack {
-            GradientBackground()
-                .ignoresSafeArea()
+        var body: some View {
+            Button {
+                showSOSSheet = true
+            } label: {
+                GlassCard(thickness: .regular, cornerRadius: FCCornerRadius.xl) {
+                    HStack(spacing: FCSpacing.md) {
+                        Image(systemName: "cross.case.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(theme.colors.statusRed)
 
-            VStack(spacing: FCSpacing.lg) {
-                Image(systemName: "cross.circle.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(theme.colors.statusRed)
+                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                            Text("Emergency SOS")
+                                .font(theme.typography.body)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(theme.colors.text)
 
-                Text("SOS Emergency")
-                    .font(theme.typography.headline)
-                    .foregroundStyle(theme.colors.text)
+                            Text("Request help from nearby responders")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
 
-                Text("Emergency confirmation flow will appear here.")
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText)
-                    .multilineTextAlignment(.center)
+                        Spacer()
 
-                GlassButton("Cancel", style: .secondary) {
-                    dismiss()
+                        Image(systemName: "chevron.right")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
                 }
             }
-            .padding(FCSpacing.xl)
+            .buttonStyle(.plain)
+            .frame(minHeight: FCSizing.minTapTarget + FCSpacing.md)
+            .accessibilityLabel("Emergency SOS")
+            .accessibilityHint("Double tap to open emergency options")
+            .fullScreenCover(isPresented: $showSOSSheet) {
+                SOSConfirmationSheet(isPresented: $showSOSSheet)
+            }
         }
     }
 }
 
 // MARK: - Preview
 
-#Preview("SOS Button - Default") {
+#Preview("SOS Button - Icon Only") {
     ZStack {
         GradientBackground()
         SOSButton()
+    }
+    .environment(\.theme, Theme.shared)
+}
+
+#Preview("SOS Button - Profile Card") {
+    ZStack {
+        GradientBackground()
+        SOSButton.ProfileCard()
+            .padding(.horizontal, FCSpacing.md)
     }
     .environment(\.theme, Theme.shared)
 }

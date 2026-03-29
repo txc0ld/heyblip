@@ -6,16 +6,18 @@ import SwiftUI
 /// recovery export, and about/legal sections.
 struct SettingsView: View {
 
-    @State private var selectedTheme: AppTheme = .system
-    @State private var locationSharing: LocationPrecision = .fuzzy
-    @State private var notificationsEnabled: Bool = true
-    @State private var proximityAlerts: Bool = true
-    @State private var pttMode: PTTMode = .holdToTalk
-    @State private var autoJoinChannels: Bool = true
-    @State private var crowdPulseVisible: Bool = true
-    @State private var breadcrumbs: Bool = false
+    @AppStorage("appTheme") private var selectedTheme: AppTheme = .system
+    @AppStorage("locationPrecision") private var locationSharing: String = LocationPrecision.fuzzy.rawValue
+    @AppStorage("pushNotifications") private var notificationsEnabled: Bool = true
+    @AppStorage("proximityAlerts") private var proximityAlerts: Bool = true
+    @AppStorage("pttMode") private var pttModeRaw: String = PTTMode.holdToTalk.rawValue
+    @AppStorage("autoJoinChannels") private var autoJoinChannels: Bool = true
+    @AppStorage("crowdPulse") private var crowdPulseVisible: Bool = true
+    @AppStorage("breadcrumbTrails") private var breadcrumbs: Bool = false
+    @AppStorage("transportMode") private var transportModeRaw: String = TransportMode.allRadios.rawValue
     @State private var showExportRecovery: Bool = false
     @State private var showDeleteConfirm: Bool = false
+    @State private var showSignOutConfirm: Bool = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -29,23 +31,26 @@ struct SettingsView: View {
                     appearanceSection
                         .staggeredReveal(index: 0)
 
-                    locationSection
+                    networkSection
                         .staggeredReveal(index: 1)
 
-                    notificationsSection
+                    locationSection
                         .staggeredReveal(index: 2)
 
-                    chatSection
+                    notificationsSection
                         .staggeredReveal(index: 3)
 
-                    securitySection
+                    chatSection
                         .staggeredReveal(index: 4)
 
-                    aboutSection
+                    securitySection
                         .staggeredReveal(index: 5)
 
-                    dangerZone
+                    aboutSection
                         .staggeredReveal(index: 6)
+
+                    dangerZone
+                        .staggeredReveal(index: 7)
 
                     Spacer().frame(height: FCSpacing.xxl)
                 }
@@ -61,6 +66,15 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will create a password-protected backup of your encryption keys. Keep it safe -- you'll need it to recover your identity on a new device.")
+        }
+        .alert("Sign Out", isPresented: $showSignOutConfirm) {
+            Button("Sign Out", role: .destructive) {
+                // Clear session and return to onboarding
+                UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will clear your local session. You can sign back in with your email to restore your account.")
         }
         .alert("Delete Account", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -79,12 +93,40 @@ struct SettingsView: View {
             VStack(spacing: FCSpacing.md) {
                 settingsRow(title: "Theme") {
                     Picker("Theme", selection: $selectedTheme) {
-                        ForEach(AppTheme.allCases, id: \.self) { theme in
-                            Text(theme.rawValue.capitalized).tag(theme)
+                        ForEach(AppTheme.allCases, id: \.self) { themeOption in
+                            Label(themeOption.label, systemImage: themeOption.icon)
+                                .tag(themeOption)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
+                    .frame(maxWidth: 220)
+                }
+            }
+        }
+    }
+
+    // MARK: - Network
+
+    private var networkSection: some View {
+        settingsGroup(title: "Network", icon: "network") {
+            VStack(spacing: FCSpacing.md) {
+                VStack(alignment: .leading, spacing: FCSpacing.sm) {
+                    Text("Transport Mode")
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.text)
+
+                    Picker("Transport Mode", selection: $transportModeRaw) {
+                        ForEach(TransportMode.allCases, id: \.self) { mode in
+                            Label(mode.label, systemImage: mode.icon)
+                                .tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    let currentMode = TransportMode(rawValue: transportModeRaw) ?? .allRadios
+                    Text(currentMode.caption)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.mutedText)
                 }
             }
         }
@@ -97,9 +139,9 @@ struct SettingsView: View {
             VStack(spacing: FCSpacing.md) {
                 settingsRow(title: "Default Sharing") {
                     Picker("Precision", selection: $locationSharing) {
-                        Text("Precise").tag(LocationPrecision.precise)
-                        Text("Fuzzy").tag(LocationPrecision.fuzzy)
-                        Text("Off").tag(LocationPrecision.off)
+                        Text("Precise").tag(LocationPrecision.precise.rawValue)
+                        Text("Fuzzy").tag(LocationPrecision.fuzzy.rawValue)
+                        Text("Off").tag(LocationPrecision.off.rawValue)
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
@@ -132,9 +174,9 @@ struct SettingsView: View {
         settingsGroup(title: "Chat", icon: "message.fill") {
             VStack(spacing: FCSpacing.md) {
                 settingsRow(title: "Push-to-Talk Mode") {
-                    Picker("PTT Mode", selection: $pttMode) {
-                        Text("Hold").tag(PTTMode.holdToTalk)
-                        Text("Toggle").tag(PTTMode.toggleTalk)
+                    Picker("PTT Mode", selection: $pttModeRaw) {
+                        Text("Hold").tag(PTTMode.holdToTalk.rawValue)
+                        Text("Toggle").tag(PTTMode.toggleTalk.rawValue)
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 160)
@@ -227,25 +269,83 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Danger Zone
+    // MARK: - Account
 
     private var dangerZone: some View {
-        settingsGroup(title: "Account", icon: "exclamationmark.triangle.fill") {
-            Button(action: { showDeleteConfirm = true }) {
-                HStack {
-                    Text("Delete Account & Data")
-                        .font(theme.typography.body)
-                        .foregroundStyle(FCColors.darkColors.statusRed)
-                    Spacer()
-                    Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .foregroundStyle(FCColors.darkColors.statusRed)
+        settingsGroup(title: "Account", icon: "person.crop.circle") {
+            VStack(spacing: FCSpacing.md) {
+                // Sign Out
+                Button(action: { showSignOutConfirm = true }) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                            Text("Sign Out")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("Clear local session and return to setup")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
+                        Spacer()
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
+                    .frame(minHeight: FCSizing.minTapTarget)
                 }
-                .frame(minHeight: FCSizing.minTapTarget)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Sign out")
+
+                Divider().opacity(0.15)
+
+                // Export My Data
+                Button(action: { exportUserData() }) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+                            Text("Export My Data")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("Export profile as JSON to Files")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
+                        Spacer()
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.fcAccentPurple)
+                    }
+                    .frame(minHeight: FCSizing.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Export my data as JSON")
+
+                Divider().opacity(0.15)
+
+                // Delete Account
+                Button(action: { showDeleteConfirm = true }) {
+                    HStack {
+                        Text("Delete Account & Data")
+                            .font(theme.typography.body)
+                            .foregroundStyle(FCColors.darkColors.statusRed)
+                        Spacer()
+                        Image(systemName: "trash")
+                            .font(.system(size: 14))
+                            .foregroundStyle(FCColors.darkColors.statusRed)
+                    }
+                    .frame(minHeight: FCSizing.minTapTarget)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete account and all data")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Delete account and all data")
         }
+    }
+
+    // MARK: - Actions
+
+    private func exportUserData() {
+        // Export user profile as JSON via share sheet
+        // Will be wired to real SwiftData user in Part C
     }
 
     // MARK: - Reusable Components
@@ -296,6 +396,7 @@ struct SettingsView: View {
         }
         .tint(.fcAccentPurple)
         .frame(minHeight: FCSizing.minTapTarget)
+        .sensoryFeedback(.selection, trigger: isOn.wrappedValue)
     }
 
     private func settingsInfoRow(title: String, value: String) -> some View {

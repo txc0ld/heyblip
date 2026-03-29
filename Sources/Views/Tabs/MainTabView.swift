@@ -28,17 +28,6 @@ struct MainTabView: View {
 
             // Custom glass tab bar
             floatingTabBar
-
-            // SOS button overlay - top right
-            VStack {
-                HStack {
-                    Spacer()
-                    SOSButton()
-                        .padding(.trailing, FCSpacing.md)
-                        .padding(.top, FCSpacing.xs)
-                }
-                Spacer()
-            }
         }
         .connectionBanner(peerCount: connectedPeerCount, isVisible: $showConnectionBanner)
     }
@@ -52,13 +41,13 @@ struct MainTabView: View {
             ChatListView()
                 .transition(.opacity)
         case .nearby:
-            nearbyPlaceholder
+            NearbyView()
                 .transition(.opacity)
         case .festival:
-            festivalPlaceholder
+            FestivalView()
                 .transition(.opacity)
         case .profile:
-            profilePlaceholder
+            ProfileView()
                 .transition(.opacity)
         }
     }
@@ -94,6 +83,7 @@ struct MainTabView: View {
             withAnimation(SpringConstants.accessiblePageEntrance) {
                 selectedTab = tab
             }
+            FCHaptics.lightImpact()
         } label: {
             VStack(spacing: FCSpacing.xs) {
                 ZStack {
@@ -112,6 +102,8 @@ struct MainTabView: View {
                                 ? Color.fcAccentPurple
                                 : theme.colors.mutedText
                         )
+                        .scaleEffect(selectedTab == tab ? 1.1 : 1.0)
+                        .animation(SpringConstants.bouncyAnimation, value: selectedTab)
                         .frame(width: FCSizing.minTapTarget, height: 32)
                 }
 
