@@ -258,8 +258,8 @@ final class FestivalViewModel {
     /// Handle entering a festival geofence.
     func handleFestivalEntry(festivalID: UUID) async {
         let context = ModelContext(modelContainer)
-        let idStr = festivalID.uuidString
-        let descriptor = FetchDescriptor<Festival>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = festivalID
+        let descriptor = FetchDescriptor<Festival>(predicate: #Predicate { $0.id == targetID })
 
         let festival: Festival
         do {
@@ -369,8 +369,8 @@ final class FestivalViewModel {
     /// Save/unsave a set time.
     func toggleSaveSetTime(setTimeID: UUID) async {
         let context = ModelContext(modelContainer)
-        let idStr = setTimeID.uuidString
-        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = setTimeID
+        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id == targetID })
 
         let setTime: SetTime
         do {
@@ -405,8 +405,8 @@ final class FestivalViewModel {
     /// Toggle reminder for a set time.
     func toggleReminder(setTimeID: UUID) async {
         let context = ModelContext(modelContainer)
-        let idStr = setTimeID.uuidString
-        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = setTimeID
+        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id == targetID })
 
         let setTime: SetTime
         do {
@@ -537,8 +537,8 @@ final class FestivalViewModel {
             let signingKey = Data(base64Encoded: mf.organizerSigningKey) ?? Data()
 
             // Check if festival already exists
-            let idStr = uuid.uuidString
-            let descriptor = FetchDescriptor<Festival>(predicate: #Predicate { $0.id.uuidString == idStr })
+            let targetID = uuid
+            let descriptor = FetchDescriptor<Festival>(predicate: #Predicate { $0.id == targetID })
             let existing: Festival?
             do {
                 existing = try context.fetch(descriptor).first

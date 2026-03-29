@@ -361,8 +361,8 @@ final class SOSViewModel {
     /// Accept an SOS alert as a medical responder.
     func acceptAlert(_ alertInfo: SOSAlertInfo) async {
         let context = ModelContext(modelContainer)
-        let idStr = alertInfo.id.uuidString
-        let descriptor = FetchDescriptor<SOSAlert>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = alertInfo.id
+        let descriptor = FetchDescriptor<SOSAlert>(predicate: #Predicate { $0.id == targetID })
 
         let alert: SOSAlert
         do {

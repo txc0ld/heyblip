@@ -345,8 +345,8 @@ final class MeshViewModel {
     /// Request to join a location channel.
     func joinLocationChannel(_ channelInfo: LocationChannelInfo) async {
         let context = ModelContext(modelContainer)
-        let idStr = channelInfo.id.uuidString
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = channelInfo.id
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == targetID })
         do {
             if let channel = try context.fetch(descriptor).first {
                 channel.isAutoJoined = true
@@ -363,8 +363,8 @@ final class MeshViewModel {
     /// Leave a location channel.
     func leaveLocationChannel(_ channelInfo: LocationChannelInfo) async {
         let context = ModelContext(modelContainer)
-        let idStr = channelInfo.id.uuidString
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = channelInfo.id
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == targetID })
         do {
             if let channel = try context.fetch(descriptor).first {
                 channel.isAutoJoined = false

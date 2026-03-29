@@ -199,8 +199,8 @@ final class LocationViewModel {
     /// Toggle location sharing for a specific friend.
     func toggleSharingWithFriend(friendID: UUID) async {
         let context = ModelContext(modelContainer)
-        let idStr = friendID.uuidString
-        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = friendID
+        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == targetID })
 
         do {
             guard let friend = try context.fetch(descriptor).first else { return }
@@ -215,8 +215,8 @@ final class LocationViewModel {
     /// Update location precision for a friend.
     func setFriendPrecision(friendID: UUID, precision: LocationPrecision) async {
         let context = ModelContext(modelContainer)
-        let idStr = friendID.uuidString
-        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = friendID
+        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == targetID })
 
         do {
             guard let friend = try context.fetch(descriptor).first else { return }

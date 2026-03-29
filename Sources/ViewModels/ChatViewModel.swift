@@ -196,10 +196,10 @@ final class ChatViewModel {
         composingText = ""
 
         let context = ModelContext(modelContainer)
-        let channelID = channel.id.uuidString
+        let channelID = channel.id
 
         var descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id.uuidString == channelID },
+            predicate: #Predicate { $0.channel?.id == channelID },
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
 
@@ -354,9 +354,9 @@ final class ChatViewModel {
 
         // Send read receipts for recent messages
         let context = ModelContext(modelContainer)
-        let channelID = channel.id.uuidString
+        let channelID = channel.id
         let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id.uuidString == channelID && $0.statusRaw == "delivered" }
+            predicate: #Predicate { $0.channel?.id == channelID && $0.statusRaw == "delivered" }
         )
         do {
             let unread = try context.fetch(descriptor)

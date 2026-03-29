@@ -491,8 +491,8 @@ final class MessageService: @unchecked Sendable {
         let (messageID, content, replyToID) = parseTextPayload(data)
 
         // Check for duplicate
-        let idString = messageID.uuidString
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id.uuidString == idString })
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         let existing = try context.fetch(descriptor)
         if !existing.isEmpty { return }
 
@@ -530,8 +530,8 @@ final class MessageService: @unchecked Sendable {
         )
 
         if let replyToID {
-            let replyIDString = replyToID.uuidString
-            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id.uuidString == replyIDString })
+            let replyTargetID = replyToID
+            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyTargetID })
             message.replyTo = try context.fetch(replyDesc).first
         }
 
@@ -751,8 +751,8 @@ final class MessageService: @unchecked Sendable {
               let messageID = UUID(uuidString: uuidString) else { return }
 
         let context = ModelContext(modelContainer)
-        let idStr = messageID.uuidString
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         if let message = try context.fetch(descriptor).first {
             context.delete(message)
             try context.save()
@@ -770,8 +770,8 @@ final class MessageService: @unchecked Sendable {
         let newContent = Data(data.dropFirst(36))
 
         let context = ModelContext(modelContainer)
-        let idStr = messageID.uuidString
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         if let message = try context.fetch(descriptor).first {
             message.encryptedPayload = newContent
             try context.save()
@@ -987,8 +987,8 @@ final class MessageService: @unchecked Sendable {
     @MainActor
     private func enqueueForRetry(messageID: UUID) async throws {
         let context = ModelContext(modelContainer)
-        let idStr = messageID.uuidString
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id.uuidString == idStr })
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         guard let message = try context.fetch(descriptor).first else { return }
 
         let queueEntry = MessageQueue(
