@@ -4,7 +4,7 @@ import FestiChatCrypto
 
 // MARK: - CreateProfileStep
 
-/// Onboarding step 2: Username, optional avatar picker, identity generation.
+/// Onboarding step 2: Username, email verification, optional avatar picker, identity generation.
 /// Single glass card layout.
 struct CreateProfileStep: View {
 
@@ -12,10 +12,17 @@ struct CreateProfileStep: View {
     var onComplete: () -> Void = {}
 
     @State private var username: String = ""
+    @State private var email: String = ""
+    @State private var otpCode: String = ""
+    @State private var showOTPField = false
+    @State private var isSendingCode = false
+    @State private var isVerifyingCode = false
+    @State private var isEmailVerified = false
     @State private var isCreatingIdentity = false
     @State private var showAvatarPicker = false
     @State private var selectedAvatarImage: UIImage? = nil
     @State private var usernameError: String? = nil
+    @State private var emailError: String? = nil
     @State private var identityError: String? = nil
     @State private var contentVisible = false
     @FocusState private var focusedField: Field?
@@ -24,8 +31,12 @@ struct CreateProfileStep: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
 
+    private let verificationService = EmailVerificationService()
+
     private enum Field: Hashable {
         case username
+        case email
+        case otp
     }
 
     var body: some View {
@@ -37,7 +48,7 @@ struct CreateProfileStep: View {
                         .font(theme.typography.largeTitle)
                         .foregroundStyle(theme.colors.text)
 
-                    Text("Pick a username and optionally add a photo.")
+                    Text("Pick a username and verify your email.")
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                         .multilineTextAlignment(.center)
@@ -50,25 +61,36 @@ struct CreateProfileStep: View {
                 // Form card
                 GlassCard(thickness: .regular) {
                     VStack(spacing: FCSpacing.md) {
-                        // Username field
                         usernameField
+
+                        Divider()
+                            .overlay(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
+
+                        emailField
+
+                        if showOTPField {
+                            Divider()
+                                .overlay(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
+                            otpField
+                        }
                     }
                 }
                 .padding(.horizontal, FCSpacing.md)
 
-                // Identity error alert
-                if let error = identityError {
+                // Error alerts
+                if let error = emailError ?? identityError {
                     Text(error)
                         .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.statusRed)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, FCSpacing.lg)
+                        .transition(.opacity)
                 }
 
                 // Continue button
                 GlassButton(
                     "Continue",
-                    icon: "arrow.right",
+                    icon: isEmailVerified ? "checkmark" : "arrow.right",
                     isLoading: isCreatingIdentity
                 ) {
                     Task { await createProfile() }
@@ -120,7 +142,6 @@ struct CreateProfileStep: View {
                         )
                 }
 
-                // Edit badge
                 Circle()
                     .fill(Color.fcAccentPurple)
                     .frame(width: 28, height: 28)
@@ -174,12 +195,114 @@ struct CreateProfileStep: View {
         }
     }
 
+    // MARK: - Email Field
+
+    private var emailField: some View {
+        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+            Text("Email")
+                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
+                .foregroundStyle(theme.colors.mutedText)
+
+            HStack {
+                TextField("", text: $email)
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.text)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .email)
+                    .frame(minHeight: FCSizing.minTapTarget)
+                    .overlay(alignment: .leading) {
+                        if email.isEmpty {
+                            Text("you@example.com")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.mutedText.opacity(0.6))
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .disabled(isEmailVerified)
+
+                if !showOTPField && !email.isEmpty && !isEmailVerified {
+                    Button {
+                        Task { await sendVerificationCode() }
+                    } label: {
+                        if isSendingCode {
+                            ProgressView()
+                                .tint(Color.fcAccentPurple)
+                        } else {
+                            Text("Verify")
+                                .font(.custom(FCFontName.semiBold, size: 14, relativeTo: .footnote))
+                                .foregroundStyle(Color.fcAccentPurple)
+                        }
+                    }
+                    .disabled(isSendingCode)
+                    .frame(minWidth: FCSizing.minTapTarget, minHeight: FCSizing.minTapTarget)
+                }
+
+                if isEmailVerified {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(theme.colors.statusGreen)
+                }
+            }
+        }
+    }
+
+    // MARK: - OTP Field
+
+    private var otpField: some View {
+        VStack(alignment: .leading, spacing: FCSpacing.xs) {
+            Text("Verification code")
+                .font(.custom(FCFontName.medium, size: 13, relativeTo: .caption))
+                .foregroundStyle(theme.colors.mutedText)
+
+            HStack {
+                TextField("", text: $otpCode)
+                    .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
+                    .foregroundStyle(theme.colors.text)
+                    .textContentType(.oneTimeCode)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: .otp)
+                    .frame(minHeight: FCSizing.minTapTarget)
+                    .overlay(alignment: .leading) {
+                        if otpCode.isEmpty {
+                            Text("000000")
+                                .font(.custom(FCFontName.semiBold, size: 20, relativeTo: .title3))
+                                .foregroundStyle(theme.colors.mutedText.opacity(0.4))
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .onChange(of: otpCode) { _, code in
+                        if code.count == 6 {
+                            Task { await verifyOTP(code) }
+                        }
+                    }
+
+                if isVerifyingCode {
+                    ProgressView()
+                        .tint(theme.colors.mutedText)
+                }
+            }
+
+            Button {
+                Task { await sendVerificationCode() }
+            } label: {
+                Text("Resend code")
+                    .font(.custom(FCFontName.regular, size: 12, relativeTo: .caption2))
+                    .foregroundStyle(Color.fcAccentPurple)
+            }
+            .disabled(isSendingCode)
+            .frame(minHeight: FCSizing.minTapTarget)
+        }
+    }
+
     // MARK: - Validation
 
     private var isFormValid: Bool {
         !username.isEmpty
         && username.count >= 3
         && usernameError == nil
+        && isEmailVerified
     }
 
     private func validateUsername(_ value: String) {
@@ -203,6 +326,55 @@ struct CreateProfileStep: View {
         usernameError = nil
     }
 
+    // MARK: - Email Verification
+
+    private func sendVerificationCode() async {
+        isSendingCode = true
+        emailError = nil
+
+        do {
+            try await verificationService.sendCode(to: email)
+            withAnimation(SpringConstants.accessiblePageEntrance) {
+                showOTPField = true
+            }
+            focusedField = .otp
+        } catch {
+            emailError = error.localizedDescription
+        }
+
+        isSendingCode = false
+    }
+
+    private func verifyOTP(_ code: String) async {
+        isVerifyingCode = true
+        emailError = nil
+
+        do {
+            try await verificationService.verifyCode(email: email, code: code)
+            withAnimation(SpringConstants.accessiblePageEntrance) {
+                isEmailVerified = true
+                showOTPField = false
+            }
+        } catch let error as EmailVerificationService.EmailVerificationError {
+            switch error {
+            case .incorrectCode:
+                emailError = error.localizedDescription
+            case .codeExpired, .tooManyAttempts:
+                emailError = error.localizedDescription
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    showOTPField = false
+                    otpCode = ""
+                }
+            default:
+                emailError = error.localizedDescription
+            }
+        } catch {
+            emailError = error.localizedDescription
+        }
+
+        isVerifyingCode = false
+    }
+
     // MARK: - Identity Generation
 
     private func createProfile() async {
@@ -213,14 +385,21 @@ struct CreateProfileStep: View {
             let identity = try KeyManager.shared.generateIdentity()
             try KeyManager.shared.storeIdentity(identity)
 
-            // Compress avatar for thumbnail if selected.
             let thumbnailData = selectedAvatarImage?
                 .jpegData(compressionQuality: 0.5)
+
+            let emailHash = email
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .data(using: .utf8)
+                .map { data in
+                    SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
+                } ?? ""
 
             let user = User(
                 username: username.trimmingCharacters(in: .whitespacesAndNewlines),
                 displayName: username,
-                phoneHash: "",
+                phoneHash: emailHash,
                 noisePublicKey: identity.noisePublicKey.rawRepresentation,
                 signingPublicKey: identity.signingPublicKey,
                 avatarThumbnail: thumbnailData
@@ -237,6 +416,10 @@ struct CreateProfileStep: View {
         isCreatingIdentity = false
     }
 }
+
+// MARK: - SHA256 import
+
+import CryptoKit
 
 // MARK: - Preview
 
