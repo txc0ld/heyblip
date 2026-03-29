@@ -87,7 +87,7 @@ final class StoreViewModel {
     // MARK: - Dependencies
 
     private let modelContainer: ModelContainer
-    private var transactionListener: Task<Void, Error>?
+    nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
     private var loadedProducts: [Product] = []
 
     // MARK: - Product IDs
@@ -297,9 +297,10 @@ final class StoreViewModel {
     // MARK: - Private: Transaction Listener
 
     private func startTransactionListener() {
-        transactionListener = Task.detached {
+        transactionListener = Task.detached { [weak self] in
             for await result in Transaction.updates {
-                if let transaction = try? self.checkVerified(result) {
+                guard let self else { return }
+                if let transaction = try? await self.checkVerified(result) {
                     if let packInfo = Self.productIDs.first(where: { $0.0 == transaction.productID }) {
                         await self.creditPurchase(packType: packInfo.1, transaction: transaction)
                     }

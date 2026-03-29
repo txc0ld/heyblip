@@ -121,7 +121,7 @@ final class SOSViewModel {
     private let locationService: LocationService
     private let messageService: MessageService
     private let notificationService: NotificationService
-    private var sosObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
 
     // MARK: - Constants
 

@@ -250,7 +250,7 @@ struct SettingsView: View {
 
     // MARK: - Reusable Components
 
-    private func settingsGroup<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsGroup<Content: View>(title: String, icon: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         GlassCard(thickness: .regular) {
             VStack(alignment: .leading, spacing: FCSpacing.md) {
                 HStack(spacing: FCSpacing.sm) {

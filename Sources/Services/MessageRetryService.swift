@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import FestiChatProtocol
 import FestiChatMesh
+import FestiChatCrypto
 
 // MARK: - Retry Configuration
 

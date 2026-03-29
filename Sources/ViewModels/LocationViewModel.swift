@@ -126,7 +126,7 @@ final class LocationViewModel {
 
     private let modelContainer: ModelContainer
     private let locationService: LocationService
-    private var refreshTimer: Timer?
+    nonisolated(unsafe) private var refreshTimer: Timer?
 
     // MARK: - Constants
 

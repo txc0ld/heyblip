@@ -20,15 +20,6 @@ struct GlassCard<Content: View>: View {
         case ultraThin
         case regular
         case thick
-
-        @ViewBuilder
-        var material: some ShapeStyle {
-            switch self {
-            case .ultraThin: Material.ultraThinMaterial
-            case .regular: Material.regularMaterial
-            case .thick: Material.thickMaterial
-            }
-        }
     }
 
     let thickness: MaterialThickness

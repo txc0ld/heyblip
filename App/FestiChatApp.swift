@@ -39,7 +39,7 @@ struct RootView: View {
     @State private var appPhase: AppPhase = .splash
     @Environment(\.theme) private var theme
 
-    private enum AppPhase {
+    enum AppPhase: Equatable {
         case splash
         case onboarding
         case main
@@ -74,6 +74,3 @@ struct RootView: View {
     }
 }
 
-// MARK: - Equatable conformance for animation
-
-extension RootView.AppPhase: Equatable {}
