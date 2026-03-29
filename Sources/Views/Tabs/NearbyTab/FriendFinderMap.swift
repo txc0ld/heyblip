@@ -117,15 +117,13 @@ struct FriendFinderMap: View {
     private func friendDetailCard(for friend: FriendMapPin) -> some View {
         GlassCard(thickness: .thick, cornerRadius: FCCornerRadius.xl) {
             HStack(spacing: FCSpacing.md) {
-                // Avatar
-                Circle()
-                    .fill(friend.color)
-                    .frame(width: FCSizing.avatarSmall, height: FCSizing.avatarSmall)
-                    .overlay(
-                        Text(String(friend.displayName.prefix(1)).uppercased())
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                    )
+                AvatarView(
+                    imageData: friend.avatarData,
+                    name: friend.displayName,
+                    size: FCSizing.avatarSmall,
+                    ringStyle: .friend,
+                    showOnlineIndicator: !friend.isOutOfRange
+                )
 
                 VStack(alignment: .leading, spacing: FCSpacing.xs) {
                     Text(friend.displayName)
@@ -133,9 +131,19 @@ struct FriendFinderMap: View {
                         .fontWeight(.medium)
                         .foregroundStyle(theme.colors.text)
 
-                    Text(friend.precisionDescription)
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
+                    HStack(spacing: FCSpacing.xs) {
+                        Text(friend.lastSeenText)
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+
+                        if let distance = friend.distanceText {
+                            Text("·")
+                                .foregroundStyle(theme.colors.mutedText)
+                            Text(distance)
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -219,45 +227,64 @@ struct FriendFinderMap: View {
 
 // MARK: - FriendPinView
 
-/// A single friend pin on the map with precision-appropriate visual.
+/// A single friend pin on the map with avatar and precision radius ring.
 private struct FriendPinView: View {
 
     let friend: FriendMapPin
     let isSelected: Bool
     let onTap: () -> Void
 
+    @State private var ringPulsing = false
+
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                switch friend.precision {
-                case .precise:
-                    // Solid pin
+                // Accuracy radius ring (animated)
+                if friend.precision == .precise, friend.accuracyMeters > 0 {
                     Circle()
-                        .fill(friend.color)
-                        .frame(width: isSelected ? 20 : 14, height: isSelected ? 20 : 14)
+                        .fill(friend.accuracyColor.opacity(0.08))
+                        .frame(width: ringSize, height: ringSize)
                         .overlay(
                             Circle()
-                                .stroke(.white, lineWidth: 2)
+                                .stroke(friend.accuracyColor.opacity(0.3), lineWidth: 1)
                         )
-                        .shadow(color: friend.color.opacity(0.5), radius: 4)
+                        .scaleEffect(ringPulsing ? 1.05 : 1.0)
+                }
 
-                case .fuzzy:
-                    // Fuzzy circle indicating area
+                // Fuzzy area ring for approximate locations
+                if friend.precision == .fuzzy {
                     Circle()
-                        .fill(friend.color.opacity(0.15))
-                        .frame(width: 44, height: 44)
+                        .fill(friend.color.opacity(0.1))
+                        .frame(width: 48, height: 48)
                         .overlay(
                             Circle()
-                                .stroke(friend.color.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                .stroke(friend.color.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                         )
-                        .overlay(
-                            Circle()
-                                .fill(friend.color)
-                                .frame(width: 8, height: 8)
-                        )
+                }
 
-                case .off:
-                    // Hidden, show generic marker
+                // Avatar pin
+                if friend.precision != .off {
+                    VStack(spacing: 2) {
+                        AvatarView(
+                            imageData: friend.avatarData,
+                            name: friend.displayName,
+                            size: isSelected ? 36 : 28,
+                            ringStyle: .friend,
+                            showOnlineIndicator: !friend.isOutOfRange
+                        )
+                        .shadow(color: friend.color.opacity(0.4), radius: 4)
+
+                        // Name label when selected
+                        if isSelected {
+                            Text(friend.displayName)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(friend.color))
+                        }
+                    }
+                } else {
                     Circle()
                         .fill(friend.color.opacity(0.3))
                         .frame(width: 10, height: 10)
@@ -267,6 +294,18 @@ private struct FriendPinView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(friend.displayName), \(friend.precisionDescription)")
+        .onAppear {
+            guard !SpringConstants.isReduceMotionEnabled, friend.accuracyMeters > 0 else { return }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                ringPulsing = true
+            }
+        }
+    }
+
+    /// Maps accuracy meters to a visual ring size (clamped).
+    private var ringSize: CGFloat {
+        let clamped = min(max(friend.accuracyMeters, 10), 100)
+        return CGFloat(clamped * 0.6 + 20)
     }
 }
 
@@ -327,6 +366,10 @@ struct FriendMapPin: Identifiable, Hashable {
     let precision: LocationPinPrecision
     let color: Color
     let lastUpdated: Date
+    var avatarData: Data? = nil
+    var accuracyMeters: Double = 0
+    var distanceFromUser: Double? = nil
+    var isOutOfRange: Bool = false
 
     var precisionDescription: String {
         switch precision {
@@ -334,6 +377,27 @@ struct FriendMapPin: Identifiable, Hashable {
         case .fuzzy: return "Approximate area"
         case .off: return "Location hidden"
         }
+    }
+
+    var lastSeenText: String {
+        let interval = Date().timeIntervalSince(lastUpdated)
+        if interval < 60 { return "Just now" }
+        if interval < 3600 { return "\(Int(interval / 60))m ago" }
+        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
+        return "Over a day ago"
+    }
+
+    var distanceText: String? {
+        guard let d = distanceFromUser else { return nil }
+        if d < 1000 { return "\(Int(d))m away" }
+        return String(format: "%.1f km away", d / 1000)
+    }
+
+    /// Color for accuracy radius ring.
+    var accuracyColor: Color {
+        if accuracyMeters < 10 { return .green }
+        if accuracyMeters < 50 { return .yellow }
+        return .red
     }
 
     func hash(into hasher: inout Hasher) {
@@ -370,7 +434,9 @@ struct BeaconPin: Identifiable {
             coordinate: CLLocationCoordinate2D(latitude: 51.0048, longitude: -2.5862),
             precision: .precise,
             color: .blue,
-            lastUpdated: Date()
+            lastUpdated: Date(),
+            accuracyMeters: 5,
+            distanceFromUser: 45
         ),
         FriendMapPin(
             id: UUID(),
@@ -378,7 +444,9 @@ struct BeaconPin: Identifiable {
             coordinate: CLLocationCoordinate2D(latitude: 51.0052, longitude: -2.5850),
             precision: .fuzzy,
             color: .green,
-            lastUpdated: Date().addingTimeInterval(-60)
+            lastUpdated: Date().addingTimeInterval(-180),
+            accuracyMeters: 35,
+            distanceFromUser: 120
         ),
     ]
 
