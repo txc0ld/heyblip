@@ -79,6 +79,7 @@ schemes:
         BlipTests: [test]
     run:
       config: Debug
+      storeKitConfiguration: Resources/Blip.storekit
       environmentVariables:
         - variable: BLE_SERVICE_UUID
           value: "FC000001-0000-1000-8000-00805F9B34FA"

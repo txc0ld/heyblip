@@ -1,0 +1,125 @@
+{
+  "identifier" : "B8A62D4E-1A2C-4B8F-9D3E-5F6A7C8B9D0E",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "starter10",
+      "localizations" : [
+        {
+          "description" : "10 mesh messages to get started",
+          "displayName" : "Starter Pack",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.starter10",
+      "referenceName" : "Starter 10",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "5.99",
+      "familyShareable" : false,
+      "internalID" : "social25",
+      "localizations" : [
+        {
+          "description" : "25 messages for the social butterfly",
+          "displayName" : "Social Pack",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.social25",
+      "referenceName" : "Social 25",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "festival50",
+      "localizations" : [
+        {
+          "description" : "50 messages — enough for a whole festival",
+          "displayName" : "Festival Pack",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.festival50",
+      "referenceName" : "Festival 50",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "17.99",
+      "familyShareable" : false,
+      "internalID" : "squad100",
+      "localizations" : [
+        {
+          "description" : "100 messages for the whole squad",
+          "displayName" : "Squad Pack",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.squad100",
+      "referenceName" : "Squad 100",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "49.99",
+      "familyShareable" : false,
+      "internalID" : "season1000",
+      "localizations" : [
+        {
+          "description" : "1000 messages — festival season sorted",
+          "displayName" : "Season Pass",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.season1000",
+      "referenceName" : "Season 1000",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "99.99",
+      "familyShareable" : false,
+      "internalID" : "unlimited",
+      "localizations" : [
+        {
+          "description" : "Unlimited messages forever",
+          "displayName" : "Unlimited",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.unlimited",
+      "referenceName" : "Unlimited",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "verified",
+      "localizations" : [
+        {
+          "description" : "Get a verified badge on your profile",
+          "displayName" : "Verified Profile",
+          "locale" : "en_AU"
+        }
+      ],
+      "productID" : "au.heyblip.Blip.verified",
+      "referenceName" : "Verified Profile",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "blip-storekit-testing",
+    "_developerTeamID" : "",
+    "_lastSynchronizedDate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
