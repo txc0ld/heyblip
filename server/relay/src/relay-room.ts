@@ -40,6 +40,15 @@ export class RelayRoom implements DurableObject {
   /** Per-peer message timestamps for rate limiting. */
   private messageTimestamps: Map<PeerIDHex, number[]> = new Map();
 
+  /** Per-peer state blobs for GCS sync (opaque binary, no decryption). */
+  private peerState: Map<PeerIDHex, { data: ArrayBuffer; updatedAt: number }> = new Map();
+
+  /** Max state blob size (4 KB — GCS filters are small). */
+  private static readonly MAX_STATE_SIZE = 4096;
+
+  /** State TTL: 1 hour. Stale entries cleaned on access. */
+  private static readonly STATE_TTL_MS = 3600_000;
+
   constructor(
     private readonly state: DurableObjectState,
     private readonly env: unknown
@@ -51,6 +60,15 @@ export class RelayRoom implements DurableObject {
       return new Response("Missing peer ID", { status: 400 });
     }
 
+    // Handle state sync (non-WebSocket).
+    const stateAction = request.headers.get("X-State-Action");
+    if (stateAction === "put") {
+      return this.handleStatePut(peerIdHex, request);
+    }
+    if (stateAction === "get") {
+      return this.handleStateGet(peerIdHex, request);
+    }
+
     const { 0: client, 1: server } = new WebSocketPair();
 
     this.handleSession(server, peerIdHex);
@@ -59,6 +77,50 @@ export class RelayRoom implements DurableObject {
       status: 101,
       webSocket: client,
     });
+  }
+
+  // MARK: - State sync
+
+  private async handleStatePut(peerIdHex: PeerIDHex, request: Request): Promise<Response> {
+    const body = await request.arrayBuffer();
+    if (body.byteLength > RelayRoom.MAX_STATE_SIZE) {
+      return new Response("State too large", { status: 413 });
+    }
+
+    this.cleanStaleState();
+    this.peerState.set(peerIdHex, { data: body, updatedAt: Date.now() });
+
+    return new Response("ok", { status: 200 });
+  }
+
+  private handleStateGet(requesterPeerIdHex: PeerIDHex, request: Request): Response {
+    this.cleanStaleState();
+
+    // Return the requesting peer's own state, or a specific peer's state via query param.
+    const url = new URL(request.url);
+    const targetPeer = url.searchParams.get("peer") ?? requesterPeerIdHex;
+
+    const entry = this.peerState.get(targetPeer);
+    if (!entry) {
+      return new Response(null, { status: 404 });
+    }
+
+    return new Response(entry.data, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Updated-At": String(entry.updatedAt),
+      },
+    });
+  }
+
+  private cleanStaleState(): void {
+    const now = Date.now();
+    for (const [peer, entry] of this.peerState) {
+      if (now - entry.updatedAt > RelayRoom.STATE_TTL_MS) {
+        this.peerState.delete(peer);
+      }
+    }
   }
 
   private handleSession(ws: WebSocket, peerIdHex: PeerIDHex): void {

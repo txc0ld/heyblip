@@ -19,6 +19,26 @@ export default {
       return new Response("ok", { status: 200 });
     }
 
+    // State sync endpoints (GCS reconciliation).
+    if (url.pathname === "/state" && (request.method === "PUT" || request.method === "GET")) {
+      const authResult = parseAuthHeader(request.headers.get("Authorization"));
+      if (!authResult) return new Response("Unauthorized", { status: 401 });
+
+      const peerIdHex = await derivePeerIdHex(authResult);
+      const roomId = env.RELAY_ROOM.idFromName(ROOM_ID_NAME);
+      const room = env.RELAY_ROOM.get(roomId);
+
+      const newHeaders = new Headers(request.headers);
+      newHeaders.set("X-Derived-Peer-ID", peerIdHex);
+      newHeaders.set("X-State-Action", request.method === "PUT" ? "put" : "get");
+
+      return room.fetch(new Request(request.url, {
+        method: request.method,
+        headers: newHeaders,
+        body: request.method === "PUT" ? request.body : null,
+      }));
+    }
+
     if (url.pathname !== "/ws") {
       return new Response("Not Found", { status: 404 });
     }
