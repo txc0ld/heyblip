@@ -11,5 +11,4 @@ MAX_SENDS_PER_HOUR = "3"
 
 [[kv_namespaces]]
 binding = "CODES"
-id = "PLACEHOLDER_KV_ID"
-preview_id = "PLACEHOLDER_PREVIEW_KV_ID"
+id = "46bc2e8e8a2e4c5badea76ac27658a5e"
