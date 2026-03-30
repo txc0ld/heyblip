@@ -1,13 +1,14 @@
 #if DEBUG
 import SwiftUI
+import SwiftData
 import BlipMesh
 import BlipProtocol
 import os.log
 
 // MARK: - BLE Debug Overlay
 
-/// Debug-only overlay showing BLE mesh state, peer connections, RSSI,
-/// handshake status, message counts, and relay status.
+/// Debug-only overlay showing real BLE mesh state, peer table from SwiftData,
+/// relay metrics, and a scrollable event log from DebugLogger.
 ///
 /// Activated by triple-tapping the Nearby tab title.
 struct BLEDebugOverlay: View {
@@ -15,34 +16,23 @@ struct BLEDebugOverlay: View {
     @State private var bleState: String = "Unknown"
     @State private var wsState: String = "Unknown"
     @State private var peerCount = 0
-    @State private var peers: [DebugPeerInfo] = []
-    @State private var messagesSent = 0
-    @State private var messagesReceived = 0
-    @State private var lastMessageLatency: TimeInterval = 0
-    @State private var logLines: [String] = []
+    @State private var meshPeers: [MeshPeer] = []
+    @State private var copiedToast = false
 
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(AppCoordinator.self) private var coordinator
 
     private let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
-    private let logger = Logger(subsystem: "com.blip", category: "BLEDebug")
-
-    struct DebugPeerInfo: Identifiable {
-        let id: String
-        let peerID: String
-        let rssi: Int
-        let handshakeStatus: String
-        let connected: Bool
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: BlipSpacing.md) {
                     transportSection
-                    peerSection
-                    metricsSection
+                    peerTableSection
+                    relaySection
                     logSection
                 }
                 .padding(BlipSpacing.md)
@@ -51,11 +41,33 @@ struct BLEDebugOverlay: View {
             .navigationTitle("BLE Debug")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        UIPasteboard.general.string = DebugLogger.shared.exportText
+                        copiedToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedToast = false }
+                    } label: {
+                        Label("Copy Log", systemImage: "doc.on.doc")
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    .foregroundStyle(.blipAccentPurple)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(.blipAccentPurple)
                 }
             }
+            .overlay(alignment: .top) {
+                if copiedToast {
+                    Text("Copied to clipboard")
+                        .font(.system(.caption, design: .monospaced))
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.vertical, BlipSpacing.sm)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: copiedToast)
             .onReceive(timer) { _ in refreshState() }
             .onAppear { refreshState() }
         }
@@ -77,50 +89,88 @@ struct BLEDebugOverlay: View {
             }
             .font(.system(.caption, design: .monospaced))
             .foregroundStyle(.white)
+
+            HStack(spacing: BlipSpacing.lg) {
+                metricBlock(label: "BLE Peers", value: "\(peerCount)")
+                metricBlock(label: "SwiftData", value: "\(meshPeers.count)")
+                metricBlock(label: "w/ Name", value: "\(meshPeers.filter { $0.username != nil }.count)")
+            }
         }
     }
 
-    // MARK: - Peers
+    // MARK: - Peer Table
 
-    private var peerSection: some View {
+    private var peerTableSection: some View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-            sectionHeader("Peers (\(peerCount))")
+            sectionHeader("Peers (\(meshPeers.count))")
 
-            if peers.isEmpty {
-                Text("No peers discovered")
+            if meshPeers.isEmpty {
+                Text("No MeshPeer records")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.gray)
             } else {
-                ForEach(peers) { peer in
-                    HStack {
-                        Text(peer.peerID)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("RSSI: \(peer.rssi)")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(rssiColor(peer.rssi))
-                        Text(peer.handshakeStatus)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(peer.handshakeStatus == "encrypted" ? .green : .yellow)
+                ForEach(meshPeers, id: \.id) { peer in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(peerIDShort(peer.peerID))
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.white)
+
+                            if let name = peer.username {
+                                Text(name)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("nil")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.red)
+                            }
+
+                            Spacer()
+
+                            Text(peer.connectionState.rawValue)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(peer.connectionState == .connected ? .green : .orange)
+                        }
+
+                        HStack {
+                            Text("RSSI: \(peer.rssi)")
+                                .foregroundStyle(rssiColor(peer.rssi))
+                            Text("hop: \(peer.hopCount)")
+                                .foregroundStyle(.gray)
+                            Text("key: \(peer.noisePublicKey.isEmpty ? "empty" : peerIDShort(peer.noisePublicKey))")
+                                .foregroundStyle(peer.noisePublicKey.isEmpty ? .red : .gray)
+                            Spacer()
+                            Text(relativeTime(peer.lastSeenAt))
+                                .foregroundStyle(.gray)
+                        }
+                        .font(.system(size: 9, design: .monospaced))
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
                 }
             }
         }
     }
 
-    // MARK: - Metrics
+    // MARK: - Relay Metrics
 
-    private var metricsSection: some View {
+    private var relaySection: some View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-            sectionHeader("Messages")
+            sectionHeader("Relay")
 
-            HStack(spacing: BlipSpacing.lg) {
-                metricBlock(label: "Sent", value: "\(messagesSent)")
-                metricBlock(label: "Received", value: "\(messagesReceived)")
-                metricBlock(label: "Latency", value: String(format: "%.0fms", lastMessageLatency * 1000))
+            if let relay = coordinator.meshRelayService {
+                let m = relay.metrics
+                HStack(spacing: BlipSpacing.lg) {
+                    metricBlock(label: "Received", value: "\(m.received)")
+                    metricBlock(label: "Relayed", value: "\(m.relayed)")
+                    metricBlock(label: "Dropped", value: "\(m.dropped)")
+                }
+            } else {
+                Text("Relay not initialized")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
             }
         }
     }
@@ -129,13 +179,26 @@ struct BLEDebugOverlay: View {
 
     private var logSection: some View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-            sectionHeader("Log")
+            HStack {
+                sectionHeader("Log (\(DebugLogger.shared.entries.count))")
+                Spacer()
+                Button("Clear") { DebugLogger.shared.clear() }
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.blipAccentPurple)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(logLines.suffix(20), id: \.self) { line in
-                    Text(line)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.green.opacity(0.8))
+                ForEach(DebugLogger.shared.entries.prefix(50)) { entry in
+                    HStack(alignment: .top, spacing: 4) {
+                        Text(entry.formattedTime)
+                            .foregroundStyle(.gray)
+                        Text("[\(entry.category)]")
+                            .foregroundStyle(categoryColor(entry.category))
+                        Text(entry.message)
+                            .foregroundStyle(entry.isError ? .red : .white)
+                    }
+                    .font(.system(size: 9, design: .monospaced))
+                    .lineLimit(2)
                 }
             }
         }
@@ -174,10 +237,32 @@ struct BLEDebugOverlay: View {
         return .red
     }
 
+    private func categoryColor(_ cat: String) -> Color {
+        switch cat {
+        case "TX": return .cyan
+        case "RX": return .green
+        case "PEER": return .yellow
+        case "SYNC": return .orange
+        case "RELAY": return .purple
+        default: return .gray
+        }
+    }
+
+    private func peerIDShort(_ data: Data) -> String {
+        data.prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        if seconds < 5 { return "now" }
+        if seconds < 60 { return "\(seconds)s ago" }
+        return "\(seconds / 60)m ago"
+    }
+
     // MARK: - State Refresh
 
     private func refreshState() {
-        // Read real state from AppCoordinator → BLEService
+        // Read real BLE state
         if let ble = coordinator.bleService {
             switch ble.state {
             case .idle: bleState = "Idle"
@@ -199,9 +284,11 @@ struct BLEDebugOverlay: View {
             }
         }
 
-        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        if logLines.count > 100 { logLines.removeFirst(50) }
-        logLines.append("[\(timestamp)] State refresh — \(peerCount) peers, BLE: \(bleState)")
+        // Read MeshPeer records from SwiftData
+        let descriptor = FetchDescriptor<MeshPeer>(
+            sortBy: [SortDescriptor(\.lastSeenAt, order: .reverse)]
+        )
+        meshPeers = (try? modelContext.fetch(descriptor)) ?? []
     }
 }
 

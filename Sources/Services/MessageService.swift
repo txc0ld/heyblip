@@ -367,6 +367,8 @@ final class MessageService: @unchecked Sendable {
             try createOrUpdateFriend(user: remoteUser, status: .pending, context: context)
         }
 
+        let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("TX", "FRIEND_REQ → \(shortID)")
         logger.info("Sent friend request to peer \(peerID)")
     }
 
@@ -458,6 +460,7 @@ final class MessageService: @unchecked Sendable {
         )
 
         try sendPacket(packet)
+        DebugLogger.shared.log("TX", "ANNOUNCE → \(localUser.username)")
     }
 
     // MARK: - Receive Message
@@ -579,32 +582,51 @@ final class MessageService: @unchecked Sendable {
         let (username, displayName) = parseFriendPayload(packet.payload)
         guard let username, !username.isEmpty else { return }
 
-        // Find the MeshPeer for this sender and populate identity fields
         let senderData = peerID.bytes
         let senderNoiseKey = packet.senderID.bytes
+        let peerHex = senderData.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        // Find or create MeshPeer for this sender and populate identity fields
         let peerDescriptor = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.peerID == senderData })
         if let peer = try context.fetch(peerDescriptor).first {
             peer.username = username
             peer.noisePublicKey = senderNoiseKey
             peer.connectionStateRaw = PeerConnectionState.connected.rawValue
             try context.save()
+        } else {
+            // Announce arrived before syncMeshPeers created the record — create it now
+            let newPeer = MeshPeer(
+                peerID: senderData,
+                noisePublicKey: senderNoiseKey,
+                signingPublicKey: Data(),
+                username: username,
+                rssi: -60,
+                connectionState: .connected,
+                lastSeenAt: Date(),
+                hopCount: 1
+            )
+            context.insert(newPeer)
+            try context.save()
         }
 
-        // Also ensure a User record exists so the peer can be added as a friend
+        // Ensure a User record exists so the peer can be added as a friend
         let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
         if try context.fetch(userDesc).isEmpty {
-            let senderKey = packet.senderID.bytes
             let user = User(
                 username: username,
                 displayName: displayName,
                 emailHash: "",
-                noisePublicKey: senderKey,
+                noisePublicKey: senderNoiseKey,
                 signingPublicKey: Data()
             )
             context.insert(user)
             try context.save()
         }
 
+        // Trigger UI refresh so the peer card appears immediately
+        NotificationCenter.default.post(name: .meshPeerStateChanged, object: nil)
+
+        DebugLogger.shared.log("RX", "ANNOUNCE ← \(username) from \(peerHex)")
         logger.debug("Announce received from \(username)")
     }
 
@@ -1477,14 +1499,18 @@ extension MessageService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
-        // Broadcast presence to newly connected peer so they can see our username.
+        let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
+            DebugLogger.shared.log("PEER", "CONNECTED: \(shortID)")
             try? await self.broadcastPresence()
         }
     }
 
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
-        // Disconnection handled by TransportCoordinator; no MessageService action needed.
+        let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        Task { @MainActor in
+            DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID)")
+        }
     }
 
     func transport(_ transport: any Transport, didChangeState state: TransportState) {

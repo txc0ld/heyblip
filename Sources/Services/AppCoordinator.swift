@@ -48,6 +48,7 @@ final class AppCoordinator {
     nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
     nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
     nonisolated(unsafe) private var peerSyncTimer: Timer?
+    nonisolated(unsafe) private var announceTimer: Timer?
 
     // MARK: - Init
 
@@ -200,6 +201,7 @@ final class AppCoordinator {
         let localID = localPeerID
 
         let context = ModelContext(modelContainer)
+        var createdCount = 0
 
         do {
             // Fetch all existing MeshPeer records
@@ -226,18 +228,23 @@ final class AppCoordinator {
                     }
                     existing.lastSeenAt = Date()
                     existing.hopCount = 1 // direct BLE peer
+                    // Populate noisePublicKey if still empty (PeerID bytes = noise key)
+                    if existing.noisePublicKey.isEmpty {
+                        existing.noisePublicKey = peerData
+                    }
                 } else {
-                    // Create new MeshPeer
+                    // Create new MeshPeer with peerData as initial noisePublicKey
                     let meshPeer = MeshPeer(
                         peerID: peerData,
-                        noisePublicKey: Data(),  // populated later by announce/handshake
+                        noisePublicKey: peerData,
                         signingPublicKey: Data(),
-                        rssi: -60, // reasonable default until real RSSI available
+                        rssi: -60,
                         connectionState: .connected,
                         lastSeenAt: Date(),
                         hopCount: 1
                     )
                     context.insert(meshPeer)
+                    createdCount += 1
                     logger.info("Created MeshPeer for \(peerID)")
                 }
             }
@@ -253,8 +260,21 @@ final class AppCoordinator {
             }
 
             try context.save()
+
+            // Post transport state so MeshViewModel.isBLEActive updates
+            NotificationCenter.default.post(
+                name: .meshTransportStateChanged,
+                object: nil,
+                userInfo: [
+                    "bleActive": !connectedPeerIDs.isEmpty,
+                    "wsConnected": self.webSocketTransport?.state == .running,
+                ]
+            )
+
+            DebugLogger.shared.log("SYNC", "Peer sync: \(connectedPeerIDs.count) connected, \(createdCount) new")
         } catch {
             logger.error("Failed to sync MeshPeer records: \(error.localizedDescription)")
+            DebugLogger.shared.log("SYNC", "Peer sync FAILED: \(error.localizedDescription)", isError: true)
         }
     }
 
@@ -274,6 +294,15 @@ final class AppCoordinator {
             try? await messageService?.broadcastPresence()
         }
 
+        // Re-broadcast presence every 30s so late-joining peers see our username
+        let aTimer = Timer(timeInterval: 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                try? await self?.messageService?.broadcastPresence()
+            }
+        }
+        RunLoop.main.add(aTimer, forMode: .common)
+        announceTimer = aTimer
+
         logger.info("Transports started")
     }
 
@@ -282,6 +311,8 @@ final class AppCoordinator {
         transportCoordinator?.stop()
         peerSyncTimer?.invalidate()
         peerSyncTimer = nil
+        announceTimer?.invalidate()
+        announceTimer = nil
         logger.info("Transports stopped")
     }
 }
