@@ -11,4 +11,4 @@
 - [x] Phase 7: Implement root-cause fixes with tests and observability where justified.
 - [x] Phase 8: Run adversarial verification and regression checks.
 - [x] Phase 9: Write all required reports under `/reports`.
-- [ ] Push branch, open PR against `main`, and update Linear with results and remaining risks.
+- [x] Push branch, open PR against `main`, and update Linear with results and remaining risks.
