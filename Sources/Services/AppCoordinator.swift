@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 import SwiftData
 import BlipProtocol
 import BlipMesh
@@ -34,6 +35,14 @@ final class AppCoordinator {
     private(set) var transportCoordinator: TransportCoordinator?
     private(set) var meshRelayService: MeshRelayService?
     private(set) var messageService: MessageService?
+    private(set) var locationService = LocationService()
+    private(set) var notificationService = NotificationService()
+
+    // MARK: - Feature View Models
+
+    private(set) var chatViewModel: ChatViewModel?
+    private(set) var festivalViewModel: FestivalViewModel?
+    private(set) var profileViewModel: ProfileViewModel?
 
     // MARK: - Identity
 
@@ -85,6 +94,10 @@ final class AppCoordinator {
             return
         }
 
+        teardownRuntimeState()
+        ensureUserPreferencesExists(in: modelContainer)
+        locationService.delegate = self
+
         let peerID = identity.peerID
 
         // Create transports
@@ -115,6 +128,19 @@ final class AppCoordinator {
         coordinator.delegate = relay
         self.meshRelayService = relay
         self.messageService = msgService
+        self.chatViewModel = ChatViewModel(
+            modelContainer: modelContainer,
+            messageService: msgService
+        )
+        self.festivalViewModel = FestivalViewModel(
+            modelContainer: modelContainer,
+            locationService: locationService,
+            notificationService: notificationService
+        )
+        self.profileViewModel = ProfileViewModel(
+            modelContainer: modelContainer,
+            keyManager: keyManager
+        )
 
         // Listen for broadcast requests from ViewModels (e.g. SOSViewModel).
         setupBroadcastForwarding(coordinator: coordinator)
@@ -164,6 +190,7 @@ final class AppCoordinator {
 
     /// Reset to onboarding state (e.g. after a failed setup, user wants to restart).
     func resetToOnboarding() {
+        teardownRuntimeState()
         isReady = false
         identity = nil
         localPeerID = nil
@@ -195,6 +222,30 @@ final class AppCoordinator {
         } catch {
             logger.error("Failed to check/seed MessagePack: \(error.localizedDescription)")
         }
+    }
+
+    @discardableResult
+    func signOut() -> Bool {
+        guard let container = modelContainer else {
+            logger.error("Failed to sign out: model container unavailable")
+            initError = "Failed to sign out cleanly because the local data store is unavailable."
+            return false
+        }
+
+        do {
+            try keyManager.deleteIdentity()
+        } catch {
+            logger.error("Failed to delete identity during sign out: \(error.localizedDescription)")
+            initError = "Failed to clear your local identity: \(error.localizedDescription)"
+            return false
+        }
+
+        teardownRuntimeState()
+        clearLocalStore(in: container)
+
+        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+        resetToOnboarding()
+        return true
     }
 
     // MARK: - Peer Persistence
@@ -326,6 +377,14 @@ final class AppCoordinator {
             return
         }
         transportCoordinator?.start()
+        locationService.requestAuthorization()
+
+        Task { @MainActor in
+            await profileViewModel?.loadProfile()
+            await chatViewModel?.loadChannels()
+            await festivalViewModel?.loadFestivals()
+            await festivalViewModel?.startGeofencing()
+        }
 
         // Broadcast presence after a short delay to let connections establish
         Task { @MainActor in
@@ -353,5 +412,141 @@ final class AppCoordinator {
         announceTimer?.invalidate()
         announceTimer = nil
         logger.info("Transports stopped")
+    }
+
+    private func teardownRuntimeState() {
+        stop()
+
+        if let observation = broadcastObservation {
+            NotificationCenter.default.removeObserver(observation)
+            broadcastObservation = nil
+        }
+
+        if let observation = peerStateObservation {
+            NotificationCenter.default.removeObserver(observation)
+            peerStateObservation = nil
+        }
+
+        messageService?.delegate = nil
+        bleService = nil
+        webSocketTransport = nil
+        transportCoordinator = nil
+        meshRelayService = nil
+        messageService = nil
+        chatViewModel = nil
+        festivalViewModel = nil
+        profileViewModel = nil
+        locationService.stopUpdating()
+        locationService.stopMonitoringAllFestivals()
+        locationService.delegate = nil
+    }
+
+    private func ensureUserPreferencesExists(in modelContainer: ModelContainer) {
+        let context = ModelContext(modelContainer)
+
+        do {
+            let existingPreferences = try context.fetch(FetchDescriptor<UserPreferences>())
+            guard existingPreferences.isEmpty else { return }
+
+            context.insert(defaultPreferencesFromLegacyDefaults())
+            try context.save()
+        } catch {
+            logger.error("Failed to ensure preferences exist: \(error.localizedDescription)")
+        }
+    }
+
+    private func defaultPreferencesFromLegacyDefaults() -> UserPreferences {
+        let defaults = UserDefaults.standard
+        let theme = AppTheme(rawValue: defaults.string(forKey: "appTheme") ?? AppTheme.system.rawValue) ?? .system
+        let locationPrecision = LocationPrecision(
+            rawValue: defaults.string(forKey: "locationPrecision") ?? LocationPrecision.fuzzy.rawValue
+        ) ?? .fuzzy
+        let pttMode = PTTMode(rawValue: defaults.string(forKey: "pttMode") ?? PTTMode.holdToTalk.rawValue) ?? .holdToTalk
+
+        return UserPreferences(
+            theme: theme,
+            defaultLocationSharing: locationPrecision,
+            proximityAlertsEnabled: defaults.object(forKey: "proximityAlerts") as? Bool ?? true,
+            breadcrumbsEnabled: defaults.object(forKey: "breadcrumbTrails") as? Bool ?? false,
+            notificationsEnabled: defaults.object(forKey: "pushNotifications") as? Bool ?? true,
+            pttMode: pttMode,
+            autoJoinNearbyChannels: defaults.object(forKey: "autoJoinChannels") as? Bool ?? true,
+            crowdPulseVisible: defaults.object(forKey: "crowdPulse") as? Bool ?? true,
+            nearbyVisibilityEnabled: defaults.object(forKey: "nearbyVisibilityEnabled") as? Bool ?? false
+        )
+    }
+
+    private func clearLocalStore(in modelContainer: ModelContainer) {
+        let context = ModelContext(modelContainer)
+
+        do {
+            try deleteAll(Attachment.self, in: context)
+            try deleteAll(MessageQueue.self, in: context)
+            try deleteAll(GroupMembership.self, in: context)
+            try deleteAll(GroupSenderKey.self, in: context)
+            try deleteAll(NoiseSessionModel.self, in: context)
+            try deleteAll(Message.self, in: context)
+            try deleteAll(Channel.self, in: context)
+            try deleteAll(FriendLocation.self, in: context)
+            try deleteAll(MedicalResponder.self, in: context)
+            try deleteAll(SOSAlert.self, in: context)
+            try deleteAll(Friend.self, in: context)
+            try deleteAll(MeetingPoint.self, in: context)
+            try deleteAll(CrowdPulse.self, in: context)
+            try deleteAll(SetTime.self, in: context)
+            try deleteAll(Stage.self, in: context)
+            try deleteAll(Festival.self, in: context)
+            try deleteAll(MeshPeer.self, in: context)
+            try deleteAll(BreadcrumbPoint.self, in: context)
+            try deleteAll(MessagePack.self, in: context)
+            try deleteAll(UserPreferences.self, in: context)
+            try deleteAll(User.self, in: context)
+            try context.save()
+        } catch {
+            logger.error("Failed to erase local store during sign out: \(error.localizedDescription)")
+        }
+    }
+
+    private func deleteAll<T: PersistentModel>(_ type: T.Type, in context: ModelContext) throws {
+        let models = try context.fetch(FetchDescriptor<T>())
+        for model in models {
+            context.delete(model)
+        }
+    }
+}
+
+extension AppCoordinator: LocationServiceDelegate {
+    nonisolated func locationService(_ service: LocationService, didUpdateLocation location: CLLocation) {}
+
+    nonisolated func locationService(_ service: LocationService, didUpdateGeohash geohash: String) {}
+
+    nonisolated func locationService(_ service: LocationService, didEnterFestivalRegion festivalID: UUID) {
+        Task { @MainActor [weak self] in
+            guard let festivalViewModel = self?.festivalViewModel else { return }
+            await festivalViewModel.handleFestivalEntry(festivalID: festivalID)
+        }
+    }
+
+    nonisolated func locationService(_ service: LocationService, didExitFestivalRegion festivalID: UUID) {
+        Task { @MainActor [weak self] in
+            self?.festivalViewModel?.handleFestivalExit(festivalID: festivalID)
+        }
+    }
+
+    nonisolated func locationService(_ service: LocationService, didChangeAuthorization status: CLAuthorizationStatus) {
+        guard status == .authorizedAlways || status == .authorizedWhenInUse else { return }
+
+        service.startUpdating(accuracy: .geohash)
+
+        Task { @MainActor [weak self] in
+            guard let festivalViewModel = self?.festivalViewModel else { return }
+            await festivalViewModel.startGeofencing()
+        }
+    }
+
+    nonisolated func locationService(_ service: LocationService, didFailWithError error: Error) {
+        Task { @MainActor [weak self] in
+            self?.logger.error("Location service error: \(error.localizedDescription)")
+        }
     }
 }

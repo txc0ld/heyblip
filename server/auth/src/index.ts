@@ -35,6 +35,29 @@ interface RateEntry {
 
 const MAX_VERIFY_ATTEMPTS = 5;
 
+interface RegisterBody {
+  emailHash?: string;
+  username?: string;
+  createdAt?: string;
+  isVerified?: boolean;
+}
+
+interface SyncBody {
+  emailHash?: string;
+  isVerified?: boolean;
+  messageBalance?: number;
+  lastActiveAt?: string;
+}
+
+interface ReceiptVerifyBody {
+  transactionID?: string;
+  productID?: string;
+  originalID?: string;
+  purchaseDate?: string;
+  emailHash?: string;
+  environment?: string;
+}
+
 function corsHeaders(env: Env): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": env.CORS_ORIGIN ?? "*",
@@ -222,14 +245,9 @@ async function getDb(env: Env) {
 // ─── Register User ──────────────────────────────────────────
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
-  const body = await parseBody<{
-    emailHash?: string;
-    username?: string;
-    createdAt?: string;
-    isVerified?: boolean;
-  }>(request);
+  const body = sanitizeRegisterBody(await parseBody<RegisterBody>(request));
 
-  if (!body || !body.emailHash || !body.username) {
+  if (!body) {
     return json({ error: "Missing emailHash or username" }, 400, env);
   }
 
@@ -241,7 +259,7 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   try {
     const result = await sql`
       INSERT INTO users (email_hash, username, is_verified, created_at)
-      VALUES (${body.emailHash}, ${body.username}, ${body.isVerified ?? false}, ${body.createdAt ?? new Date().toISOString()})
+      VALUES (${body.emailHash}, ${body.username}, FALSE, ${body.createdAt})
       ON CONFLICT (email_hash) DO UPDATE SET
         username = EXCLUDED.username,
         updated_at = NOW()
@@ -259,14 +277,9 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 // ─── Sync User ──────────────────────────────────────────────
 
 async function handleSync(request: Request, env: Env): Promise<Response> {
-  const body = await parseBody<{
-    emailHash?: string;
-    isVerified?: boolean;
-    messageBalance?: number;
-    lastActiveAt?: string;
-  }>(request);
+  const body = sanitizeSyncBody(await parseBody<SyncBody>(request));
 
-  if (!body || !body.emailHash) {
+  if (!body) {
     return json({ error: "Missing emailHash" }, 400, env);
   }
 
@@ -278,8 +291,6 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   try {
     const result = await sql`
       UPDATE users SET
-        is_verified = COALESCE(${body.isVerified ?? null}, is_verified),
-        message_balance = COALESCE(${body.messageBalance ?? null}, message_balance),
         last_active_at = COALESCE(${body.lastActiveAt ?? null}, last_active_at),
         updated_at = NOW()
       WHERE email_hash = ${body.emailHash}
@@ -330,54 +341,13 @@ async function handleGetUser(url: URL, env: Env): Promise<Response> {
 // ─── Receipt Verification ───────────────────────────────────
 
 async function handleReceiptVerify(request: Request, env: Env): Promise<Response> {
-  const body = await parseBody<{
-    transactionID?: string;
-    productID?: string;
-    originalID?: string;
-    purchaseDate?: string;
-    emailHash?: string;
-    environment?: string;
-  }>(request);
+  const body = await parseBody<ReceiptVerifyBody>(request);
 
   if (!body || !body.transactionID || !body.productID) {
     return json({ error: "Missing transactionID or productID" }, 400, env);
   }
 
-  // Determine what was purchased
-  const isVerifiedPurchase = body.productID === "com.blip.verified";
-  const messageCredits = getMessageCredits(body.productID);
-
-  const sql = await getDb(env);
-  if (!sql && body.emailHash) {
-    return json({ error: "Database not configured" }, 503, env);
-  }
-
-  // Update user in database if we have emailHash and database
-  if (sql && body.emailHash) {
-    try {
-      if (isVerifiedPurchase) {
-        await sql`
-          UPDATE users SET is_verified = TRUE, updated_at = NOW()
-          WHERE email_hash = ${body.emailHash}
-        `;
-      } else if (messageCredits > 0) {
-        await sql`
-          UPDATE users SET
-            message_balance = message_balance + ${messageCredits},
-            updated_at = NOW()
-          WHERE email_hash = ${body.emailHash}
-        `;
-      }
-    } catch {
-      // Log but don't fail — the local purchase is already credited
-    }
-  }
-
-  return json({
-    valid: true,
-    isVerified: isVerifiedPurchase,
-    credits: messageCredits,
-  }, 200, env);
+  return json({ error: "Receipt verification is not configured" }, 501, env);
 }
 
 function getMessageCredits(productID: string): number {
@@ -409,6 +379,49 @@ function generateCode(): string {
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function isValidEmailHash(emailHash: string): boolean {
+  return /^[a-f0-9]{64}$/i.test(emailHash);
+}
+
+export function sanitizeRegisterBody(
+  body: RegisterBody | null
+): { emailHash: string; username: string; createdAt: string } | null {
+  if (!body?.emailHash || !body.username) {
+    return null;
+  }
+
+  const emailHash = body.emailHash.trim().toLowerCase();
+  const username = body.username.trim();
+
+  if (!emailHash || !username || !isValidEmailHash(emailHash)) {
+    return null;
+  }
+
+  return {
+    emailHash,
+    username,
+    createdAt: body.createdAt ?? new Date().toISOString(),
+  };
+}
+
+export function sanitizeSyncBody(
+  body: SyncBody | null
+): { emailHash: string; lastActiveAt: string | null } | null {
+  if (!body?.emailHash) {
+    return null;
+  }
+
+  const emailHash = body.emailHash.trim().toLowerCase();
+  if (!isValidEmailHash(emailHash)) {
+    return null;
+  }
+
+  return {
+    emailHash,
+    lastActiveAt: body.lastActiveAt ?? null,
+  };
 }
 
 async function parseBody<T>(request: Request): Promise<T | null> {

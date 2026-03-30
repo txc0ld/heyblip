@@ -113,8 +113,7 @@ final class ProfileViewModel {
             }
 
             // Load preferences
-            let prefsDescriptor = FetchDescriptor<UserPreferences>()
-            preferences = try context.fetch(prefsDescriptor).first
+            preferences = try loadOrCreatePreferences(in: context)
 
             // Load friends
             let friendDescriptor = FetchDescriptor<Friend>(
@@ -405,5 +404,17 @@ final class ProfileViewModel {
     func clearMessages() {
         errorMessage = nil
         successMessage = nil
+    }
+
+    private func loadOrCreatePreferences(in context: ModelContext) throws -> UserPreferences {
+        let descriptor = FetchDescriptor<UserPreferences>()
+        if let existing = try context.fetch(descriptor).first {
+            return existing
+        }
+
+        let preferences = UserPreferences()
+        context.insert(preferences)
+        try context.save()
+        return preferences
     }
 }

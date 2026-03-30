@@ -46,6 +46,20 @@ final class ChatViewModelTests: XCTestCase {
         return channel
     }
 
+    private func makeUser(username: String, displayName: String? = nil) -> User {
+        let context = ModelContext(container)
+        let user = User(
+            username: username,
+            displayName: displayName ?? username,
+            emailHash: "\(username)-hash",
+            noisePublicKey: Data(username.utf8),
+            signingPublicKey: Data("\(username)-signing".utf8)
+        )
+        context.insert(user)
+        try? context.save()
+        return user
+    }
+
     /// Create a message in the in-memory store.
     private func makeMessage(
         channel: Channel,
@@ -97,6 +111,32 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage, "Error should be set on failure")
         XCTAssertEqual(vm.activeMessages.count, 0, "Failed message should not be in active messages")
         XCTAssertFalse(vm.isSending)
+    }
+
+    func testCreateDMChannelCreatesMembershipForPersistedUser() async {
+        let user = makeUser(username: "alex", displayName: "Alex")
+
+        let channel = await vm.createDMChannel(with: user)
+
+        XCTAssertNotNil(channel)
+        XCTAssertEqual(channel?.type, .dm)
+        XCTAssertEqual(channel?.name, "Alex")
+        XCTAssertEqual(channel?.memberships.count, 1)
+        XCTAssertEqual(channel?.memberships.first?.user?.username, "alex")
+    }
+
+    func testCreateDMChannelReturnsExistingChannelInsteadOfDuplicating() async {
+        let user = makeUser(username: "sam", displayName: "Sam")
+
+        let firstChannel = await vm.createDMChannel(with: user)
+        let secondChannel = await vm.createDMChannel(with: user)
+
+        XCTAssertEqual(firstChannel?.id, secondChannel?.id)
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.typeRaw == "dm" })
+        let channels = (try? context.fetch(descriptor)) ?? []
+        XCTAssertEqual(channels.count, 1)
     }
 
     // MARK: - Receive Message

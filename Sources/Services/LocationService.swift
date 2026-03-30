@@ -92,9 +92,14 @@ final class LocationService: NSObject, @unchecked Sendable {
         locationManager = CLLocationManager()
         super.init()
         locationManager.delegate = self
-        locationManager.allowsBackgroundLocationUpdates = true
         locationManager.pausesLocationUpdatesAutomatically = false
+#if targetEnvironment(simulator)
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.showsBackgroundLocationIndicator = false
+#else
+        locationManager.allowsBackgroundLocationUpdates = true
         locationManager.showsBackgroundLocationIndicator = true
+#endif
     }
 
     // MARK: - Authorization

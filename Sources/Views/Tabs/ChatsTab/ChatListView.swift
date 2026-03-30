@@ -7,14 +7,14 @@ import SwiftData
 /// Pull-to-refresh, floating action button for new message.
 struct ChatListView: View {
 
+    var chatViewModel: ChatViewModel? = nil
+
+    @Query private var friends: [Friend]
     @State private var searchText: String = ""
     @State private var isRefreshing = false
     @State private var showNewMessage = false
     @State private var selectedConversation: ConversationPreview? = nil
-    @State private var chatViewModel: ChatViewModel?
     @Environment(\.theme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         NavigationStack {
@@ -42,14 +42,6 @@ struct ChatListView: View {
         }
         .tint(Color.blipAccentPurple)
         .task {
-            if chatViewModel == nil {
-                let container = modelContext.container
-                let messageService = MessageService(modelContainer: container)
-                chatViewModel = ChatViewModel(
-                    modelContainer: container,
-                    messageService: messageService
-                )
-            }
             await chatViewModel?.loadChannels()
         }
     }
@@ -72,10 +64,14 @@ struct ChatListView: View {
                     ) { index, conversation in
                         ChatListCell(
                             conversation: conversation,
-                            index: index
-                        ) {
-                            selectedConversation = conversation
-                        }
+                            index: index,
+                            onTap: {
+                                selectedConversation = conversation
+                            },
+                            onToggleMute: {
+                                toggleMute(for: conversation)
+                            }
+                        )
                     }
                 }
             }
@@ -157,21 +153,66 @@ struct ChatListView: View {
                 GradientBackground()
                     .ignoresSafeArea()
 
-                VStack(spacing: BlipSpacing.lg) {
-                    Image(systemName: "plus.bubble.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.blipAccentPurple)
+                if availableFriends.isEmpty {
+                    VStack(spacing: BlipSpacing.lg) {
+                        Image(systemName: "person.2.slash")
+                            .font(.system(size: 48))
+                            .foregroundStyle(theme.colors.mutedText)
 
-                    Text("New Message")
-                        .font(theme.typography.headline)
-                        .foregroundStyle(theme.colors.text)
+                        Text("No friends ready to message")
+                            .font(theme.typography.headline)
+                            .foregroundStyle(theme.colors.text)
 
-                    Text("Select a friend or nearby person to start chatting.")
-                        .font(theme.typography.secondary)
-                        .foregroundStyle(theme.colors.mutedText)
-                        .multilineTextAlignment(.center)
+                        Text("Accept a friend request first, then start the chat from here.")
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(BlipSpacing.xl)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: BlipSpacing.sm) {
+                            ForEach(availableFriends, id: \.id) { friend in
+                                Button {
+                                    startConversation(with: friend)
+                                } label: {
+                                    HStack(spacing: BlipSpacing.md) {
+                                        AvatarView(
+                                            imageData: friend.user?.avatarThumbnail,
+                                            name: friend.user?.resolvedDisplayName ?? friend.user?.username ?? "Friend",
+                                            size: BlipSizing.avatarSmall,
+                                            ringStyle: .friend,
+                                            showOnlineIndicator: friend.lastSeenAt?.timeIntervalSinceNow ?? -.infinity > -300
+                                        )
+
+                                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                                            Text(friend.user?.resolvedDisplayName ?? friend.user?.username ?? "Friend")
+                                                .font(theme.typography.body)
+                                                .foregroundStyle(theme.colors.text)
+
+                                            Text("@\(friend.user?.username ?? "unknown")")
+                                                .font(theme.typography.caption)
+                                                .foregroundStyle(theme.colors.mutedText)
+                                        }
+
+                                        Spacer()
+
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(theme.colors.mutedText)
+                                    }
+                                    .padding(BlipSpacing.md)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                                            .fill(.ultraThinMaterial)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(BlipSpacing.md)
+                    }
                 }
-                .padding(BlipSpacing.xl)
             }
             .navigationTitle("New Message")
             .navigationBarTitleDisplayMode(.inline)
@@ -291,6 +332,57 @@ struct ChatListView: View {
         isRefreshing = true
         await chatViewModel?.loadChannels()
         isRefreshing = false
+    }
+
+    private var availableFriends: [Friend] {
+        friends.filter { $0.status == .accepted && $0.user != nil }
+    }
+
+    private func startConversation(with friend: Friend) {
+        guard let user = friend.user else { return }
+        Task {
+            guard let channel = await chatViewModel?.createDMChannel(with: user) else { return }
+            await chatViewModel?.loadChannels()
+            await MainActor.run {
+                selectedConversation = makeConversationPreview(for: channel)
+                showNewMessage = false
+            }
+        }
+    }
+
+    private func toggleMute(for conversation: ConversationPreview) {
+        guard let channel = chatViewModel?.channels.first(where: { $0.id == conversation.id }) else {
+            return
+        }
+
+        chatViewModel?.toggleMute(for: channel)
+
+        Task {
+            await chatViewModel?.loadChannels()
+        }
+    }
+
+    private func makeConversationPreview(for channel: Channel) -> ConversationPreview {
+        let lastMessage = channel.messages.sorted(by: { $0.createdAt < $1.createdAt }).last
+        let unread = chatViewModel?.unreadCounts[channel.id] ?? 0
+
+        return ConversationPreview(
+            id: channel.id,
+            displayName: channel.name ?? "Chat",
+            avatarData: nil,
+            lastMessagePreview: lastMessage.flatMap {
+                String(data: $0.encryptedPayload, encoding: .utf8)
+            } ?? "",
+            timestamp: channel.lastActivityAt,
+            unreadCount: unread,
+            isOnline: false,
+            isPinned: false,
+            isMuted: channel.isMuted,
+            isFromMe: lastMessage?.sender == nil,
+            deliveryStatus: lastMessage.map { Self.mapDeliveryStatus($0.status) } ?? .sent,
+            ringStyle: channel.isGroup ? .none : .friend,
+            messageType: lastMessage.map { $0.type } ?? .text
+        )
     }
 }
 

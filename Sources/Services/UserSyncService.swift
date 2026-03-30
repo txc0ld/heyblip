@@ -77,12 +77,10 @@ final class UserSyncService: Sendable {
         isVerified: Bool? = nil,
         messageBalance: Int? = nil
     ) async throws {
-        var body: [String: Any] = [
+        let body: [String: Any] = [
             "emailHash": emailHash,
             "lastActiveAt": ISO8601DateFormatter().string(from: Date())
         ]
-        if let isVerified { body["isVerified"] = isVerified }
-        if let messageBalance { body["messageBalance"] = messageBalance }
 
         let (data, response) = try await post(path: "/users/sync", body: body)
 

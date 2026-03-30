@@ -6,6 +6,9 @@ import SwiftUI
 /// recovery export, and about/legal sections.
 struct SettingsView: View {
 
+    var profileViewModel: ProfileViewModel? = nil
+    var onSignOut: (() -> Void)? = nil
+
     @AppStorage("appTheme") private var selectedTheme: AppTheme = .system
     @AppStorage("locationPrecision") private var locationSharing: String = LocationPrecision.fuzzy.rawValue
     @AppStorage("pushNotifications") private var notificationsEnabled: Bool = true
@@ -18,9 +21,10 @@ struct SettingsView: View {
     @State private var showExportRecovery: Bool = false
     @State private var showDeleteConfirm: Bool = false
     @State private var showSignOutConfirm: Bool = false
+    @State private var isHydratingPreferences = false
 
     @Environment(\.theme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -59,30 +63,33 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Export Recovery Kit", isPresented: $showExportRecovery) {
-            Button("Export") {
-                // Export encrypted keypair backup
-            }
-            Button("Cancel", role: .cancel) {}
+        .task {
+            await profileViewModel?.loadProfile()
+            hydrateFromPreferences()
+        }
+        .alert("Recovery Kit Export Unavailable", isPresented: $showExportRecovery) {
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("This will create a password-protected backup of your encryption keys. Keep it safe -- you'll need it to recover your identity on a new device.")
+            Text("Recovery-kit export is disabled in this build until file export and password flow are wired end to end.")
         }
         .alert("Sign Out", isPresented: $showSignOutConfirm) {
             Button("Sign Out", role: .destructive) {
-                // Clear session and return to onboarding
-                UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                if let onSignOut {
+                    onSignOut()
+                    dismiss()
+                } else {
+                    UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                    dismiss()
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will clear your local session. You can sign back in with your email to restore your account.")
+            Text("This clears the local identity on this device, wipes local data, and returns you to setup. Remote account restore is not available yet.")
         }
-        .alert("Delete Account", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                // Delete account
-            }
-            Button("Cancel", role: .cancel) {}
+        .alert("Account Deletion Unavailable", isPresented: $showDeleteConfirm) {
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("This will permanently delete your keys and all local data. Friends will see you as a new user if you re-register. This cannot be undone.")
+            Text("Remote account deletion is not wired in this build. Local sign-out above is the only supported reset path.")
         }
     }
 
@@ -92,7 +99,7 @@ struct SettingsView: View {
         settingsGroup(title: "Appearance", icon: "paintbrush.fill") {
             VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Theme") {
-                    Picker("Theme", selection: $selectedTheme) {
+                    Picker("Theme", selection: themeBinding) {
                         ForEach(AppTheme.allCases, id: \.self) { themeOption in
                             Label(themeOption.label, systemImage: themeOption.icon)
                                 .tag(themeOption)
@@ -138,7 +145,7 @@ struct SettingsView: View {
         settingsGroup(title: "Location", icon: "location.fill") {
             VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Default Sharing") {
-                    Picker("Precision", selection: $locationSharing) {
+                    Picker("Precision", selection: locationSharingBinding) {
                         Text("Precise").tag(LocationPrecision.precise.rawValue)
                         Text("Fuzzy").tag(LocationPrecision.fuzzy.rawValue)
                         Text("Off").tag(LocationPrecision.off.rawValue)
@@ -147,11 +154,11 @@ struct SettingsView: View {
                     .frame(maxWidth: 220)
                 }
 
-                settingsToggleRow(title: "Proximity Alerts", subtitle: "Get notified when friends are nearby", isOn: $proximityAlerts)
+                settingsToggleRow(title: "Proximity Alerts", subtitle: "Get notified when friends are nearby", isOn: proximityAlertsBinding)
 
-                settingsToggleRow(title: "Breadcrumb Trails", subtitle: "Track friend movement (opt-in, auto-deleted)", isOn: $breadcrumbs)
+                settingsToggleRow(title: "Breadcrumb Trails", subtitle: "Track friend movement (opt-in, auto-deleted)", isOn: breadcrumbsBinding)
 
-                settingsToggleRow(title: "Crowd Pulse", subtitle: "Show crowd density heatmap", isOn: $crowdPulseVisible)
+                settingsToggleRow(title: "Crowd Pulse", subtitle: "Show crowd density heatmap", isOn: crowdPulseBinding)
             }
         }
     }
@@ -161,9 +168,9 @@ struct SettingsView: View {
     private var notificationsSection: some View {
         settingsGroup(title: "Notifications", icon: "bell.fill") {
             VStack(spacing: BlipSpacing.md) {
-                settingsToggleRow(title: "Push Notifications", subtitle: "Receive notifications for messages", isOn: $notificationsEnabled)
+                settingsToggleRow(title: "Push Notifications", subtitle: "Receive notifications for messages", isOn: notificationsBinding)
 
-                settingsToggleRow(title: "Auto-Join Channels", subtitle: "Automatically join nearby location channels", isOn: $autoJoinChannels)
+                settingsToggleRow(title: "Auto-Join Channels", subtitle: "Automatically join nearby location channels", isOn: autoJoinChannelsBinding)
             }
         }
     }
@@ -174,7 +181,7 @@ struct SettingsView: View {
         settingsGroup(title: "Chat", icon: "message.fill") {
             VStack(spacing: BlipSpacing.md) {
                 settingsRow(title: "Push-to-Talk Mode") {
-                    Picker("PTT Mode", selection: $pttModeRaw) {
+                    Picker("PTT Mode", selection: pttModeBinding) {
                         Text("Hold").tag(PTTMode.holdToTalk.rawValue)
                         Text("Toggle").tag(PTTMode.toggleTalk.rawValue)
                     }
@@ -190,14 +197,14 @@ struct SettingsView: View {
     private var securitySection: some View {
         settingsGroup(title: "Security", icon: "lock.fill") {
             VStack(spacing: BlipSpacing.md) {
-                Button(action: { showExportRecovery = true }) {
+                Button(action: {}) {
                     HStack {
                         VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Export Recovery Kit")
+                            Text("Recovery Kit Export")
                                 .font(theme.typography.body)
                                 .foregroundStyle(theme.colors.text)
 
-                            Text("Encrypted backup of your encryption keys")
+                            Text("Unavailable in this build until file export is wired")
                                 .font(theme.typography.caption)
                                 .foregroundStyle(theme.colors.mutedText)
                         }
@@ -211,6 +218,8 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
                 .accessibilityLabel("Export recovery kit")
             }
         }
@@ -237,6 +246,8 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
 
                 Button(action: {}) {
                     HStack {
@@ -251,6 +262,8 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
 
                 Button(action: {}) {
                     HStack {
@@ -265,6 +278,8 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
             }
         }
     }
@@ -299,14 +314,14 @@ struct SettingsView: View {
                 Divider().opacity(0.15)
 
                 // Export My Data
-                Button(action: { exportUserData() }) {
+                Button(action: {}) {
                     HStack {
                         VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Export My Data")
                                 .font(theme.typography.body)
                                 .foregroundStyle(theme.colors.text)
 
-                            Text("Export profile as JSON to Files")
+                            Text("Unavailable in this build until account export is wired")
                                 .font(theme.typography.caption)
                                 .foregroundStyle(theme.colors.mutedText)
                         }
@@ -318,12 +333,14 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
                 .accessibilityLabel("Export my data as JSON")
 
                 Divider().opacity(0.15)
 
                 // Delete Account
-                Button(action: { showDeleteConfirm = true }) {
+                Button(action: {}) {
                     HStack {
                         Text("Delete Account & Data")
                             .font(theme.typography.body)
@@ -336,6 +353,8 @@ struct SettingsView: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                 }
                 .buttonStyle(.plain)
+                .disabled(true)
+                .opacity(0.5)
                 .accessibilityLabel("Delete account and all data")
             }
         }
@@ -343,9 +362,109 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func exportUserData() {
-        // Export user profile as JSON via share sheet
-        // Will be wired to real SwiftData user in Part C
+    private func hydrateFromPreferences() {
+        guard let preferences = profileViewModel?.preferences else { return }
+
+        isHydratingPreferences = true
+        selectedTheme = preferences.theme
+        locationSharing = preferences.defaultLocationSharing.rawValue
+        notificationsEnabled = preferences.notificationsEnabled
+        proximityAlerts = preferences.proximityAlertsEnabled
+        pttModeRaw = preferences.pttMode.rawValue
+        autoJoinChannels = preferences.autoJoinNearbyChannels
+        crowdPulseVisible = preferences.crowdPulseVisible
+        breadcrumbs = preferences.breadcrumbsEnabled
+        isHydratingPreferences = false
+    }
+
+    // MARK: - Preference Bindings
+
+    private var themeBinding: Binding<AppTheme> {
+        Binding(
+            get: { profileViewModel?.preferences?.theme ?? selectedTheme },
+            set: { newValue in
+                selectedTheme = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(theme: newValue)
+            }
+        )
+    }
+
+    private var locationSharingBinding: Binding<String> {
+        Binding(
+            get: { profileViewModel?.preferences?.defaultLocationSharing.rawValue ?? locationSharing },
+            set: { newValue in
+                locationSharing = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(defaultLocationSharing: LocationPrecision(rawValue: newValue) ?? .off)
+            }
+        )
+    }
+
+    private var notificationsBinding: Binding<Bool> {
+        Binding(
+            get: { profileViewModel?.preferences?.notificationsEnabled ?? notificationsEnabled },
+            set: { newValue in
+                notificationsEnabled = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(notificationsEnabled: newValue)
+            }
+        )
+    }
+
+    private var proximityAlertsBinding: Binding<Bool> {
+        Binding(
+            get: { profileViewModel?.preferences?.proximityAlertsEnabled ?? proximityAlerts },
+            set: { newValue in
+                proximityAlerts = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(proximityAlertsEnabled: newValue)
+            }
+        )
+    }
+
+    private var breadcrumbsBinding: Binding<Bool> {
+        Binding(
+            get: { profileViewModel?.preferences?.breadcrumbsEnabled ?? breadcrumbs },
+            set: { newValue in
+                breadcrumbs = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(breadcrumbsEnabled: newValue)
+            }
+        )
+    }
+
+    private var crowdPulseBinding: Binding<Bool> {
+        Binding(
+            get: { profileViewModel?.preferences?.crowdPulseVisible ?? crowdPulseVisible },
+            set: { newValue in
+                crowdPulseVisible = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(crowdPulseVisible: newValue)
+            }
+        )
+    }
+
+    private var pttModeBinding: Binding<String> {
+        Binding(
+            get: { profileViewModel?.preferences?.pttMode.rawValue ?? pttModeRaw },
+            set: { newValue in
+                pttModeRaw = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(pttMode: PTTMode(rawValue: newValue) ?? .holdToTalk)
+            }
+        )
+    }
+
+    private var autoJoinChannelsBinding: Binding<Bool> {
+        Binding(
+            get: { profileViewModel?.preferences?.autoJoinNearbyChannels ?? autoJoinChannels },
+            set: { newValue in
+                autoJoinChannels = newValue
+                guard !isHydratingPreferences else { return }
+                profileViewModel?.updatePreferences(autoJoinNearbyChannels: newValue)
+            }
+        )
     }
 
     // MARK: - Reusable Components

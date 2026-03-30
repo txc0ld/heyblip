@@ -27,6 +27,7 @@ struct CreateProfileStep: View {
     @State private var contentVisible = false
     @State private var resendCooldown: Int = 0
     @FocusState private var focusedField: Field?
+    @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -433,6 +434,11 @@ struct CreateProfileStep: View {
                 transactionID: "onboarding-starter-\(UUID().uuidString)"
             )
             modelContext.insert(starterPack)
+
+            let preferences = UserPreferences()
+            preferences.theme = appTheme
+            preferences.defaultLocationSharing = .fuzzy
+            modelContext.insert(preferences)
 
             try modelContext.save()
 

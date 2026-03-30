@@ -4,12 +4,13 @@ import SwiftUI
 
 /// A single conversation row in the chat list.
 /// Glass card with avatar, name, last message preview, timestamp, unread badge.
-/// Supports swipe actions: pin, mute, archive.
+/// Only exposes swipe actions that are wired in the current build.
 struct ChatListCell: View {
 
     let conversation: ConversationPreview
     let index: Int
     var onTap: () -> Void = {}
+    var onToggleMute: (() -> Void)? = nil
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -94,33 +95,15 @@ struct ChatListCell: View {
         .frame(minHeight: BlipSizing.minTapTarget)
         .staggeredReveal(index: index)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                // Archive action
-            } label: {
-                Label("Archive", systemImage: "archivebox.fill")
+            if let onToggleMute {
+                Button(action: onToggleMute) {
+                    Label(
+                        conversation.isMuted ? "Unmute" : "Mute",
+                        systemImage: conversation.isMuted ? "bell.fill" : "bell.slash.fill"
+                    )
+                }
+                .tint(.orange)
             }
-            .tint(.gray)
-
-            Button {
-                // Mute action
-            } label: {
-                Label(
-                    conversation.isMuted ? "Unmute" : "Mute",
-                    systemImage: conversation.isMuted ? "bell.fill" : "bell.slash.fill"
-                )
-            }
-            .tint(.orange)
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Button {
-                // Pin action
-            } label: {
-                Label(
-                    conversation.isPinned ? "Unpin" : "Pin",
-                    systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill"
-                )
-            }
-            .tint(Color.blipAccentPurple)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)

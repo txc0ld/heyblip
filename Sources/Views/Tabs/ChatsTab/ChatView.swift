@@ -19,6 +19,7 @@ struct ChatView: View {
     @State private var isPTTRecording = false
     @State private var pttAudioLevels: [Float] = []
 
+    @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
@@ -94,7 +95,9 @@ struct ChatView: View {
                     isPTTRecording = false
                     pttAudioLevels = []
                 },
-                messagesRemaining: nil,
+                messagesRemaining: coordinator.profileViewModel?.isUnlimited == true
+                    ? nil
+                    : coordinator.profileViewModel?.messageBalance,
                 onLowBalanceTap: {
                     showPaywall = true
                 }
@@ -292,6 +295,7 @@ struct ChatView: View {
     private func sendMessage() async {
         guard let vm = chatViewModel else { return }
         await vm.sendTextMessage()
+        await coordinator.profileViewModel?.loadProfile()
     }
 
     // MARK: - Formatting
@@ -319,6 +323,7 @@ struct ChatView: View {
         )
     }
     .background(GradientBackground())
+    .environment(AppCoordinator())
     .environment(\.theme, Theme.shared)
 }
 
@@ -329,6 +334,7 @@ struct ChatView: View {
         )
     }
     .background(Color.white)
+    .environment(AppCoordinator())
     .environment(\.theme, Theme.resolved(for: .light))
     .preferredColorScheme(.light)
 }

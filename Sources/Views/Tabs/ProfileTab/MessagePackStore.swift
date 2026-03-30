@@ -110,7 +110,7 @@ struct MessagePackStore: View {
                                 .fontWeight(.semibold)
                                 .foregroundStyle(theme.colors.text)
 
-                            Text("One-time purchase \u{00B7} $14.99")
+                            Text("Unavailable until StoreKit verification is wired")
                                 .font(theme.typography.caption)
                                 .foregroundStyle(theme.colors.mutedText)
                         }
@@ -118,11 +118,9 @@ struct MessagePackStore: View {
 
                     Spacer()
 
-                    if user?.isVerified != true {
-                        Image(systemName: "chevron.right")
-                            .font(theme.typography.caption)
-                            .foregroundStyle(theme.colors.mutedText)
-                    }
+                    Image(systemName: "info.circle")
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.mutedText)
                 }
             }
         }

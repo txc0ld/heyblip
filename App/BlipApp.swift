@@ -85,7 +85,7 @@ struct RootView: View {
                 }
 
             case .main:
-                MainTabView()
+                MainTabView(coordinator: coordinator)
                     .transition(.opacity)
                     .onAppear {
                         if coordinator.isReady {
@@ -98,6 +98,13 @@ struct RootView: View {
             }
         }
         .animation(SpringConstants.accessibleReveal, value: appPhase)
+        .onChange(of: coordinator.needsOnboarding) { _, needsOnboarding in
+            guard needsOnboarding else { return }
+            hasCompletedOnboarding = false
+            withAnimation(SpringConstants.accessibleReveal) {
+                appPhase = .onboarding
+            }
+        }
     }
 
     // MARK: - Onboarding Completion
@@ -184,4 +191,3 @@ struct RootView: View {
         .transition(.opacity)
     }
 }
-

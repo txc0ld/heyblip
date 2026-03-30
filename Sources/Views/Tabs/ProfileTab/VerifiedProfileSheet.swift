@@ -10,13 +10,8 @@ struct VerifiedProfileSheet: View {
     @Binding var isPresented: Bool
 
     @Query private var users: [User]
-    @State private var isPurchasing = false
-    @State private var purchaseError: String?
-    @State private var purchaseSuccess = false
 
     @Environment(\.theme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.modelContext) private var modelContext
 
     private var user: User? { users.first }
 
@@ -31,9 +26,6 @@ struct VerifiedProfileSheet: View {
                     priceSection
                     ctaSection
 
-                    if let error = purchaseError {
-                        errorBanner(error)
-                    }
                 }
                 .padding(BlipSpacing.lg)
             }
@@ -139,19 +131,22 @@ struct VerifiedProfileSheet: View {
 
     private var ctaSection: some View {
         VStack(spacing: BlipSpacing.md) {
-            if purchaseSuccess {
-                successView
-            } else if user?.isVerified == true {
+            if user?.isVerified == true {
                 alreadyVerifiedView
             } else {
-                GlassButton(
-                    "Get Verified - $14.99",
-                    icon: "checkmark.seal",
-                    isLoading: isPurchasing
-                ) {
-                    purchaseVerified()
+                GlassCard(thickness: .regular) {
+                    VStack(spacing: BlipSpacing.sm) {
+                        Text("Verification purchases are unavailable in this build.")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.text)
+                            .multilineTextAlignment(.center)
+
+                        Text("The previous CTA only flipped local state, so it has been disabled until StoreKit and server-backed verification are wired.")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+                    }
                 }
-                .fullWidth()
             }
 
             Button(action: { isPresented = false }) {
@@ -160,18 +155,6 @@ struct VerifiedProfileSheet: View {
                     .foregroundStyle(theme.colors.mutedText)
             }
             .frame(minHeight: BlipSizing.minTapTarget)
-        }
-    }
-
-    private var successView: some View {
-        VStack(spacing: BlipSpacing.sm) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.blipAccentPurple)
-
-            Text("You're Verified!")
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.text)
         }
     }
 
@@ -185,36 +168,6 @@ struct VerifiedProfileSheet: View {
         }
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        GlassCard(thickness: .regular) {
-            HStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(BlipColors.adaptive.statusAmber)
-                Text(message)
-                    .font(theme.typography.caption)
-                    .foregroundStyle(theme.colors.mutedText)
-            }
-        }
-    }
-
-    // MARK: - Purchase
-
-    private func purchaseVerified() {
-        isPurchasing = true
-        purchaseError = nil
-
-        // StoreKit 2 purchase will be wired via StoreViewModel.
-        // For now, set isVerified directly for development.
-        Task { @MainActor in
-            defer { isPurchasing = false }
-
-            if let user {
-                user.isVerified = true
-                try? modelContext.save()
-                purchaseSuccess = true
-            }
-        }
-    }
 }
 
 // MARK: - Preview

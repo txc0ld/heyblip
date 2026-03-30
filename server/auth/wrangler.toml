@@ -6,8 +6,8 @@ compatibility_date = "2025-03-01"
 FROM_EMAIL = "verify@blip.app"
 CODE_TTL_SECONDS = "600"
 MAX_SENDS_PER_HOUR = "3"
-# Set to "true" to skip Resend and accept code 000000. Remove for production.
-DEV_BYPASS = "true"
+# Set to "true" only for local development to skip Resend and accept code 000000.
+DEV_BYPASS = "false"
 
 # Set RESEND_API_KEY via `wrangler secret put RESEND_API_KEY`
 # Set DATABASE_URL via `wrangler secret put DATABASE_URL`

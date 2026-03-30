@@ -63,9 +63,6 @@ final class ChatViewModel {
     /// Typing indicator cleanup timers keyed by "\(channelID)_\(peerID)".
     private var typingTimers: [String: Timer] = [:]
 
-    /// Notification observer for incoming messages.
-    nonisolated(unsafe) private var messageObservation: NSObjectProtocol?
-
     // MARK: - Init
 
     init(
@@ -78,23 +75,7 @@ final class ChatViewModel {
         self.messageService = messageService
         self.audioService = audioService
         self.imageService = imageService
-
-        messageObservation = NotificationCenter.default.addObserver(
-            forName: .didReceiveBlipMessage,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let self else { return }
-            guard let channelID = notification.userInfo?["channelID"] as? UUID,
-                  let messageID = notification.userInfo?["messageID"] as? UUID else { return }
-            Task { @MainActor in
-                self.handleReceivedMessageNotification(messageID: messageID, channelID: channelID)
-            }
-        }
-    }
-
-    deinit {
-        if let obs = messageObservation { NotificationCenter.default.removeObserver(obs) }
+        self.messageService.delegate = self
     }
 
     // MARK: - Channel List
@@ -120,9 +101,26 @@ final class ChatViewModel {
     /// Create a new DM channel with a user.
     func createDMChannel(with user: User) async -> Channel? {
         let context = ModelContext(modelContainer)
+        let userID = user.id
+
+        let userDescriptor = FetchDescriptor<User>(predicate: #Predicate { candidate in
+            candidate.id == userID
+        })
+
+        let persistedUser: User
+        do {
+            guard let fetchedUser = try context.fetch(userDescriptor).first else {
+                errorMessage = "Could not find the selected user."
+                return nil
+            }
+            persistedUser = fetchedUser
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
 
         // Check if DM already exists
-        let username = user.username
+        let username = persistedUser.username
         let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
             $0.typeRaw == "dm"
         })
@@ -141,10 +139,10 @@ final class ChatViewModel {
         }
 
         // Create new DM channel
-        let channel = Channel(type: .dm, name: user.resolvedDisplayName)
+        let channel = Channel(type: .dm, name: persistedUser.resolvedDisplayName)
         context.insert(channel)
 
-        let membership = GroupMembership(user: user, channel: channel, role: .member)
+        let membership = GroupMembership(user: persistedUser, channel: channel, role: .member)
         context.insert(membership)
 
         do {
@@ -417,18 +415,6 @@ final class ChatViewModel {
         totalUnreadCount = total
     }
 
-    // MARK: - Message Reception
-
-    /// Handle incoming message notification — fetch from SwiftData and update UI.
-    private func handleReceivedMessageNotification(messageID: UUID, channelID: UUID) {
-        let context = ModelContext(modelContainer)
-        let msgDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
-        let chDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
-        guard let message = try? context.fetch(msgDesc).first,
-              let channel = try? context.fetch(chDesc).first else { return }
-        handleReceivedMessage(message, in: channel)
-    }
-
     /// Handle a newly received message (called by delegate or notification).
     func handleReceivedMessage(_ message: Message, in channel: Channel) {
         // Add to active messages if this is the open channel
@@ -486,5 +472,44 @@ final class ChatViewModel {
     /// Clear reply target.
     func clearReplyTarget() {
         replyTarget = nil
+    }
+}
+
+extension ChatViewModel: MessageServiceDelegate {
+    nonisolated func messageService(_ service: MessageService, didReceiveMessage message: Message, in channel: Channel) {
+        Task { @MainActor in
+            self.handleReceivedMessage(message, in: channel)
+        }
+    }
+
+    nonisolated func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID) {
+        Task { @MainActor in
+            if let activeIndex = self.activeMessages.firstIndex(where: { $0.id == messageID }) {
+                self.activeMessages[activeIndex].status = status
+            }
+        }
+    }
+
+    nonisolated func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID) {
+        let peerLabel = peerID.bytes
+            .prefix(4)
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        Task { @MainActor in
+            self.handleTypingIndicator(from: "Peer \(peerLabel)", in: channelID)
+        }
+    }
+
+    nonisolated func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID) {
+        Task { @MainActor in
+            self.handleDeliveryAck(for: messageID)
+        }
+    }
+
+    nonisolated func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID) {
+        Task { @MainActor in
+            self.handleReadReceipt(for: messageID)
+        }
     }
 }

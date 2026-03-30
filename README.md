@@ -35,8 +35,8 @@ When signal is available, Blip seamlessly falls back to WiFi and cellular. But t
 ## Features
 
 ### Mesh Chat
-- **1-on-1 DMs** — Private, end-to-end encrypted conversations
-- **Group chats** — Invite-only encrypted groups for your squad
+- **1-on-1 DMs** — Private chats over BLE mesh with signed packets; pairwise Noise encryption is still being wired end-to-end
+- **Group chats** — Invite-only group threads with signed transport; sender-key encryption remains in progress
 - **Location channels** — Auto-joined public channels based on where you are
 - **Stage channels** — Festival-specific channels per stage, auto-populated
 
@@ -112,19 +112,19 @@ When signal is available, Blip seamlessly falls back to WiFi and cellular. But t
 
 ## Security
 
-Every message is **end-to-end encrypted**. Relay nodes cannot read your messages.
+Packet signing is live. Full end-to-end encryption is **not** complete across the shipped app flows yet, and relay nodes should not currently be treated as unable to read private-message payloads.
 
 | Layer | Implementation |
 |---|---|
-| **Key Exchange** | Noise_XX_25519_ChaChaPoly_SHA256 |
+| **Key Exchange** | Noise_XX_25519_ChaChaPoly_SHA256 (implemented in package tests; not fully wired into all app message flows yet) |
 | **Signing** | Ed25519 (packet authenticity) |
-| **Group Encryption** | AES-256-GCM Sender Keys |
+| **Group Encryption** | AES-256-GCM Sender Keys (planned app integration) |
 | **Key Storage** | iOS Keychain (`kSecAttrAccessibleAfterFirstUnlock`) |
 | **Replay Protection** | Sliding window nonce (64-bit counter + 128-bit bitmap) |
 | **Traffic Analysis** | PKCS#7 padding to fixed block sizes |
 | **Phone Privacy** | SHA256(phone + per-user salt), never transmitted raw |
 
-No accounts. No servers reading your messages. No tracking. Keys are generated on your device and never leave it.
+No tracking. Keys are generated on your device and signing keys stay local. Until Noise transport is fully wired in the app, do not treat current private chat payloads as production-grade confidential messaging.
 
 ---
 

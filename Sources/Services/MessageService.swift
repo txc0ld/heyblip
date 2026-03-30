@@ -28,7 +28,7 @@ enum MessageServiceError: Error, Sendable {
 protocol MessageServiceDelegate: AnyObject, Sendable {
     func messageService(_ service: MessageService, didReceiveMessage message: Message, in channel: Channel)
     func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID)
-    func messageService(_ service: MessageService, didReceiveTypingIndicator from: PeerID, in channelID: UUID)
+    func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID)
     func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID)
     func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID)
 }
@@ -125,7 +125,7 @@ final class MessageService: @unchecked Sendable {
             sender: nil, // Local user, resolved via identity
             channel: channel,
             type: .text,
-            encryptedPayload: Data(),
+            encryptedPayload: content.data(using: .utf8) ?? Data(),
             status: .queued,
             replyTo: replyTo,
             createdAt: Date()
@@ -1090,7 +1090,7 @@ final class MessageService: @unchecked Sendable {
     private func handleTypingIndicator(from senderPeerID: PeerID, data: Data) {
         guard let channelIDString = String(data: data, encoding: .utf8),
               let channelID = UUID(uuidString: channelIDString) else { return }
-        delegate?.messageService(self, didReceiveTypingIndicator: senderPeerID, in: channelID)
+        delegate?.messageService(self, didReceiveTypingIndicatorFrom: senderPeerID, in: channelID)
     }
 
     @MainActor

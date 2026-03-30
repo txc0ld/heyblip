@@ -3,8 +3,8 @@ import SwiftUI
 // MARK: - MainTabView
 
 /// Root tab navigation with a custom floating glass tab bar.
-/// Tabs: Chats, Nearby, Festival (conditional), Profile.
-/// SOSButton overlay in the top-right of every tab.
+/// Tabs: Chats, Nearby, Festival, Profile.
+/// Keeps each tab mounted so navigation state and injected feature models are preserved.
 struct MainTabView: View {
 
     @State private var selectedTab: Tab = .chats
@@ -13,8 +13,7 @@ struct MainTabView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Whether the user is currently at a festival (controls Festival tab visibility).
-    var isAtFestival: Bool = false
+    let coordinator: AppCoordinator
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -34,22 +33,33 @@ struct MainTabView: View {
 
     // MARK: - Tab Content
 
-    @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
-        case .chats:
-            ChatListView()
-                .transition(.opacity)
-        case .nearby:
-            NearbyView()
-                .transition(.opacity)
-        case .festival:
-            FestivalView()
-                .transition(.opacity)
-        case .profile:
-            ProfileView()
-                .transition(.opacity)
+        ZStack {
+            tabLayer(.chats) {
+                ChatListView(chatViewModel: coordinator.chatViewModel)
+            }
+            tabLayer(.nearby) {
+                NearbyView()
+            }
+            tabLayer(.festival) {
+                FestivalView(festivalViewModel: coordinator.festivalViewModel)
+            }
+            tabLayer(.profile) {
+                ProfileView(
+                    profileViewModel: coordinator.profileViewModel,
+                    onSignOut: { coordinator.signOut() }
+                )
+            }
         }
+        .animation(SpringConstants.accessiblePageEntrance, value: selectedTab)
+    }
+
+    private func tabLayer<Content: View>(_ tab: Tab, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .opacity(selectedTab == tab ? 1 : 0)
+            .allowsHitTesting(selectedTab == tab)
+            .accessibilityHidden(selectedTab != tab)
+            .zIndex(selectedTab == tab ? 1 : 0)
     }
 
     // MARK: - Floating Glass Tab Bar
@@ -142,12 +152,7 @@ struct MainTabView: View {
     // MARK: - Tab Configuration
 
     private var visibleTabs: [Tab] {
-        var tabs: [Tab] = [.chats, .nearby]
-        if isAtFestival {
-            tabs.append(.festival)
-        }
-        tabs.append(.profile)
-        return tabs
+        [.chats, .nearby, .festival, .profile]
     }
 
     private let tabBarHeight: CGFloat = 70
@@ -233,17 +238,17 @@ extension MainTabView {
 // MARK: - Preview
 
 #Preview("Main Tab View") {
-    MainTabView()
+    MainTabView(coordinator: AppCoordinator())
         .environment(\.theme, Theme.shared)
 }
 
 #Preview("Main Tab View - With Festival") {
-    MainTabView(isAtFestival: true)
+    MainTabView(coordinator: AppCoordinator())
         .environment(\.theme, Theme.shared)
 }
 
 #Preview("Main Tab View - Light") {
-    MainTabView()
+    MainTabView(coordinator: AppCoordinator())
         .environment(\.theme, Theme.resolved(for: .light))
         .preferredColorScheme(.light)
 }

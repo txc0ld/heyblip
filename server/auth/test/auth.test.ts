@@ -4,7 +4,11 @@ import {
   waitOnExecutionContext,
 } from "cloudflare:test";
 import { describe, it, expect, beforeEach } from "vitest";
-import worker from "../src/index";
+import worker, {
+  isValidEmailHash,
+  sanitizeRegisterBody,
+  sanitizeSyncBody,
+} from "../src/index";
 
 type WorkerEnv = typeof env;
 
@@ -56,6 +60,7 @@ beforeEach(async () => {
   for (const key of keys.keys) {
     await env.CODES.delete(key.name);
   }
+  (env as Record<string, unknown>).DEV_BYPASS = "false";
 });
 
 // ─── Health ──────────────────────────────────────────────────
@@ -84,7 +89,7 @@ describe("POST /v1/auth/send-code", () => {
   });
 
   it("sends code successfully in DEV_BYPASS mode", async () => {
-    // DEV_BYPASS=true in wrangler.toml skips Resend and uses code 000000
+    (env as Record<string, unknown>).DEV_BYPASS = "true";
     const res = await request("POST", "/v1/auth/send-code", {
       email: "test@example.com",
     });
@@ -225,5 +230,49 @@ describe("edge cases", () => {
     await waitOnExecutionContext(ctx);
     expect(res.status).toBe(204);
     expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
+  });
+});
+
+describe("input hardening", () => {
+  it("validates email-hash format", () => {
+    expect(isValidEmailHash("a".repeat(64))).toBe(true);
+    expect(isValidEmailHash("not-a-hash")).toBe(false);
+  });
+
+  it("sanitizes registration payloads and strips privileged fields", () => {
+    expect(
+      sanitizeRegisterBody({
+        emailHash: "A".repeat(64),
+        username: "  alice  ",
+        isVerified: true,
+      })
+    ).toEqual({
+      emailHash: "a".repeat(64),
+      username: "alice",
+      createdAt: expect.any(String),
+    });
+  });
+
+  it("sanitizes sync payloads and ignores privileged fields", () => {
+    expect(
+      sanitizeSyncBody({
+        emailHash: "B".repeat(64),
+        isVerified: true,
+        messageBalance: 999,
+        lastActiveAt: "2026-03-30T00:00:00Z",
+      })
+    ).toEqual({
+      emailHash: "b".repeat(64),
+      lastActiveAt: "2026-03-30T00:00:00Z",
+    });
+  });
+
+  it("fails receipt verification closed", async () => {
+    const res = await request("POST", "/v1/receipts/verify", {
+      transactionID: "tx-1",
+      productID: "com.blip.social25",
+    });
+    expect(res.status).toBe(501);
+    expect((await json(res)).error).toContain("not configured");
   });
 });

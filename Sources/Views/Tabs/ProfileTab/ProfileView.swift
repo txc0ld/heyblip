@@ -8,21 +8,23 @@ import SwiftData
 /// Wired to SwiftData for real user data.
 struct ProfileView: View {
 
+    var profileViewModel: ProfileViewModel? = nil
+    var onSignOut: (() -> Void)? = nil
+
     @Query private var users: [User]
-    @AppStorage("messageBalance") private var messageBalance: Int = 0
 
     @State private var showEditProfile = false
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var showMessageStore = false
-    @State private var showVerifiedSheet = false
     @State private var showQRCode = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     /// The local user (first User in SwiftData).
-    private var user: User? { users.first }
+    private var user: User? { profileViewModel?.currentUser ?? users.first }
+    private var resolvedMessageBalance: Int { profileViewModel?.messageBalance ?? 0 }
 
     var body: some View {
         NavigationStack {
@@ -72,13 +74,20 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack {
-                    SettingsView()
+                    SettingsView(
+                        profileViewModel: profileViewModel,
+                        onSignOut: onSignOut
+                    )
                 }
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
             }
-            .sheet(isPresented: $showMessageStore) {
+            .sheet(isPresented: $showMessageStore, onDismiss: {
+                Task {
+                    await profileViewModel?.loadProfile()
+                }
+            }) {
                 NavigationStack {
                     MessagePackStore()
                 }
@@ -86,18 +95,27 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
             }
-            .sheet(isPresented: $showVerifiedSheet) {
-                VerifiedProfileSheet(isPresented: $showVerifiedSheet)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(.ultraThinMaterial)
-            }
             .sheet(isPresented: $showQRCode) {
                 if let user {
                     QRCodeSheet(user: user)
                         .presentationDetents([.medium])
                         .presentationDragIndicator(.visible)
                         .presentationBackground(.ultraThinMaterial)
+                }
+            }
+            .task {
+                await profileViewModel?.loadProfile()
+            }
+            .onChange(of: showMessageStore) { _, isPresented in
+                guard !isPresented else { return }
+                Task {
+                    await profileViewModel?.loadProfile()
+                }
+            }
+            .onChange(of: showSettings) { _, isPresented in
+                guard !isPresented else { return }
+                Task {
+                    await profileViewModel?.loadProfile()
                 }
             }
         }
@@ -232,9 +250,7 @@ struct ProfileView: View {
                     }
 
                     if !user.isVerified {
-                        GlassButton("Get Verified", icon: "checkmark.seal", style: .outline, size: .small) {
-                            showVerifiedSheet = true
-                        }
+                        verificationUnavailableBadge
                     }
                 }
             }
@@ -255,7 +271,7 @@ struct ProfileView: View {
                             .foregroundStyle(theme.colors.mutedText)
 
                         HStack(alignment: .firstTextBaseline, spacing: BlipSpacing.xs) {
-                            Text("\(messageBalance)")
+                            Text("\(resolvedMessageBalance)")
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(.blipAccentPurple)
                                 .contentTransition(.numericText())
@@ -276,7 +292,7 @@ struct ProfileView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, BlipSpacing.md)
-        .accessibilityLabel("Message balance: \(messageBalance) messages left. Tap to buy more.")
+        .accessibilityLabel("Message balance: \(resolvedMessageBalance) messages left. Tap to buy more.")
     }
 
     // MARK: - Quick Actions
@@ -294,7 +310,7 @@ struct ProfileView: View {
             }
 
             HStack(spacing: BlipSpacing.md) {
-                quickActionCard(icon: "bag.fill", title: "Message Packs", subtitle: "\(messageBalance) left") {
+                quickActionCard(icon: "bag.fill", title: "Message Packs", subtitle: "\(resolvedMessageBalance) left") {
                     showMessageStore = true
                 }
 
@@ -329,6 +345,23 @@ struct ProfileView: View {
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(title): \(subtitle)")
+    }
+
+    private var verificationUnavailableBadge: some View {
+        HStack(spacing: BlipSpacing.xs) {
+            Image(systemName: "lock.slash")
+                .font(.system(size: 12, weight: .medium))
+            Text("Verification unavailable")
+                .font(theme.typography.caption)
+        }
+        .foregroundStyle(theme.colors.mutedText)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
+        .background(
+            Capsule()
+                .fill(theme.colors.hover)
+        )
+        .accessibilityLabel("Verification unavailable in this build")
     }
 }
 
