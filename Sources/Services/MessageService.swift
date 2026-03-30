@@ -111,7 +111,12 @@ final class MessageService: @unchecked Sendable {
         }
 
         // Check message balance (text = 1 message credit)
-        try await deductMessageBalance()
+        do {
+            try await deductMessageBalance()
+        } catch {
+            DebugLogger.shared.log("TX", "BALANCE CHECK FAILED: \(error)", isError: true)
+            throw error
+        }
 
         let context = ModelContext(modelContainer)
 
@@ -533,7 +538,7 @@ final class MessageService: @unchecked Sendable {
         let compressed = PayloadCompressor.compressIfNeeded(taggedPayload, isPreCompressed: isPreCompressed)
 
         // Build flags
-        var flags: PacketFlags = [.hasSignature, .isReliable]
+        var flags: PacketFlags = [.isReliable]
         if compressed.wasCompressed {
             flags.insert(.isCompressed)
         }
@@ -542,6 +547,14 @@ final class MessageService: @unchecked Sendable {
             // DM: addressed to specific peer
             flags.insert(.hasRecipient)
             let recipientPeerID = resolveRecipientPeerID(for: channel)
+            let recipientHex = recipientPeerID?.bytes.prefix(4).map { String(format: "%02x", $0) }.joined() ?? "nil"
+            print("[Blip-TX] DM \(subType) → \(recipientHex) (\(compressed.data.count)B)")
+
+            if recipientPeerID == nil {
+                logger.warning("resolveRecipientPeerID returned nil for DM channel \(channel.id) — sending as broadcast")
+                print("[Blip-TX] WARN: recipient nil, broadcasting DM")
+            }
+
             let packet = buildPacket(
                 type: .noiseEncrypted,
                 payload: compressed.data,
@@ -552,6 +565,7 @@ final class MessageService: @unchecked Sendable {
             try sendPacket(packet)
         } else {
             // Group/channel: broadcast
+            print("[Blip-TX] BROADCAST \(subType) (\(compressed.data.count)B)")
             let packet = buildPacket(
                 type: .noiseEncrypted,
                 payload: compressed.data,
@@ -570,15 +584,30 @@ final class MessageService: @unchecked Sendable {
 
     private func sendPacket(_ packet: Packet) throws {
         guard let transport else {
+            print("[Blip-TX] SEND FAILED: no transport available")
             throw MessageServiceError.noTransportAvailable
         }
 
-        let wireData = try PacketSerializer.encode(packet)
+        let wireData: Data
+        do {
+            wireData = try PacketSerializer.encode(packet)
+        } catch {
+            print("[Blip-TX] ENCODE FAILED: \(error)")
+            throw error
+        }
 
         if let recipientID = packet.recipientID, !recipientID.isBroadcast {
-            try transport.send(data: wireData, to: recipientID)
+            do {
+                try transport.send(data: wireData, to: recipientID)
+                print("[Blip-TX] SENT \(wireData.count)B to \(recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined())")
+            } catch {
+                print("[Blip-TX] SEND FAILED to peer: \(error) — falling back to broadcast")
+                // Fallback: broadcast instead of failing silently
+                transport.broadcast(data: wireData)
+            }
         } else {
             transport.broadcast(data: wireData)
+            print("[Blip-TX] BROADCAST \(wireData.count)B")
         }
     }
 
@@ -679,9 +708,12 @@ final class MessageService: @unchecked Sendable {
 
         // Extract sub-type (first byte of decrypted payload)
         guard !payload.isEmpty, let subType = EncryptedSubType(rawValue: payload[payload.startIndex]) else {
+            DebugLogger.shared.log("RX", "Encrypted packet with empty/invalid subType", isError: true)
             return
         }
         let contentData = payload.dropFirst()
+        let senderHex = packet.senderID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("RX", "ENCRYPTED \(subType) from \(senderHex) (\(contentData.count)B)")
 
         switch subType {
         case .privateMessage, .groupMessage:
@@ -798,6 +830,7 @@ final class MessageService: @unchecked Sendable {
         }
 
         // Notify delegate and post notification for any active ChatViewModel
+        DebugLogger.shared.log("RX", "MSG stored: \(messageID) in channel \(channel.id)")
         delegate?.messageService(self, didReceiveMessage: message, in: channel)
         NotificationCenter.default.post(
             name: .didReceiveBlipMessage,
