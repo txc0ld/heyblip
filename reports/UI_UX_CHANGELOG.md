@@ -2,30 +2,31 @@
 
 ## What Changed
 
-- `PaywallSheet` now uses the real `StoreViewModel` and App Store product state instead of a simulated timer-based purchase flow.
-- Chat now opens the paywall with the coordinator-owned store model and refreshes profile balance on dismiss.
-- Profile store now reuses shared store state and shows retry/unavailable messaging instead of static fake catalog cards.
-- Nearby now uses real location-sharing state for Friend Finder context and explains permission/no-shared-location cases explicitly.
-- Friend Finder support code now stabilizes peer IDs and supports one-shot location refresh for display.
-- Lost & Found no longer pretends to post to a shared public channel when that channel is not wired.
-- Medical Dashboard no longer unlocks off a fake local code or show demo responder data as if live.
-- `ProfileSheet` secondary-action model was normalized to current `GlassButton.Style` usage to keep the build green on the current toolchain.
+- Added a shared `FriendFinderViewModel` to `AppCoordinator` so the map flow can use runtime-owned live state.
+- Stabilized friend-finder pin identity generation in `FriendFinderViewModel`.
+- Promoted the full friend-finder map from `NearbyView` with an explicit navigation path.
+- Reworked `FriendFinderMapView` to consume shared live state, remove fake crowd controls, and explain empty/location-dependent states clearly.
+- Kept `LostAndFoundView` visible but honest: no fake public posting in this build.
+- Kept `MedicalDashboardView` visible but honest: no local sample responder unlock or fabricated incidents.
+- Kept store/paywall surfaces on real StoreKit-backed state and preferred shared `StoreViewModel` ownership where available.
+- Tightened optional action rendering in `ProfileSheet`.
+- Wired SOS entry surfaces to `SOSViewModel`-backed confirmation flow.
 
 ## Why It Changed
 
-- The app’s main remaining UX weakness was believable but incomplete behavior.
-- This pass prioritized operational trustworthiness over new visual styling.
+- The main remaining defect class was UI truth drift: polished screens were still outrunning backend/runtime completion.
+- The branch needed stronger institutional trust, not more decorative polish.
 
 ## Issues Resolved
 
-- False-success purchase UX
-- Fake/fallback store inventory
-- Fabricated map context in Nearby/Friend Finder
-- Demo emergency/public-channel flows presented as live
-- Shared-state drift between chat/profile/store entry points
+- Friend-finder full-screen experience no longer defaults to demo data in the shared app path.
+- Nearby now routes users into the full friend-finder flow more clearly.
+- Lost & Found no longer stores device-local fake posts as if they were public.
+- Medical dashboard no longer pretends responder functionality exists when it does not.
+- Store ownership is less likely to diverge across sheets.
 
-## Deferred
+## Intentionally Deferred
 
-- Real shared/public Lost & Found transport
-- Organizer-authenticated medical responder workflow
-- Full real-device validation of Friend Finder/live location behavior
+- Live lost-and-found channel sync
+- Real responder authentication and alert routing
+- Real-device validation of location-sharing and BLE friend-finder behavior

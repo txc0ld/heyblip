@@ -1,70 +1,61 @@
 # Polymath UI Audit
 
-## Audit By Surface
+## Surface Audit
 
 ### Nearby
 
-- Visual: strong hierarchy, but the Friend Finder section implied spatial accuracy it did not have.
-- Interaction: `Show Map` exposed a plausible map even when only mesh-presence data existed.
-- Functional: `Sources/Views/Tabs/NearbyTab/NearbyView.swift` mapped nearby friends to fabricated coordinates.
-- State quality: empty/loading logic did not distinguish “no mesh peers” from “no shared GPS locations”.
-- Accessibility/usability: visibility and map affordances were understandable, but the map explanation layer was missing.
+- Visual issue: map controls and inline preview competed with people/friends/channel sections for attention.
+- Interaction issue: the stronger friend-finder surface was not promoted clearly from the Nearby tab.
+- Functional issue: live friend-finder behavior and demo map behavior were split across different screens and models.
+- State-quality issue: empty map conditions needed clearer explanations tied to permission and sharing state.
+- Evidence: `Sources/Views/Tabs/NearbyTab/NearbyView.swift`, `Sources/Views/Tabs/NearbyTab/FriendFinderMapView.swift`
 
-### Chat + Paywall
+### Friend Finder
 
-- Visual: paywall presentation was coherent.
-- Interaction: low-balance action path was clear.
-- Functional: `Sources/Views/Shared/PaywallSheet.swift` simulated purchase success rather than using `StoreViewModel`.
-- State quality: copy promised immediate continuation even though the message send was not retried automatically.
-- Trust gap: purchase outcome and balance state could diverge from reality.
-
-### Profile Store
-
-- Visual: cards and balance hierarchy were strong.
-- Functional: `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift` previously rendered fallback static packs on product-load failure.
-- Reliability: users could interpret catalog failure as successful product availability.
-- Institutional gap: product surfaces should not fabricate commercial inventory.
+- Visual issue: control stack was noisy and included crowd controls unsupported by real runtime data.
+- Interaction issue: location sharing, empty state, and beacon affordances were not clearly staged around availability.
+- Functional issue: the view still relied on sample friends/beacons when opened without live integration.
+- Reliability issue: live peer pins needed stable identity so map selection and updates did not churn.
+- Evidence: `Sources/Views/Tabs/NearbyTab/FriendFinderMapView.swift`, `Sources/ViewModels/FriendFinderViewModel.swift`
 
 ### Festival Utility Surfaces
 
-- Lost & Found:
-  - Visual: credible public-channel shell.
-  - Functional: local-only/sample messaging in `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`.
-  - Trust gap: implied shared/public functionality without actual shared transport.
-- Medical Dashboard:
-  - Visual: polished responder dashboard shell.
-  - Functional: fake local unlock and sample responder state in `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`.
-  - Trust gap: institutional-looking emergency tooling cannot be demo-unlocked in a live build.
+- Lost & Found issue: screen presented itself like a live public board while only appending local state.
+- Medical issue: a client-only unlock path exposed fake responder capability and sample incidents in a safety-critical surface.
+- Trust impact: high.
+- Evidence: `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`, `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
 
-## Issue Classes
+### Store / Paywall
 
-- Simulated transactional UX
-- Fallback catalogs masquerading as real products
-- Placeholder map semantics
-- Demo emergency tooling
-- Public-channel shells without shared persistence
+- Visual issue: paywall and store were close in style but risked diverging state if each built its own model.
+- Functional issue: duplicate `StoreViewModel` ownership could split loading, purchase, and restore state across sheets.
+- Backend abstraction issue: catalog failure needed an honest unavailable state, not a presentational fallback that looked buyable.
+- Evidence: `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift`, `Sources/Views/Shared/PaywallSheet.swift`
 
-## Accessibility / Usability
+### Profile / Action Sheets
 
-- Positive:
-  - touch targets remain generally strong
-  - glass-card layouts maintain readable grouping
-  - major controls are labeled
-- Remaining issues:
-  - some unavailable states still rely on explanatory copy rather than route-level hiding
-  - there is still limited assisted guidance for “what happens after purchase” in chat
+- Interaction issue: the profile sheet could present action space larger than the actually supplied handlers.
+- UX architecture issue: optional actions needed to collapse cleanly instead of leaving dead or implied controls.
+- Evidence: `Sources/Views/Shared/ProfileSheet.swift`
 
-## Performance As UX
+### SOS
 
-- This pass did not uncover a major rendering bottleneck more important than integrity work.
-- The more important UX-performance issue was perceived latency under uncertainty:
-  - store catalog loading without honest retry states
-  - map surfaces showing fabricated results rather than empty live state
+- Functional issue: SOS confirmation needed to stay coupled to `SOSViewModel` so the UI reflects actual flow state and error handling.
+- Reliability issue: emergency UI cannot rely on appearance-only confirmation.
+- Evidence: `Sources/Views/Shared/SOSButton.swift`, `Sources/Views/Shared/SOSConfirmationSheet.swift`
+
+## Accessibility Issues
+
+- Unavailable features needed explicit descriptive text rather than only disabled styling.
+- Map/location states needed concise banners describing why the view was empty.
+- Optional action groups needed to shrink instead of preserving empty button rows.
+
+## Performance-as-UX Issues
+
+- Store and paywall model duplication risked extra StoreKit startup work and inconsistent perceived state.
+- Friend-finder selection instability risked visible map churn when pins rebuilt.
 
 ## Institutional-Quality Gaps
 
-- Not all product-adjacent surfaces are production-truthful yet.
-- Real device/location/store behaviors are materially better surfaced after this pass, but the app still has deferred work around:
-  - full private-message confidentiality
-  - real shared Lost & Found transport/persistence
-  - real responder authentication/data feeds
+- Safety-critical and public-channel surfaces were previously the biggest trust violations because they looked live while not being live.
+- Some user-facing flows still depend on device/simulator/runtime conditions outside the UI layer, especially simulator-backed XCTest and real-device mesh/location behavior.

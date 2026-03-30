@@ -230,7 +230,7 @@ struct NearbyView: View {
             }
             .padding(.horizontal, BlipSpacing.md)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(peerCount) people nearby, mesh active")
+            .accessibilityLabel(headerAccessibilityLabel)
 
             // Visibility toggle
             Button(action: { toggleVisibility() }) {
@@ -307,6 +307,7 @@ struct NearbyView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(peerAccessibilityLabel(peer))
                     .overlay(alignment: .trailing) {
                         if peer.friendStatus == .pending || friendRequestSent.contains(peer.id) {
                             Text("Pending")
@@ -359,9 +360,14 @@ struct NearbyView: View {
 
             if nearbyFriends.isEmpty && nonFriendPeers.isEmpty {
                 HStack(spacing: BlipSpacing.sm) {
-                    ProgressView()
-                        .tint(theme.colors.mutedText)
-                    Text("Scanning for nearby peers...")
+                    if resolvedMeshViewModel?.isBLEActive == true {
+                        ProgressView()
+                            .tint(theme.colors.mutedText)
+                    } else {
+                        Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
+                    Text(emptyNearbyStateText)
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                 }
@@ -594,6 +600,31 @@ struct NearbyView: View {
         case .off:
             return .off
         }
+    }
+
+    private var headerAccessibilityLabel: String {
+        "\(peerCount) people nearby. Transport: \(resolvedMeshViewModel?.transportState ?? "Scanning")."
+    }
+
+    private var emptyNearbyStateText: String {
+        if let locationError = resolvedLocationViewModel?.errorMessage {
+            return locationError
+        }
+
+        if resolvedMeshViewModel?.isBLEActive != true {
+            return "Bluetooth discovery is not active yet."
+        }
+
+        return "Scanning for nearby peers..."
+    }
+
+    private func peerAccessibilityLabel(_ peer: MeshViewModel.NearbyPeer) -> String {
+        let name = peer.displayName ?? peer.username ?? "Unknown"
+        if peer.friendStatus == .pending || friendRequestSent.contains(peer.id) {
+            return "\(name), friend request pending"
+        }
+
+        return "\(name), open nearby profile"
     }
 }
 

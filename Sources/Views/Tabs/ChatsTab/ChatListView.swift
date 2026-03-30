@@ -167,6 +167,21 @@ struct ChatListView: View {
                             .font(theme.typography.secondary)
                             .foregroundStyle(theme.colors.mutedText)
                             .multilineTextAlignment(.center)
+
+                        NavigationLink {
+                            FriendsListView()
+                        } label: {
+                            HStack(spacing: BlipSpacing.sm) {
+                                Image(systemName: "person.2.fill")
+                                Text("Manage Friends")
+                            }
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, BlipSpacing.md)
+                            .padding(.vertical, BlipSpacing.sm)
+                            .background(Capsule().fill(LinearGradient.blipAccent))
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(BlipSpacing.xl)
                 } else {

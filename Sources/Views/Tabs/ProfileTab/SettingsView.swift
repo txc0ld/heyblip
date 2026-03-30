@@ -235,9 +235,15 @@ struct SettingsView: View {
 
                 Button(action: {}) {
                     HStack {
-                        Text("Privacy Policy")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.text)
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                            Text("Privacy Policy")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("Unavailable until hosted legal pages are published")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
                         Spacer()
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 12))
@@ -248,12 +254,19 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(true)
                 .opacity(0.5)
+                .accessibilityLabel("Privacy policy unavailable in this build")
 
                 Button(action: {}) {
                     HStack {
-                        Text("Terms of Service")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.text)
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                            Text("Terms of Service")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("Unavailable until hosted legal pages are published")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
                         Spacer()
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 12))
@@ -264,12 +277,19 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(true)
                 .opacity(0.5)
+                .accessibilityLabel("Terms of service unavailable in this build")
 
                 Button(action: {}) {
                     HStack {
-                        Text("Open Source Licenses")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.text)
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                            Text("Open Source Licenses")
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.text)
+
+                            Text("Unavailable until the in-app acknowledgements screen is wired")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
                         Spacer()
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 12))
@@ -280,6 +300,7 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(true)
                 .opacity(0.5)
+                .accessibilityLabel("Open source licenses unavailable in this build")
             }
         }
     }
@@ -342,9 +363,15 @@ struct SettingsView: View {
                 // Delete Account
                 Button(action: {}) {
                     HStack {
-                        Text("Delete Account & Data")
-                            .font(theme.typography.body)
-                            .foregroundStyle(BlipColors.darkColors.statusRed)
+                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                            Text("Delete Account & Data")
+                                .font(theme.typography.body)
+                                .foregroundStyle(BlipColors.darkColors.statusRed)
+
+                            Text("Unavailable until remote deletion is wired end to end")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
                         Spacer()
                         Image(systemName: "trash")
                             .font(.system(size: 14))
@@ -355,7 +382,7 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(true)
                 .opacity(0.5)
-                .accessibilityLabel("Delete account and all data")
+                .accessibilityLabel("Delete account unavailable in this build")
             }
         }
     }

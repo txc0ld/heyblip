@@ -2,40 +2,32 @@
 
 ## Target UX Principles
 
-- Every visible control should either work against a real backing system or clearly explain why it is unavailable.
-- Shared runtime state should drive the UI across entry points.
-- Empty states should describe what is missing, not just that “nothing is here.”
+- Show capability clearly, but never imply backend readiness that does not exist.
+- Make empty states instructional, not apologetic.
+- Keep premium visuals, but let hierarchy and outcome clarity do the work instead of extra controls.
 
 ## Target Visual Principles
 
-- Preserve the existing glass/gradient design language.
-- Use explanatory cards and compact banners to clarify state instead of adding new chrome.
-- Keep density low and hierarchy stable.
+- Fewer competing chips/buttons in each header row.
+- One primary action per cluster.
+- Consistent glass-card status treatment for loading, unavailable, and empty states.
 
 ## Target Flow Principles
 
-- Chat purchase flow:
-  - real StoreKit-backed purchase
-  - real balance refresh
-  - no promise of automatic message resend
-- Nearby/Friend Finder:
-  - mesh presence and GPS sharing are separate concepts
-  - map only reflects actual shared location state
-- Festival adjunct utilities:
-  - unfinished shared/public functionality should fail honest
+- Nearby should lead naturally into the full friend-finder map.
+- Store and paywall should feel like one purchase system, not parallel sheets with separate state.
+- Festival utility surfaces should be discoverable without pretending to be live.
 
 ## Intended Backend Abstraction Approach
 
-- Hide backend/process complexity, but never hide the absence of backend wiring.
-- Translate missing capability into user-facing outcomes:
-  - unavailable
-  - retry
-  - waiting for shared data
-  - needs permission
+- If runtime support exists, wire the shared model directly.
+- If runtime support does not exist, replace simulated success with honest readiness messaging.
+- Never surface sample incidents/messages as operational truth.
 
 ## Implementation Priorities
 
-1. Replace fake purchase behavior with real store-backed behavior.
-2. Remove catalog fallback that looks like real inventory.
-3. Make Nearby/Friend Finder map semantics truthful.
-4. Disable fake public/emergency flows while keeping discovery and product structure intact.
+1. Nearby / Friend Finder coherence
+2. trust-critical feature honesty in Medical and Lost & Found
+3. single-source-of-truth store ownership
+4. cleanup of optional action affordances in profile/sheets
+5. verification and report refresh
