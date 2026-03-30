@@ -123,6 +123,9 @@ final class AppCoordinator {
         self.modelContainer = modelContainer
         setupPeerPersistence(bleService: ble)
 
+        // Ensure a MessagePack exists so sends don't fail with insufficientBalance
+        ensureMessagePackExists(modelContainer: modelContainer)
+
         isReady = true
         logger.info("AppCoordinator configured — services ready")
     }
@@ -166,6 +169,32 @@ final class AppCoordinator {
         localPeerID = nil
         initError = nil
         needsOnboarding = true
+    }
+
+    // MARK: - Message Balance
+
+    /// Ensure at least one MessagePack exists so sends don't fail.
+    /// Runs on every app start — handles fresh installs, bypass onboarding,
+    /// and existing users who lost their pack.
+    private func ensureMessagePackExists(modelContainer: ModelContainer) {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<MessagePack>()
+        do {
+            let packs = try context.fetch(descriptor)
+            if packs.isEmpty {
+                let pack = MessagePack(
+                    packType: .starter10,
+                    messagesRemaining: 100,
+                    transactionID: "auto-seed-\(UUID().uuidString)"
+                )
+                context.insert(pack)
+                try context.save()
+                logger.info("Seeded starter MessagePack (100 credits)")
+                print("[Blip] Seeded starter MessagePack — 100 credits")
+            }
+        } catch {
+            logger.error("Failed to check/seed MessagePack: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Peer Persistence
