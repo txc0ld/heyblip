@@ -427,6 +427,18 @@ struct CreateProfileStep: View {
             modelContext.insert(user)
             try modelContext.save()
 
+            // Register on backend (fire-and-forget)
+            let syncService = UserSyncService()
+            let registrationUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            let registrationEmailHash = emailHash
+            Task {
+                do {
+                    try await syncService.registerUser(emailHash: registrationEmailHash, username: registrationUsername)
+                } catch {
+                    // Non-blocking — logged by UserSyncService internally
+                }
+            }
+
             onComplete()
         } catch {
             identityError = "Failed to create identity: \(error.localizedDescription)"
