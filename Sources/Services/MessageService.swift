@@ -1437,7 +1437,10 @@ extension MessageService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
-        // Connection handled by TransportCoordinator; no MessageService action needed.
+        // Broadcast presence to newly connected peer so they can see our username.
+        Task { @MainActor in
+            try? await self.broadcastPresence()
+        }
     }
 
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {

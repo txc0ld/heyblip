@@ -43,7 +43,10 @@ final class AppCoordinator {
 
     private let keyManager: KeyManager
     private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
+    private var modelContainer: ModelContainer?
     nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var peerSyncTimer: Timer?
 
     // MARK: - Init
 
@@ -107,6 +110,10 @@ final class AppCoordinator {
         // Listen for broadcast requests from ViewModels (e.g. SOSViewModel).
         setupBroadcastForwarding(coordinator: coordinator)
 
+        // Bridge BLE peer discovery to SwiftData MeshPeer records.
+        self.modelContainer = modelContainer
+        setupPeerPersistence(bleService: ble)
+
         isReady = true
         logger.info("AppCoordinator configured — services ready")
     }
@@ -152,6 +159,97 @@ final class AppCoordinator {
         needsOnboarding = true
     }
 
+    // MARK: - Peer Persistence
+
+    /// Observe BLE peer state changes and sync MeshPeer records to SwiftData.
+    private func setupPeerPersistence(bleService: BLEService) {
+        // Sync on every connect/disconnect notification
+        peerStateObservation = NotificationCenter.default.addObserver(
+            forName: .meshPeerStateChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.syncMeshPeers()
+            }
+        }
+
+        // Also run a periodic sync every 5 seconds to catch RSSI drift and stale peers
+        let timer = Timer(timeInterval: 5.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.syncMeshPeers()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        peerSyncTimer = timer
+    }
+
+    /// Read connected peers from BLEService and create/update MeshPeer records in SwiftData.
+    private func syncMeshPeers() {
+        guard let modelContainer, let bleService else { return }
+
+        let connectedPeerIDs = bleService.connectedPeers
+        let localID = localPeerID
+
+        let context = ModelContext(modelContainer)
+
+        do {
+            // Fetch all existing MeshPeer records
+            let descriptor = FetchDescriptor<MeshPeer>()
+            let existingPeers = try context.fetch(descriptor)
+            var existingByPeerID: [Data: MeshPeer] = [:]
+            for peer in existingPeers {
+                existingByPeerID[peer.peerID] = peer
+            }
+
+            let connectedSet = Set(connectedPeerIDs.map(\.bytes))
+
+            // Create or update records for connected peers
+            for peerID in connectedPeerIDs {
+                // Skip self
+                if let localID, peerID == localID { continue }
+
+                let peerData = peerID.bytes
+
+                if let existing = existingByPeerID[peerData] {
+                    // Update existing record
+                    if existing.connectionState != .connected {
+                        existing.connectionStateRaw = PeerConnectionState.connected.rawValue
+                    }
+                    existing.lastSeenAt = Date()
+                    existing.hopCount = 1 // direct BLE peer
+                } else {
+                    // Create new MeshPeer
+                    let meshPeer = MeshPeer(
+                        peerID: peerData,
+                        noisePublicKey: Data(),  // populated later by announce/handshake
+                        signingPublicKey: Data(),
+                        rssi: -60, // reasonable default until real RSSI available
+                        connectionState: .connected,
+                        lastSeenAt: Date(),
+                        hopCount: 1
+                    )
+                    context.insert(meshPeer)
+                    logger.info("Created MeshPeer for \(peerID)")
+                }
+            }
+
+            // Mark disconnected peers that are no longer in connectedPeers
+            for (peerData, peer) in existingByPeerID {
+                if !connectedSet.contains(peerData) && peer.connectionState == .connected {
+                    let timeSinceLastSeen = Date().timeIntervalSince(peer.lastSeenAt)
+                    if timeSinceLastSeen > 60 {
+                        peer.connectionStateRaw = PeerConnectionState.disconnected.rawValue
+                    }
+                }
+            }
+
+            try context.save()
+        } catch {
+            logger.error("Failed to sync MeshPeer records: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Lifecycle
 
     /// Start BLE scanning and WebSocket connection.
@@ -161,12 +259,21 @@ final class AppCoordinator {
             return
         }
         transportCoordinator?.start()
+
+        // Broadcast presence after a short delay to let connections establish
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            try? await messageService?.broadcastPresence()
+        }
+
         logger.info("Transports started")
     }
 
     /// Stop all transports and clean up.
     func stop() {
         transportCoordinator?.stop()
+        peerSyncTimer?.invalidate()
+        peerSyncTimer = nil
         logger.info("Transports stopped")
     }
 }
