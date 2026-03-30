@@ -459,13 +459,14 @@ final class MessageService: @unchecked Sendable {
             throw MessageServiceError.senderNotFound
         }
 
-        // Payload: username + 0x00 + displayName + 0x00 + noisePublicKey (32 bytes)
+        // Payload: username + 0x00 + displayName + 0x00 + noisePublicKey(32B) + signingPublicKey(32B)
         var payload = Data()
         payload.append(localUser.username.data(using: .utf8) ?? Data())
         payload.append(0x00)
         payload.append(localUser.resolvedDisplayName.data(using: .utf8) ?? Data())
         payload.append(0x00)
-        payload.append(identity.noisePublicKey.rawRepresentation) // real 32-byte Curve25519 key
+        payload.append(identity.noisePublicKey.rawRepresentation) // 32-byte Curve25519 key
+        payload.append(identity.signingPublicKey) // 32-byte Ed25519 public key
 
         let packet = buildPacket(
             type: .announce,
@@ -492,6 +493,39 @@ final class MessageService: @unchecked Sendable {
             packet = try PacketSerializer.decode(data)
         } catch {
             throw MessageServiceError.deserializationFailed(error.localizedDescription)
+        }
+
+        // Verify Ed25519 signature if present
+        if packet.flags.contains(.hasSignature) {
+            let senderData = packet.senderID.bytes
+            let context = ModelContext(modelContainer)
+            let signingKey: Data?
+
+            // Look up sender's signing public key via MeshPeer
+            if let meshPeer = try? findMeshPeer(byPeerIDBytes: senderData, context: context),
+               !meshPeer.signingPublicKey.isEmpty {
+                signingKey = meshPeer.signingPublicKey
+            } else {
+                signingKey = nil
+            }
+
+            if let key = signingKey {
+                do {
+                    let valid = try Signer.verify(packet: packet, publicKey: key)
+                    if !valid {
+                        print("[Blip-RX] SIGNATURE INVALID — dropping packet from \(senderData.prefix(4).map { String(format: "%02x", $0) }.joined())")
+                        DebugLogger.shared.log("RX", "SIG INVALID — dropped", isError: true)
+                        return
+                    }
+                    print("[Blip-RX] Signature verified")
+                } catch {
+                    // Verification threw (e.g. malformed) — accept with warning
+                    print("[Blip-RX] Signature check error: \(error) — accepting anyway")
+                }
+            } else {
+                // No signing key known yet (pre-announce bootstrap) — accept unverified
+                print("[Blip-RX] No signing key for sender — accepting unverified")
+            }
         }
 
         // Deduplicate via Bloom filter
@@ -588,26 +622,38 @@ final class MessageService: @unchecked Sendable {
             throw MessageServiceError.noTransportAvailable
         }
 
+        // Sign the packet with our Ed25519 key before encoding
+        let signedPacket: Packet
+        if let identity = getIdentity() {
+            do {
+                signedPacket = try Signer.sign(packet: packet, secretKey: identity.signingSecretKey)
+            } catch {
+                print("[Blip-TX] SIGNING FAILED: \(error) — sending unsigned")
+                signedPacket = packet
+            }
+        } else {
+            signedPacket = packet
+        }
+
         let wireData: Data
         do {
-            wireData = try PacketSerializer.encode(packet)
+            wireData = try PacketSerializer.encode(signedPacket)
         } catch {
             print("[Blip-TX] ENCODE FAILED: \(error)")
             throw error
         }
 
-        if let recipientID = packet.recipientID, !recipientID.isBroadcast {
+        if let recipientID = signedPacket.recipientID, !recipientID.isBroadcast {
             do {
                 try transport.send(data: wireData, to: recipientID)
-                print("[Blip-TX] SENT \(wireData.count)B to \(recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined())")
+                print("[Blip-TX] SENT \(wireData.count)B (signed) to \(recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined())")
             } catch {
                 print("[Blip-TX] SEND FAILED to peer: \(error) — falling back to broadcast")
-                // Fallback: broadcast instead of failing silently
                 transport.broadcast(data: wireData)
             }
         } else {
             transport.broadcast(data: wireData)
-            print("[Blip-TX] BROADCAST \(wireData.count)B")
+            print("[Blip-TX] BROADCAST \(wireData.count)B (signed)")
         }
     }
 
@@ -628,13 +674,19 @@ final class MessageService: @unchecked Sendable {
 
         let afterFirst = firstSep + 1
         var displayName = username
-        var realNoiseKey = Data() // 32-byte Curve25519 key if present
+        var realNoiseKey = Data()    // 32-byte Curve25519 noise key
+        var realSigningKey = Data()  // 32-byte Ed25519 signing key
 
         if afterFirst < bytes.count {
             if let secondSep = bytes[afterFirst...].firstIndex(of: 0x00) {
                 displayName = String(data: Data(bytes[afterFirst..<secondSep]), encoding: .utf8) ?? username
                 let keyStart = secondSep + 1
-                if keyStart + 32 <= bytes.count {
+                if keyStart + 64 <= bytes.count {
+                    // Both noise key (32B) and signing key (32B) present
+                    realNoiseKey = Data(bytes[keyStart..<keyStart + 32])
+                    realSigningKey = Data(bytes[keyStart + 32..<keyStart + 64])
+                } else if keyStart + 32 <= bytes.count {
+                    // Only noise key (legacy announce without signing key)
                     realNoiseKey = Data(bytes[keyStart..<keyStart + 32])
                 }
             } else {
@@ -653,13 +705,16 @@ final class MessageService: @unchecked Sendable {
         if let peer = try context.fetch(peerDescriptor).first {
             peer.username = username
             peer.noisePublicKey = noiseKeyToStore
+            if !realSigningKey.isEmpty {
+                peer.signingPublicKey = realSigningKey
+            }
             peer.connectionStateRaw = PeerConnectionState.connected.rawValue
             try context.save()
         } else {
             let newPeer = MeshPeer(
                 peerID: senderData,
                 noisePublicKey: noiseKeyToStore,
-                signingPublicKey: Data(),
+                signingPublicKey: realSigningKey,
                 username: username,
                 rssi: -60,
                 connectionState: .connected,
@@ -673,18 +728,24 @@ final class MessageService: @unchecked Sendable {
         // Create or update User record — always update noisePublicKey to latest
         let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
         if let existingUser = try context.fetch(userDesc).first {
+            var updated = false
             if existingUser.noisePublicKey.isEmpty || existingUser.noisePublicKey.count < noiseKeyToStore.count {
                 existingUser.noisePublicKey = noiseKeyToStore
                 existingUser.displayName = displayName
-                try context.save()
+                updated = true
             }
+            if !realSigningKey.isEmpty && existingUser.signingPublicKey.isEmpty {
+                existingUser.signingPublicKey = realSigningKey
+                updated = true
+            }
+            if updated { try context.save() }
         } else {
             let user = User(
                 username: username,
                 displayName: displayName,
                 emailHash: "",
                 noisePublicKey: noiseKeyToStore,
-                signingPublicKey: Data()
+                signingPublicKey: realSigningKey
             )
             context.insert(user)
             try context.save()
