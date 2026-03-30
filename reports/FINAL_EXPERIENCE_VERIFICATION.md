@@ -12,14 +12,15 @@
 
 - `xcodegen generate`
 - `xcodebuild -project Blip.xcodeproj -scheme Blip -destination 'generic/platform=iOS Simulator' -quiet build`
-- `xcodebuild -project Blip.xcodeproj -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BlipTests/ChatViewModelTests test -quiet`
+- `xcodebuild -project Blip.xcodeproj -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BlipTests/ChatViewModelTests -only-testing:BlipTests/SOSViewModelTests test -quiet`
+- `swift test --package-path Packages/BlipProtocol`
 
 ## Results
 
 - Build: passed
-- Targeted XCTest invocation: simulator bootstrap failed before test process connection
-  - error: `Early unexpected exit, operation never finished bootstrapping`
-  - interpretation: environment/simulator instability, not a compiled app failure
+- Targeted XCTest invocation: passed
+- `BlipProtocol` package tests: passed
+- One earlier parallel test attempt failed because Xcode's build database was locked by another active build; rerunning the tests sequentially resolved it
 
 ## Issues Fixed
 
@@ -32,8 +33,8 @@
 ## Remaining Risks
 
 - No executed UI automation exists for these surfaces.
-- The targeted test command did not complete because the simulator test host crashed before establishing the test connection.
 - Nearby/Friend Finder still depends on real device permission/location and peer-shared data to be fully validated.
+- Broader Swift concurrency warning cleanup remains outside this slice.
 
 ## Recommended Next Refinements
 
