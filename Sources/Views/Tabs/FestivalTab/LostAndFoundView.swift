@@ -8,13 +8,19 @@ import SwiftUI
 /// Messages are public and not encrypted.
 struct LostAndFoundView: View {
 
-    @State private var messages: [LostFoundMessage] = LostAndFoundView.sampleMessages
+    @State private var messages: [LostFoundMessage]
     @State private var inputText: String = ""
-    @State private var scrollToBottom = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isInputFocused: Bool
+
+    private let isPostingAvailable: Bool
+
+    init(initialMessages: [LostFoundMessage] = [], isPostingAvailable: Bool = false) {
+        _messages = State(initialValue: initialMessages)
+        self.isPostingAvailable = isPostingAvailable
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,24 +36,33 @@ struct LostAndFoundView: View {
     // MARK: - Header
 
     private var headerBanner: some View {
-        HStack(spacing: BlipSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.blipAccentPurple)
+        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            HStack(spacing: BlipSpacing.sm) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.blipAccentPurple)
 
-            Text("Lost & Found")
-                .font(theme.typography.body)
-                .fontWeight(.semibold)
-                .foregroundStyle(theme.colors.text)
+                Text("Lost & Found")
+                    .font(theme.typography.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(theme.colors.text)
 
-            Spacer()
+                Spacer()
 
-            Text("Public channel")
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.mutedText)
-                .padding(.horizontal, BlipSpacing.sm)
-                .padding(.vertical, BlipSpacing.xs)
-                .background(Capsule().fill(theme.colors.hover))
+                Text(isPostingAvailable ? "Public channel" : "Unavailable")
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.mutedText)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xs)
+                    .background(Capsule().fill(theme.colors.hover))
+            }
+
+            if !isPostingAvailable {
+                Text("Lost & Found is not synced to a live festival channel in this build yet, so posting is disabled instead of storing fake local messages.")
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, BlipSpacing.md)
         .padding(.vertical, BlipSpacing.sm)
@@ -60,9 +75,13 @@ struct LostAndFoundView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: BlipSpacing.sm) {
-                    ForEach(messages) { message in
-                        LostFoundMessageBubble(message: message)
-                            .id(message.id)
+                    if messages.isEmpty {
+                        unavailableState
+                    } else {
+                        ForEach(messages) { message in
+                            LostFoundMessageBubble(message: message)
+                                .id(message.id)
+                        }
                     }
                 }
                 .padding(BlipSpacing.md)
@@ -101,16 +120,17 @@ struct LostAndFoundView: View {
                 .submitLabel(.send)
                 .onSubmit { sendMessage() }
                 .accessibilityLabel("Message input for lost and found")
+                .disabled(!isPostingAvailable)
 
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 28))
-                    .foregroundStyle(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    .foregroundStyle(!isPostingAvailable || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     ? theme.colors.mutedText
                                     : .blipAccentPurple)
             }
             .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
-            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!isPostingAvailable || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send message")
         }
         .padding(.horizontal, BlipSpacing.md)
@@ -118,9 +138,35 @@ struct LostAndFoundView: View {
         .background(.ultraThinMaterial)
     }
 
+    private var unavailableState: some View {
+        GlassCard(thickness: .ultraThin) {
+            VStack(spacing: BlipSpacing.sm) {
+                Image(systemName: "tray")
+                    .font(.system(size: 28))
+                    .foregroundStyle(theme.colors.mutedText)
+
+                Text(isPostingAvailable ? "No lost & found posts yet" : "Lost & found channel unavailable")
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.text)
+
+                Text(
+                    isPostingAvailable
+                        ? "Posts from festival staff and attendees will appear here."
+                        : "This screen stays visible so the feature is discoverable, but it is not connected to a shared public channel yet."
+                )
+                .font(theme.typography.secondary)
+                .foregroundStyle(theme.colors.mutedText)
+                .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, BlipSpacing.lg)
+        }
+    }
+
     // MARK: - Actions
 
     private func sendMessage() {
+        guard isPostingAvailable else { return }
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -228,7 +274,7 @@ extension LostAndFoundView {
 #Preview("Lost & Found") {
     ZStack {
         GradientBackground()
-        LostAndFoundView()
+        LostAndFoundView(initialMessages: LostAndFoundView.sampleMessages, isPostingAvailable: true)
     }
     .frame(height: 500)
     .preferredColorScheme(.dark)

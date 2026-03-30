@@ -9,6 +9,7 @@ import SwiftData
 struct ProfileView: View {
 
     var profileViewModel: ProfileViewModel? = nil
+    var storeViewModel: StoreViewModel? = nil
     var onSignOut: (() -> Void)? = nil
 
     @Query private var users: [User]
@@ -89,7 +90,7 @@ struct ProfileView: View {
                 }
             }) {
                 NavigationStack {
-                    MessagePackStore()
+                    MessagePackStore(storeViewModel: storeViewModel)
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)

@@ -175,6 +175,7 @@ final class MeshViewModel {
 
     /// Start periodic mesh state refresh.
     func startMonitoring() {
+        refreshTimer?.invalidate()
         let timer = Timer(timeInterval: 5.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 await self?.refreshMeshState()

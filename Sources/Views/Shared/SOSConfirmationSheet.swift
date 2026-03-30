@@ -12,6 +12,7 @@ import SwiftUI
 struct SOSConfirmationSheet: View {
 
     @Binding var isPresented: Bool
+    var sosViewModel: SOSViewModel? = nil
 
     var onSend: ((SOSSeverity) -> Void)?
     var onCancel: (() -> Void)?
@@ -43,6 +44,7 @@ struct SOSConfirmationSheet: View {
 
     // Proximity check
     @State private var isPhoneFaceDown = false
+    @State private var sendError: String?
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -77,6 +79,18 @@ struct SOSConfirmationSheet: View {
             .padding(BlipSpacing.md)
         }
         .background(.ultraThickMaterial)
+        .task {
+            sosViewModel?.startSOSFlow()
+            falseAlarmCount = sosViewModel?.falseAlarmCount ?? 0
+        }
+        .onDisappear {
+            cancelTimer?.invalidate()
+            cancelTimer = nil
+
+            if !hasSent {
+                sosViewModel?.cancelFlow()
+            }
+        }
     }
 
     // MARK: - SOS Content
@@ -108,6 +122,13 @@ struct SOSConfirmationSheet: View {
 
             // Confirmation area
             confirmationArea
+
+            if let sendError {
+                Text(sendError)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(BlipColors.darkColors.statusRed)
+                    .multilineTextAlignment(.center)
+            }
 
             // Cancel button
             Button(action: { isPresented = false }) {
@@ -425,23 +446,40 @@ struct SOSConfirmationSheet: View {
         }
 
         isSending = true
-        onSend?(severity)
+        sendError = nil
 
-        withAnimation(SpringConstants.accessiblePageEntrance) {
-            hasSent = true
+        guard let sosViewModel else {
+            onSend?(severity)
+            withAnimation(SpringConstants.accessiblePageEntrance) {
+                hasSent = true
+            }
+            isSending = false
+            startCancelCountdown()
+            triggerSendHaptic()
+            return
         }
 
-        // Start cancel countdown
-        cancelCountdown = 10
-        cancelTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            cancelCountdown -= 1
-            if cancelCountdown <= 0 {
-                timer.invalidate()
-                cancelTimer = nil
+        sosViewModel.selectedSeverity = severity
+
+        Task {
+            await sosViewModel.confirmAlert()
+
+            await MainActor.run {
+                isSending = false
+
+                if case .error(let message) = sosViewModel.flowState {
+                    sendError = message
+                    return
+                }
+
+                onSend?(severity)
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    hasSent = true
+                }
+                startCancelCountdown()
+                triggerSendHaptic()
             }
         }
-
-        triggerSendHaptic()
     }
 
     private func cancelSOS() {
@@ -450,11 +488,28 @@ struct SOSConfirmationSheet: View {
         falseAlarmCount += 1
         onCancel?()
 
+        if let sosViewModel {
+            Task {
+                await sosViewModel.cancelActiveAlert()
+            }
+        }
+
         withAnimation(SpringConstants.accessiblePageEntrance) {
             hasSent = false
             isSending = false
             redHoldProgress = 0
             amberSlideOffset = 0
+        }
+    }
+
+    private func startCancelCountdown() {
+        cancelCountdown = 10
+        cancelTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            cancelCountdown -= 1
+            if cancelCountdown <= 0 {
+                timer.invalidate()
+                cancelTimer = nil
+            }
         }
     }
 

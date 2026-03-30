@@ -16,6 +16,7 @@ struct SOSButton: View {
 
     @State private var isPressed = false
     @State private var showSOSSheet = false
+    @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.theme) private var theme
 
@@ -81,7 +82,10 @@ struct SOSButton: View {
         .accessibilityAddTraits(.isButton)
         .accessibilitySortPriority(1)
         .fullScreenCover(isPresented: $showSOSSheet) {
-            SOSConfirmationSheet(isPresented: $showSOSSheet)
+            SOSConfirmationSheet(
+                isPresented: $showSOSSheet,
+                sosViewModel: coordinator.sosViewModel
+            )
         }
     }
 
@@ -103,6 +107,7 @@ extension SOSButton {
     /// Full-width glass card variant for prominent placement (e.g., profile screen).
     struct ProfileCard: View {
         @State private var showSOSSheet = false
+        @Environment(AppCoordinator.self) private var coordinator
         @Environment(\.theme) private var theme
         @Environment(\.colorScheme) private var colorScheme
 
@@ -140,7 +145,10 @@ extension SOSButton {
             .accessibilityLabel("Emergency SOS")
             .accessibilityHint("Double tap to open emergency options")
             .fullScreenCover(isPresented: $showSOSSheet) {
-                SOSConfirmationSheet(isPresented: $showSOSSheet)
+                SOSConfirmationSheet(
+                    isPresented: $showSOSSheet,
+                    sosViewModel: coordinator.sosViewModel
+                )
             }
         }
     }

@@ -162,6 +162,7 @@ final class LocationViewModel {
             locationService.startUpdating(accuracy: .friendSharing)
         }
 
+        refreshTimer?.invalidate()
         let timer = Timer(timeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 await self?.refreshFriendLocations()
@@ -181,6 +182,12 @@ final class LocationViewModel {
     func stopMonitoring() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+    }
+
+    /// Refreshes friend locations for views that need a one-shot snapshot without rebuilding private state.
+    func refreshFriendLocationsForDisplay() async {
+        await refreshFriendLocations()
+        updateUserLocation()
     }
 
     // MARK: - Location Sharing
