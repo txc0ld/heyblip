@@ -1,4 +1,7 @@
 import SwiftUI
+import SwiftData
+import CryptoKit
+import BlipCrypto
 
 // MARK: - OnboardingFlow
 
@@ -13,6 +16,7 @@ struct OnboardingFlow: View {
     @State private var currentStep: Int = 0
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
 
     /// Total number of onboarding steps.
     private let stepCount = 3
@@ -27,7 +31,7 @@ struct OnboardingFlow: View {
                 TabView(selection: $currentStep) {
                     WelcomeStep(
                         onContinue: { advanceToStep(1) },
-                        onBypass: { completeOnboarding() }
+                        onBypass: { handleBypass() }
                     )
                     .tag(0)
 
@@ -84,6 +88,66 @@ struct OnboardingFlow: View {
 
     private func completeOnboarding() {
         onComplete()
+    }
+
+    /// Bypass handler: generates identity, creates local User, registers on backend.
+    private func handleBypass() {
+        do {
+            // Generate cryptographic identity if not already present
+            let keyManager = KeyManager.shared
+            let identity: Identity
+            if let existing = try keyManager.loadIdentity() {
+                identity = existing
+            } else {
+                identity = try keyManager.generateIdentity()
+                try keyManager.storeIdentity(identity)
+            }
+
+            // Generate a dev username from the device name
+            let deviceName = UIDevice.current.name
+                .lowercased()
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "'", with: "")
+                .replacingOccurrences(of: "'", with: "")
+                .prefix(16)
+            let username = deviceName.isEmpty ? "dev_\(UUID().uuidString.prefix(6))" : String(deviceName)
+
+            // Check if User already exists
+            let existingDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+            let existingUsers = try modelContext.fetch(existingDesc)
+
+            if existingUsers.isEmpty {
+                // Create dev email hash
+                let devEmail = "\(username)@dev.blip"
+                let emailHash = SHA256.hash(data: Data(devEmail.lowercased().utf8))
+                    .compactMap { String(format: "%02x", $0) }
+                    .joined()
+
+                let user = User(
+                    username: username,
+                    displayName: String(deviceName),
+                    emailHash: emailHash,
+                    noisePublicKey: identity.noisePublicKey.rawRepresentation,
+                    signingPublicKey: identity.signingPublicKey,
+                    isVerified: true
+                )
+                modelContext.insert(user)
+                try modelContext.save()
+
+                // Register on backend (fire-and-forget)
+                Task {
+                    try? await UserSyncService().registerUser(
+                        emailHash: emailHash,
+                        username: username
+                    )
+                }
+            }
+
+            completeOnboarding()
+        } catch {
+            // Fallback: complete without user creation — profile step can fix later
+            completeOnboarding()
+        }
     }
 }
 
