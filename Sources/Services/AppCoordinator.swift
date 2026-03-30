@@ -41,8 +41,13 @@ final class AppCoordinator {
     // MARK: - Feature View Models
 
     private(set) var chatViewModel: ChatViewModel?
+    private(set) var meshViewModel: MeshViewModel?
+    private(set) var locationViewModel: LocationViewModel?
+    private(set) var friendFinderViewModel: FriendFinderViewModel?
     private(set) var festivalViewModel: FestivalViewModel?
     private(set) var profileViewModel: ProfileViewModel?
+    private(set) var storeViewModel: StoreViewModel?
+    private(set) var sosViewModel: SOSViewModel?
 
     // MARK: - Identity
 
@@ -132,6 +137,12 @@ final class AppCoordinator {
             modelContainer: modelContainer,
             messageService: msgService
         )
+        self.meshViewModel = MeshViewModel(modelContainer: modelContainer)
+        self.locationViewModel = LocationViewModel(
+            modelContainer: modelContainer,
+            locationService: locationService
+        )
+        self.friendFinderViewModel = FriendFinderViewModel(locationService: locationService)
         self.festivalViewModel = FestivalViewModel(
             modelContainer: modelContainer,
             locationService: locationService,
@@ -140,6 +151,13 @@ final class AppCoordinator {
         self.profileViewModel = ProfileViewModel(
             modelContainer: modelContainer,
             keyManager: keyManager
+        )
+        self.storeViewModel = StoreViewModel(modelContainer: modelContainer)
+        self.sosViewModel = SOSViewModel(
+            modelContainer: modelContainer,
+            locationService: locationService,
+            messageService: msgService,
+            notificationService: notificationService
         )
 
         // Listen for broadcast requests from ViewModels (e.g. SOSViewModel).
@@ -382,8 +400,13 @@ final class AppCoordinator {
         Task { @MainActor in
             await profileViewModel?.loadProfile()
             await chatViewModel?.loadChannels()
+            meshViewModel?.startMonitoring()
+            locationViewModel?.startMonitoring()
             await festivalViewModel?.loadFestivals()
             await festivalViewModel?.startGeofencing()
+            await storeViewModel?.refreshBalance()
+            await sosViewModel?.loadResponderStatus()
+            await sosViewModel?.refreshVisibleAlerts()
         }
 
         // Broadcast presence after a short delay to let connections establish
@@ -428,14 +451,21 @@ final class AppCoordinator {
         }
 
         messageService?.delegate = nil
+        meshViewModel?.stopMonitoring()
+        locationViewModel?.stopMonitoring()
         bleService = nil
         webSocketTransport = nil
         transportCoordinator = nil
         meshRelayService = nil
         messageService = nil
         chatViewModel = nil
+        meshViewModel = nil
+        locationViewModel = nil
+        friendFinderViewModel = nil
         festivalViewModel = nil
         profileViewModel = nil
+        storeViewModel = nil
+        sosViewModel = nil
         locationService.stopUpdating()
         locationService.stopMonitoringAllFestivals()
         locationService.delegate = nil

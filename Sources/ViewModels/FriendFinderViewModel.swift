@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftUI
+import CryptoKit
 import BlipProtocol
 import BlipMesh
 import BlipCrypto
@@ -147,7 +148,7 @@ final class FriendFinderViewModel {
             }
 
             return FriendMapPin(
-                id: UUID(uuidString: entry.peerID.description) ?? UUID(),
+                id: stableUUID(for: entry.peerID),
                 displayName: String(entry.peerID.description.prefix(8)),
                 coordinate: coord,
                 precision: precision,
@@ -264,6 +265,17 @@ final class FriendFinderViewModel {
     /// Update user's own coordinate from LocationService.
     func updateUserLocation(_ location: CLLocation) {
         userLocation = location.coordinate
+    }
+
+    private func stableUUID(for peerID: PeerID) -> UUID {
+        let digest = SHA256.hash(data: peerID.bytes)
+        let bytes = Array(digest.prefix(16))
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 }
 

@@ -91,6 +91,7 @@ final class StoreViewModel {
     private let modelContainer: ModelContainer
     nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
     private var loadedProducts: [Product] = []
+    private var hasStarted = false
 
     // MARK: - Product IDs
 
@@ -123,6 +124,11 @@ final class StoreViewModel {
 
     /// Start listening for transaction updates and load products.
     func start() async {
+        if hasStarted {
+            await refreshBalance()
+            return
+        }
+        hasStarted = true
         startTransactionListener()
         await loadProducts()
         await refreshBalance()
@@ -302,12 +308,13 @@ final class StoreViewModel {
     // MARK: - Private: Transaction Listener
 
     private func startTransactionListener() {
+        let productIDs = Self.productIDs
         transactionListener = Task.detached { [weak self] in
             for await result in Transaction.updates {
                 guard let self else { return }
                 do {
                     let transaction = try await self.checkVerified(result)
-                    if let packInfo = Self.productIDs.first(where: { $0.0 == transaction.productID }) {
+                    if let packInfo = productIDs.first(where: { $0.0 == transaction.productID }) {
                         await self.creditPurchase(packType: packInfo.1, transaction: transaction)
                     }
                     await transaction.finish()
@@ -325,7 +332,7 @@ final class StoreViewModel {
 
     private func checkVerified(_ result: VerificationResult<Transaction>) throws -> Transaction {
         switch result {
-        case .unverified(_, let error):
+        case .unverified:
             throw StoreError.verificationFailed
         case .verified(let transaction):
             return transaction

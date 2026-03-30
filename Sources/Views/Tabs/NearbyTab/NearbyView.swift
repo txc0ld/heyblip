@@ -10,8 +10,11 @@ import MapKit
 /// peers section (with add-friend), friends section, channels, and friend finder map.
 struct NearbyView: View {
 
-    @State private var meshViewModel: MeshViewModel?
-    @State private var beacons: [BeaconPin] = []
+    var meshViewModel: MeshViewModel? = nil
+    var locationViewModel: LocationViewModel? = nil
+
+    @State private var localMeshViewModel: MeshViewModel?
+    @State private var localLocationViewModel: LocationViewModel?
     @State private var showMap = false
     @State private var selectedPeer: MeshViewModel.NearbyPeer?
     @State private var friendRequestSent: Set<UUID> = []
@@ -78,28 +81,45 @@ struct NearbyView: View {
             .presentationDetents([.medium])
         }
         .task {
-            if meshViewModel == nil {
-                meshViewModel = MeshViewModel(modelContainer: modelContext.container)
+            if resolvedMeshViewModel == nil {
+                localMeshViewModel = MeshViewModel(modelContainer: modelContext.container)
             }
-            meshViewModel?.startMonitoring()
-            await meshViewModel?.refreshMeshState()
+            if resolvedLocationViewModel == nil {
+                localLocationViewModel = LocationViewModel(
+                    modelContainer: modelContext.container,
+                    locationService: coordinator.locationService
+                )
+            }
+            localMeshViewModel?.startMonitoring()
+            localLocationViewModel?.startMonitoring()
+            await resolvedMeshViewModel?.refreshMeshState()
+            await resolvedLocationViewModel?.refreshFriendLocationsForDisplay()
             loadVisibilityPreference()
         }
         .onDisappear {
-            meshViewModel?.stopMonitoring()
+            localMeshViewModel?.stopMonitoring()
+            localLocationViewModel?.stopMonitoring()
             stopPresenceBroadcast()
         }
     }
 
     // MARK: - ViewModel Bindings
 
+    private var resolvedMeshViewModel: MeshViewModel? {
+        meshViewModel ?? localMeshViewModel
+    }
+
+    private var resolvedLocationViewModel: LocationViewModel? {
+        locationViewModel ?? localLocationViewModel
+    }
+
     private var peerCount: Int {
-        meshViewModel?.connectedPeerCount ?? 0
+        resolvedMeshViewModel?.connectedPeerCount ?? 0
     }
 
     /// Connected peers who opted into visibility (have a username) and are NOT already friends or blocked.
     private var nonFriendPeers: [MeshViewModel.NearbyPeer] {
-        guard let vm = meshViewModel else { return [] }
+        guard let vm = resolvedMeshViewModel else { return [] }
         return vm.nearbyPeers.filter { peer in
             guard let username = peer.username, !username.isEmpty else { return false }
             return peer.friendStatus != .accepted && peer.friendStatus != .blocked
@@ -107,7 +127,7 @@ struct NearbyView: View {
     }
 
     private var nearbyFriends: [NearbyPeerCard_Data] {
-        guard let vm = meshViewModel else { return [] }
+        guard let vm = resolvedMeshViewModel else { return [] }
         return vm.nearbyFriends.map { friend in
             NearbyPeerCard_Data(
                 id: friend.id,
@@ -121,7 +141,7 @@ struct NearbyView: View {
     }
 
     private var channels: [LocationChannelItem] {
-        guard let vm = meshViewModel else { return [] }
+        guard let vm = resolvedMeshViewModel else { return [] }
         return vm.locationChannels.map { channel in
             LocationChannelItem(
                 id: channel.id,
@@ -137,17 +157,42 @@ struct NearbyView: View {
     }
 
     private var friendPins: [FriendMapPin] {
-        guard let vm = meshViewModel else { return [] }
-        return vm.nearbyFriends.map { friend in
+        guard let vm = resolvedLocationViewModel else { return [] }
+        let userCoordinate = vm.userLocation
+
+        return vm.friendAnnotations.map { friend in
             FriendMapPin(
-                id: friend.id,
-                displayName: friend.displayName,
-                coordinate: CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856),
-                precision: friend.isDirectPeer ? .precise : .fuzzy,
+                id: friend.friendID,
+                displayName: friend.name,
+                coordinate: friend.coordinate,
+                precision: mapPrecision(friend.precision),
                 color: .blue,
-                lastUpdated: friend.lastSeen
+                lastUpdated: friend.lastUpdated,
+                accuracyMeters: friend.precision == .precise ? 12 : 60,
+                distanceFromUser: userCoordinate.map {
+                    CLLocation(latitude: $0.latitude, longitude: $0.longitude)
+                        .distance(from: CLLocation(latitude: friend.coordinate.latitude, longitude: friend.coordinate.longitude))
+                },
+                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800
             )
         }
+    }
+
+    private var beaconPins: [BeaconPin] {
+        guard let beacon = resolvedLocationViewModel?.activeBeacon else { return [] }
+        return [
+            BeaconPin(
+                id: beacon.id,
+                label: beacon.label,
+                coordinate: beacon.coordinate,
+                createdBy: "You",
+                expiresAt: beacon.expiresAt
+            )
+        ]
+    }
+
+    private var userLocation: CLLocationCoordinate2D? {
+        resolvedLocationViewModel?.userLocation ?? coordinator.locationService.currentLocation?.coordinate
     }
 
     // MARK: - Header Section
@@ -172,12 +217,12 @@ struct NearbyView: View {
 
                     // Signal indicator
                     VStack(spacing: BlipSpacing.xs) {
-                        Image(systemName: meshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
+                        Image(systemName: resolvedMeshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
                             .font(.system(size: 24, weight: .medium))
                             .foregroundStyle(.blipAccentPurple)
                             .symbolEffect(.pulse, options: .repeating)
 
-                        Text(meshViewModel?.transportState ?? "Scanning...")
+                        Text(resolvedMeshViewModel?.transportState ?? "Scanning...")
                             .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.mutedText)
                     }
@@ -399,9 +444,10 @@ struct NearbyView: View {
         stopPresenceBroadcast()
         // Broadcast immediately, then every 10 seconds
         broadcastPresenceOnce()
-        let timer = Timer(timeInterval: 10.0, repeats: true) { [weak coordinator] _ in
-            guard let messageService = coordinator?.messageService else { return }
+        guard let messageService = coordinator.messageService else { return }
+        let timer = Timer(timeInterval: 10.0, repeats: true) { [weak messageService] _ in
             Task { @MainActor in
+                guard let messageService else { return }
                 try? await messageService.broadcastPresence()
             }
         }
@@ -442,6 +488,26 @@ struct NearbyView: View {
 
                 Spacer()
 
+                NavigationLink {
+                    FriendFinderMapView(
+                        friendFinderViewModel: coordinator.friendFinderViewModel,
+                        locationService: coordinator.locationService
+                    )
+                } label: {
+                    Text("Open Full Map")
+                        .font(theme.typography.caption)
+                        .foregroundStyle(.blipAccentPurple)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xs)
+                        .background(
+                            Capsule()
+                                .fill(.blipAccentPurple.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .frame(minHeight: BlipSizing.minTapTarget)
+                .accessibilityLabel("Open the full friend finder map")
+
                 Button(action: { withAnimation { showMap.toggle() } }) {
                     Text(showMap ? "Hide Map" : "Show Map")
                         .font(theme.typography.caption)
@@ -459,25 +525,74 @@ struct NearbyView: View {
             .padding(.horizontal, BlipSpacing.md)
 
             if showMap {
-                FriendFinderMap(
-                    friends: friendPins,
-                    userLocation: CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856),
-                    beacons: beacons,
-                    onDropBeacon: { coordinate in
-                        let beacon = BeaconPin(
-                            id: UUID(),
-                            label: "I'm here!",
-                            coordinate: coordinate,
-                            createdBy: "You",
-                            expiresAt: Date().addingTimeInterval(1800)
+                VStack(spacing: BlipSpacing.md) {
+                    if let locationError = resolvedLocationViewModel?.errorMessage {
+                        statusCard(
+                            icon: "location.slash.fill",
+                            title: locationError,
+                            subtitle: "Friend Finder needs a real location fix and shared friend locations before the map can help."
                         )
-                        beacons.append(beacon)
+                    } else if userLocation == nil {
+                        statusCard(
+                            icon: "location.circle",
+                            title: "Location access is needed for Friend Finder",
+                            subtitle: "Enable location access to recenter on you, drop a beacon, and show shared friend locations."
+                        )
+                    } else if friendPins.isEmpty {
+                        statusCard(
+                            icon: "person.2.slash",
+                            title: "No shared friend locations yet",
+                            subtitle: "Nearby mesh peers can appear above without GPS sharing. The map fills in only when friends opt into location sharing."
+                        )
                     }
-                )
-                .frame(height: 350)
+
+                    FriendFinderMap(
+                        friends: friendPins,
+                        userLocation: userLocation,
+                        beacons: beaconPins,
+                        onDropBeacon: { _ in
+                            Task {
+                                await resolvedLocationViewModel?.dropBeacon(label: "I'm here!")
+                            }
+                        }
+                    )
+                    .frame(height: 350)
+                }
                 .padding(.horizontal, BlipSpacing.md)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
+        }
+    }
+
+    private func statusCard(icon: String, title: String, subtitle: String) -> some View {
+        GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                HStack(spacing: BlipSpacing.sm) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.blipAccentPurple)
+
+                    Text(title)
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.text)
+                }
+
+                Text(subtitle)
+                    .font(theme.typography.secondary)
+                    .foregroundStyle(theme.colors.mutedText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func mapPrecision(_ precision: LocationPrecision) -> LocationPinPrecision {
+        switch precision {
+        case .precise:
+            return .precise
+        case .fuzzy:
+            return .fuzzy
+        case .off:
+            return .off
         }
     }
 }

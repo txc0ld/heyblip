@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - PaywallSheet
 
@@ -6,12 +7,17 @@ import SwiftUI
 /// "Your message will send immediately after purchase."
 struct PaywallSheet: View {
 
-    @State private var selectedPack: PackOption? = nil
-    @State private var isPurchasing = false
+    var storeViewModel: StoreViewModel? = nil
+
+    @State private var localStoreViewModel: StoreViewModel?
+    @State private var selectedProductID: String?
     @State private var purchaseSuccess = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
+
+    private var resolvedStoreViewModel: StoreViewModel? { storeViewModel ?? localStoreViewModel }
 
     var body: some View {
         ZStack {
@@ -45,6 +51,37 @@ struct PaywallSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(BlipCornerRadius.xxl)
+        .task {
+            if resolvedStoreViewModel == nil {
+                localStoreViewModel = StoreViewModel(modelContainer: modelContext.container)
+            }
+            guard let vm = resolvedStoreViewModel else { return }
+            await vm.start()
+            if selectedProduct == nil {
+                selectedProductID = availableProducts.first?.id
+            }
+        }
+        .alert("Purchase Complete", isPresented: $purchaseSuccess) {
+            Button("Continue") {
+                resolvedStoreViewModel?.clearMessages()
+                dismiss()
+            }
+        } message: {
+            Text(resolvedStoreViewModel?.successMessage ?? "Your message balance has been updated.")
+        }
+        .alert("Purchase Error", isPresented: Binding(
+            get: { resolvedStoreViewModel?.errorMessage != nil },
+            set: { if !$0 { resolvedStoreViewModel?.clearMessages() } }
+        )) {
+            Button("OK") { resolvedStoreViewModel?.clearMessages() }
+        } message: {
+            Text(resolvedStoreViewModel?.errorMessage ?? "")
+        }
+        .onChange(of: resolvedStoreViewModel?.successMessage) { _, newValue in
+            if newValue != nil {
+                purchaseSuccess = true
+            }
+        }
     }
 
     // MARK: - Header
@@ -68,7 +105,7 @@ struct PaywallSheet: View {
                 .font(theme.typography.headline)
                 .foregroundStyle(theme.colors.text)
 
-            Text("Your message will send immediately after purchase.")
+            Text("Buy message credits to keep chatting. Credits update after App Store confirmation.")
                 .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
                 .multilineTextAlignment(.center)
@@ -79,28 +116,64 @@ struct PaywallSheet: View {
 
     private var packOptionsSection: some View {
         VStack(spacing: BlipSpacing.sm) {
-            ForEach(PackOption.allOptions) { pack in
-                packCard(pack)
+            if resolvedStoreViewModel?.isLoadingProducts == true {
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.sm) {
+                        ProgressView()
+                        Text("Loading message packs")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.text)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, BlipSpacing.lg)
+                }
+            } else if !availableProducts.isEmpty {
+                ForEach(availableProducts) { product in
+                    packCard(product)
+                }
+            } else {
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.sm) {
+                        Image(systemName: "cart.badge.questionmark")
+                            .font(.system(size: 28))
+                            .foregroundStyle(theme.colors.mutedText)
+
+                        Text("Message packs are unavailable")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.text)
+
+                        Text(resolvedStoreViewModel?.errorMessage ?? "The App Store catalog did not load on this device.")
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+
+                        GlassButton("Try Again", icon: "arrow.clockwise", style: .secondary, size: .small) {
+                            Task { await resolvedStoreViewModel?.loadProducts() }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, BlipSpacing.lg)
+                }
             }
         }
     }
 
-    private func packCard(_ pack: PackOption) -> some View {
-        let isSelected = selectedPack?.id == pack.id
+    private func packCard(_ product: ProductInfo) -> some View {
+        let isSelected = selectedProductID == product.id
 
         return Button {
             withAnimation(SpringConstants.bouncyAnimation) {
-                selectedPack = pack
+                selectedProductID = product.id
             }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     HStack(spacing: BlipSpacing.sm) {
-                        Text(pack.name)
+                        Text(product.displayName)
                             .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
                             .foregroundStyle(theme.colors.text)
 
-                        if pack.isBestValue {
+                        if product.packType == .festival50 {
                             Text("BEST VALUE")
                                 .font(.custom(BlipFontName.bold, size: 9, relativeTo: .caption2))
                                 .foregroundStyle(.white)
@@ -113,14 +186,14 @@ struct PaywallSheet: View {
                         }
                     }
 
-                    Text("\(pack.messageCount) messages")
+                    Text("\(product.messageCount) messages")
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                 }
 
                 Spacer()
 
-                Text(pack.priceFormatted)
+                Text(product.displayPrice)
                     .font(.custom(BlipFontName.bold, size: 18, relativeTo: .title3))
                     .foregroundStyle(theme.colors.text)
             }
@@ -140,7 +213,7 @@ struct PaywallSheet: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)
-        .accessibilityLabel("\(pack.name), \(pack.messageCount) messages, \(pack.priceFormatted)")
+        .accessibilityLabel("\(product.displayName), \(product.messageCount) messages, \(product.displayPrice)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
@@ -165,15 +238,17 @@ struct PaywallSheet: View {
         GlassButton(
             purchaseSuccess
                 ? "Purchased!"
-                : (selectedPack != nil ? "Buy \(selectedPack!.name) - \(selectedPack!.priceFormatted)" : "Select a pack"),
+                : (selectedProduct != nil ? "Buy \(selectedProduct!.displayName) - \(selectedProduct!.displayPrice)" : "Select a pack"),
             icon: purchaseSuccess ? "checkmark" : "cart.fill",
-            isLoading: isPurchasing
+            isLoading: resolvedStoreViewModel?.isPurchasing == true
         ) {
-            guard selectedPack != nil else { return }
-            purchase()
+            guard let selectedProduct else { return }
+            Task {
+                await resolvedStoreViewModel?.purchase(selectedProduct)
+            }
         }
         .fullWidth()
-        .disabled(selectedPack == nil || isPurchasing)
+        .disabled(selectedProduct == nil || resolvedStoreViewModel?.isPurchasing == true)
     }
 
     // MARK: - Fine Print
@@ -186,62 +261,29 @@ struct PaywallSheet: View {
 
             HStack(spacing: BlipSpacing.md) {
                 Button("Restore Purchases") {
-                    // Restore logic
+                    Task { await resolvedStoreViewModel?.restorePurchases() }
                 }
                 .font(theme.typography.caption)
                 .foregroundStyle(Color.blipAccentPurple)
                 .frame(minHeight: BlipSizing.minTapTarget)
+                .disabled(resolvedStoreViewModel?.isRestoring == true)
 
-                Button("Terms") {
-                    // Terms
-                }
+                Text("After your balance updates, head back to chat and send again.")
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
-                .frame(minHeight: BlipSizing.minTapTarget)
-
-                Button("Privacy") {
-                    // Privacy
-                }
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.mutedText)
-                .frame(minHeight: BlipSizing.minTapTarget)
+                .multilineTextAlignment(.center)
             }
         }
     }
 
-    // MARK: - Purchase
-
-    private func purchase() {
-        isPurchasing = true
-        // Simulated purchase for development
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isPurchasing = false
-            withAnimation(SpringConstants.bouncyAnimation) {
-                purchaseSuccess = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                dismiss()
-            }
-        }
+    private var availableProducts: [ProductInfo] {
+        (resolvedStoreViewModel?.products ?? []).filter { !$0.isSubscription }
     }
-}
 
-// MARK: - PackOption
-
-struct PackOption: Identifiable, Sendable {
-    let id: String
-    let name: String
-    let messageCount: Int
-    let priceFormatted: String
-    let isBestValue: Bool
-
-    static let allOptions: [PackOption] = [
-        PackOption(id: "starter10", name: "Starter", messageCount: 10, priceFormatted: "$0.99", isBestValue: false),
-        PackOption(id: "social25", name: "Social", messageCount: 25, priceFormatted: "$1.99", isBestValue: false),
-        PackOption(id: "festival50", name: "Festival", messageCount: 50, priceFormatted: "$3.99", isBestValue: true),
-        PackOption(id: "squad100", name: "Squad", messageCount: 100, priceFormatted: "$5.99", isBestValue: false),
-        PackOption(id: "season1000", name: "Season Pass", messageCount: 1000, priceFormatted: "$29.99", isBestValue: false)
-    ]
+    private var selectedProduct: ProductInfo? {
+        guard let selectedProductID else { return availableProducts.first }
+        return availableProducts.first { $0.id == selectedProductID } ?? availableProducts.first
+    }
 }
 
 // MARK: - Preview

@@ -111,8 +111,12 @@ struct ChatView: View {
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showPaywall) {
-            PaywallSheet()
+        .sheet(isPresented: $showPaywall, onDismiss: {
+            Task {
+                await coordinator.profileViewModel?.loadProfile()
+            }
+        }) {
+            PaywallSheet(storeViewModel: coordinator.storeViewModel)
         }
         .fullScreenCover(isPresented: $showImageViewer) {
             ImageViewer(imageData: selectedImageData, isPresented: $showImageViewer)

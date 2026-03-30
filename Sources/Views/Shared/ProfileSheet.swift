@@ -180,35 +180,80 @@ struct ProfileSheet: View {
 
     private var actionButtons: some View {
         VStack(spacing: BlipSpacing.md) {
-            // Primary: Message
-            GlassButton("Message", icon: "message.fill") {
-                onMessage?()
-                isPresented = false
+            if let onMessage {
+                GlassButton("Message", icon: "message.fill") {
+                    onMessage()
+                    isPresented = false
+                }
+                .fullWidth()
             }
-            .fullWidth()
 
-            // Secondary row
-            HStack(spacing: BlipSpacing.md) {
-                if !isFriend {
-                    GlassButton("Add Friend", icon: "person.badge.plus", style: .secondary, size: .small) {
-                        onAddFriend?()
+            let secondaryActions = availableSecondaryActions
+            if !secondaryActions.isEmpty {
+                HStack(spacing: BlipSpacing.md) {
+                    ForEach(secondaryActions) { action in
+                        GlassButton(action.title, icon: action.icon, style: action.style, size: .small) {
+                            action.handler()
+                        }
                     }
-                }
-
-                GlassButton(isBlocked ? "Unblock" : "Block", icon: isBlocked ? "hand.raised.slash" : "hand.raised", style: .outline, size: .small) {
-                    if isBlocked {
-                        onBlock?()
-                    } else {
-                        showBlockConfirm = true
-                    }
-                }
-
-                GlassButton("Report", icon: "exclamationmark.bubble", style: .outline, size: .small) {
-                    showReportConfirm = true
                 }
             }
         }
         .padding(.horizontal, BlipSpacing.md)
+    }
+
+    private struct SheetAction: Identifiable {
+        let id = UUID()
+        let title: String
+        let icon: String
+        let style: GlassButton.Style
+        let handler: () -> Void
+    }
+
+    private var availableSecondaryActions: [SheetAction] {
+        var actions: [SheetAction] = []
+
+        if !isFriend, let onAddFriend {
+            actions.append(
+                SheetAction(
+                    title: "Add Friend",
+                    icon: "person.badge.plus",
+                    style: .secondary,
+                    handler: onAddFriend
+                )
+            )
+        }
+
+        if let onBlock {
+            actions.append(
+                SheetAction(
+                    title: isBlocked ? "Unblock" : "Block",
+                    icon: isBlocked ? "hand.raised.slash" : "hand.raised",
+                    style: .outline,
+                    handler: {
+                        if isBlocked {
+                            onBlock()
+                            isPresented = false
+                        } else {
+                            showBlockConfirm = true
+                        }
+                    }
+                )
+            )
+        }
+
+        if onReport != nil {
+            actions.append(
+                SheetAction(
+                    title: "Report",
+                    icon: "exclamationmark.bubble",
+                    style: .outline,
+                    handler: { showReportConfirm = true }
+                )
+            )
+        }
+
+        return actions
     }
 
     // MARK: - Helpers

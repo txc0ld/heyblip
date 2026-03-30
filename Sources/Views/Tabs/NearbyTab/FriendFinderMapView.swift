@@ -9,45 +9,37 @@ import MapKit
 /// Uses sample data until John wires up LocationService.
 struct FriendFinderMapView: View {
 
-    @State private var friends: [FriendMapPin] = Self.sampleFriends
-    @State private var beacons: [BeaconPin] = []
+    var friendFinderViewModel: FriendFinderViewModel? = nil
+    var locationService: LocationService? = nil
+
+    @State private var fallbackFriends: [FriendMapPin] = Self.sampleFriends
+    @State private var fallbackBeacons: [BeaconPin] = []
     @State private var isSharingLocation = false
     @State private var selectedFriend: FriendMapPin? = nil
     @State private var showFriendList = true
-    @State private var showCrowdPulse = false
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var sharingPulse = false
+    @State private var currentUserLocation: CLLocationCoordinate2D? = nil
+    @State private var locationRefreshTimer: Timer?
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dismiss) private var dismiss
 
-    private let userLocation = CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856)
-
-    /// Map region for crowd pulse coordinate normalization.
-    private var crowdPulseRegion: MKCoordinateRegion {
-        MKCoordinateRegion(
-            center: userLocation,
-            span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)
-        )
-    }
+    private let previewLocation = CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856)
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Map layer
             mapLayer
 
-            // Crowd pulse overlay
-            if showCrowdPulse {
-                CrowdPulseOverlay(
-                    pulseData: Self.sampleCrowdPulse,
-                    mapRegion: crowdPulseRegion
-                )
-                .transition(.opacity)
-            }
-
             // Controls
             VStack {
+                if friendFinderViewModel != nil {
+                    availabilityBanner
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.top, BlipSpacing.sm)
+                }
+
                 HStack {
                     Spacer()
                     controlButtons
@@ -56,18 +48,6 @@ struct FriendFinderMapView: View {
                 .padding(.top, BlipSpacing.sm)
 
                 Spacer()
-            }
-
-            // Crowd pulse legend
-            if showCrowdPulse {
-                VStack {
-                    CrowdPulseLegend()
-                        .padding(.horizontal, BlipSpacing.md)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-
-                    Spacer()
-                }
-                .padding(.top, 52)
             }
 
             // Friend list bottom sheet
@@ -79,6 +59,12 @@ struct FriendFinderMapView: View {
         .navigationTitle("Friend Finder")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .task {
+            await initializeLiveState()
+        }
+        .onDisappear {
+            stopLocationRefresh()
+        }
     }
 
     // MARK: - Map Layer
@@ -86,12 +72,14 @@ struct FriendFinderMapView: View {
     private var mapLayer: some View {
         Map(position: $cameraPosition) {
             // User location with "I'm Here" pulse
-            Annotation("You", coordinate: userLocation) {
-                userPinView
+            if let resolvedUserLocation {
+                Annotation("You", coordinate: resolvedUserLocation) {
+                    userPinView
+                }
             }
 
             // Friend pins
-            ForEach(friends.filter({ !$0.isOutOfRange })) { friend in
+            ForEach(displayFriends.filter({ !$0.isOutOfRange })) { friend in
                 Annotation(friend.displayName, coordinate: friend.coordinate) {
                     FriendFinderPinView(
                         friend: friend,
@@ -109,7 +97,7 @@ struct FriendFinderMapView: View {
             }
 
             // Beacons
-            ForEach(beacons) { beacon in
+            ForEach(displayBeacons) { beacon in
                 Annotation(beacon.label, coordinate: beacon.coordinate) {
                     BeaconAnnotationView(beacon: beacon)
                 }
@@ -182,34 +170,12 @@ struct FriendFinderMapView: View {
                 label: isSharingLocation ? "Stop sharing" : "Share location",
                 isActive: isSharingLocation
             ) {
-                withAnimation(SpringConstants.accessiblePageEntrance) {
-                    isSharingLocation.toggle()
-                }
+                toggleLocationSharing()
             }
 
             // Drop beacon
             mapButton(icon: "mappin.and.ellipse", label: "Drop beacon", isAccent: true) {
-                let beacon = BeaconPin(
-                    id: UUID(),
-                    label: "I'm here!",
-                    coordinate: userLocation,
-                    createdBy: "You",
-                    expiresAt: Date().addingTimeInterval(1800)
-                )
-                withAnimation(SpringConstants.accessiblePageEntrance) {
-                    beacons.append(beacon)
-                }
-            }
-
-            // Crowd pulse overlay
-            mapButton(
-                icon: showCrowdPulse ? "aqi.medium" : "aqi.low",
-                label: showCrowdPulse ? "Hide crowd" : "Show crowd",
-                isActive: showCrowdPulse
-            ) {
-                withAnimation(SpringConstants.accessiblePageEntrance) {
-                    showCrowdPulse.toggle()
-                }
+                dropBeacon()
             }
 
             // Toggle friend list
@@ -271,7 +237,7 @@ struct FriendFinderMapView: View {
 
                 Spacer()
 
-                Text("\(friends.filter { !$0.isOutOfRange }.count) nearby")
+                Text("\(displayFriends.filter { !$0.isOutOfRange }.count) nearby")
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
             }
@@ -284,8 +250,12 @@ struct FriendFinderMapView: View {
             // Friend rows
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(friends) { friend in
-                        friendRow(friend)
+                    if displayFriends.isEmpty {
+                        emptyFriendListState
+                    } else {
+                        ForEach(displayFriends) { friend in
+                            friendRow(friend)
+                        }
                     }
                 }
             }
@@ -302,6 +272,26 @@ struct FriendFinderMapView: View {
         )
         .padding(.horizontal, BlipSpacing.sm)
         .padding(.bottom, BlipSpacing.sm)
+    }
+
+    private var emptyFriendListState: some View {
+        VStack(spacing: BlipSpacing.sm) {
+            Image(systemName: "person.2.slash")
+                .font(.system(size: 24))
+                .foregroundStyle(theme.colors.mutedText)
+
+            Text("No shared friend locations yet")
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.text)
+
+            Text("Only friends who actively share location over the mesh appear here.")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.mutedText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, BlipSpacing.lg)
+        .padding(.horizontal, BlipSpacing.md)
     }
 
     private func friendRow(_ friend: FriendMapPin) -> some View {
@@ -376,6 +366,141 @@ struct FriendFinderMapView: View {
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("\(friend.displayName), \(friend.isOutOfRange ? "out of range" : friend.lastSeenText)")
+    }
+
+    private var availabilityBanner: some View {
+        Group {
+            if resolvedUserLocation == nil {
+                statusBanner(
+                    icon: "location.slash.fill",
+                    title: "Location permission or a fresh GPS fix is still needed.",
+                    tint: theme.colors.statusAmber
+                )
+            } else if displayFriends.isEmpty {
+                statusBanner(
+                    icon: "dot.radiowaves.left.and.right",
+                    title: "Waiting for friends to share their live location over the mesh.",
+                    tint: theme.colors.mutedText
+                )
+            } else {
+                statusBanner(
+                    icon: "location.fill.viewfinder",
+                    title: "Live location sharing is active for this session.",
+                    tint: theme.colors.statusGreen
+                )
+            }
+        }
+    }
+
+    private func statusBanner(icon: String, title: String, tint: Color) -> some View {
+        HStack(spacing: BlipSpacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(tint)
+
+            Text(title)
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.text)
+
+            Spacer()
+        }
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
+    }
+
+    private var displayFriends: [FriendMapPin] {
+        if let friendFinderViewModel {
+            return friendFinderViewModel.friends
+        }
+        return fallbackFriends
+    }
+
+    private var displayBeacons: [BeaconPin] {
+        if let friendFinderViewModel {
+            return friendFinderViewModel.beacons
+        }
+        return fallbackBeacons
+    }
+
+    private var resolvedUserLocation: CLLocationCoordinate2D? {
+        if friendFinderViewModel != nil {
+            return currentUserLocation ?? friendFinderViewModel?.userLocation
+        }
+        return currentUserLocation ?? previewLocation
+    }
+
+    private func initializeLiveState() async {
+        guard let locationService else { return }
+
+        locationService.requestAuthorization()
+        locationService.startUpdating(accuracy: .friendSharing)
+        refreshLocationSnapshot()
+        startLocationRefresh()
+    }
+
+    private func refreshLocationSnapshot() {
+        guard let locationService else { return }
+        guard let location = locationService.currentLocation else { return }
+
+        currentUserLocation = location.coordinate
+        friendFinderViewModel?.updateUserLocation(location)
+    }
+
+    private func startLocationRefresh() {
+        stopLocationRefresh()
+
+        let timer = Timer(timeInterval: 10, repeats: true) { _ in
+            Task { @MainActor in
+                refreshLocationSnapshot()
+                if isSharingLocation {
+                    friendFinderViewModel?.broadcastLocation()
+                }
+            }
+        }
+
+        RunLoop.main.add(timer, forMode: .common)
+        locationRefreshTimer = timer
+    }
+
+    private func stopLocationRefresh() {
+        locationRefreshTimer?.invalidate()
+        locationRefreshTimer = nil
+    }
+
+    private func toggleLocationSharing() {
+        withAnimation(SpringConstants.accessiblePageEntrance) {
+            isSharingLocation.toggle()
+        }
+
+        friendFinderViewModel?.isSharingLocation = isSharingLocation
+        refreshLocationSnapshot()
+
+        if isSharingLocation {
+            friendFinderViewModel?.broadcastLocation()
+        }
+    }
+
+    private func dropBeacon() {
+        guard friendFinderViewModel != nil else {
+            guard let resolvedUserLocation else { return }
+            withAnimation(SpringConstants.accessiblePageEntrance) {
+                fallbackBeacons.append(
+                    BeaconPin(
+                        id: UUID(),
+                        label: "I'm here!",
+                        coordinate: resolvedUserLocation,
+                        createdBy: "You",
+                        expiresAt: Date().addingTimeInterval(1800)
+                    )
+                )
+            }
+            return
+        }
+
+        refreshLocationSnapshot()
+        friendFinderViewModel?.dropBeacon()
     }
 }
 

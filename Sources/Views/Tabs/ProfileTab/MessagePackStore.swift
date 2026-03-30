@@ -8,7 +8,9 @@ import StoreKit
 /// Wired to real StoreViewModel for product loading and purchases.
 struct MessagePackStore: View {
 
-    @State private var storeViewModel: StoreViewModel?
+    var storeViewModel: StoreViewModel? = nil
+
+    @State private var localStoreViewModel: StoreViewModel?
     @State private var showPurchaseSuccess = false
     @State private var showVerifiedSheet = false
 
@@ -18,6 +20,7 @@ struct MessagePackStore: View {
     @Environment(\.modelContext) private var modelContext
 
     private var user: User? { users.first }
+    private var resolvedStoreViewModel: StoreViewModel? { storeViewModel ?? localStoreViewModel }
 
     var body: some View {
         ZStack {
@@ -53,24 +56,26 @@ struct MessagePackStore: View {
         .navigationTitle("Message Packs")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            let vm = StoreViewModel(modelContainer: modelContext.container)
-            storeViewModel = vm
+            if resolvedStoreViewModel == nil {
+                localStoreViewModel = StoreViewModel(modelContainer: modelContext.container)
+            }
+            guard let vm = resolvedStoreViewModel else { return }
             await vm.start()
         }
         .alert("Purchase Complete", isPresented: $showPurchaseSuccess) {
-            Button("OK") { storeViewModel?.clearMessages() }
+            Button("OK") { resolvedStoreViewModel?.clearMessages() }
         } message: {
-            Text(storeViewModel?.successMessage ?? "Purchase successful!")
+            Text(resolvedStoreViewModel?.successMessage ?? "Purchase successful!")
         }
         .alert("Error", isPresented: Binding(
-            get: { storeViewModel?.errorMessage != nil },
-            set: { if !$0 { storeViewModel?.clearMessages() } }
+            get: { resolvedStoreViewModel?.errorMessage != nil },
+            set: { if !$0 { resolvedStoreViewModel?.clearMessages() } }
         )) {
-            Button("OK") { storeViewModel?.clearMessages() }
+            Button("OK") { resolvedStoreViewModel?.clearMessages() }
         } message: {
-            Text(storeViewModel?.errorMessage ?? "")
+            Text(resolvedStoreViewModel?.errorMessage ?? "")
         }
-        .onChange(of: storeViewModel?.successMessage) { _, newValue in
+        .onChange(of: resolvedStoreViewModel?.successMessage) { _, newValue in
             if newValue != nil {
                 showPurchaseSuccess = true
             }
@@ -141,10 +146,10 @@ struct MessagePackStore: View {
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
 
-                let balance = storeViewModel?.messageBalance ?? 0
+                let balance = resolvedStoreViewModel?.messageBalance ?? 0
 
                 HStack(alignment: .firstTextBaseline, spacing: BlipSpacing.xs) {
-                    Text(storeViewModel?.balanceDisplay ?? "\(balance)")
+                    Text(resolvedStoreViewModel?.balanceDisplay ?? "\(balance)")
                         .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundStyle(.blipAccentPurple)
                         .contentTransition(.numericText())
@@ -154,7 +159,7 @@ struct MessagePackStore: View {
                         .foregroundStyle(theme.colors.mutedText)
                 }
 
-                if balance <= 5 && storeViewModel?.isUnlimited != true {
+                if balance <= 5 && resolvedStoreViewModel?.isUnlimited != true {
                     HStack(spacing: BlipSpacing.xs) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 12))
@@ -179,10 +184,10 @@ struct MessagePackStore: View {
                 .foregroundStyle(theme.colors.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if storeViewModel?.isLoadingProducts == true {
+            if resolvedStoreViewModel?.isLoadingProducts == true {
                 ProgressView()
                     .frame(maxWidth: .infinity, minHeight: 120)
-            } else if let products = storeViewModel?.products, !products.isEmpty {
+            } else if let products = resolvedStoreViewModel?.products, !products.isEmpty {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: BlipSpacing.md),
                     GridItem(.flexible(), spacing: BlipSpacing.md),
@@ -192,14 +197,27 @@ struct MessagePackStore: View {
                     }
                 }
             } else {
-                // Fallback to static data when products haven't loaded
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: BlipSpacing.md),
-                    GridItem(.flexible(), spacing: BlipSpacing.md),
-                ], spacing: BlipSpacing.md) {
-                    ForEach(StorePackOption.allPacks) { pack in
-                        staticPackCard(pack)
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.md) {
+                        Image(systemName: "cart.badge.questionmark")
+                            .font(.system(size: 28))
+                            .foregroundStyle(theme.colors.mutedText)
+
+                        Text("Message packs are unavailable right now")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.text)
+                            .multilineTextAlignment(.center)
+
+                        Text(resolvedStoreViewModel?.errorMessage ?? "The App Store catalog did not load on this device. Retry when network and StoreKit are available.")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+
+                        GlassButton("Retry Store", icon: "arrow.clockwise", style: .secondary, size: .small) {
+                            Task { await resolvedStoreViewModel?.loadProducts() }
+                        }
                     }
+                    .frame(maxWidth: .infinity, minHeight: 180)
                 }
             }
         }
@@ -209,7 +227,7 @@ struct MessagePackStore: View {
         let isBestValue = product.packType == .festival50
 
         return Button(action: {
-            Task { await storeViewModel?.purchase(product) }
+            Task { await resolvedStoreViewModel?.purchase(product) }
         }) {
             VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "message.fill")
@@ -259,53 +277,8 @@ struct MessagePackStore: View {
             RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                 .stroke(isBestValue ? .blipAccentPurple.opacity(0.3) : .clear, lineWidth: 1)
         )
-        .disabled(storeViewModel?.isPurchasing == true)
+        .disabled(resolvedStoreViewModel?.isPurchasing == true)
         .accessibilityLabel("\(product.displayName): \(product.messageCount) messages for \(product.displayPrice)")
-    }
-
-    private func staticPackCard(_ pack: StorePackOption) -> some View {
-        VStack(spacing: BlipSpacing.md) {
-            Image(systemName: "message.fill")
-                .font(.system(size: 24))
-                .foregroundStyle(.blipAccentPurple)
-
-            Text(pack.name)
-                .font(theme.typography.body)
-                .fontWeight(.semibold)
-                .foregroundStyle(theme.colors.text)
-
-            Text("\(pack.messageCount) messages")
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-
-            Text(pack.price)
-                .font(theme.typography.body)
-                .fontWeight(.bold)
-                .foregroundStyle(.blipAccentPurple)
-                .padding(.horizontal, BlipSpacing.md)
-                .padding(.vertical, BlipSpacing.sm)
-                .background(
-                    Capsule()
-                        .fill(.blipAccentPurple.opacity(0.12))
-                )
-
-            if pack.isBestValue {
-                Text("BEST VALUE")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, BlipSpacing.sm)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(LinearGradient.blipAccent))
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, BlipSpacing.md)
-        .glassCard(
-            thickness: pack.isBestValue ? .regular : .ultraThin,
-            cornerRadius: BlipCornerRadius.xl,
-            borderOpacity: pack.isBestValue ? 0.3 : 0.1
-        )
-        .opacity(0.6)
     }
 
     // MARK: - Subscription Card
@@ -337,9 +310,16 @@ struct MessagePackStore: View {
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.leading)
 
-                GlassButton("Notify Me", icon: "bell.fill", style: .secondary, size: .small) {
-                    // Register for notification
+                HStack(spacing: BlipSpacing.sm) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(theme.colors.mutedText)
+
+                    Text("Subscription signup is not enabled in this build, so the CTA has been removed until the entitlement flow is live.")
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.mutedText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -348,10 +328,10 @@ struct MessagePackStore: View {
 
     private var restoreButton: some View {
         Button(action: {
-            Task { await storeViewModel?.restorePurchases() }
+            Task { await resolvedStoreViewModel?.restorePurchases() }
         }) {
             HStack(spacing: BlipSpacing.sm) {
-                if storeViewModel?.isRestoring == true {
+                if resolvedStoreViewModel?.isRestoring == true {
                     ProgressView()
                         .scaleEffect(0.8)
                 }
@@ -361,7 +341,7 @@ struct MessagePackStore: View {
             }
             .frame(minHeight: BlipSizing.minTapTarget)
         }
-        .disabled(storeViewModel?.isRestoring == true)
+        .disabled(resolvedStoreViewModel?.isRestoring == true)
     }
 
     // MARK: - Free Message Info
@@ -405,25 +385,6 @@ struct MessagePackStore: View {
                 .foregroundStyle(theme.colors.mutedText)
         }
     }
-}
-
-// MARK: - StorePackOption
-
-struct StorePackOption: Identifiable {
-    let id = UUID()
-    let name: String
-    let messageCount: Int
-    let price: String
-    let productID: String
-    let isBestValue: Bool
-
-    static let allPacks: [StorePackOption] = [
-        StorePackOption(name: "Starter", messageCount: 10, price: "$0.99", productID: "com.blip.starter10", isBestValue: false),
-        StorePackOption(name: "Social", messageCount: 25, price: "$1.99", productID: "com.blip.social25", isBestValue: false),
-        StorePackOption(name: "Festival", messageCount: 50, price: "$3.99", productID: "com.blip.festival50", isBestValue: true),
-        StorePackOption(name: "Squad", messageCount: 100, price: "$5.99", productID: "com.blip.squad100", isBestValue: false),
-        StorePackOption(name: "Season Pass", messageCount: 1000, price: "$29.99", productID: "com.blip.season1000", isBestValue: false),
-    ]
 }
 
 // MARK: - Preview

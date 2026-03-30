@@ -39,7 +39,10 @@ struct MainTabView: View {
                 ChatListView(chatViewModel: coordinator.chatViewModel)
             }
             tabLayer(.nearby) {
-                NearbyView()
+                NearbyView(
+                    meshViewModel: coordinator.meshViewModel,
+                    locationViewModel: coordinator.locationViewModel
+                )
             }
             tabLayer(.festival) {
                 FestivalView(festivalViewModel: coordinator.festivalViewModel)
@@ -47,6 +50,7 @@ struct MainTabView: View {
             tabLayer(.profile) {
                 ProfileView(
                     profileViewModel: coordinator.profileViewModel,
+                    storeViewModel: coordinator.storeViewModel,
                     onSignOut: { coordinator.signOut() }
                 )
             }

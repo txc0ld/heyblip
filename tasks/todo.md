@@ -12,3 +12,13 @@
 - [x] Phase 8: Run adversarial verification and regression checks.
 - [x] Phase 9: Write all required reports under `/reports`.
 - [x] Push branch, open PR against `main`, and update Linear with results and remaining risks.
+
+## UI/UX Refinement Pass
+
+- [x] Audit remaining user-facing trust and polish gaps after the first remediation pass.
+- [x] Remove misleading or dead user-facing controls in shared surfaces.
+- [x] Replace simulated or fallback purchase UX with real store-backed or honest unavailable states.
+- [x] Make Nearby/Friend Finder reflect real runtime availability instead of fabricated map context.
+- [x] Convert non-functional medical responder UI into honest build-state messaging.
+- [x] Run verification and add the second report set under `/reports`.
+- [ ] Push the updated branch and refresh the open PR summary.
