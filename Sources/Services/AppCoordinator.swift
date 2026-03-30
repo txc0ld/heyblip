@@ -320,6 +320,7 @@ final class AppCoordinator {
 
     /// Start BLE scanning and WebSocket connection.
     func start() {
+        announceTimer?.invalidate() // Prevent timer stacking if start() called twice
         guard isReady else {
             logger.warning("start() called before coordinator is ready")
             return

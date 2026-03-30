@@ -400,6 +400,19 @@ final class MessageService: @unchecked Sendable {
             try context.save()
         }
 
+        // Ensure user has keys before DM channel creation
+        if friendUser.noisePublicKey.isEmpty {
+            let friendUsername = friendUser.username
+            let peerDesc = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.username == friendUsername })
+            if let meshPeer = try? context.fetch(peerDesc).first,
+               !meshPeer.noisePublicKey.isEmpty {
+                friendUser.noisePublicKey = meshPeer.noisePublicKey
+                friendUser.signingPublicKey = meshPeer.signingPublicKey
+                try? context.save()
+                DebugLogger.shared.log("DM", "Backfilled keys for \(friendUsername) before createDMChannel")
+            }
+        }
+
         // Ensure DM channel exists
         try createDMChannel(with: friendUser, context: context)
 
@@ -585,8 +598,8 @@ final class MessageService: @unchecked Sendable {
             print("[Blip-TX] DM \(subType) → \(recipientHex) (\(compressed.data.count)B)")
 
             if recipientPeerID == nil {
-                logger.warning("resolveRecipientPeerID returned nil for DM channel \(channel.id) — sending as broadcast")
-                print("[Blip-TX] WARN: recipient nil, broadcasting DM")
+                print("[Blip-TX] ERROR: DM send failed — recipient could not be resolved. Channel: \(channel.id)")
+                throw MessageServiceError.invalidRecipient
             }
 
             let packet = buildPacket(
@@ -729,10 +742,14 @@ final class MessageService: @unchecked Sendable {
         let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
         if let existingUser = try context.fetch(userDesc).first {
             var updated = false
-            if existingUser.noisePublicKey.isEmpty || existingUser.noisePublicKey.count < noiseKeyToStore.count {
+            // Backfill noisePublicKey: update if empty, or if we now have a real 32-byte key
+            // replacing a legacy PeerID-sized placeholder
+            if existingUser.noisePublicKey.isEmpty ||
+               (realNoiseKey.count == 32 && existingUser.noisePublicKey.count < 32) {
                 existingUser.noisePublicKey = noiseKeyToStore
                 existingUser.displayName = displayName
                 updated = true
+                DebugLogger.shared.log("RX", "BACKFILL User.noisePublicKey for \(username)")
             }
             if !realSigningKey.isEmpty && existingUser.signingPublicKey.isEmpty {
                 existingUser.signingPublicKey = realSigningKey
@@ -1099,19 +1116,33 @@ final class MessageService: @unchecked Sendable {
                 senderUser.displayName = display
             }
         } else if let username = senderUsername, !username.isEmpty {
-            // No MeshPeer record yet — find or create User from payload.
-            // Don't store peerData (8-byte PeerID hash) as noisePublicKey — leave empty
-            // for handleAnnounce to populate with the real 32-byte key.
+            // No MeshPeer found by peerID — try to find one by username for key lookup
+            let peerByUsernameDesc = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.username == username })
+            var fallbackNoiseKey = Data()
+            var fallbackSigningKey = Data()
+            if let peerByUsername = try? context.fetch(peerByUsernameDesc).first {
+                fallbackNoiseKey = peerByUsername.noisePublicKey
+                fallbackSigningKey = peerByUsername.signingPublicKey
+                DebugLogger.shared.log("RX", "FRIEND_REQ: pulled keys from MeshPeer for fallback User \(username)")
+            }
+
             let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
             if let existing = try context.fetch(userDesc).first {
                 senderUser = existing
+                // Backfill keys if the existing User is missing them
+                if existing.noisePublicKey.isEmpty && !fallbackNoiseKey.isEmpty {
+                    existing.noisePublicKey = fallbackNoiseKey
+                    existing.signingPublicKey = fallbackSigningKey
+                    try? context.save()
+                    DebugLogger.shared.log("RX", "FRIEND_REQ: backfilled keys on existing User \(username)")
+                }
             } else {
                 senderUser = User(
                     username: username,
                     displayName: senderDisplayName,
                     emailHash: "",
-                    noisePublicKey: Data(),
-                    signingPublicKey: Data()
+                    noisePublicKey: fallbackNoiseKey,
+                    signingPublicKey: fallbackSigningKey
                 )
                 context.insert(senderUser)
             }
@@ -1183,6 +1214,19 @@ final class MessageService: @unchecked Sendable {
         if let friend = try context.fetch(friendDesc).first {
             friend.statusRaw = FriendStatus.accepted.rawValue
             try context.save()
+        }
+
+        // Ensure user has keys before DM channel creation
+        if resolvedUser.noisePublicKey.isEmpty {
+            let resolvedUsername = resolvedUser.username
+            let peerDesc = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.username == resolvedUsername })
+            if let meshPeer = try? context.fetch(peerDesc).first,
+               !meshPeer.noisePublicKey.isEmpty {
+                resolvedUser.noisePublicKey = meshPeer.noisePublicKey
+                resolvedUser.signingPublicKey = meshPeer.signingPublicKey
+                try? context.save()
+                DebugLogger.shared.log("DM", "Backfilled keys for \(resolvedUsername) before createDMChannel")
+            }
         }
 
         // Create DM channel
@@ -1556,27 +1600,60 @@ final class MessageService: @unchecked Sendable {
     private func resolveRecipientPeerID(for channel: Channel) -> PeerID? {
         guard channel.type == .dm else { return nil }
 
-        // In a DM, find the remote user's noise key via membership,
-        // then look up their MeshPeer to get the BLE transport-level PeerID.
-        for membership in channel.memberships {
-            guard let user = membership.user, !user.noisePublicKey.isEmpty else { continue }
+        // Get local identity to filter out self from memberships
+        guard let identity = getIdentity() else {
+            print("[Blip-TX] ERROR resolveRecipient: no local identity")
+            return nil
+        }
+        let localNoiseKey = identity.noisePublicKey.rawRepresentation
 
-            let noiseKey = user.noisePublicKey
-            let context = ModelContext(modelContainer)
-            let descriptor = FetchDescriptor<MeshPeer>(predicate: #Predicate {
-                $0.noisePublicKey == noiseKey
-            })
-            if let meshPeer = try? context.fetch(descriptor).first {
+        // Fresh-fetch channel in a new context to avoid SwiftData lazy loading
+        // returning empty memberships from a stale context
+        let freshContext = ModelContext(modelContainer)
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let freshChannel = try? freshContext.fetch(channelDesc).first else {
+            print("[Blip-TX] ERROR resolveRecipient: channel not found in fresh context")
+            return nil
+        }
+
+        let memberships = freshChannel.memberships
+        print("[Blip-TX] resolveRecipient: channel has \(memberships.count) memberships")
+
+        for membership in memberships {
+            guard let user = membership.user else { continue }
+
+            // Skip local user
+            if user.noisePublicKey == localNoiseKey {
+                print("[Blip-TX] resolveRecipient: skipping local user \(user.username)")
+                continue
+            }
+
+            // Skip users with empty keys
+            if user.noisePublicKey.isEmpty {
+                print("[Blip-TX] resolveRecipient: user \(user.username) has empty noisePublicKey — skipping")
+                continue
+            }
+
+            // Look up MeshPeer by noisePublicKey to get BLE transport PeerID
+            let userKey = user.noisePublicKey
+            let peerDesc = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.noisePublicKey == userKey })
+            if let meshPeer = try? freshContext.fetch(peerDesc).first {
+                let peerHex = meshPeer.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
+                print("[Blip-TX] resolveRecipient: resolved \(user.username) → peerID \(peerHex)")
                 return PeerID(bytes: meshPeer.peerID)
             }
 
-            // Fallback: construct PeerID from stored key.
-            // If already 8 bytes (PeerID-sized), use directly to avoid double-hashing.
+            // Fallback: construct PeerID from stored key
             if user.noisePublicKey.count == PeerID.length {
+                print("[Blip-TX] resolveRecipient: using raw key as PeerID for \(user.username)")
                 return PeerID(bytes: user.noisePublicKey)
             }
+            print("[Blip-TX] resolveRecipient: user \(user.username) has key but no MeshPeer found")
             return PeerID(noisePublicKey: user.noisePublicKey)
         }
+
+        print("[Blip-TX] ERROR resolveRecipient: no valid remote user found in channel \(channelID)")
         return nil
     }
 
