@@ -124,9 +124,14 @@ struct ProfileSheet: View {
                     .foregroundStyle(theme.colors.text)
 
                 if isPhoneVerified {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.blipAccentPurple)
+                    ZStack {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
                 }
             }
 

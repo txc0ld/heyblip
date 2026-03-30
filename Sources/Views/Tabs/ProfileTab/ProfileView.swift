@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showMessageStore = false
     @State private var showVerifiedSheet = false
+    @State private var showQRCode = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -91,6 +92,14 @@ struct ProfileView: View {
                     .presentationDragIndicator(.visible)
                     .presentationBackground(.ultraThinMaterial)
             }
+            .sheet(isPresented: $showQRCode) {
+                if let user {
+                    QRCodeSheet(user: user)
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
+                        .presentationBackground(.ultraThinMaterial)
+                }
+            }
         }
     }
 
@@ -165,19 +174,24 @@ struct ProfileView: View {
                     // Verified ring
                     if user.isVerified {
                         Circle()
-                            .stroke(LinearGradient.blipAccent, lineWidth: 3)
+                            .stroke(Color.blue, lineWidth: 3)
                             .frame(width: BlipSizing.avatarLarge + 8, height: BlipSizing.avatarLarge + 8)
 
-                        // Verified badge
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(.blipAccentPurple)
-                            .background(
-                                Circle()
-                                    .fill(colorScheme == .dark ? .black : .white)
-                                    .frame(width: 20, height: 20)
-                            )
-                            .offset(x: 30, y: -30)
+                        // Verified badge (Meta/Instagram style — blue fill, white tick)
+                        ZStack {
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: 24, height: 24)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .background(
+                            Circle()
+                                .fill(colorScheme == .dark ? .black : .white)
+                                .frame(width: 28, height: 28)
+                        )
+                        .offset(x: 30, y: -30)
                     }
 
                     // Edit button
@@ -200,9 +214,14 @@ struct ProfileView: View {
                             .foregroundStyle(theme.colors.text)
 
                         if user.isVerified {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.blipAccentPurple)
+                            ZStack {
+                                Circle()
+                                    .fill(.blue)
+                                    .frame(width: 16, height: 16)
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
                         }
                     }
 
@@ -294,7 +313,7 @@ struct ProfileView: View {
                 }
 
                 quickActionCard(icon: "qrcode", title: "My QR Code", subtitle: "Share profile") {
-                    // Share QR code
+                    showQRCode = true
                 }
             }
         }
