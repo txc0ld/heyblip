@@ -14,10 +14,9 @@
 - `xcodebuild -project Blip.xcodeproj -scheme Blip -derivedDataPath /tmp/BlipUIUXBuild -destination 'generic/platform=iOS Simulator' -quiet build`
   - Result: passed
   - Notes: existing warnings remain, mostly Swift 6 / sendability / `nonisolated(unsafe)` debt
-- `xcodebuild -project Blip.xcodeproj -scheme Blip -derivedDataPath /tmp/BlipUIUXTests -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BlipTests/ChatViewModelTests -only-testing:BlipTests/SOSViewModelTests test -quiet`
-  - Result: failed at simulator bootstrap
-  - Failure mode: `Early unexpected exit, operation never finished bootstrapping`
-  - Notes: harness failure, not an observed assertion failure
+- `xcodebuild -project Blip.xcodeproj -scheme Blip -derivedDataPath /tmp/BlipUIUXFinal-tests -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BlipTests/ChatViewModelTests -only-testing:BlipTests/SOSViewModelTests test -quiet`
+  - Result: passed
+  - Notes: targeted XCTest run completed with existing Swift 6 / sendability warnings but no observed assertion failures
 - `swift test --package-path Packages/BlipProtocol`
   - Result: passed
   - Notes: `157 tests passed`
@@ -32,7 +31,6 @@
 ## Remaining Risks
 
 - Real-device location sharing and beacon behavior still need multi-device validation.
-- Simulator XCTest instability prevented a clean targeted app-test confirmation in this pass.
 - Broad concurrency and sendability warnings remain across app and package code.
 - Lost & Found and Medical remain intentionally unavailable until backend workflows are completed.
 
