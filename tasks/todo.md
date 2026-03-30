@@ -21,4 +21,4 @@
 - [x] Make Nearby/Friend Finder reflect real runtime availability instead of fabricated map context.
 - [x] Convert non-functional medical responder UI into honest build-state messaging.
 - [x] Run verification and add the second report set under `/reports`.
-- [ ] Push the updated branch and refresh the open PR summary.
+- [x] Push the updated branch and refresh the open PR summary.
