@@ -87,10 +87,19 @@ struct MainTabView: View {
         } label: {
             VStack(spacing: BlipSpacing.xs) {
                 ZStack {
-                    // Accent glow behind active tab
+                    // Accent gradient glow behind active tab
                     if selectedTab == tab {
                         Circle()
-                            .fill(Color.blipAccentPurple.opacity(0.2))
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.40, green: 0.0, blue: 1.0).opacity(0.25),
+                                        Color(red: 0.545, green: 0.361, blue: 0.965).opacity(0.15)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .frame(width: 40, height: 40)
                             .blur(radius: 8)
                     }
@@ -100,9 +109,9 @@ struct MainTabView: View {
                         .foregroundStyle(
                             selectedTab == tab
                                 ? Color.blipAccentPurple
-                                : theme.colors.mutedText
+                                : theme.colors.tertiaryText
                         )
-                        .scaleEffect(selectedTab == tab ? 1.1 : 1.0)
+                        .scaleEffect(selectedTab == tab ? 1.08 : 1.0)
                         .animation(SpringConstants.bouncyAnimation, value: selectedTab)
                         .frame(width: BlipSizing.minTapTarget, height: 32)
                 }
@@ -112,7 +121,7 @@ struct MainTabView: View {
                     .foregroundStyle(
                         selectedTab == tab
                             ? Color.blipAccentPurple
-                            : theme.colors.mutedText
+                            : theme.colors.tertiaryText
                     )
             }
             .frame(maxWidth: .infinity)

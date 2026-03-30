@@ -64,10 +64,10 @@ struct NearbyPeerCard: View {
                     )
             }
 
-            // Online indicator
+            // Online indicator — electricCyan
             if isOnline {
                 Circle()
-                    .fill(Color.green)
+                    .fill(Color.blipElectricCyan)
                     .frame(width: 10, height: 10)
                     .overlay(
                         Circle()
@@ -76,10 +76,10 @@ struct NearbyPeerCard: View {
                     .offset(x: 14, y: 14)
             }
 
-            // Friend badge
+            // Friend badge — accent gradient
             if isFriend {
                 Circle()
-                    .fill(.blipAccentPurple)
+                    .fill(LinearGradient.blipAccent)
                     .frame(width: 12, height: 12)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -139,10 +139,10 @@ struct NearbyPeerCard: View {
         let level = signalLevel
         if index < level {
             switch level {
-            case 4: return BlipColors.darkColors.statusGreen
-            case 3: return BlipColors.darkColors.statusGreen
-            case 2: return BlipColors.darkColors.statusAmber
-            default: return BlipColors.darkColors.statusRed
+            case 4: return Color.blipMint       // Excellent
+            case 3: return Color.blipMint       // Good
+            case 2: return theme.colors.statusAmber  // Fair
+            default: return Color.blipWarmCoral  // Weak
             }
         }
         return theme.colors.border

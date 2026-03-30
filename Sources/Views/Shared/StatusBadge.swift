@@ -132,11 +132,21 @@ struct StatusBadge: View {
     // MARK: - Helpers
 
     private var resolvedColor: Color {
-        tintColor ?? theme.colors.mutedText
+        if let tintColor {
+            return tintColor
+        }
+        switch status {
+        case .sent:
+            return Color.blipElectricCyan
+        case .composing, .queued:
+            return theme.colors.mutedText
+        case .delivered, .read:
+            return Color.blipMint
+        }
     }
 
     private var readColor: Color {
-        tintColor ?? Color.blipAccentPurple
+        tintColor ?? Color.blipMint
     }
 
     private var accessibilityText: String {

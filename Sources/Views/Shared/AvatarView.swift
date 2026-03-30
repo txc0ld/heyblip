@@ -166,7 +166,7 @@ struct AvatarView: View {
 
     private var onlineIndicatorDot: some View {
         Circle()
-            .fill(Color(red: 0.20, green: 0.84, blue: 0.47))
+            .fill(Color.blipElectricCyan)
             .frame(width: size * 0.25, height: size * 0.25)
             .overlay(
                 Circle()

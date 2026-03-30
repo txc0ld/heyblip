@@ -43,7 +43,7 @@ struct SOSButton: View {
         } label: {
             Image(systemName: "cross.case.fill")
                 .font(.system(size: iconSize, weight: .bold))
-                .foregroundStyle(isPressed ? .white : theme.colors.statusRed)
+                .foregroundStyle(isPressed ? .white : Color.blipWarmCoral)
                 .frame(width: buttonSize, height: buttonSize)
                 .background(buttonBackground)
                 .clipShape(Circle())
@@ -51,10 +51,19 @@ struct SOSButton: View {
                     Circle()
                         .stroke(
                             isPressed
-                                ? theme.colors.statusRed.opacity(0.8)
+                                ? Color.blipWarmCoral.opacity(0.8)
                                 : (colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.1)),
                             lineWidth: BlipSizing.hairline
                         )
+                )
+                .background(
+                    PulseGlow(
+                        color: Color.blipWarmCoral,
+                        size: buttonSize * 1.8,
+                        cycleDuration: 1.5
+                    )
+                    .opacity(isPressed ? 1.0 : 0.0)
+                    .animation(SpringConstants.gentleAnimation, value: isPressed)
                 )
                 .scaleEffect(isPressed ? 0.95 : 1.0)
                 .animation(SpringConstants.bouncyAnimation, value: isPressed)
@@ -81,7 +90,7 @@ struct SOSButton: View {
     @ViewBuilder
     private var buttonBackground: some View {
         if isPressed {
-            Circle().fill(theme.colors.statusRed)
+            Circle().fill(Color.blipWarmCoral)
         } else {
             Circle().fill(.ultraThinMaterial)
         }
@@ -105,7 +114,7 @@ extension SOSButton {
                     HStack(spacing: BlipSpacing.md) {
                         Image(systemName: "cross.case.fill")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(theme.colors.statusRed)
+                            .foregroundStyle(Color.blipWarmCoral)
 
                         VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                             Text("Emergency SOS")

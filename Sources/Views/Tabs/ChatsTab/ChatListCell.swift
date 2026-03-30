@@ -41,7 +41,7 @@ struct ChatListCell: View {
                             .foregroundStyle(
                                 conversation.unreadCount > 0
                                     ? Color.blipAccentPurple
-                                    : theme.colors.mutedText
+                                    : theme.colors.tertiaryText
                             )
                     }
 

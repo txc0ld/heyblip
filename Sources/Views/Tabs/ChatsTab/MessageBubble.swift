@@ -259,19 +259,23 @@ struct MessageBubble: View {
     @ViewBuilder
     private var bubbleBackground: some View {
         if message.isFromMe {
-            // Accent-tinted glass for outgoing
+            // Accent gradient glass for outgoing (#6600FF -> #8B5CF6)
             LinearGradient(
                 colors: [
-                    Color(red: 0.40, green: 0.0, blue: 1.0),
-                    Color(red: 0.48, green: 0.08, blue: 1.0)
+                    Color(red: 0.40, green: 0.0, blue: 1.0),   // #6600FF
+                    Color(red: 0.545, green: 0.361, blue: 0.965) // #8B5CF6
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         } else {
-            // Neutral glass for incoming
-            RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
-                .fill(.ultraThinMaterial)
+            // Elevated glass surface for incoming
+            ZStack {
+                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
+                    .fill(Color.blipSurfaceCardDark.opacity(colorScheme == .dark ? 0.5 : 0.3))
+            }
         }
     }
 
@@ -281,7 +285,8 @@ struct MessageBubble: View {
 
     private var borderColor: Color {
         if message.isFromMe {
-            return Color.white.opacity(0.15)
+            // Glass border on sent bubbles
+            return Color.white.opacity(0.20)
         } else {
             return colorScheme == .dark
                 ? Color.white.opacity(0.1)

@@ -32,9 +32,15 @@ struct ConnectionBanner: View {
 
     private var bannerContent: some View {
         HStack(spacing: BlipSpacing.sm) {
-            Circle()
-                .fill(theme.colors.statusGreen)
-                .frame(width: 8, height: 8)
+            // Mesh health indicator with breathing ring
+            BreathingRing(
+                ringCount: min(max(peerCount / 3, 1), 5),
+                baseSize: 12,
+                color: statusColor,
+                cycleDuration: 3.0,
+                ringSpacing: 0.3
+            )
+            .frame(width: 16, height: 16)
 
             Text(bannerText)
                 .font(.custom(BlipFontName.medium, size: 14, relativeTo: .footnote))
@@ -56,6 +62,11 @@ struct ConnectionBanner: View {
                 )
         )
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+    }
+
+    /// Connected: mint. Disconnected/reconnecting: warmCoral.
+    private var statusColor: Color {
+        peerCount > 0 ? Color.blipMint : Color.blipWarmCoral
     }
 
     // MARK: - Helpers

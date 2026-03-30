@@ -118,10 +118,11 @@ struct MessageInput: View {
             RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                 .stroke(
                     isTextFieldFocused
-                        ? Color.blipAccentPurple.opacity(0.4)
+                        ? Color.blipAccentPurple.opacity(0.3)
                         : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
-                    lineWidth: BlipSizing.hairline
+                    lineWidth: isTextFieldFocused ? 1.0 : BlipSizing.hairline
                 )
+                .animation(SpringConstants.gentleAnimation, value: isTextFieldFocused)
         )
     }
 
