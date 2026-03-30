@@ -1,51 +1,42 @@
 # UI / UX Recon
 
-## Product Experience Read
+## Current Product Experience
 
-Blip is trying to feel like a calm, premium festival coordination app on top of unstable transport and partial backend capability. The user-facing jobs are:
+Blip already had a strong visual foundation: gradient backgrounds, glass cards, deliberate typography, and a modern tab structure. The remaining UX issues were mostly integrity issues rather than pure styling issues. Several surfaces looked polished but were still backed by sample data, simulated purchasing, or local-only state.
 
-- discover nearby people and friends
-- start a DM quickly
-- understand whether the mesh is healthy
-- locate friends or rendezvous points without thinking about transport layers
-- manage identity, preferences, and paid message balance without confusion
+## Key User Journeys Reviewed
 
-## Key Journeys Audited
+- Nearby discovery: peer visibility, nearby people, nearby friends, location-channel list, friend finder map
+- Chat continuation: low-balance paywall entry from chat, purchase path, return to message flow
+- Festival utility: festival map/schedule shell, Lost & Found, medical responder adjunct
+- Profile/account: message balance, store entry, settings, verification affordances
 
-1. Nearby discovery -> open peer profile -> add friend
-2. Low-balance chat send -> paywall -> purchase/top-up
-3. Profile -> message packs / verified profile / settings
-4. Festival surfaces -> medical responder access
+## Pain Points
 
-## Evidence-Based Pain Points
+- The chat paywall still simulated purchases locally even though the app already had a real `StoreViewModel`.
+- The profile store could fall back to static product cards, which looked real enough to imply purchasable inventory when the App Store catalog had actually failed.
+- Nearby/Friend Finder mixed real mesh state with fabricated map context. Shared friend locations were represented by placeholder coordinates rather than actual location-sharing data.
+- Lost & Found presented a public-channel interface but only appended local sample/local-only messages.
+- Medical dashboard access could be unlocked by a fake local rule and demo responder data.
 
-- `Sources/Views/Shared/PaywallSheet.swift`
-  The sheet previously simulated successful purchases locally and told the user their message would send immediately after purchase. That was false-success behavior on a monetized path.
-- `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift`
-  The store fell back to static purchasable-looking cards when StoreKit failed to load. That preserved a premium surface while disconnecting it from reality.
-- `Sources/Views/Shared/ProfileSheet.swift`
-  The shared profile sheet always rendered Message / Block / Report actions even when no handlers were provided, creating dead controls across Nearby and Friends surfaces.
-- `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
-  The previous responder dashboard unlocked fabricated alerts and map data after any 4-character code. That was a critical trust break on an emergency surface.
-- `Sources/Views/Tabs/NearbyTab/NearbyView.swift`
-  The map/help states needed to communicate the difference between nearby mesh peers and opt-in location-sharing friends so the UI did not imply the map was “broken” when GPS sharing simply was not present.
+## Design Inconsistencies
 
-## Design / Hierarchy Issues
-
-- Purchase flows had multiple surfaces with different truth levels: real store in Profile, simulated store in Chat paywall.
-- Unavailable capabilities were presented as interactive buttons instead of informative status states.
-- Trust-critical messaging was too implementation-naive: the UI described optimistic outcomes instead of confirmed ones.
-- Emergency UX was visually polished but operationally fake, which is worse than an explicit unavailable state.
+- Some surfaces had already been converted to “honest unavailable” states, while others still preserved soft-fake UX.
+- State messaging varied in quality: profile/settings were explicit about unavailable actions, but paywall/store and festival adjuncts still leaned on fallback/demo behavior.
+- Nearby’s visual shell was strong, but map trust broke because the map semantics no longer matched the data behind it.
 
 ## Functional Integrity Concerns
 
-- Paywall success was not coupled to App Store confirmation.
-- Store fallback catalog encouraged taps on products that did not exist for the current device session.
-- Profile actions were visually primary even when unsupported by the caller.
-- Medical responder auth and live incident sync were absent, but the UI implied otherwise.
+- `Sources/Views/Shared/PaywallSheet.swift`: simulated purchase path diverged from the real store implementation.
+- `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift`: static card fallback made catalog failure look like available products.
+- `Sources/Views/Tabs/NearbyTab/NearbyView.swift`: friend-map pins were derived from mesh presence, not actual shared friend locations.
+- `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`: public-channel UX existed without shared/public persistence.
+- `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`: access and dashboard state were demo-driven.
 
-## Backend / System Leakage
+## Backend Leakage Observations
 
-- StoreKit failure was hidden behind a fake local catalog instead of surfaced as “store unavailable.”
-- Emergency responder access used a client-only affordance rather than admitting the organizer auth backend was missing.
-- Nearby location-sharing state needed clearer explanation so users understood why mesh discovery and map visibility can diverge.
+- The real backend complexity problem here was not overexposure of technical detail, but concealment of missing backend wiring. Users saw calm product surfaces that suggested capability the system did not actually provide.
+- The strongest UX correction was to make availability explicit and outcome-oriented:
+  - real App Store data when available
+  - retry states when unavailable
+  - disabled or informational states where server/transport backing does not yet exist

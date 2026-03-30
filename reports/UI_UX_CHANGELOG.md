@@ -2,32 +2,30 @@
 
 ## What Changed
 
-- `Sources/Views/Shared/PaywallSheet.swift`
-  Replaced simulated purchase flow with the real `StoreViewModel`, live product selection, restore handling, and truthful purchase copy.
-- `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift`
-  Removed the fake fallback catalog and replaced it with a real unavailable/retry state. Removed the dead subscription CTA.
-- `Sources/Views/Shared/ProfileSheet.swift`
-  Shared profile actions are now rendered only when the caller actually wires them.
-- `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
-  Replaced weak-code sample-data responder flow with an honest unavailable/readiness screen.
+- `PaywallSheet` now uses the real `StoreViewModel` and App Store product state instead of a simulated timer-based purchase flow.
+- Chat now opens the paywall with the coordinator-owned store model and refreshes profile balance on dismiss.
+- Profile store now reuses shared store state and shows retry/unavailable messaging instead of static fake catalog cards.
+- Nearby now uses real location-sharing state for Friend Finder context and explains permission/no-shared-location cases explicitly.
+- Friend Finder support code now stabilizes peer IDs and supports one-shot location refresh for display.
+- Lost & Found no longer pretends to post to a shared public channel when that channel is not wired.
+- Medical Dashboard no longer unlocks off a fake local code or show demo responder data as if live.
+- `ProfileSheet` secondary-action model was normalized to current `GlassButton.Style` usage to keep the build green on the current toolchain.
 
 ## Why It Changed
 
-- To remove false-success behavior.
-- To stop premium visuals from legitimizing non-functional features.
-- To reduce user confusion and eliminate dead controls.
-- To improve institutional trust on monetization and emergency surfaces.
+- The app’s main remaining UX weakness was believable but incomplete behavior.
+- This pass prioritized operational trustworthiness over new visual styling.
 
 ## Issues Resolved
 
-- Fake purchase success in chat paywall
-- Fake store products on StoreKit failure
-- Dead Message / Block / Report profile actions
-- Fake medical dashboard unlock and sample emergency feed
+- False-success purchase UX
+- Fake/fallback store inventory
+- Fabricated map context in Nearby/Friend Finder
+- Demo emergency/public-channel flows presented as live
+- Shared-state drift between chat/profile/store entry points
 
-## Intentionally Deferred
+## Deferred
 
-- Real server-backed receipt verification enforcement
-- Live medical responder workflow
-- Real-device BLE/location validation
-- Broader Swift 6 warning cleanup
+- Real shared/public Lost & Found transport
+- Organizer-authenticated medical responder workflow
+- Full real-device validation of Friend Finder/live location behavior

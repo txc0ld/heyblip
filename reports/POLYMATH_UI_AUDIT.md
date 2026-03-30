@@ -1,53 +1,70 @@
 # Polymath UI Audit
 
-## Surface Scores
+## Audit By Surface
 
-| Surface | Score | Notes |
-|---|---:|---|
-| Nearby | 3/5 | Good hierarchy after prior pass, but map-state clarity still matters for trust |
-| Chat / Paywall | 2/5 -> 3/5 | Monetization UX was misleading; now aligned to real store flow |
-| Profile / Shared Sheets | 2/5 -> 3/5 | Dead controls removed, unsupported actions hidden |
-| Message Pack Store | 3/5 -> 4/5 | Honest unavailable/retry state replaced fake fallback catalog |
-| Festival / Medical | 1/5 -> 2/5 | Functional capability still absent, but misleading emergency UI removed |
+### Nearby
 
-## Visual Issues
+- Visual: strong hierarchy, but the Friend Finder section implied spatial accuracy it did not have.
+- Interaction: `Show Map` exposed a plausible map even when only mesh-presence data existed.
+- Functional: `Sources/Views/Tabs/NearbyTab/NearbyView.swift` mapped nearby friends to fabricated coordinates.
+- State quality: empty/loading logic did not distinguish “no mesh peers” from “no shared GPS locations”.
+- Accessibility/usability: visibility and map affordances were understandable, but the map explanation layer was missing.
 
-- Paywall and store looked premium but encoded different product truths.
-- Profile sheet prioritized unsupported actions equally with supported ones.
-- Medical dashboard used high-polish cards and maps to legitimize fake data.
+### Chat + Paywall
 
-## Interaction Issues
+- Visual: paywall presentation was coherent.
+- Interaction: low-balance action path was clear.
+- Functional: `Sources/Views/Shared/PaywallSheet.swift` simulated purchase success rather than using `StoreViewModel`.
+- State quality: copy promised immediate continuation even though the message send was not retried automatically.
+- Trust gap: purchase outcome and balance state could diverge from reality.
 
-- Tapping unsupported profile actions produced no meaningful outcome.
-- Chat paywall implied automatic recovery after purchase, but the send flow was not retried.
-- Subscription “Notify Me” in the store implied follow-through that did not exist.
+### Profile Store
 
-## Functional Issues
+- Visual: cards and balance hierarchy were strong.
+- Functional: `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift` previously rendered fallback static packs on product-load failure.
+- Reliability: users could interpret catalog failure as successful product availability.
+- Institutional gap: product surfaces should not fabricate commercial inventory.
 
-- Simulated purchase flow in `PaywallSheet`.
-- Static product fallback in `MessagePackStore`.
-- Handler-less action buttons in `ProfileSheet`.
-- Weak-code unlock plus sample emergencies in `MedicalDashboardView`.
+### Festival Utility Surfaces
 
-## State-Quality Issues
+- Lost & Found:
+  - Visual: credible public-channel shell.
+  - Functional: local-only/sample messaging in `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`.
+  - Trust gap: implied shared/public functionality without actual shared transport.
+- Medical Dashboard:
+  - Visual: polished responder dashboard shell.
+  - Functional: fake local unlock and sample responder state in `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`.
+  - Trust gap: institutional-looking emergency tooling cannot be demo-unlocked in a live build.
 
-- Store availability state was hidden instead of modeled.
-- Emergency readiness state was faked instead of modeled.
-- Nearby needed clearer distinction between mesh discovery and GPS-sharing map data.
+## Issue Classes
 
-## Accessibility / Usability Issues
+- Simulated transactional UX
+- Fallback catalogs masquerading as real products
+- Placeholder map semantics
+- Demo emergency tooling
+- Public-channel shells without shared persistence
 
-- Dead controls waste focus order and create misleading affordances.
-- Purchase recovery copy was outcome-inaccurate.
-- Availability states needed user-language explanations instead of silent omissions.
+## Accessibility / Usability
 
-## Performance-As-UX Issues
+- Positive:
+  - touch targets remain generally strong
+  - glass-card layouts maintain readable grouping
+  - major controls are labeled
+- Remaining issues:
+  - some unavailable states still rely on explanatory copy rather than route-level hiding
+  - there is still limited assisted guidance for “what happens after purchase” in chat
 
-- No major UX-performance defect was addressed in this pass.
-- Remaining performance-sensitive UX risk is still around real-device BLE/location behavior, not SwiftUI rendering.
+## Performance As UX
+
+- This pass did not uncover a major rendering bottleneck more important than integrity work.
+- The more important UX-performance issue was perceived latency under uncertainty:
+  - store catalog loading without honest retry states
+  - map surfaces showing fabricated results rather than empty live state
 
 ## Institutional-Quality Gaps
 
-- Receipt verification remains best-effort and local crediting still occurs on the client path.
-- Full-screen Friend Finder remains secondary and is not yet part of a clearly primary user journey.
-- Medical responder workflows remain unavailable rather than live.
+- Not all product-adjacent surfaces are production-truthful yet.
+- Real device/location/store behaviors are materially better surfaced after this pass, but the app still has deferred work around:
+  - full private-message confidentiality
+  - real shared Lost & Found transport/persistence
+  - real responder authentication/data feeds

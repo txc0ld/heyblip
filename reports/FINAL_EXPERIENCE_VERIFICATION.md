@@ -1,31 +1,42 @@
 # Final Experience Verification
 
-## Flows Verified
+## Screens / Flows Reviewed
 
-- Chat low-balance paywall now binds to `StoreViewModel` instead of local timer-based success.
-- Message store now shows real products or an unavailable/retry state.
-- Shared peer profile no longer shows unsupported actions when handlers are absent.
-- Medical dashboard now communicates unavailability instead of unlocking fake emergency data.
+- Nearby: peer list, friend list, Friend Finder map reveal, location-state messaging
+- Chat: low-balance paywall entry and dismissal path
+- Profile: message balance to store flow
+- Store: live product loading, unavailable catalog state, restore path wiring
+- Festival: Lost & Found unavailable state, Medical dashboard locked-state honesty
 
 ## Technical Checks Run
 
 - `xcodegen generate`
 - `xcodebuild -project Blip.xcodeproj -scheme Blip -destination 'generic/platform=iOS Simulator' -quiet build`
+- `xcodebuild -project Blip.xcodeproj -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BlipTests/ChatViewModelTests test -quiet`
 
 ## Results
 
-- Build passed.
-- No new compile failures were introduced.
-- Pre-existing warning set remains, primarily around `nonisolated(unsafe)` annotations and broader concurrency cleanup.
+- Build: passed
+- Targeted XCTest invocation: simulator bootstrap failed before test process connection
+  - error: `Early unexpected exit, operation never finished bootstrapping`
+  - interpretation: environment/simulator instability, not a compiled app failure
+
+## Issues Fixed
+
+- Removed fake paywall purchase completion
+- Removed fake store inventory fallback
+- Removed fake Nearby map location context
+- Disabled fake Lost & Found posting
+- Disabled fake medical dashboard unlock
 
 ## Remaining Risks
 
-- Receipt verification remains best-effort in `StoreViewModel`; client-side crediting still exists.
-- Medical responder workflows remain unavailable rather than implemented.
-- Full end-to-end experience still depends on real-device BLE validation already tracked in the earlier audit/report set.
+- No executed UI automation exists for these surfaces.
+- The targeted test command did not complete because the simulator test host crashed before establishing the test connection.
+- Nearby/Friend Finder still depends on real device permission/location and peer-shared data to be fully validated.
 
 ## Recommended Next Refinements
 
-1. Route the full-screen Friend Finder flow into the main Nearby journey if it is meant to be user-facing.
-2. Enforce server-side receipt verification before local crediting if the purchase model is meant to be production-grade.
-3. Implement or keep hidden any festival responder workflow until live auth and dispatch sync exist.
+1. Add lightweight UI or view-model tests around store/paywall availability states.
+2. Add a shared “feature unavailable” component to reduce copy drift across unfinished surfaces.
+3. Run real-device validation for Friend Finder and location sharing.

@@ -2,32 +2,40 @@
 
 ## Target UX Principles
 
-- Every visible primary action must have a real outcome.
-- Unavailable capabilities should read as intentional status states, not broken controls.
-- Recovery paths should be explicit: retry, go back, or wait for confirmation.
+- Every visible control should either work against a real backing system or clearly explain why it is unavailable.
+- Shared runtime state should drive the UI across entry points.
+- Empty states should describe what is missing, not just that “nothing is here.”
 
 ## Target Visual Principles
 
-- Premium surfaces remain premium even when the answer is “not available.”
-- Status cards should be calm and legible, not punitive or noisy.
-- Monetization and safety surfaces must use the clearest possible hierarchy.
+- Preserve the existing glass/gradient design language.
+- Use explanatory cards and compact banners to clarify state instead of adding new chrome.
+- Keep density low and hierarchy stable.
 
 ## Target Flow Principles
 
-- Chat top-up: select real product -> purchase -> return to chat -> resend.
-- Store catalog: load real products or show unavailable/retry.
-- Peer profile: show only supported actions.
-- Medical dashboard: expose build readiness honestly until auth + live data exist.
+- Chat purchase flow:
+  - real StoreKit-backed purchase
+  - real balance refresh
+  - no promise of automatic message resend
+- Nearby/Friend Finder:
+  - mesh presence and GPS sharing are separate concepts
+  - map only reflects actual shared location state
+- Festival adjunct utilities:
+  - unfinished shared/public functionality should fail honest
 
-## Backend Abstraction Approach
+## Intended Backend Abstraction Approach
 
-- Hide StoreKit/backend failure behind a clear user-facing store state, not fake products.
-- Hide emergency-system absence behind an unavailable readiness screen, not sample incidents.
-- Keep transport/location complexity out of primary user copy unless it affects the current outcome.
+- Hide backend/process complexity, but never hide the absence of backend wiring.
+- Translate missing capability into user-facing outcomes:
+  - unavailable
+  - retry
+  - waiting for shared data
+  - needs permission
 
 ## Implementation Priorities
 
-1. Remove false-success purchase UX.
-2. Remove fake emergency access.
-3. Remove dead shared actions.
-4. Improve nearby/map availability communication.
+1. Replace fake purchase behavior with real store-backed behavior.
+2. Remove catalog fallback that looks like real inventory.
+3. Make Nearby/Friend Finder map semantics truthful.
+4. Disable fake public/emergency flows while keeping discovery and product structure intact.

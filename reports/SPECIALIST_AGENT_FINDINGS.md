@@ -1,49 +1,75 @@
 # Specialist Agent Findings
 
-## Execution Note
-
-Specialist-agent delegation was attempted for this pass, but the external spawn path was unreliable in-session. Findings below were completed as explicit local role-based passes using the same repo context rather than invented agent output.
-
 ## Product Experience Architect
 
-- Chat top-up needed to reflect the real post-purchase behavior: buy, then return and resend.
-- Emergency responder UI should fail honest, not mimic readiness.
-- Unsupported actions should disappear instead of remaining “discoverable.”
+- Prioritize trust over density. The biggest user-experience failures were not navigation problems; they were believable but incomplete flows.
+- Nearby, Store, and Festival adjuncts should communicate availability honestly instead of preserving pretty placeholders.
 
 ## Visual Systems Director
 
-- Availability states should still look first-class, not like error dumps.
-- Store fallback cards were visually indistinguishable from live products and had to become a distinct unavailable card.
+- The visual language was already coherent enough to support refinement without redesign.
+- Highest-value visual improvement was pairing existing polished cards with better explanatory states, not changing the design system.
 
 ## Interaction Design Agent
 
-- Profile action rows needed to be capability-driven.
-- Paywall primary CTA needed to bind to a selected real product, not a local placeholder model.
+- Paywall interaction was the most misleading flow because the CTA succeeded locally without StoreKit truth.
+- Secondary interactions improved when unavailable paths were turned into explicit information instead of soft-dead buttons or fake completion.
 
 ## Frontend Craftsmanship Agent
 
-- `PaywallSheet` and `MessagePackStore` duplicated product UI with different truth models.
-- `MedicalDashboardView` carried too much fake state for a trust-critical surface.
+- Shared coordinator-owned view models reduce drift and duplicated runtime state.
+- Nearby/Friend Finder and Store surfaces benefited from being supplied with real runtime models rather than rebuilding private UI-only state.
 
 ## Backend Integration Integrity Agent
 
-- Paywall/store surfaces now use `StoreViewModel` rather than simulated local purchase success.
-- Medical dashboard still has no safe live backend path, so the correct implementation is an honest unavailable state.
+- `PaywallSheet` needed to consume `StoreViewModel`.
+- `MessagePackStore` needed to stop using static catalog fallback.
+- Lost & Found and Medical needed honest degradation because their backend/data paths are not production-backed.
 
-## Accessibility and Usability Agent
+## State, Data, and Sync Agent
 
-- Dead buttons were removed from the focus path in `ProfileSheet`.
-- Unavailable states now explain what the user can do next: retry store, go back to chat, or wait for organizer-backed access.
+- Location-driven UI needed to distinguish:
+  - mesh presence
+  - device location availability
+  - shared friend-location availability
+- Store state needed one source of truth for product loading, purchase, restore, and balance refresh.
 
 ## Functional Correctness Agent
 
-- Simulated purchases and fake emergency data were the two highest-severity user-facing correctness failures in this pass.
+- Fake medical unlock and simulated paywall purchase were the highest-severity visible correctness issues.
+- Nearby map trust was weaker than nearby peer-card trust because the former used fabricated spatial context.
+
+## Accessibility and Usability Agent
+
+- Honest banners and unavailable explanations were preferable to interactive dead ends.
+- The revised states improved comprehension without adding visual clutter.
+
+## Reliability and Trust Agent
+
+- Trust failures were caused by false-success UI, not by loud error states.
+- The correction strategy was:
+  - real runtime data when available
+  - explicit retry states on fetch failure
+  - disabled/informational states where functionality is not truly live
+
+## Design-to-Code Consistency Agent
+
+- The design language already communicated premium quality; the implementation gaps were undermining that promise.
+- This pass mainly improved consistency between what the UI suggests and what the code actually does.
+
+## Overlaps
+
+- All specialist lenses converged on the same root cause:
+  the remaining UX debt was mostly integrity debt.
+
+## Conflicts
+
+- One tension remained: whether to hide unfinished surfaces entirely or keep them visible with honest degradation.
+- This pass chose honest degradation for discoverability on Festival utility surfaces and for continuity on store/paywall entry.
 
 ## Orchestrated Synthesis
 
-Highest-leverage fix order:
-
-1. eliminate false-success and fake-capability surfaces
-2. collapse duplicate purchase truth models into the real store-backed path
-3. hide unsupported controls
-4. keep Nearby/Friend Finder honest about runtime availability
+- Fix truthfulness first.
+- Reuse shared runtime view models wherever practical.
+- Preserve the existing visual system.
+- Prefer calm explanatory states over fake activity, fake success, or fake data.
