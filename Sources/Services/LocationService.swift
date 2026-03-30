@@ -93,13 +93,14 @@ final class LocationService: NSObject, @unchecked Sendable {
         super.init()
         locationManager.delegate = self
         locationManager.pausesLocationUpdatesAutomatically = false
-#if targetEnvironment(simulator)
-        locationManager.allowsBackgroundLocationUpdates = false
-        locationManager.showsBackgroundLocationIndicator = false
-#else
-        locationManager.allowsBackgroundLocationUpdates = true
-        locationManager.showsBackgroundLocationIndicator = true
-#endif
+        // Only enable background location if the "location" background mode is declared
+        // in Info.plist. Without it, setting allowsBackgroundLocationUpdates = true
+        // crashes with NSInternalInconsistencyException.
+        let bgModes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String] ?? []
+        if bgModes.contains("location") {
+            locationManager.allowsBackgroundLocationUpdates = true
+            locationManager.showsBackgroundLocationIndicator = true
+        }
     }
 
     // MARK: - Authorization
