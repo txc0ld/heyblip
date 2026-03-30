@@ -23,6 +23,7 @@ struct BLEDebugOverlay: View {
 
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppCoordinator.self) private var coordinator
 
     private let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
     private let logger = Logger(subsystem: "com.blip", category: "BLEDebug")
@@ -176,17 +177,31 @@ struct BLEDebugOverlay: View {
     // MARK: - State Refresh
 
     private func refreshState() {
-        // Read from NotificationCenter-posted state or AppCoordinator.
-        // In a real device test, these will be populated by BLEService callbacks.
-        // Check BLE state via posted notifications.
-        // For now, show placeholder until real device is connected.
-        bleState = "Scanning"
-        wsState = "Disconnected"
+        // Read real state from AppCoordinator → BLEService
+        if let ble = coordinator.bleService {
+            switch ble.state {
+            case .idle: bleState = "Idle"
+            case .starting: bleState = "Starting"
+            case .running: bleState = "Running"
+            case .stopped: bleState = "Stopped"
+            case .failed(let reason): bleState = "Failed: \(reason)"
+            }
+            peerCount = ble.connectedPeers.count
+        } else {
+            bleState = "Not initialized"
+        }
 
-        // Listen for mesh peer changes.
+        if let ws = coordinator.webSocketTransport {
+            switch ws.state {
+            case .running: wsState = "Connected"
+            case .starting: wsState = "Connecting"
+            default: wsState = "Disconnected"
+            }
+        }
+
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         if logLines.count > 100 { logLines.removeFirst(50) }
-        logLines.append("[\(timestamp)] State refresh — \(peerCount) peers")
+        logLines.append("[\(timestamp)] State refresh — \(peerCount) peers, BLE: \(bleState)")
     }
 }
 
