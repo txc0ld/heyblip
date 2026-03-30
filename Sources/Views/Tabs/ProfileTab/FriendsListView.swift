@@ -322,14 +322,7 @@ private struct FriendRow: View {
                             .foregroundStyle(theme.colors.text)
 
                         if friend.isPhoneVerified {
-                            ZStack {
-                                Circle()
-                                    .fill(.blue)
-                                    .frame(width: 14, height: 14)
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
+                            VerifiedBadge(size: 12)
                         }
                     }
 

@@ -14,7 +14,13 @@ struct QRCodeSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: BlipSpacing.lg) {
+        VStack(spacing: 0) {
+            // Handle
+            Capsule()
+                .fill(theme.colors.mutedText.opacity(0.3))
+                .frame(width: 36, height: 4)
+                .padding(.top, BlipSpacing.sm)
+
             // Header
             HStack {
                 Text("My QR Code")
@@ -32,36 +38,30 @@ struct QRCodeSheet: View {
                 .accessibilityLabel("Close")
             }
             .padding(.horizontal, BlipSpacing.md)
-            .padding(.top, BlipSpacing.md)
+            .padding(.top, BlipSpacing.sm)
 
-            // QR Code card
+            Spacer().frame(height: BlipSpacing.lg)
+
+            // QR Code card — centered and contained
             VStack(spacing: BlipSpacing.md) {
-                // QR code image
                 if let qrImage = generateQRCode(for: "blip://user/\(user.username)") {
                     Image(uiImage: qrImage)
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 220, height: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
+                        .frame(maxWidth: 200, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
                         .padding(BlipSpacing.md)
                         .background(
-                            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                            RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
                                 .fill(.white)
                         )
                 }
 
                 // User info
-                HStack(spacing: BlipSpacing.sm) {
+                HStack(spacing: BlipSpacing.xs) {
                     if user.isVerified {
-                        ZStack {
-                            Circle()
-                                .fill(.blue)
-                                .frame(width: 18, height: 18)
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
+                        VerifiedBadge(size: 18)
                     }
 
                     Text("@\(user.username)")
@@ -73,7 +73,9 @@ struct QRCodeSheet: View {
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
             }
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, BlipSpacing.lg)
+
+            Spacer().frame(height: BlipSpacing.lg)
 
             // Share button
             if let qrImage = generateQRCode(for: "blip://user/\(user.username)") {
@@ -90,13 +92,13 @@ struct QRCodeSheet: View {
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.sm + 2)
                     .background(
                         Capsule()
                             .fill(LinearGradient.blipAccent)
                     )
                 }
-                .padding(.horizontal, BlipSpacing.xl)
+                .padding(.horizontal, BlipSpacing.lg)
                 .frame(minHeight: BlipSizing.minTapTarget)
             }
 
@@ -114,19 +116,16 @@ struct QRCodeSheet: View {
 
         guard let outputImage = filter.outputImage else { return nil }
 
-        // Scale up for crisp rendering
         let scale = 10.0
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
-        // Tint the QR code with brand purple
         let colorFilter = CIFilter.falseColor()
         colorFilter.inputImage = scaledImage
-        colorFilter.color0 = CIColor(color: UIColor(named: "AccentPurple") ?? UIColor(red: 0.4, green: 0, blue: 1, alpha: 1))
+        colorFilter.color0 = CIColor(color: UIColor(red: 0.4, green: 0, blue: 1, alpha: 1))
         colorFilter.color1 = CIColor.white
 
         guard let tintedImage = colorFilter.outputImage,
               let cgImage = context.createCGImage(tintedImage, from: tintedImage.extent) else {
-            // Fallback: black and white
             guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
             return UIImage(cgImage: cgImage)
         }
