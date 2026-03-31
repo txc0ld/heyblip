@@ -66,6 +66,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Latest RSSI reading per connected peripheral UUID.
     var peripheralRSSI: [UUID: Int] = [:]
 
+    /// Consecutive connection failure count per peripheral for exponential backoff.
+    private var failureCounts: [UUID: Int] = [:]
+    /// Timestamp when a peripheral's backoff period started, for expiry calculation.
+    private var backoffUntil: [UUID: Date] = [:]
+
     // MARK: - Concurrency
 
     let lock = NSLock()
@@ -401,6 +406,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             return false
         }
 
+        // Exponential backoff for repeatedly failing peripherals
+        if let until = backoffUntil[uuid], Date() < until {
+            return false
+        }
+
         // RSSI threshold
         let threshold = connectedPeripheralRefs.isEmpty
             ? BLEConstants.isolatedRSSIThreshold
@@ -413,6 +423,18 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         if currentCount >= maxConnections { return false }
 
         return true
+    }
+
+    /// Record a connection failure and compute exponential backoff.
+    /// Must be called while holding `lock`.
+    private func recordConnectionFailure(for uuid: UUID) {
+        let count = (failureCounts[uuid] ?? 0) + 1
+        failureCounts[uuid] = count
+        let backoffSeconds = min(15.0 * pow(2.0, Double(count - 1)), 300.0)
+        backoffUntil[uuid] = Date().addingTimeInterval(backoffSeconds)
+        let shortUUID = uuid.uuidString.prefix(8)
+        logger.info("Backoff for \(shortUUID): \(count) failures, next attempt in \(Int(backoffSeconds))s")
+        transportEventHandler?("BLE", "BACKOFF \(shortUUID) failures=\(count) wait=\(Int(backoffSeconds))s")
     }
 
     // MARK: - Internal handlers (testable via @testable import)
@@ -506,6 +528,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             }
             if isStillConnecting {
                 self.logger.warning("Connection timeout for \(peripheralUUID)")
+                self.transportEventHandler?("BLE", "CONNECT TIMEOUT \(peripheralUUID.uuidString.prefix(8))")
                 let peripheralRef = self.lock.withLock { self.connectedPeripheralRefs[peripheralUUID] }
                 if let peripheralRef = peripheralRef {
                     self.centralManager?.bleCancelConnection(peripheralRef)
@@ -514,6 +537,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
                     self.connectingPeripherals.remove(peripheralUUID)
                     self.connectedPeripheralRefs.removeValue(forKey: peripheralUUID)
                     self.timedOutPeripherals[peripheralUUID] = Date()
+                    self.recordConnectionFailure(for: peripheralUUID)
                 }
             }
         }
@@ -528,6 +552,8 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         lock.withLock {
             connectingPeripherals.remove(peripheral.identifier)
             connectedPeripheralRefs[peripheral.identifier] = peripheral
+            failureCounts.removeValue(forKey: peripheral.identifier)
+            backoffUntil.removeValue(forKey: peripheral.identifier)
 
             let peerID = temporaryPeerID(from: peripheral.identifier)
             peripheralToPeerID[peripheral.identifier] = peerID
@@ -557,6 +583,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             connectingPeripherals.remove(uuid)
             connectedPeripheralRefs.removeValue(forKey: uuid)
             timedOutPeripherals[uuid] = Date()
+            recordConnectionFailure(for: uuid)
         }
     }
 
