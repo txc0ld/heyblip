@@ -337,6 +337,7 @@ struct ChatListView: View {
         switch status {
         case .composing: return .composing
         case .queued: return .queued
+        case .encrypting: return .encrypting
         case .sent: return .sent
         case .delivered: return .delivered
         case .read: return .read

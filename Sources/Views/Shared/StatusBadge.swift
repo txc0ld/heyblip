@@ -21,6 +21,7 @@ struct StatusBadge: View {
     enum DeliveryStatus: Sendable, Equatable {
         case composing
         case queued
+        case encrypting
         case sent
         case delivered
         case read
@@ -43,6 +44,8 @@ struct StatusBadge: View {
                 composingDots
             case .queued:
                 queuedIcon
+            case .encrypting:
+                encryptingIcon
             case .sent:
                 sentIcon
             case .delivered:
@@ -73,6 +76,17 @@ struct StatusBadge: View {
 
     private var queuedIcon: some View {
         Image(systemName: "clock")
+            .font(.system(size: size, weight: .medium))
+            .foregroundStyle(resolvedColor)
+            .scaleEffect(animationTrigger ? 1.0 : 0.5)
+            .opacity(animationTrigger ? 1.0 : 0.0)
+            .onAppear { triggerAnimation() }
+    }
+
+    // MARK: - Encrypting (lock icon)
+
+    private var encryptingIcon: some View {
+        Image(systemName: "lock")
             .font(.system(size: size, weight: .medium))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
@@ -138,7 +152,7 @@ struct StatusBadge: View {
         switch status {
         case .sent:
             return Color.blipElectricCyan
-        case .composing, .queued:
+        case .composing, .queued, .encrypting:
             return theme.colors.mutedText
         case .delivered, .read:
             return Color.blipMint
@@ -153,6 +167,7 @@ struct StatusBadge: View {
         switch status {
         case .composing: return "Typing"
         case .queued: return "Queued"
+        case .encrypting: return "Encrypting"
         case .sent: return "Sent"
         case .delivered: return "Delivered"
         case .read: return "Read"

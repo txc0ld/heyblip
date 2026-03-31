@@ -59,6 +59,23 @@ final class MessageService: @unchecked Sendable {
     // Transport reference (set externally after initialization)
     private var transport: (any Transport)?
 
+    // MARK: - Noise Sessions
+
+    /// Manages Noise XX handshakes and active encrypted sessions.
+    private var noiseSessionManager: NoiseSessionManager?
+
+    /// Messages queued while waiting for a Noise handshake to complete.
+    private var pendingHandshakeMessages: [Data: [PendingEncryptedMessage]] = [:]
+
+    /// A message waiting for a Noise session to be established before it can be encrypted.
+    private struct PendingEncryptedMessage {
+        let payload: Data
+        let subType: EncryptedSubType
+        let channel: Channel
+        let identity: Identity
+        let messageID: UUID?
+    }
+
     // MARK: - State
 
     private let lock = NSLock()
@@ -94,6 +111,7 @@ final class MessageService: @unchecked Sendable {
         defer { lock.unlock() }
         self.transport = transport
         self.localIdentity = identity
+        self.noiseSessionManager = NoiseSessionManager(localStaticKey: identity.noisePrivateKey)
     }
 
     // MARK: - Send Message
@@ -565,6 +583,8 @@ final class MessageService: @unchecked Sendable {
         switch packet.type {
         case .announce:
             try await handleAnnounce(packet, from: peerID)
+        case .noiseHandshake:
+            try await handleNoiseHandshake(packet, from: peerID)
         case .noiseEncrypted:
             try await handleEncryptedPacket(packet, from: peerID)
         case .meshBroadcast:
@@ -612,24 +632,59 @@ final class MessageService: @unchecked Sendable {
             flags.insert(.hasRecipient)
             let recipientPeerID = resolveRecipientPeerID(for: channel)
             let recipientHex = recipientPeerID?.bytes.prefix(4).map { String(format: "%02x", $0) }.joined() ?? "nil"
-            DebugLogger.emit("DM", "encryptAndSend: encrypted OK, ciphertext=\(compressed.data.count)B → recipient=\(recipientHex)")
 
-            if recipientPeerID == nil {
+            guard let recipientPeerID else {
                 DebugLogger.emit("DM", "encryptAndSend: FAILED — recipient could not be resolved", isError: true)
                 throw MessageServiceError.invalidRecipient
             }
 
-            let packet = buildPacket(
-                type: .noiseEncrypted,
-                payload: compressed.data,
-                flags: flags,
-                senderID: identity.peerID,
-                recipientID: recipientPeerID
-            )
-            try sendPacket(packet)
-            DebugLogger.emit("DM", "BLE write: peer=\(recipientHex) size=\(compressed.data.count)B OK")
+            // Check for active Noise session — encrypt if available, queue + handshake if not
+            if let session = noiseSessionManager?.getSession(for: recipientPeerID) {
+                // Encrypt with Noise session
+                let ciphertext = try session.encrypt(plaintext: compressed.data)
+                DebugLogger.emit("DM", "encryptAndSend: Noise encrypted \(compressed.data.count)B → \(ciphertext.count)B → \(recipientHex)")
+
+                let packet = buildPacket(
+                    type: .noiseEncrypted,
+                    payload: ciphertext,
+                    flags: flags,
+                    senderID: identity.peerID,
+                    recipientID: recipientPeerID
+                )
+                try sendPacket(packet)
+            } else if try initiateHandshakeIfNeeded(with: recipientPeerID) {
+                // Handshake initiated — queue this message
+                DebugLogger.emit("DM", "encryptAndSend: queuing message for \(recipientHex) pending handshake")
+                let pending = PendingEncryptedMessage(
+                    payload: payload,
+                    subType: subType,
+                    channel: channel,
+                    identity: identity,
+                    messageID: messageID
+                )
+                lock.lock()
+                pendingHandshakeMessages[recipientPeerID.bytes, default: []].append(pending)
+                lock.unlock()
+
+                // Mark message as encrypting
+                if let messageID {
+                    updateMessageStatus(messageID: messageID, to: .encrypting)
+                }
+                return // Don't enqueue for retry — the handshake callback will handle it
+            } else {
+                // Fallback: send unencrypted (session manager not available)
+                DebugLogger.emit("DM", "encryptAndSend: no Noise session, sending plaintext to \(recipientHex)")
+                let packet = buildPacket(
+                    type: .noiseEncrypted,
+                    payload: compressed.data,
+                    flags: flags,
+                    senderID: identity.peerID,
+                    recipientID: recipientPeerID
+                )
+                try sendPacket(packet)
+            }
         } else {
-            // Group/channel: broadcast
+            // Group/channel: broadcast (no Noise encryption for groups yet)
             print("[Blip-TX] BROADCAST \(subType) (\(compressed.data.count)B)")
             let packet = buildPacket(
                 type: .noiseEncrypted,
@@ -791,9 +846,224 @@ final class MessageService: @unchecked Sendable {
         logger.debug("Announce received from \(username)")
     }
 
+    // MARK: - Noise Handshake
+
+    /// Handle an incoming Noise XX handshake message.
+    ///
+    /// The handshake payload carries a 1-byte step indicator:
+    /// - `0x01`: message 1 (initiator → responder)
+    /// - `0x02`: message 2 (responder → initiator)
+    /// - `0x03`: message 3 (initiator → responder)
+    @MainActor
+    private func handleNoiseHandshake(_ packet: Packet, from peerID: PeerID) async throws {
+        guard let sessionManager = noiseSessionManager, let identity = getIdentity() else { return }
+        let payload = packet.payload
+        guard !payload.isEmpty else { return }
+
+        let step = payload[payload.startIndex]
+        let handshakeData = Data(payload.dropFirst())
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        switch step {
+        case 0x01:
+            // We are responder — receive msg1, send msg2
+            DebugLogger.shared.log("NOISE", "← handshake msg1 from \(peerHex)")
+            _ = try sessionManager.receiveHandshakeInit(from: peerID, message: handshakeData)
+            let msg2 = try sessionManager.respondToHandshake(for: peerID)
+            var response = Data([0x02])
+            response.append(msg2)
+            let responsePacket = buildPacket(
+                type: .noiseHandshake,
+                payload: response,
+                flags: [.hasRecipient],
+                senderID: identity.peerID,
+                recipientID: peerID
+            )
+            try sendPacket(responsePacket)
+            DebugLogger.shared.log("NOISE", "→ handshake msg2 to \(peerHex)")
+
+        case 0x02:
+            // We are initiator — receive msg2, send msg3 (completes handshake)
+            DebugLogger.shared.log("NOISE", "← handshake msg2 from \(peerHex)")
+            let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
+            if session == nil {
+                // Need to send msg3
+                let (msg3, _) = try sessionManager.completeHandshake(with: peerID)
+                var response = Data([0x03])
+                response.append(msg3)
+                let responsePacket = buildPacket(
+                    type: .noiseHandshake,
+                    payload: response,
+                    flags: [.hasRecipient],
+                    senderID: identity.peerID,
+                    recipientID: peerID
+                )
+                try sendPacket(responsePacket)
+                DebugLogger.shared.log("NOISE", "→ handshake msg3 to \(peerHex)")
+            }
+            // Session should now be established (after msg3 was written)
+            onSessionEstablished(with: peerID)
+
+        case 0x03:
+            // We are responder — receive msg3 (completes handshake)
+            DebugLogger.shared.log("NOISE", "← handshake msg3 from \(peerHex)")
+            let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
+            if session != nil {
+                DebugLogger.shared.log("NOISE", "Session established with \(peerHex)")
+                onSessionEstablished(with: peerID)
+            }
+
+        default:
+            DebugLogger.shared.log("NOISE", "Unknown handshake step \(step) from \(peerHex)", isError: true)
+        }
+    }
+
+    /// Initiate a Noise XX handshake with a peer if one isn't already in progress.
+    ///
+    /// Returns `true` if a handshake was initiated (message needs queuing),
+    /// `false` if a session already exists (can encrypt immediately).
+    private func initiateHandshakeIfNeeded(with recipientPeerID: PeerID) throws -> Bool {
+        guard let sessionManager = noiseSessionManager, let identity = getIdentity() else {
+            return false
+        }
+
+        // Already have an active session
+        if sessionManager.hasSession(for: recipientPeerID) {
+            return false
+        }
+
+        // Check if handshake already in progress
+        let peerHex = recipientPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        lock.lock()
+        let alreadyPending = pendingHandshakeMessages[recipientPeerID.bytes] != nil
+        lock.unlock()
+
+        if alreadyPending {
+            DebugLogger.emit("NOISE", "Handshake already pending for \(peerHex)")
+            return true
+        }
+
+        // Start handshake
+        let (_, msg1) = try sessionManager.initiateHandshake(with: recipientPeerID)
+        var payload = Data([0x01])
+        payload.append(msg1)
+        let packet = buildPacket(
+            type: .noiseHandshake,
+            payload: payload,
+            flags: [.hasRecipient],
+            senderID: identity.peerID,
+            recipientID: recipientPeerID
+        )
+        try sendPacket(packet)
+        DebugLogger.emit("NOISE", "→ handshake msg1 to \(peerHex)")
+
+        // Initialize pending queue
+        lock.lock()
+        if pendingHandshakeMessages[recipientPeerID.bytes] == nil {
+            pendingHandshakeMessages[recipientPeerID.bytes] = []
+        }
+        lock.unlock()
+
+        // Schedule 30-second timeout
+        let peerBytes = recipientPeerID.bytes
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(30))
+            self.handleHandshakeTimeout(peerIDBytes: peerBytes)
+        }
+
+        return true
+    }
+
+    /// Called when a Noise session is established — flush all queued messages.
+    @MainActor
+    private func onSessionEstablished(with peerID: PeerID) {
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        lock.lock()
+        let pending = pendingHandshakeMessages.removeValue(forKey: peerID.bytes) ?? []
+        lock.unlock()
+
+        guard !pending.isEmpty else {
+            DebugLogger.shared.log("NOISE", "Session with \(peerHex) ready (no queued messages)")
+            return
+        }
+
+        DebugLogger.shared.log("NOISE", "Flushing \(pending.count) queued message(s) to \(peerHex)")
+        for msg in pending {
+            Task { @MainActor in
+                do {
+                    try await self.encryptAndSend(
+                        payload: msg.payload,
+                        subType: msg.subType,
+                        channel: msg.channel,
+                        identity: msg.identity,
+                        messageID: msg.messageID
+                    )
+                    // Update message status from .encrypting to .sent
+                    if let messageID = msg.messageID {
+                        self.updateMessageStatus(messageID: messageID, to: .sent)
+                    }
+                } catch {
+                    DebugLogger.shared.log("NOISE", "Failed to send queued message: \(error)", isError: true)
+                    if let messageID = msg.messageID {
+                        self.updateMessageStatus(messageID: messageID, to: .queued)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle handshake timeout — mark pending messages as queued (retry via normal path).
+    @MainActor
+    private func handleHandshakeTimeout(peerIDBytes: Data) {
+        lock.lock()
+        let pending = pendingHandshakeMessages.removeValue(forKey: peerIDBytes)
+        lock.unlock()
+
+        guard let pending, !pending.isEmpty else { return }
+
+        let peerHex = peerIDBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("NOISE", "Handshake timeout for \(peerHex) — \(pending.count) message(s) reverted to queued", isError: true)
+
+        // Revert messages to queued so retry service picks them up
+        for msg in pending {
+            if let messageID = msg.messageID {
+                updateMessageStatus(messageID: messageID, to: .queued)
+            }
+        }
+
+        // Clean up the timed-out handshake
+        if let peerID = PeerID(bytes: peerIDBytes) {
+            noiseSessionManager?.destroySession(for: peerID)
+        }
+    }
+
+    /// Update a message's status in SwiftData.
+    private func updateMessageStatus(messageID: UUID, to status: MessageStatus) {
+        let context = ModelContext(modelContainer)
+        let targetID = messageID
+        let desc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
+        if let message = try? context.fetch(desc).first {
+            message.statusRaw = status.rawValue
+            try? context.save()
+        }
+    }
+
     @MainActor
     private func handleEncryptedPacket(_ packet: Packet, from peerID: PeerID) async throws {
         var payload = packet.payload
+
+        // Attempt Noise decryption if we have an active session with this peer
+        if let session = noiseSessionManager?.getSession(for: peerID) {
+            do {
+                payload = try session.decrypt(ciphertext: payload)
+                let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("NOISE", "Decrypted \(payload.count)B from \(senderHex)")
+            } catch {
+                // Decryption failed — fall through to try as plaintext (backward compat)
+                let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("NOISE", "Decryption failed from \(senderHex), trying plaintext: \(error)", isError: true)
+            }
+        }
 
         // Decompress if needed
         if packet.flags.contains(.isCompressed) {
