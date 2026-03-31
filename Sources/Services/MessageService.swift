@@ -673,6 +673,7 @@ final class MessageService: @unchecked Sendable {
                 return // Don't enqueue for retry — the handshake callback will handle it
             } else {
                 // Fallback: send unencrypted (session manager not available)
+                // TODO(BDEV-86): Use a distinct packet type for unencrypted fallback
                 DebugLogger.emit("DM", "encryptAndSend: no Noise session, sending plaintext to \(recipientHex)")
                 let packet = buildPacket(
                     type: .noiseEncrypted,
@@ -988,8 +989,8 @@ final class MessageService: @unchecked Sendable {
         }
 
         DebugLogger.shared.log("NOISE", "Flushing \(pending.count) queued message(s) to \(peerHex)")
-        for msg in pending {
-            Task { @MainActor in
+        Task { @MainActor in
+            for msg in pending {
                 do {
                     try await self.encryptAndSend(
                         payload: msg.payload,
@@ -998,7 +999,6 @@ final class MessageService: @unchecked Sendable {
                         identity: msg.identity,
                         messageID: msg.messageID
                     )
-                    // Update message status from .encrypting to .sent
                     if let messageID = msg.messageID {
                         self.updateMessageStatus(messageID: messageID, to: .sent)
                     }
