@@ -13,7 +13,7 @@ struct SwiftDataSchemaValidationTests {
         let container = try ModelContainer(
             for: User.self, Friend.self, Message.self, Attachment.self, Channel.self,
             GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
-            MeshPeer.self, MessageQueue.self, SOSAlert.self, MedicalResponder.self,
+            MessageQueue.self, SOSAlert.self, MedicalResponder.self,
             FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
             MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
             configurations: config
@@ -61,16 +61,16 @@ struct SwiftDataSchemaValidationTests {
 
     // MARK: - Schema Registration Tests
 
-    @Test("Schema contains all 21 models")
+    @Test("Schema contains all 19 models")
     func schemaRegistration() {
-        #expect(BlipSchema.models.count == 21)
+        #expect(BlipSchema.models.count == 19)
         let modelNames = BlipSchema.models.map { String(describing: $0) }
 
         let expectedModels = [
             "User", "Friend", "Message", "Attachment", "Channel",
             "GroupMembership", "Festival", "Stage", "SetTime", "MeetingPoint",
-            "MeshPeer", "MessageQueue", "SOSAlert", "MedicalResponder", "FriendLocation",
-            "BreadcrumbPoint", "CrowdPulse", "UserPreferences", "MessagePack", "GroupSenderKey",
+            "MessageQueue", "SOSAlert", "MedicalResponder", "FriendLocation",
+            "BreadcrumbPoint", "CrowdPulse", "UserPreferences", "GroupSenderKey",
             "NoiseSessionModel"
         ]
 
@@ -85,7 +85,7 @@ struct SwiftDataSchemaValidationTests {
         let container = try ModelContainer(
             for: User.self, Friend.self, Message.self, Attachment.self, Channel.self,
             GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
-            MeshPeer.self, MessageQueue.self, SOSAlert.self, MedicalResponder.self,
+            MessageQueue.self, SOSAlert.self, MedicalResponder.self,
             FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
             MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
             configurations: config
@@ -898,93 +898,6 @@ struct SwiftDataSchemaValidationTests {
             let refetched = try context.fetch(FetchDescriptor<SOSAlert>())
             #expect(refetched[0].resolution == resolution)
         }
-    }
-
-    // MARK: - MeshPeer Tests
-
-    @Test("MeshPeer creation with connection state")
-    func meshPeerCreation() throws {
-        let context = try makeContext()
-
-        let peer = MeshPeer(
-            peerID: Data(repeating: 0xAA, count: 8),
-            noisePublicKey: Data(repeating: 1, count: 32),
-            signingPublicKey: Data(repeating: 2, count: 32),
-            rssi: -65,
-            connectionState: .connected
-        )
-        context.insert(peer)
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MeshPeer>())
-        #expect(fetched.count == 1)
-        #expect(fetched[0].connectionState == .connected)
-        #expect(fetched[0].isConnected == true)
-    }
-
-    @Test("MeshPeer connection state enum roundtrip")
-    func meshPeerConnectionState() throws {
-        let context = try makeContext()
-
-        for state in PeerConnectionState.allCases {
-            let peer = MeshPeer(
-                peerID: Data(repeating: 0xBB, count: 8),
-                noisePublicKey: Data(repeating: 1, count: 32),
-                signingPublicKey: Data(repeating: 2, count: 32),
-                connectionState: state
-            )
-            context.insert(peer)
-        }
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MeshPeer>())
-        #expect(fetched.count == PeerConnectionState.allCases.count)
-    }
-
-    @Test("MeshPeer battery tier enum roundtrip")
-    func meshPeerBatteryTier() throws {
-        let context = try makeContext()
-
-        for tier in BatteryTier.allCases {
-            let peer = MeshPeer(
-                peerID: Data(repeating: 0xCC, count: 8),
-                noisePublicKey: Data(repeating: 1, count: 32),
-                signingPublicKey: Data(repeating: 2, count: 32),
-                batteryTier: tier
-            )
-            context.insert(peer)
-        }
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MeshPeer>())
-        #expect(fetched.count == BatteryTier.allCases.count)
-    }
-
-    @Test("MeshPeer isStale computed property")
-    func meshPeerIsStale() throws {
-        let context = try makeContext()
-
-        let freshPeer = MeshPeer(
-            peerID: Data(repeating: 0xDD, count: 8),
-            noisePublicKey: Data(repeating: 1, count: 32),
-            signingPublicKey: Data(repeating: 2, count: 32),
-            lastSeenAt: Date()
-        )
-
-        let stalePeer = MeshPeer(
-            peerID: Data(repeating: 0xEE, count: 8),
-            noisePublicKey: Data(repeating: 1, count: 32),
-            signingPublicKey: Data(repeating: 2, count: 32),
-            lastSeenAt: Date().addingTimeInterval(-86_500)
-        )
-
-        context.insert(freshPeer)
-        context.insert(stalePeer)
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MeshPeer>())
-        #expect(fetched.first { $0.peerID == Data(repeating: 0xDD, count: 8) }?.isStale == false)
-        #expect(fetched.first { $0.peerID == Data(repeating: 0xEE, count: 8) }?.isStale == true)
     }
 
     // MARK: - MessageQueue Tests

@@ -142,8 +142,10 @@ final class MeshViewModel {
 
     private let logger = Logger(subsystem: "com.blip", category: "MeshViewModel")
     private let modelContainer: ModelContainer
+    private let peerStore: PeerStore
     nonisolated(unsafe) private var refreshTimer: Timer?
     nonisolated(unsafe) private var peerObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var peerStoreObservation: NSObjectProtocol?
     nonisolated(unsafe) private var transportObservation: NSObjectProtocol?
     nonisolated(unsafe) private var friendListObservation: NSObjectProtocol?
 
@@ -159,14 +161,16 @@ final class MeshViewModel {
 
     // MARK: - Init
 
-    init(modelContainer: ModelContainer) {
+    init(modelContainer: ModelContainer, peerStore: PeerStore = .shared) {
         self.modelContainer = modelContainer
+        self.peerStore = peerStore
         setupObservers()
     }
 
     deinit {
         refreshTimer?.invalidate()
         if let obs = peerObservation { NotificationCenter.default.removeObserver(obs) }
+        if let obs = peerStoreObservation { NotificationCenter.default.removeObserver(obs) }
         if let obs = transportObservation { NotificationCenter.default.removeObserver(obs) }
         if let obs = friendListObservation { NotificationCenter.default.removeObserver(obs) }
     }
@@ -195,55 +199,46 @@ final class MeshViewModel {
 
     // MARK: - State Refresh
 
-    /// Pull the latest mesh state from SwiftData.
+    /// Pull the latest mesh state from PeerStore (in-memory) + SwiftData (channels/friends).
     func refreshMeshState() async {
+        let connected = peerStore.connectedPeers()
+        let allTracked = peerStore.allPeers()
+
+        connectedPeerCount = connected.count
+
+        // Calculate average RSSI
+        if !connected.isEmpty {
+            let totalRSSI = connected.reduce(0) { $0 + $1.rssi }
+            averageRSSI = totalRSSI / connected.count
+        } else {
+            averageRSSI = -100
+        }
+
+        // Estimate mesh size — only count peers seen in the last 5 minutes
+        let recentThreshold = Date().addingTimeInterval(-300)
+        let recentPeers = allTracked.filter { $0.lastSeenAt > recentThreshold }
+        estimatedMeshSize = recentPeers.count
+
+        // Update crowd scale
+        updateCrowdScale(peerEstimate: estimatedMeshSize)
+
+        // Detect bridge node status
+        isBridgeNode = connected.count >= 6
+
         let context = ModelContext(modelContainer)
 
-        do {
-            // Fetch connected peers
-            let connectedPredicate = #Predicate<MeshPeer> { $0.connectionStateRaw == "connected" }
-            let peerDescriptor = FetchDescriptor<MeshPeer>(predicate: connectedPredicate)
-            let connectedPeers = try context.fetch(peerDescriptor)
+        // Refresh nearby friends and all peers
+        await refreshNearbyFriends(peers: connected, context: context)
+        await refreshNearbyPeers(peers: connected, context: context)
 
-            connectedPeerCount = connectedPeers.count
+        // Refresh location channels
+        await refreshLocationChannels(context: context)
 
-            // Calculate average RSSI
-            if !connectedPeers.isEmpty {
-                let totalRSSI = connectedPeers.reduce(0) { $0 + $1.rssi }
-                averageRSSI = totalRSSI / connectedPeers.count
-            } else {
-                averageRSSI = -100
-            }
+        // Update transport state
+        updateTransportState()
 
-            // Estimate mesh size — only count peers seen in the last 5 minutes
-            let recentThreshold = Date().addingTimeInterval(-300)
-            let recentPredicate = #Predicate<MeshPeer> { $0.lastSeenAt > recentThreshold }
-            let recentDescriptor = FetchDescriptor<MeshPeer>(predicate: recentPredicate)
-            let recentPeers = try context.fetch(recentDescriptor)
-            estimatedMeshSize = recentPeers.count
-
-            // Update crowd scale
-            updateCrowdScale(peerEstimate: estimatedMeshSize)
-
-            // Detect bridge node status
-            isBridgeNode = connectedPeers.count >= 6
-
-            // Refresh nearby friends and all peers
-            await refreshNearbyFriends(peers: connectedPeers, context: context)
-            await refreshNearbyPeers(peers: connectedPeers, context: context)
-
-            // Refresh location channels
-            await refreshLocationChannels(context: context)
-
-            // Update transport state
-            updateTransportState()
-
-            // Update health
-            isMeshHealthy = connectedPeerCount > 0
-
-        } catch {
-            errorMessage = "Mesh refresh failed: \(error.localizedDescription)"
-        }
+        // Update health
+        isMeshHealthy = connectedPeerCount > 0
     }
 
     // MARK: - Crowd Scale
@@ -268,7 +263,7 @@ final class MeshViewModel {
 
     // MARK: - Nearby Friends
 
-    private func refreshNearbyFriends(peers: [MeshPeer], context: ModelContext) async {
+    private func refreshNearbyFriends(peers: [PeerInfo], context: ModelContext) async {
         let friendDescriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.statusRaw == "accepted" })
         let friends: [Friend]
         do {
@@ -293,7 +288,7 @@ final class MeshViewModel {
                     displayName: user.resolvedDisplayName,
                     rssi: peer.rssi,
                     lastSeen: peer.lastSeenAt,
-                    isDirectPeer: peer.isDirectPeer
+                    isDirectPeer: peer.hopCount == 1
                 ))
             }
         }
@@ -303,7 +298,7 @@ final class MeshViewModel {
 
     // MARK: - Nearby Peers (All)
 
-    private func refreshNearbyPeers(peers: [MeshPeer], context: ModelContext) async {
+    private func refreshNearbyPeers(peers: [PeerInfo], context: ModelContext) async {
         // Fetch all friends to determine status
         let friendDescriptor = FetchDescriptor<Friend>()
         let allFriends: [Friend]
@@ -325,13 +320,13 @@ final class MeshViewModel {
         for peer in peers {
             let status = friendStatusByKey[peer.noisePublicKey]
             allPeers.append(NearbyPeer(
-                id: peer.id,
+                id: UUID(),
                 peerID: peer.peerID,
                 username: peer.username,
                 displayName: peer.username,
                 rssi: peer.rssi,
                 lastSeen: peer.lastSeenAt,
-                isDirectPeer: peer.isDirectPeer,
+                isDirectPeer: peer.hopCount == 1,
                 friendStatus: status
             ))
         }
@@ -443,6 +438,16 @@ final class MeshViewModel {
     private func setupObservers() {
         peerObservation = NotificationCenter.default.addObserver(
             forName: .meshPeerStateChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.refreshMeshState()
+            }
+        }
+
+        peerStoreObservation = NotificationCenter.default.addObserver(
+            forName: .peerStoreDidChange,
             object: nil,
             queue: .main
         ) { [weak self] _ in
