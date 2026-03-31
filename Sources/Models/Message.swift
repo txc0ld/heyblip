@@ -13,6 +13,7 @@ enum MessageType: String, Codable, CaseIterable {
 enum MessageStatus: String, Codable, CaseIterable {
     case composing
     case queued
+    case encrypting
     case sent
     case delivered
     case read

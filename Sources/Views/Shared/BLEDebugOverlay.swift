@@ -7,7 +7,7 @@ import os.log
 
 // MARK: - BLE Debug Overlay
 
-/// Debug-only overlay showing real BLE mesh state, peer table from SwiftData,
+/// Debug-only overlay showing real BLE mesh state, in-memory peer table,
 /// relay metrics, and a scrollable event log from DebugLogger.
 ///
 /// Activated by triple-tapping the Nearby tab title.
@@ -16,7 +16,7 @@ struct BLEDebugOverlay: View {
     @State private var bleState: String = "Unknown"
     @State private var wsState: String = "Unknown"
     @State private var peerCount = 0
-    @State private var meshPeers: [MeshPeer] = []
+    @State private var storePeers: [PeerInfo] = []
     @State private var copiedToast = false
     @State private var copiedDebugToast = false
     @State private var showShareSheet = false
@@ -139,8 +139,8 @@ struct BLEDebugOverlay: View {
 
             HStack(spacing: BlipSpacing.lg) {
                 metricBlock(label: "BLE Peers", value: "\(peerCount)")
-                metricBlock(label: "SwiftData", value: "\(meshPeers.count)")
-                metricBlock(label: "w/ Name", value: "\(meshPeers.filter { $0.username != nil }.count)")
+                metricBlock(label: "PeerStore", value: "\(storePeers.count)")
+                metricBlock(label: "w/ Name", value: "\(storePeers.filter { $0.username != nil }.count)")
             }
         }
     }
@@ -149,14 +149,14 @@ struct BLEDebugOverlay: View {
 
     private var peerTableSection: some View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-            sectionHeader("Peers (\(meshPeers.count))")
+            sectionHeader("Peers (\(storePeers.count))")
 
-            if meshPeers.isEmpty {
-                Text("No MeshPeer records")
+            if storePeers.isEmpty {
+                Text("No peers in PeerStore")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.gray)
             } else {
-                ForEach(meshPeers, id: \.id) { peer in
+                ForEach(storePeers, id: \.peerID) { peer in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
                             Text(peerIDShort(peer.peerID))
@@ -177,9 +177,9 @@ struct BLEDebugOverlay: View {
 
                             Spacer()
 
-                            Text(peer.connectionState.rawValue)
+                            Text(peer.isConnected ? "connected" : "disconnected")
                                 .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(peer.connectionState == .connected ? .green : .orange)
+                                .foregroundStyle(peer.isConnected ? .green : .orange)
                         }
 
                         HStack {
@@ -229,6 +229,9 @@ struct BLEDebugOverlay: View {
             HStack {
                 sectionHeader("Log (\(DebugLogger.shared.entries.count))")
                 Spacer()
+                Button("Dump State") { dumpState() }
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.mint)
                 Button("Clear") { DebugLogger.shared.clear() }
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.blipAccentPurple)
@@ -293,6 +296,7 @@ struct BLEDebugOverlay: View {
         case "RELAY": return .purple
         case "DM": return .mint
         case "BLE": return .blue
+        case "DB": return .teal
         default: return .gray
         }
     }
@@ -306,6 +310,42 @@ struct BLEDebugOverlay: View {
         if seconds < 5 { return "now" }
         if seconds < 60 { return "\(seconds)s ago" }
         return "\(seconds / 60)m ago"
+    }
+
+    // MARK: - State Dump
+
+    private func dumpState() {
+        let log = DebugLogger.shared
+        let peerStore = coordinator.peerStore
+
+        // PeerStore records
+        let peers = peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
+        log.log("DB", "=== State Dump ===")
+        log.log("DB", "PeerStore: \(peers.count) peers")
+        let blePeerIDs = Set((coordinator.bleService?.connectedPeers ?? []).map { $0.bytes })
+        var orphanCount = 0
+        for peer in peers {
+            let shortID = peer.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
+            let name = peer.username ?? "nil"
+            let state = peer.isConnected ? "connected" : "disconnected"
+            let age = relativeTime(peer.lastSeenAt)
+            let hasBLE = blePeerIDs.contains(peer.peerID)
+            let orphan = peer.isConnected && !hasBLE
+            if orphan { orphanCount += 1 }
+            log.log("DB", "  \(shortID) \(name) state=\(state) seen=\(age)\(orphan ? " ORPHAN" : "")")
+        }
+
+        // Conversations and messages
+        let channelDesc = FetchDescriptor<Channel>()
+        let channels = (try? modelContext.fetch(channelDesc)) ?? []
+        let messageDesc = FetchDescriptor<Message>()
+        let messages = (try? modelContext.fetch(messageDesc)) ?? []
+        log.log("DB", "Channels: \(channels.count) Messages: \(messages.count)")
+
+        if orphanCount > 0 {
+            log.log("DB", "\(orphanCount) orphaned peer(s): marked connected but no BLE mapping", isError: true)
+        }
+        log.log("DB", "=== End Dump ===")
     }
 
     // MARK: - State Refresh
@@ -333,11 +373,8 @@ struct BLEDebugOverlay: View {
             }
         }
 
-        // Read MeshPeer records from SwiftData
-        let descriptor = FetchDescriptor<MeshPeer>(
-            sortBy: [SortDescriptor(\.lastSeenAt, order: .reverse)]
-        )
-        meshPeers = (try? modelContext.fetch(descriptor)) ?? []
+        // Read from in-memory PeerStore
+        storePeers = coordinator.peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
     }
 }
 

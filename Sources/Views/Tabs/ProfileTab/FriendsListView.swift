@@ -255,13 +255,11 @@ struct FriendsListView: View {
 
     private func sendFriendRequest() {
         guard !addUsername.isEmpty else { return }
-        // Look up the peer by username in SwiftData MeshPeers and send a request
+        // Look up the peer by username in PeerStore and send a request
         let username = addUsername
         addUsername = ""
 
-        let context = ModelContext(modelContext.container)
-        let peerDescriptor = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.username == username })
-        guard let peer = try? context.fetch(peerDescriptor).first,
+        guard let peer = coordinator.peerStore.peer(byUsername: username),
               let messageService = coordinator.messageService else {
             return
         }
@@ -332,10 +330,8 @@ struct FriendsListView: View {
         let descriptor = FetchDescriptor<Friend>(sortBy: [SortDescriptor(\.addedAt, order: .reverse)])
         guard let allFriends = try? context.fetch(descriptor) else { return }
 
-        // Also check which friends are online via MeshPeer
-        let peerDescriptor = FetchDescriptor<MeshPeer>(predicate: #Predicate { $0.connectionStateRaw == "connected" })
-        let connectedPeers = (try? context.fetch(peerDescriptor)) ?? []
-        let connectedKeys = Set(connectedPeers.map(\.noisePublicKey))
+        // Check which friends are online via PeerStore
+        let connectedKeys = Set(coordinator.peerStore.connectedPeers().map(\.noisePublicKey))
 
         friends = allFriends.compactMap { friend -> FriendListItem? in
             guard let user = friend.user else { return nil }

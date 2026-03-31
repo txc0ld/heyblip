@@ -16,7 +16,6 @@ enum BlipSchema {
         Stage.self,
         SetTime.self,
         MeetingPoint.self,
-        MeshPeer.self,
         MessageQueue.self,
         SOSAlert.self,
         MedicalResponder.self,
