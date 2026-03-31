@@ -85,6 +85,16 @@ final class MessageService: @unchecked Sendable {
     private var lastTypingIndicatorSent: [UUID: Date] = [:]
     private let typingIndicatorInterval: TimeInterval = 3.0
 
+    // MARK: - Sender Binding (BDEV-86)
+
+    /// Maps a delivering transport PeerID → the first claimed sender PeerID from that connection.
+    /// Once bound, any packet from that transport PeerID claiming a different sender is dropped.
+    private var senderBindings: [Data: Data] = [:]
+
+    /// Counts unverified packets per sender (no signing key yet). Drop after threshold.
+    private var unverifiedPacketCounts: [Data: Int] = [:]
+    private static let maxUnverifiedPackets = 5
+
     // MARK: - Constants
 
     /// Maximum text payload size in bytes (UTF-8).
@@ -520,7 +530,8 @@ final class MessageService: @unchecked Sendable {
     /// Flow: deserialize -> deduplicate -> decrypt -> store -> notify delegate
     @MainActor
     func receive(data: Data, from peerID: PeerID) async throws {
-        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let transportData = peerID.bytes
+        let peerHex = transportData.prefix(4).map { String(format: "%02x", $0) }.joined()
         DebugLogger.shared.log("RX", "receive(): \(data.count)B from \(peerHex)")
 
         // Deserialize the packet
@@ -531,6 +542,18 @@ final class MessageService: @unchecked Sendable {
         } catch {
             DebugLogger.shared.log("RX", "DESERIALIZE FAILED: \(error)", isError: true)
             throw MessageServiceError.deserializationFailed(error.localizedDescription)
+        }
+
+        // BDEV-86: Sender binding check — reject packets from a bound peripheral
+        // claiming a different sender than their first announce.
+        let claimedSender = packet.senderID.bytes
+        let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+        if let boundSender = senderBindings[transportData] {
+            if boundSender != claimedSender {
+                let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("RX", "⚠️ SENDER MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
+                return
+            }
         }
 
         // Verify Ed25519 signature if present
@@ -552,21 +575,24 @@ final class MessageService: @unchecked Sendable {
                 do {
                     let valid = try Signer.verify(packet: packet, publicKey: key)
                     if !valid {
-                        print("[Blip-RX] SIGNATURE INVALID — dropping packet from \(senderHex)")
                         DebugLogger.shared.log("RX", "SIG INVALID from \(senderHex) key=\(keyPrefix) — dropped", isError: true)
                         return
                     }
-                    print("[Blip-RX] Signature verified")
                     DebugLogger.shared.log("RX", "SIG OK from \(senderHex) key=\(keyPrefix)")
+                    // Successful signature verification resets unverified counter
+                    unverifiedPacketCounts.removeValue(forKey: senderData)
                 } catch {
-                    // Verification threw (e.g. malformed) — accept with warning
-                    print("[Blip-RX] Signature check error: \(error) — accepting anyway")
                     DebugLogger.shared.log("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
                 }
             } else {
-                // No signing key known yet (pre-announce bootstrap) — accept unverified
-                print("[Blip-RX] No signing key for sender — accepting unverified")
-                DebugLogger.shared.log("RX", "No signing key for \(senderHex) — accepting unverified")
+                // No signing key known yet (pre-announce bootstrap) — accept with limit
+                let count = (unverifiedPacketCounts[senderData] ?? 0) + 1
+                unverifiedPacketCounts[senderData] = count
+                if count > Self.maxUnverifiedPackets {
+                    DebugLogger.shared.log("RX", "UNVERIFIED LIMIT: \(senderHex) sent \(count) packets without announcing — DROPPED", isError: true)
+                    return
+                }
+                DebugLogger.shared.log("RX", "No signing key for \(senderHex) — accepting unverified (\(count)/\(Self.maxUnverifiedPackets))")
             }
         }
 
@@ -795,6 +821,27 @@ final class MessageService: @unchecked Sendable {
 
         let senderData = peerID.bytes
         let peerHex = senderData.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        // BDEV-86: Bind transport PeerID → claimed sender on first DIRECT announce.
+        // Direct = TTL still at max (7), meaning not decremented by a relay hop.
+        let transportData = peerID.bytes
+        let claimedSender = packet.senderID.bytes
+        if packet.ttl == 7 {
+            if let boundSender = senderBindings[transportData] {
+                if boundSender != claimedSender {
+                    let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    DebugLogger.shared.log("RX", "⚠️ ANNOUNCE BINDING MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
+                    return
+                }
+            } else {
+                senderBindings[transportData] = claimedSender
+                let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("RX", "SENDER BOUND: transport=\(peerHex) → sender=\(claimedHex) (\(username))")
+                // Announce carries the signing key — reset unverified counter
+                unverifiedPacketCounts.removeValue(forKey: claimedSender)
+            }
+        }
 
         // Upsert into PeerStore
         let info = PeerInfo(
@@ -2030,9 +2077,15 @@ extension MessageService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
-        let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let peerData = peerID.bytes
+        let shortID = peerData.prefix(4).map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
-            DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID)")
+            // BDEV-86: Clean up sender binding for this transport PeerID
+            if self.senderBindings.removeValue(forKey: peerData) != nil {
+                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (binding cleared)")
+            } else {
+                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID)")
+            }
         }
     }
 
