@@ -183,7 +183,7 @@ struct PermissionsStep: View {
                 }
 
                 // Center Bluetooth icon
-                Image(systemName: "bluetooth")
+                Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(Color.blipAccentPurple)
             }

@@ -119,7 +119,7 @@ struct AddFriendByUsernameSheet: View {
 
     private var emptyState: some View {
         VStack(spacing: BlipSpacing.md) {
-            Image(systemName: "person.crop.circle.badge.magnifyingglass")
+            Image(systemName: "person.crop.circle.badge.questionmark")
                 .font(.system(size: 40))
                 .foregroundStyle(theme.colors.mutedText)
             Text("Search by username")
