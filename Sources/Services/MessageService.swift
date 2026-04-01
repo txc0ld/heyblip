@@ -2183,12 +2183,16 @@ extension MessageService: TransportDelegate {
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
         let peerData = peerID.bytes
         let shortID = peerData.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        // Mark peer as disconnected in PeerStore so UI updates immediately
+        peerStore.markDisconnected(peerID: peerData)
+
         Task { @MainActor in
             // BDEV-86: Clean up sender binding for this transport PeerID
             if self.senderBindings.removeValue(forKey: peerData) != nil {
-                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (binding cleared)")
+                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (binding cleared, peer marked disconnected)")
             } else {
-                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID)")
+                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (peer marked disconnected)")
             }
         }
     }

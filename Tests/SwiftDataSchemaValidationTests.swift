@@ -15,7 +15,7 @@ struct SwiftDataSchemaValidationTests {
             GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
             MessageQueue.self, SOSAlert.self, MedicalResponder.self,
             FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
-            MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
+            GroupSenderKey.self, NoiseSessionModel.self,
             configurations: config
         )
         return container.mainContext
@@ -87,7 +87,7 @@ struct SwiftDataSchemaValidationTests {
             GroupMembership.self, Festival.self, Stage.self, SetTime.self, MeetingPoint.self,
             MessageQueue.self, SOSAlert.self, MedicalResponder.self,
             FriendLocation.self, BreadcrumbPoint.self, CrowdPulse.self, UserPreferences.self,
-            MessagePack.self, GroupSenderKey.self, NoiseSessionModel.self,
+            GroupSenderKey.self, NoiseSessionModel.self,
             configurations: config
         )
         let context = container.mainContext
@@ -1243,65 +1243,6 @@ struct SwiftDataSchemaValidationTests {
 
         let fetched = try context.fetch(FetchDescriptor<UserPreferences>())
         #expect(fetched.count == LocationPrecision.allCases.count)
-    }
-
-    // MARK: - MessagePack Tests
-
-    @Test("MessagePack creation with pack type")
-    func messagePackCreation() throws {
-        let context = try makeContext()
-
-        let pack = MessagePack(
-            packType: .festival50,
-            transactionID: "txn_12345"
-        )
-        context.insert(pack)
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MessagePack>())
-        #expect(fetched.count == 1)
-        #expect(fetched[0].packType == .festival50)
-        #expect(fetched[0].messagesRemaining == 50)
-    }
-
-    @Test("MessagePack pack type enum roundtrip")
-    func messagePackType() throws {
-        let context = try makeContext()
-
-        for packType in PackType.allCases {
-            let pack = MessagePack(
-                packType: packType,
-                transactionID: "txn_\(packType.rawValue)"
-            )
-            context.insert(pack)
-        }
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MessagePack>())
-        #expect(fetched.count == PackType.allCases.count)
-    }
-
-    @Test("MessagePack exhaustion and unlimited check")
-    func messagePackExhaustion() throws {
-        let context = try makeContext()
-
-        let limited = MessagePack(
-            packType: .social25,
-            messagesRemaining: 0,
-            transactionID: "txn_limited"
-        )
-        let unlimited = MessagePack(
-            packType: .unlimited,
-            transactionID: "txn_unlimited"
-        )
-
-        context.insert(limited)
-        context.insert(unlimited)
-        try context.save()
-
-        let fetched = try context.fetch(FetchDescriptor<MessagePack>())
-        #expect(fetched.first { $0.packType == .social25 }?.isExhausted == true)
-        #expect(fetched.first { $0.packType == .unlimited }?.isUnlimited == true)
     }
 
     // MARK: - GroupSenderKey Tests
