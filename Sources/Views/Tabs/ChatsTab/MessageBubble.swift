@@ -259,37 +259,40 @@ struct MessageBubble: View {
     @ViewBuilder
     private var bubbleBackground: some View {
         if message.isFromMe {
-            // Accent gradient glass for outgoing (#6600FF -> #8B5CF6)
-            LinearGradient(
-                colors: [
-                    Color(red: 0.40, green: 0.0, blue: 1.0),   // #6600FF
-                    Color(red: 0.545, green: 0.361, blue: 0.965) // #8B5CF6
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            // Elevated glass surface for incoming
+            // Glass material + accent gradient overlay for translucent outgoing
             ZStack {
-                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
                     .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
-                    .fill(Color.blipSurfaceCardDark.opacity(colorScheme == .dark ? 0.5 : 0.3))
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.40, green: 0.0, blue: 1.0).opacity(0.85),   // #6600FF
+                        Color(red: 0.545, green: 0.361, blue: 0.965).opacity(0.85) // #8B5CF6
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        } else {
+            // Neutral glass surface for incoming
+            ZStack {
+                RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.03) : Color.black.opacity(0.02))
             }
         }
     }
 
     private var bubbleShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous)
+        RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
     }
 
     private var borderColor: Color {
         if message.isFromMe {
-            // Glass border on sent bubbles
             return Color.white.opacity(0.20)
         } else {
             return colorScheme == .dark
-                ? Color.white.opacity(0.1)
+                ? Color.white.opacity(0.12)
                 : Color.black.opacity(0.06)
         }
     }
@@ -302,7 +305,7 @@ struct MessageBubble: View {
                 isVisible = true
             }
         } else {
-            withAnimation(SpringConstants.messageAnimation.delay(Double(min(index, 10)) * 0.03)) {
+            withAnimation(SpringConstants.pageEntranceAnimation.delay(Double(min(index, 10)) * 0.03)) {
                 isVisible = true
             }
         }
