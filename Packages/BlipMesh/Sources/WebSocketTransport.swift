@@ -266,10 +266,17 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
                 handleConnectionEstablished()
             }
 
-            // Forward binary data to delegate.
-            // The server may include a source peer ID in a header, but for now
-            // we use the server pseudo-peer ID.
-            delegate?.transport(self, didReceiveData: data, from: serverPeerID)
+            // Extract the actual sender PeerID from the packet header (bytes 16-23).
+            // This ensures handshake sessions, sender binding, and response routing
+            // use the real peer identity rather than the relay pseudo-peer.
+            let senderPeerID: PeerID
+            if data.count >= 24,
+               let extracted = PeerID(bytes: Data(data[16 ..< 24])) {
+                senderPeerID = extracted
+            } else {
+                senderPeerID = serverPeerID
+            }
+            delegate?.transport(self, didReceiveData: data, from: senderPeerID)
 
         case .string(let text):
             // The relay may send text control messages.
