@@ -233,6 +233,10 @@ final class MessageRetryService: @unchecked Sendable {
 
                     if !entry.canRetry {
                         markFailed(entry, context: context)
+                        CrashReportingService.shared.captureMessage(
+                            "Message permanently failed after \(entry.maxAttempts) retries",
+                            level: .warning
+                        )
                         delegate?.retryService(self, didPermanentlyFail: entryID)
                     } else {
                         let delay = computeBackoff(attempt: entry.attempts)

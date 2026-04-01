@@ -70,6 +70,12 @@ final class AppCoordinator {
 
     init(keyManager: KeyManager = .shared) {
         self.keyManager = keyManager
+
+        // Configure Sentry crash reporting early, before any other setup
+        if let dsn = Bundle.main.infoDictionary?["SENTRY_DSN"] as? String, !dsn.isEmpty, !dsn.hasPrefix("$(") {
+            CrashReportingService.shared.configure(dsn: dsn)
+        }
+
         loadIdentityAndConfigure()
     }
 
@@ -331,6 +337,15 @@ final class AppCoordinator {
 
         Task { @MainActor in
             await profileViewModel?.loadProfile()
+
+            // Set Sentry user context after profile loads
+            if let user = profileViewModel?.currentUser {
+                CrashReportingService.shared.setUser(
+                    id: user.id.uuidString,
+                    username: user.username
+                )
+            }
+
             await chatViewModel?.loadChannels()
             meshViewModel?.startMonitoring()
             locationViewModel?.startMonitoring()

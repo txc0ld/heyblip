@@ -844,6 +844,7 @@ final class MessageService: @unchecked Sendable {
                         DebugLogger.emit("TX", "Ed25519 signing OK")
                     } catch {
                         DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned", isError: true)
+                        CrashReportingService.shared.captureError(error, context: ["operation": "ed25519_sign"])
                         signed = packet
                     }
                 } else {
@@ -855,6 +856,7 @@ final class MessageService: @unchecked Sendable {
                     continuation.resume(returning: (data, signed))
                 } catch {
                     DebugLogger.emit("TX", "ENCODE FAILED: \(error)", isError: true)
+                    CrashReportingService.shared.captureError(error, context: ["operation": "packet_encode"])
                     continuation.resume(throwing: error)
                 }
             }

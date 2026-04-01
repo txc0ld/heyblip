@@ -24,6 +24,9 @@ packages:
     path: Packages/BlipMesh
   BlipCrypto:
     path: Packages/BlipCrypto
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: "8.0.0"
 
 targets:
   Blip:
@@ -74,6 +77,7 @@ targets:
       - package: BlipProtocol
       - package: BlipMesh
       - package: BlipCrypto
+      - package: Sentry
     entitlements:
       path: App/Entitlements/Blip.entitlements
 

@@ -37,6 +37,13 @@ final class DebugLogger {
         entries.insert(entry, at: 0)
         if entries.count > maxEntries { entries.removeLast() }
         print("[Blip-\(category)] \(message)")
+
+        // Forward as Sentry breadcrumb so mesh/BLE events appear as crash context
+        CrashReportingService.shared.addBreadcrumb(
+            category: category,
+            message: message,
+            level: isError ? .error : .info
+        )
     }
 
     func clear() {
