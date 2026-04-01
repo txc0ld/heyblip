@@ -12,6 +12,7 @@ struct AddFriendByUsernameSheet: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    @FocusState private var isFieldFocused: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
@@ -24,7 +25,7 @@ struct AddFriendByUsernameSheet: View {
 
                 VStack(spacing: BlipSpacing.lg) {
                     searchField
-                    resultCard
+                    resultArea
                     Spacer()
                 }
                 .padding(BlipSpacing.md)
@@ -50,6 +51,7 @@ struct AddFriendByUsernameSheet: View {
             TextField("Enter username", text: $username)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($isFieldFocused)
                 .font(.custom(BlipFontName.regular, size: 16, relativeTo: .body))
                 .padding(.horizontal, BlipSpacing.md)
                 .padding(.vertical, BlipSpacing.sm + 2)
@@ -59,8 +61,14 @@ struct AddFriendByUsernameSheet: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: BlipCornerRadius.md)
-                        .stroke(Color.white.opacity(0.08), lineWidth: BlipSizing.hairline)
+                        .stroke(
+                            isFieldFocused
+                                ? Color.blipAccentPurple.opacity(0.6)
+                                : Color.white.opacity(0.08),
+                            lineWidth: isFieldFocused ? 1.5 : BlipSizing.hairline
+                        )
                 )
+                .animation(SpringConstants.accessibleSnappy, value: isFieldFocused)
                 .onSubmit { Task { await search() } }
 
             Button {
@@ -75,94 +83,164 @@ struct AddFriendByUsernameSheet: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
-                        .background(Color.blipAccentPurple, in: RoundedRectangle(cornerRadius: BlipCornerRadius.md))
+                        .background(
+                            LinearGradient.blipAccent,
+                            in: RoundedRectangle(cornerRadius: BlipCornerRadius.md)
+                        )
                 }
             }
             .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || isSearching)
         }
     }
 
-    // MARK: - Result Card
+    // MARK: - Result Area
 
     @ViewBuilder
-    private var resultCard: some View {
+    private var resultArea: some View {
         if let error = errorMessage {
-            GlassCard(thickness: .ultraThin) {
-                HStack(spacing: BlipSpacing.sm) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(theme.colors.statusAmber)
-                    Text(error)
-                        .font(theme.typography.secondary)
-                        .foregroundStyle(theme.colors.mutedText)
-                }
-            }
+            errorCard(message: error)
+                .transition(.scale.combined(with: .opacity))
         } else if let success = successMessage {
-            GlassCard(thickness: .ultraThin) {
-                HStack(spacing: BlipSpacing.sm) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text(success)
-                        .font(theme.typography.secondary)
-                        .foregroundStyle(.green)
-                }
-            }
+            successCard(message: success)
+                .transition(.scale.combined(with: .opacity))
+        } else if isSearching {
+            searchingIndicator
+                .transition(.opacity)
         } else if let result = lookupResult {
-            GlassCard(thickness: .regular) {
-                VStack(spacing: BlipSpacing.md) {
-                    HStack(spacing: BlipSpacing.sm) {
-                        // Avatar placeholder
-                        Circle()
-                            .fill(Color.blipAccentPurple.opacity(0.3))
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                Text(String(result.username.prefix(1)).uppercased())
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(.blipAccentPurple)
-                            )
+            resultCard(for: result)
+                .transition(.scale.combined(with: .opacity))
+        } else {
+            emptyState
+                .transition(.opacity)
+        }
+    }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: BlipSpacing.xs) {
-                                Text(result.username)
-                                    .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
-                                    .foregroundStyle(theme.colors.text)
+    // MARK: - Empty State
 
-                                if result.isVerified {
-                                    Image(systemName: "checkmark.seal.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.blipAccentPurple)
-                                }
-                            }
+    private var emptyState: some View {
+        VStack(spacing: BlipSpacing.md) {
+            Image(systemName: "person.crop.circle.badge.magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundStyle(theme.colors.mutedText)
+            Text("Search by username")
+                .font(theme.typography.body)
+                .fontWeight(.medium)
+                .foregroundStyle(theme.colors.text)
+            Text("Find friends even when they're not nearby.\nThey'll get your request next time they're on the mesh.")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.mutedText)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, BlipSpacing.xl)
+        .frame(maxWidth: .infinity)
+    }
 
-                            Text(result.noisePublicKey != nil ? "Keys available" : "No encryption keys")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(result.noisePublicKey != nil ? .green : theme.colors.mutedText)
-                        }
+    // MARK: - Searching Indicator
 
-                        Spacer()
-                    }
+    private var searchingIndicator: some View {
+        VStack(spacing: BlipSpacing.md) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(.blipAccentPurple)
+            Text("Searching...")
+                .font(theme.typography.secondary)
+                .foregroundStyle(theme.colors.mutedText)
+        }
+        .padding(.vertical, BlipSpacing.xl)
+        .frame(maxWidth: .infinity)
+    }
 
-                    Button {
-                        Task { await sendRequest(to: result) }
-                    } label: {
-                        HStack {
-                            if isSending {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Image(systemName: "person.badge.plus")
-                                Text("Send Friend Request")
-                            }
-                        }
-                        .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .body))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, BlipSpacing.sm + 2)
-                        .background(Color.blipAccentPurple, in: RoundedRectangle(cornerRadius: BlipCornerRadius.md))
-                    }
-                    .disabled(isSending || result.noisePublicKey == nil)
-                }
+    // MARK: - Error Card
+
+    private func errorCard(message: String) -> some View {
+        GlassCard(thickness: .ultraThin) {
+            HStack(spacing: BlipSpacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(theme.colors.statusAmber)
+                Text(message)
+                    .font(theme.typography.secondary)
+                    .foregroundStyle(theme.colors.mutedText)
             }
         }
+        .animation(SpringConstants.accessiblePageEntrance, value: errorMessage)
+    }
+
+    // MARK: - Success Card
+
+    private func successCard(message: String) -> some View {
+        GlassCard(thickness: .ultraThin) {
+            HStack(spacing: BlipSpacing.sm) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text(message)
+                    .font(theme.typography.secondary)
+                    .foregroundStyle(.green)
+            }
+        }
+        .animation(SpringConstants.accessiblePageEntrance, value: successMessage)
+    }
+
+    // MARK: - Result Card
+
+    private func resultCard(for result: UserSyncService.RemoteLookupResult) -> some View {
+        GlassCard(thickness: .regular) {
+            VStack(spacing: BlipSpacing.md) {
+                HStack(spacing: BlipSpacing.sm) {
+                    AvatarView(
+                        imageData: nil,
+                        name: result.username,
+                        size: BlipSizing.avatarMedium,
+                        ringStyle: result.isVerified ? .subscriber : .none,
+                        showOnlineIndicator: false
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: BlipSpacing.xs) {
+                            Text(result.username)
+                                .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
+                                .foregroundStyle(theme.colors.text)
+
+                            if result.isVerified {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.blipAccentPurple)
+                            }
+                        }
+
+                        Text(result.noisePublicKey != nil ? "Keys available" : "No encryption keys")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(result.noisePublicKey != nil ? .green : theme.colors.mutedText)
+                    }
+
+                    Spacer()
+                }
+
+                Button {
+                    Task { await sendRequest(to: result) }
+                } label: {
+                    HStack {
+                        if isSending {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "person.badge.plus")
+                            Text("Send Friend Request")
+                        }
+                    }
+                    .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .body))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, BlipSpacing.sm + 2)
+                    .background(
+                        LinearGradient.blipAccent,
+                        in: RoundedRectangle(cornerRadius: BlipCornerRadius.lg)
+                    )
+                    .opacity(result.noisePublicKey == nil ? 0.5 : 1.0)
+                }
+                .disabled(isSending || result.noisePublicKey == nil)
+            }
+        }
+        .animation(SpringConstants.accessiblePageEntrance, value: lookupResult?.id)
     }
 
     // MARK: - Actions
@@ -211,4 +289,16 @@ struct AddFriendByUsernameSheet: View {
 #Preview("Add Friend by Username") {
     AddFriendByUsernameSheet()
         .environment(\.theme, Theme.shared)
+}
+
+#Preview("Empty State") {
+    AddFriendByUsernameSheet()
+        .environment(\.theme, Theme.shared)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Light Mode") {
+    AddFriendByUsernameSheet()
+        .environment(\.theme, Theme.shared)
+        .preferredColorScheme(.light)
 }
