@@ -434,13 +434,20 @@ struct CreateProfileStep: View {
 
             try modelContext.save()
 
-            // Register on backend (fire-and-forget)
+            // Register on backend with encryption keys (fire-and-forget)
             let syncService = UserSyncService()
             let registrationUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
             let registrationEmailHash = emailHash
+            let noiseKey = identity.noisePublicKey.rawRepresentation
+            let signingKey = identity.signingPublicKey
             Task {
                 do {
-                    try await syncService.registerUser(emailHash: registrationEmailHash, username: registrationUsername)
+                    try await syncService.registerUser(
+                        emailHash: registrationEmailHash,
+                        username: registrationUsername,
+                        noisePublicKey: noiseKey,
+                        signingPublicKey: signingKey
+                    )
                 } catch {
                     // Non-blocking — logged by UserSyncService internally
                 }

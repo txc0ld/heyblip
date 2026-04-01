@@ -135,11 +135,15 @@ struct OnboardingFlow: View {
 
                 try modelContext.save()
 
-                // Register on backend (fire-and-forget)
+                // Register on backend with encryption keys (fire-and-forget)
+                let noiseKey = identity.noisePublicKey.rawRepresentation
+                let signingKey = identity.signingPublicKey
                 Task {
                     try? await UserSyncService().registerUser(
                         emailHash: emailHash,
-                        username: username
+                        username: username,
+                        noisePublicKey: noiseKey,
+                        signingPublicKey: signingKey
                     )
                 }
             }

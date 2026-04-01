@@ -196,6 +196,24 @@ final class AppCoordinator {
         self.modelContainer = modelContainer
         setupPeerPersistence(bleService: ble)
 
+        // Re-sync encryption keys to server for existing users (idempotent upsert).
+        // Ensures users who registered before key upload was added get their keys uploaded.
+        let keyMgr = keyManager
+        Task {
+            let context = ModelContext(modelContainer)
+            let userDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+            if let user = try? context.fetch(userDesc).first,
+               !user.emailHash.isEmpty,
+               let loadedIdentity = try? keyMgr.loadIdentity() {
+                try? await UserSyncService().registerUser(
+                    emailHash: user.emailHash,
+                    username: user.username,
+                    noisePublicKey: loadedIdentity.noisePublicKey.rawRepresentation,
+                    signingPublicKey: loadedIdentity.signingPublicKey
+                )
+            }
+        }
+
         isReady = true
         logger.info("AppCoordinator configured — services ready")
     }
