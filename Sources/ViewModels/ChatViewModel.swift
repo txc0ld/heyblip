@@ -61,7 +61,7 @@ final class ChatViewModel {
     private var lastReadTimestamps: [UUID: Date] = [:]
 
     /// Typing indicator cleanup timers keyed by "\(channelID)_\(peerID)".
-    private var typingTimers: [String: Timer] = [:]
+    @ObservationIgnored private var typingTimers: [String: Timer] = [:]
 
     // MARK: - Init
 
@@ -76,6 +76,13 @@ final class ChatViewModel {
         self.audioService = audioService
         self.imageService = imageService
         self.messageService.delegate = self
+    }
+
+    deinit {
+        for timer in typingTimers.values {
+            timer.invalidate()
+        }
+        typingTimers.removeAll()
     }
 
     // MARK: - Channel List
