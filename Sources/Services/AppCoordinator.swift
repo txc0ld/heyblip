@@ -35,6 +35,7 @@ final class AppCoordinator {
     private(set) var transportCoordinator: TransportCoordinator?
     private(set) var meshRelayService: MeshRelayService?
     private(set) var messageService: MessageService?
+    private(set) var messageRetryService: MessageRetryService?
     private(set) var peerStore = PeerStore.shared
     private(set) var locationService = LocationService()
     private(set) var notificationService = NotificationService()
@@ -162,6 +163,11 @@ final class AppCoordinator {
         coordinator.delegate = relay
         self.meshRelayService = relay
         self.messageService = msgService
+
+        // Create retry service for queued messages (exponential backoff)
+        let retryService = MessageRetryService(modelContainer: modelContainer, messageService: msgService)
+        self.messageRetryService = retryService
+
         self.chatViewModel = ChatViewModel(
             modelContainer: modelContainer,
             messageService: msgService
@@ -347,9 +353,21 @@ final class AppCoordinator {
             return
         }
         transportCoordinator?.start()
+        DebugLogger.shared.log("LIFECYCLE", "TransportCoordinator started")
+
         locationService.requestAuthorization()
+        locationService.startUpdating(accuracy: .geohash)
+        DebugLogger.shared.log("LIFECYCLE", "LocationService started (geohash accuracy)")
+
+        // Start message retry queue processor
+        messageRetryService?.start()
+        DebugLogger.shared.log("LIFECYCLE", "MessageRetryService started")
 
         Task { @MainActor in
+            // Request notification permissions
+            let notifGranted = await notificationService.requestAuthorization()
+            DebugLogger.shared.log("LIFECYCLE", "NotificationService authorization: \(notifGranted ? "granted" : "denied")")
+
             await profileViewModel?.loadProfile()
 
             // Set Sentry user context after profile loads
@@ -365,7 +383,8 @@ final class AppCoordinator {
             locationViewModel?.startMonitoring()
             await festivalViewModel?.loadFestivals()
             await festivalViewModel?.startGeofencing()
-            await storeViewModel?.refreshBalance()
+            await storeViewModel?.start()
+            DebugLogger.shared.log("LIFECYCLE", "StoreViewModel started (products + transaction listener)")
             await sosViewModel?.loadResponderStatus()
             await sosViewModel?.refreshVisibleAlerts()
         }
@@ -430,6 +449,7 @@ final class AppCoordinator {
         }
 
         messageService?.delegate = nil
+        messageRetryService?.stop()
         meshViewModel?.stopMonitoring()
         locationViewModel?.stopMonitoring()
         bleService = nil
@@ -437,6 +457,7 @@ final class AppCoordinator {
         transportCoordinator = nil
         meshRelayService = nil
         messageService = nil
+        messageRetryService = nil
         chatViewModel = nil
         meshViewModel = nil
         locationViewModel = nil
