@@ -135,11 +135,11 @@ struct OnboardingFlow: View {
 
                 try modelContext.save()
 
-                // Register on backend with encryption keys (fire-and-forget)
+                // Register on backend with encryption keys (fire-and-forget with retry)
                 let noiseKey = identity.noisePublicKey.rawRepresentation
                 let signingKey = identity.signingPublicKey
                 Task {
-                    try? await UserSyncService().registerUser(
+                    await UserSyncService().registerUserWithRetry(
                         emailHash: emailHash,
                         username: username,
                         noisePublicKey: noiseKey,

@@ -223,6 +223,13 @@ final class AppCoordinator {
 
         isReady = true
         logger.info("AppCoordinator configured — services ready")
+
+        // Self-check: verify local user is registered on the server.
+        // Catches users who slipped through all registration retries.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.verifyServerRegistration(modelContainer: modelContainer)
+        }
     }
 
     /// Forward `.shouldBroadcastPacket` notifications to TransportCoordinator.
@@ -360,6 +367,44 @@ final class AppCoordinator {
         )
 
         DebugLogger.shared.log("SYNC", "Peer sync: \(connectedPeerIDs.count) connected")
+    }
+
+    // MARK: - Server Registration Self-Check
+
+    /// Verify that the local user exists on the auth server.
+    /// If not found (404), re-register with retry to fix silent registration failures.
+    private func verifyServerRegistration(modelContainer: ModelContainer) async {
+        let context = ModelContext(modelContainer)
+        let syncService = UserSyncService()
+
+        do {
+            let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+            guard let localUser = try context.fetch(descriptor).first else {
+                logger.info("SELF_CHECK — no local user, skipping")
+                DebugLogger.shared.log("SELF_CHECK", "No local user found, skipping")
+                return
+            }
+
+            let result = try await syncService.lookupUser(username: localUser.username)
+
+            if result != nil {
+                logger.info("SELF_CHECK PASS — \(localUser.username, privacy: .private) found on server")
+                DebugLogger.shared.log("SELF_CHECK", "PASS — \(localUser.username) found on server")
+            } else {
+                logger.warning("SELF_CHECK FAIL — \(localUser.username, privacy: .private) not registered, re-registering")
+                DebugLogger.shared.log("SELF_CHECK", "FAIL — not registered, re-registering", isError: true)
+
+                await syncService.registerUserWithRetry(
+                    emailHash: localUser.emailHash,
+                    username: localUser.username,
+                    noisePublicKey: localUser.noisePublicKey,
+                    signingPublicKey: localUser.signingPublicKey
+                )
+            }
+        } catch {
+            logger.error("SELF_CHECK error: \(error.localizedDescription)")
+            DebugLogger.shared.log("SELF_CHECK", "Error: \(error.localizedDescription)", isError: true)
+        }
     }
 
     // MARK: - Lifecycle

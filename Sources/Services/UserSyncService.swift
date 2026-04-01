@@ -80,6 +80,49 @@ final class UserSyncService: Sendable {
         }
     }
 
+    // MARK: - Register with Retry
+
+    /// Wraps `registerUser()` with up to 3 attempts and exponential backoff (2s, 4s, 8s).
+    /// If all attempts fail, the error is logged but not thrown — app-launch re-sync will catch it.
+    func registerUserWithRetry(
+        emailHash: String,
+        username: String,
+        noisePublicKey: Data? = nil,
+        signingPublicKey: Data? = nil
+    ) async {
+        let maxAttempts = 3
+        let baseDelay: UInt64 = 2_000_000_000 // 2 seconds in nanoseconds
+
+        for attempt in 1...maxAttempts {
+            do {
+                logger.info("Registration attempt \(attempt)/\(maxAttempts) for \(username, privacy: .private)")
+                DebugLogger.emit("REGISTER", "Attempt \(attempt)/\(maxAttempts) for \(username)")
+
+                try await registerUser(
+                    emailHash: emailHash,
+                    username: username,
+                    noisePublicKey: noisePublicKey,
+                    signingPublicKey: signingPublicKey
+                )
+
+                logger.info("Registration succeeded on attempt \(attempt)")
+                DebugLogger.emit("REGISTER", "Success on attempt \(attempt)")
+                return
+            } catch {
+                logger.warning("Registration attempt \(attempt) failed: \(error.localizedDescription)")
+                DebugLogger.emit("REGISTER", "Attempt \(attempt) failed: \(error.localizedDescription)", isError: true)
+
+                if attempt < maxAttempts {
+                    let delay = baseDelay * UInt64(1 << (attempt - 1)) // 2s, 4s, 8s
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
+        }
+
+        logger.error("Registration failed after \(maxAttempts) attempts — will retry on next launch")
+        DebugLogger.emit("REGISTER", "All \(maxAttempts) attempts failed — deferring to app-launch re-sync", isError: true)
+    }
+
     // MARK: - Sync Profile
 
     /// Sync local profile state to the server (called on app launch when online).
