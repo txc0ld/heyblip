@@ -135,16 +135,23 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
 
   // In dev bypass mode, skip Resend entirely — use code 000000.
   if (!devBypass) {
-    const resend = new Resend(env.RESEND_API_KEY);
-    const { error } = await resend.emails.send({
-      from: env.FROM_EMAIL,
-      to: email,
-      subject: "Blip — Your verification code",
-      html: emailTemplate(code),
-    });
+    if (!env.RESEND_API_KEY) {
+      return json({ error: "Email service not configured" }, 503, env);
+    }
+    try {
+      const resend = new Resend(env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: env.FROM_EMAIL,
+        to: email,
+        subject: "Blip — Your verification code",
+        html: emailTemplate(code),
+      });
 
-    if (error) {
-      return json({ error: "Failed to send email" }, 502, env);
+      if (error) {
+        return json({ error: "Failed to send email" }, 502, env);
+      }
+    } catch (err: any) {
+      return json({ error: "Failed to send email", detail: err?.message ?? String(err) }, 502, env);
     }
   }
 
