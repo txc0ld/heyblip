@@ -3,12 +3,13 @@ import SwiftUI
 import SwiftData
 import BlipMesh
 import BlipProtocol
+import BlipCrypto
 import os.log
 
 // MARK: - BLE Debug Overlay
 
 /// Debug-only overlay showing real BLE mesh state, in-memory peer table,
-/// relay metrics, and a scrollable event log from DebugLogger.
+/// relay metrics, filtered log views, key status, and a scrollable event log.
 ///
 /// Activated by triple-tapping the Nearby tab title.
 struct BLEDebugOverlay: View {
@@ -20,6 +21,7 @@ struct BLEDebugOverlay: View {
     @State private var copiedToast = false
     @State private var copiedDebugToast = false
     @State private var showShareSheet = false
+    @State private var selectedTab: DebugTab = .log
 
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +29,13 @@ struct BLEDebugOverlay: View {
     @Environment(AppCoordinator.self) private var coordinator
 
     private let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
+
+    private enum DebugTab: String, CaseIterable {
+        case log = "Log"
+        case dmTrace = "DM Trace"
+        case peerLife = "Peer Life"
+        case keys = "Keys"
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,7 +45,8 @@ struct BLEDebugOverlay: View {
                     transportSection
                     peerTableSection
                     relaySection
-                    logSection
+                    tabPicker
+                    selectedTabContent
                 }
                 .padding(BlipSpacing.md)
             }
@@ -222,7 +232,46 @@ struct BLEDebugOverlay: View {
         }
     }
 
-    // MARK: - Log
+    // MARK: - Tab Picker
+
+    private var tabPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(DebugTab.allCases, id: \.self) { tab in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.system(.caption2, design: .monospaced))
+                        .fontWeight(selectedTab == tab ? .bold : .regular)
+                        .foregroundStyle(selectedTab == tab ? .white : .gray)
+                        .padding(.vertical, BlipSpacing.sm)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            selectedTab == tab
+                                ? Color.blipAccentPurple.opacity(0.3)
+                                : Color.clear
+                        )
+                }
+            }
+        }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .log:
+            logSection
+        case .dmTrace:
+            dmTraceSection
+        case .peerLife:
+            peerLifecycleSection
+        case .keys:
+            keyStatusSection
+        }
+    }
+
+    // MARK: - Log (All)
 
     private var logSection: some View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
@@ -237,19 +286,130 @@ struct BLEDebugOverlay: View {
                     .foregroundStyle(.blipAccentPurple)
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(DebugLogger.shared.entries.prefix(50)) { entry in
-                    HStack(alignment: .top, spacing: 4) {
-                        Text(entry.formattedTime)
-                            .foregroundStyle(.gray)
-                        Text("[\(entry.category)]")
-                            .foregroundStyle(categoryColor(entry.category))
-                        Text(entry.message)
-                            .foregroundStyle(entry.isError ? .red : .white)
+            logEntryList(entries: Array(DebugLogger.shared.entries.prefix(50)))
+        }
+    }
+
+    // MARK: - DM Send Trace
+
+    private var dmTraceSection: some View {
+        let dmEntries = DebugLogger.shared.entries
+            .filter { $0.category == "DM" }
+            .prefix(50)
+
+        return VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            sectionHeader("DM Send Trace (\(dmEntries.count))")
+
+            if dmEntries.isEmpty {
+                Text("No DM entries yet")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
+            } else {
+                logEntryList(entries: Array(dmEntries))
+            }
+        }
+    }
+
+    // MARK: - Peer Lifecycle
+
+    private var peerLifecycleSection: some View {
+        let peerCategories: Set<String> = ["PEER", "BLE", "MESH"]
+        let peerEntries = DebugLogger.shared.entries
+            .filter { peerCategories.contains($0.category) }
+            .prefix(50)
+
+        return VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            sectionHeader("Peer Lifecycle (\(peerEntries.count))")
+
+            if peerEntries.isEmpty {
+                Text("No peer/BLE/mesh entries yet")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
+            } else {
+                logEntryList(entries: Array(peerEntries))
+            }
+        }
+    }
+
+    // MARK: - Key Status
+
+    private var keyStatusSection: some View {
+        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            sectionHeader("Key Status")
+
+            let keyManager = KeyManager.shared
+            let identity = try? keyManager.loadIdentity()
+
+            VStack(alignment: .leading, spacing: 6) {
+                // Noise keypair
+                HStack {
+                    statusDot(identity != nil ? .green : .red)
+                    Text("Noise keypair:")
+                        .foregroundStyle(.gray)
+                    if let identity {
+                        let hex = identity.noisePublicKey.rawRepresentation
+                            .prefix(4)
+                            .map { String(format: "%02x", $0) }
+                            .joined()
+                        Text(hex)
+                            .foregroundStyle(.white)
+                    } else {
+                        Text("missing")
+                            .foregroundStyle(.red)
                     }
-                    .font(.system(size: 9, design: .monospaced))
-                    .lineLimit(2)
                 }
+
+                // Signing keypair
+                HStack {
+                    statusDot(identity?.signingPublicKey.isEmpty == false ? .green : .red)
+                    Text("Signing keypair:")
+                        .foregroundStyle(.gray)
+                    if let identity, !identity.signingPublicKey.isEmpty {
+                        let hex = identity.signingPublicKey
+                            .prefix(4)
+                            .map { String(format: "%02x", $0) }
+                            .joined()
+                        Text(hex)
+                            .foregroundStyle(.white)
+                    } else {
+                        Text("missing")
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                // Server sync status
+                HStack {
+                    let user = fetchLocalUser()
+                    let synced = user != nil && !user!.noisePublicKey.isEmpty
+                    statusDot(synced ? .green : .orange)
+                    Text("Keys in User model:")
+                        .foregroundStyle(.gray)
+                    Text(synced ? "yes" : "no / unknown")
+                        .foregroundStyle(synced ? .green : .orange)
+                }
+            }
+            .font(.system(.caption, design: .monospaced))
+            .padding(BlipSpacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    // MARK: - Shared Log Entry List
+
+    private func logEntryList(entries: [DebugLogger.Entry]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(entries) { entry in
+                HStack(alignment: .top, spacing: 4) {
+                    Text(entry.formattedTime)
+                        .foregroundStyle(.gray)
+                    Text("[\(entry.category)]")
+                        .foregroundStyle(categoryColor(entry.category))
+                    Text(entry.message)
+                        .foregroundStyle(entry.isError ? .red : .white)
+                }
+                .font(.system(size: 9, design: .monospaced))
+                .lineLimit(2)
             }
         }
     }
@@ -297,6 +457,9 @@ struct BLEDebugOverlay: View {
         case "DM": return .mint
         case "BLE": return .blue
         case "DB": return .teal
+        case "MESH": return .indigo
+        case "REGISTER": return .pink
+        case "SELF_CHECK": return .pink
         default: return .gray
         }
     }
@@ -312,16 +475,24 @@ struct BLEDebugOverlay: View {
         return "\(seconds / 60)m ago"
     }
 
+    private func fetchLocalUser() -> User? {
+        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+        return try? modelContext.fetch(descriptor).first
+    }
+
     // MARK: - State Dump
 
     private func dumpState() {
         let log = DebugLogger.shared
         let peerStore = coordinator.peerStore
 
-        // PeerStore records
-        let peers = peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
         log.log("DB", "=== State Dump ===")
-        log.log("DB", "PeerStore: \(peers.count) peers")
+
+        // PeerStore
+        let peers = peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
+        let peerIDs = peers.map { peerIDShort($0.peerID) }.joined(separator: ", ")
+        log.log("DB", "PeerStore: \(peers.count) peers [\(peerIDs)]")
+
         let blePeerIDs = Set((coordinator.bleService?.connectedPeers ?? []).map { $0.bytes })
         var orphanCount = 0
         for peer in peers {
@@ -334,6 +505,20 @@ struct BLEDebugOverlay: View {
             if orphan { orphanCount += 1 }
             log.log("DB", "  \(shortID) \(name) state=\(state) seen=\(age)\(orphan ? " ORPHAN" : "")")
         }
+
+        // Noise sessions
+        let sessionDesc = FetchDescriptor<NoiseSessionModel>()
+        let sessionCount = (try? modelContext.fetchCount(sessionDesc)) ?? 0
+        log.log("DB", "Active Noise sessions: \(sessionCount)")
+
+        // WebSocket status
+        let wsConnected = coordinator.webSocketTransport?.state == .running
+        log.log("DB", "WebSocket connected: \(wsConnected)")
+
+        // BLE scanning status
+        let bleRunning = coordinator.bleService?.state == .running
+        let peripheralCount = coordinator.bleService?.connectedPeers.count ?? 0
+        log.log("DB", "BLE scanning: \(bleRunning == true ? "yes" : "no"), peripherals: \(peripheralCount)")
 
         // Conversations and messages
         let channelDesc = FetchDescriptor<Channel>()
@@ -351,7 +536,6 @@ struct BLEDebugOverlay: View {
     // MARK: - State Refresh
 
     private func refreshState() {
-        // Read real BLE state
         if let ble = coordinator.bleService {
             switch ble.state {
             case .idle: bleState = "Idle"
@@ -373,7 +557,6 @@ struct BLEDebugOverlay: View {
             }
         }
 
-        // Read from in-memory PeerStore
         storePeers = coordinator.peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
     }
 }
