@@ -128,7 +128,7 @@ final class LocationViewModel {
     private let logger = Logger(subsystem: "com.blip", category: "LocationViewModel")
     private let modelContainer: ModelContainer
     private let locationService: LocationService
-    nonisolated(unsafe) private var refreshTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var refreshTimer: Timer?
 
     // MARK: - Constants
 

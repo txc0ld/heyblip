@@ -60,11 +60,11 @@ final class AppCoordinator {
     private let keyManager: KeyManager
     private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
     private var modelContainer: ModelContainer?
-    nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var peerSyncTimer: Timer?
-    nonisolated(unsafe) private var announceTimer: Timer?
-    nonisolated(unsafe) private var peerPruneTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
 
     // MARK: - Init
 
@@ -395,7 +395,9 @@ final class AppCoordinator {
 
         // Prune peers not seen in 2 minutes (separate from announce staleness)
         let pruneTimer = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
-            self?.peerStore.pruneStale(olderThan: 120)
+            Task { @MainActor in
+                self?.peerStore.pruneStale(olderThan: 120)
+            }
         }
         RunLoop.main.add(pruneTimer, forMode: .common)
         peerPruneTimer = pruneTimer

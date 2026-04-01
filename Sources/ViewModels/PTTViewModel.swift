@@ -84,7 +84,7 @@ final class PTTViewModel {
     private let audioService: AudioService
     private let messageService: MessageService
     private var audioDelegate: PTTAudioDelegate?
-    nonisolated(unsafe) private var pttObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var pttObservation: NSObjectProtocol?
 
     // MARK: - Constants
 
@@ -250,7 +250,7 @@ final class PTTViewModel {
         state = .sending(progress: 0)
 
         do {
-            let message = try await messageService.sendVoiceNote(
+            _ = try await messageService.sendVoiceNote(
                 audioData: data,
                 duration: duration,
                 to: channel

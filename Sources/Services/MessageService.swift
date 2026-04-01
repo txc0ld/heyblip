@@ -300,15 +300,16 @@ final class MessageService: @unchecked Sendable {
         guard let identity = getIdentity() else { return }
 
         // Debounce: only send every 3 seconds
-        lock.lock()
-        let lastSent = lastTypingIndicatorSent[channel.id]
-        let now = Date()
-        if let lastSent, now.timeIntervalSince(lastSent) < typingIndicatorInterval {
-            lock.unlock()
-            return
+        let shouldSkip: Bool = lock.withLock {
+            let lastSent = lastTypingIndicatorSent[channel.id]
+            let now = Date()
+            if let lastSent, now.timeIntervalSince(lastSent) < typingIndicatorInterval {
+                return true
+            }
+            lastTypingIndicatorSent[channel.id] = now
+            return false
         }
-        lastTypingIndicatorSent[channel.id] = now
-        lock.unlock()
+        if shouldSkip { return }
 
         var payload = Data()
         payload.append(channel.id.uuidString.data(using: .utf8) ?? Data())
@@ -666,7 +667,7 @@ final class MessageService: @unchecked Sendable {
                             return
                         }
                         DebugLogger.emit("RX", "SIG OK from \(senderHex) key=\(keyPrefix)")
-                        self.lock.withLock { self.unverifiedPacketCounts.removeValue(forKey: senderData) }
+                        self.lock.withLock { _ = self.unverifiedPacketCounts.removeValue(forKey: senderData) }
                     } catch {
                         DebugLogger.emit("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
                     }
@@ -785,9 +786,9 @@ final class MessageService: @unchecked Sendable {
                     identity: identity,
                     messageID: messageID
                 )
-                lock.lock()
-                pendingHandshakeMessages[recipientPeerID.bytes, default: []].append(pending)
-                lock.unlock()
+                lock.withLock {
+                    pendingHandshakeMessages[recipientPeerID.bytes, default: []].append(pending)
+                }
 
                 // Mark message as encrypting
                 if let messageID {
@@ -1100,9 +1101,9 @@ final class MessageService: @unchecked Sendable {
 
         // Check if handshake already in progress
         let peerHex = recipientPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
-        lock.lock()
-        let alreadyPending = pendingHandshakeMessages[recipientPeerID.bytes] != nil
-        lock.unlock()
+        let alreadyPending: Bool = lock.withLock {
+            pendingHandshakeMessages[recipientPeerID.bytes] != nil
+        }
 
         if alreadyPending {
             DebugLogger.emit("NOISE", "Handshake already pending for \(peerHex)")
@@ -1124,11 +1125,11 @@ final class MessageService: @unchecked Sendable {
         DebugLogger.emit("NOISE", "→ handshake msg1 to \(peerHex)")
 
         // Initialize pending queue
-        lock.lock()
-        if pendingHandshakeMessages[recipientPeerID.bytes] == nil {
-            pendingHandshakeMessages[recipientPeerID.bytes] = []
+        lock.withLock {
+            if pendingHandshakeMessages[recipientPeerID.bytes] == nil {
+                pendingHandshakeMessages[recipientPeerID.bytes] = []
+            }
         }
-        lock.unlock()
 
         // Schedule 30-second timeout
         let peerBytes = recipientPeerID.bytes
@@ -1915,13 +1916,13 @@ final class MessageService: @unchecked Sendable {
         let bytes = [UInt8](data)
 
         // Find first separator
-        var firstSep = bytes.firstIndex(of: 0x00) ?? bytes.endIndex
+        let firstSep = bytes.firstIndex(of: 0x00) ?? bytes.endIndex
         let messageIDBytes = Data(bytes[0 ..< firstSep])
         let messageID = String(data: messageIDBytes, encoding: .utf8).flatMap(UUID.init) ?? UUID()
 
         // Find second separator
         let afterFirstSep = min(firstSep + 1, bytes.endIndex)
-        var secondSep = bytes[afterFirstSep...].firstIndex(of: 0x00) ?? bytes.endIndex
+        let secondSep = bytes[afterFirstSep...].firstIndex(of: 0x00) ?? bytes.endIndex
         let replyToBytes = Data(bytes[afterFirstSep ..< secondSep])
         let replyToID: UUID? = String(data: replyToBytes, encoding: .utf8).flatMap(UUID.init)
 

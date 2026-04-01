@@ -38,9 +38,9 @@ final class FriendFinderViewModel {
     /// Tracked peer locations: PeerID hex → most recent location data.
     private var peerLocations: [String: PeerLocationEntry] = [:]
 
-    nonisolated(unsafe) private var locationObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var beaconObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var cleanupTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var locationObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var beaconObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var cleanupTimer: Timer?
 
     private struct PeerLocationEntry {
         let peerID: PeerID

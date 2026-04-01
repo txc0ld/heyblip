@@ -116,7 +116,7 @@ final class FestivalViewModel {
     private let modelContainer: ModelContainer
     private let locationService: LocationService
     private let notificationService: NotificationService
-    nonisolated(unsafe) private var geofenceObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var geofenceObservation: NSObjectProtocol?
 
     // MARK: - Constants
 
@@ -309,7 +309,6 @@ final class FestivalViewModel {
 
     private func loadStages(for festival: Festival) async {
         stages = festival.stages.map { stage in
-            let now = Date()
             let currentSet = stage.schedule.first { $0.isLive }
             let nextSet = stage.schedule
                 .filter { $0.isUpcoming }

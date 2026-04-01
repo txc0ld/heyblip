@@ -86,7 +86,7 @@ final class ChatViewModel {
         defer { isLoading = false }
 
         let context = ModelContext(modelContainer)
-        var descriptor = FetchDescriptor<Channel>(
+        let descriptor = FetchDescriptor<Channel>(
             sortBy: [SortDescriptor(\.lastActivityAt, order: .reverse)]
         )
 
@@ -228,7 +228,7 @@ final class ChatViewModel {
         let context = ModelContext(modelContainer)
         let channelID = channel.id
 
-        var descriptor = FetchDescriptor<Message>(
+        let descriptor = FetchDescriptor<Message>(
             predicate: #Predicate { $0.channel?.id == channelID },
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )

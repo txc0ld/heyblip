@@ -81,7 +81,7 @@ final class StoreViewModel {
 
     private let logger = Logger(subsystem: "com.blip", category: "StoreViewModel")
     private let modelContainer: ModelContainer
-    nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
+    @ObservationIgnored nonisolated(unsafe) private var transactionListener: Task<Void, Error>?
     private var loadedProducts: [Product] = []
     private var hasStarted = false
 
@@ -261,7 +261,6 @@ final class StoreViewModel {
     // MARK: - Private: Transaction Listener
 
     private func startTransactionListener() {
-        let productIDs = Self.productIDs
         transactionListener = Task.detached { [weak self] in
             for await result in Transaction.updates {
                 guard let self else { return }

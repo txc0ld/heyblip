@@ -123,8 +123,8 @@ final class SOSViewModel {
     private let messageService: MessageService
     private let notificationService: NotificationService
     private let logger = Logger(subsystem: "com.blip", category: "SOSViewModel")
-    nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var countdownTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var countdownTimer: Timer?
 
     // MARK: - Constants
 

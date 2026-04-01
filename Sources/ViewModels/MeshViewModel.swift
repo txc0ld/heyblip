@@ -143,11 +143,11 @@ final class MeshViewModel {
     private let logger = Logger(subsystem: "com.blip", category: "MeshViewModel")
     private let modelContainer: ModelContainer
     private let peerStore: PeerStore
-    nonisolated(unsafe) private var refreshTimer: Timer?
-    nonisolated(unsafe) private var peerObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var peerStoreObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var transportObservation: NSObjectProtocol?
-    nonisolated(unsafe) private var friendListObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var refreshTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var peerObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var peerStoreObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var transportObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var friendListObservation: NSObjectProtocol?
 
     // MARK: - Constants
 

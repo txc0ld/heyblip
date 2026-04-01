@@ -121,7 +121,6 @@ final class MessageRetryService: @unchecked Sendable {
     func purgeExpired() async throws {
         let context = ModelContext(modelContainer)
 
-        let now = Date()
         let descriptor = FetchDescriptor<MessageQueue>()
         let allEntries = try context.fetch(descriptor)
 
@@ -178,11 +177,10 @@ final class MessageRetryService: @unchecked Sendable {
         guard isRunning else { return }
 
         let context = ModelContext(modelContainer)
-        let now = Date()
 
         do {
             // Fetch all queue entries sorted by next retry time
-            var descriptor = FetchDescriptor<MessageQueue>(
+            let descriptor = FetchDescriptor<MessageQueue>(
                 sortBy: [SortDescriptor(\.nextRetryAt, order: .forward)]
             )
             let allEntries = try context.fetch(descriptor)
@@ -203,10 +201,11 @@ final class MessageRetryService: @unchecked Sendable {
             for entry in readyEntries {
                 // Skip if already being sent concurrently
                 let entryID = entry.id
-                lock.lock()
-                let isActive = activeSends.contains(entryID)
-                if !isActive { activeSends.insert(entryID) }
-                lock.unlock()
+                let isActive: Bool = lock.withLock {
+                    if activeSends.contains(entryID) { return true }
+                    activeSends.insert(entryID)
+                    return false
+                }
                 if isActive { continue }
 
                 delegate?.retryService(self, willRetry: entryID, attempt: entry.attempts + 1, of: entry.maxAttempts)
@@ -247,9 +246,7 @@ final class MessageRetryService: @unchecked Sendable {
                 }
 
                 // Remove from active sends
-                lock.lock()
-                activeSends.remove(entryID)
-                lock.unlock()
+                lock.withLock { _ = activeSends.remove(entryID) }
             }
 
         } catch {
@@ -310,7 +307,7 @@ final class MessageRetryService: @unchecked Sendable {
                 payload: data
             )
 
-            let wireData = try PacketSerializer.encode(packet)
+            _ = try PacketSerializer.encode(packet)
 
             // Use the appropriate transport from entry preference
             // For now, broadcast to all available transports
