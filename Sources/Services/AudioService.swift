@@ -548,13 +548,19 @@ final class AudioService: NSObject, @unchecked Sendable {
         let dataSize: UInt32 = UInt32(pcmData.count)
         let fileSize: UInt32 = 36 + dataSize
 
+        // WAV tag constants as raw bytes (avoids force unwrap on .ascii encoding)
+        let riffTag = Data([0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        let waveTag = Data([0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        let fmtTag  = Data([0x66, 0x6D, 0x74, 0x20]) // "fmt "
+        let dataTag = Data([0x64, 0x61, 0x74, 0x61]) // "data"
+
         // RIFF header
-        wav.append("RIFF".data(using: .ascii)!)
+        wav.append(riffTag)
         wav.append(withUnsafeBytes(of: fileSize.littleEndian) { Data($0) })
-        wav.append("WAVE".data(using: .ascii)!)
+        wav.append(waveTag)
 
         // fmt subchunk
-        wav.append("fmt ".data(using: .ascii)!)
+        wav.append(fmtTag)
         wav.append(withUnsafeBytes(of: UInt32(16).littleEndian) { Data($0) }) // subchunk size
         wav.append(withUnsafeBytes(of: UInt16(1).littleEndian) { Data($0) })  // PCM format
         wav.append(withUnsafeBytes(of: channels.littleEndian) { Data($0) })
@@ -564,7 +570,7 @@ final class AudioService: NSObject, @unchecked Sendable {
         wav.append(withUnsafeBytes(of: bitsPerSample.littleEndian) { Data($0) })
 
         // data subchunk
-        wav.append("data".data(using: .ascii)!)
+        wav.append(dataTag)
         wav.append(withUnsafeBytes(of: dataSize.littleEndian) { Data($0) })
         wav.append(pcmData)
 
