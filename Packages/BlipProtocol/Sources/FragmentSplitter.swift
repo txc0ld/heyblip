@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// Fragment header layout:
 /// ```
@@ -144,8 +145,12 @@ public enum FragmentSplitter {
     /// Generate a 4-byte random fragment ID.
     private static func generateFragmentID() -> Data {
         var bytes = [UInt8](repeating: 0, count: 4)
-        for i in 0 ..< 4 {
-            bytes[i] = UInt8.random(in: 0 ... 255)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        if status != errSecSuccess {
+            // Fallback to system random if SecRandom fails (extremely unlikely)
+            for i in 0..<bytes.count {
+                bytes[i] = UInt8.random(in: 0...255)
+            }
         }
         return Data(bytes)
     }

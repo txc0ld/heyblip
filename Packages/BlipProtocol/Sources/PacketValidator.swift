@@ -6,6 +6,7 @@ public enum PacketValidationError: Error, Sendable, Equatable {
     case ttlOutOfRange(UInt8)
     case timestampInFuture(UInt64)
     case payloadTooLarge(UInt32)
+    case payloadLengthMismatch(claimed: Int, actual: Int)
     case packetTooSmall(Int)
     case flagsInconsistent(String)
 }
@@ -100,6 +101,23 @@ public enum PacketValidator {
         let ttl = data[2]
         if !Packet.ttlRange.contains(ttl) {
             errors.append(.ttlOutOfRange(ttl))
+        }
+
+        // Payload length bounds check (UInt32 big-endian at header offset 12)
+        let payloadLength = data.withUnsafeBytes { buffer in
+            buffer.load(fromByteOffset: 12, as: UInt32.self).bigEndian
+        }
+        // Reject if claimed payload length exceeds actual remaining data (header + senderID minimum)
+        let minRequired = Packet.headerSize + PeerID.length + Int(payloadLength)
+        if minRequired > data.count {
+            errors.append(.payloadLengthMismatch(
+                claimed: Int(payloadLength),
+                actual: max(0, data.count - Packet.headerSize - PeerID.length)
+            ))
+        }
+        // Reject unreasonably large payloads
+        if payloadLength > 4096 {
+            errors.append(.payloadTooLarge(payloadLength))
         }
 
         return errors
