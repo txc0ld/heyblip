@@ -167,7 +167,11 @@ public final class SenderKeyManager: @unchecked Sendable {
     public func rotateKey(forChannel channelID: Data, reason: SenderKeyRotationReason) -> GroupSenderKey? {
         lock.lock()
         defer { lock.unlock() }
+        return rotateKeyLocked(forChannel: channelID)
+    }
 
+    /// Internal rotation that assumes the lock is already held.
+    private func rotateKeyLocked(forChannel channelID: Data) -> GroupSenderKey? {
         guard let existing = ourKeys[channelID] else { return nil }
 
         // Archive old key
@@ -227,25 +231,22 @@ public final class SenderKeyManager: @unchecked Sendable {
     /// - Returns: A tuple of the encrypted data and the key (for distribution if rotated).
     public func encrypt(plaintext: Data, forChannel channelID: Data) throws -> (ciphertext: Data, key: GroupSenderKey) {
         lock.lock()
+        defer { lock.unlock() }
 
         guard var senderKey = ourKeys[channelID] else {
-            lock.unlock()
             throw SenderKeyError.keyNotFound(channelID: channelID)
         }
 
-        // Check if rotation is needed
+        // Check if rotation is needed — rotate while still holding the lock
         if senderKey.needsRotation {
-            lock.unlock()
-            guard let rotated = rotateKey(forChannel: channelID, reason: .messageLimit) else {
+            guard let rotated = rotateKeyLocked(forChannel: channelID) else {
                 throw SenderKeyError.keyNotFound(channelID: channelID)
             }
-            lock.lock()
             senderKey = rotated
         }
 
         senderKey.incrementMessageCount()
         ourKeys[channelID] = senderKey
-        lock.unlock()
 
         // Encrypt with AES-256-GCM
         let symmetricKey = SymmetricKey(data: senderKey.keyMaterial)

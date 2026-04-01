@@ -109,12 +109,15 @@ public final class NoiseCipherState: @unchecked Sendable {
             throw NoiseCipherError.nonceOverflow
         }
 
+        // Store expected nonce for monotonic validation
+        let expectedNonce = nonce
+
         // ChaChaPoly tag is 16 bytes
         guard ciphertext.count >= 16 else {
             throw NoiseCipherError.decryptionFailed
         }
 
-        let chachaNonce = try makeNonce(nonce)
+        let chachaNonce = try makeNonce(expectedNonce)
         let tagOffset = ciphertext.count - 16
         let ct = ciphertext[ciphertext.startIndex ..< ciphertext.startIndex + tagOffset]
         let tag = ciphertext[ciphertext.startIndex + tagOffset ..< ciphertext.endIndex]
@@ -132,7 +135,8 @@ public final class NoiseCipherState: @unchecked Sendable {
             throw NoiseCipherError.decryptionFailed
         }
 
-        nonce += 1
+        // Only increment after successful decryption (monotonic guarantee)
+        nonce = expectedNonce + 1
         messageCount += 1
 
         return plaintext
@@ -160,8 +164,11 @@ public final class NoiseCipherState: @unchecked Sendable {
 
         // Take the first 32 bytes of (ciphertext + tag) as the new key
         let combined = sealed.ciphertext + sealed.tag
-        let newKeyData = Data(combined.prefix(32))
+        var newKeyData = Data(combined.prefix(32))
         key = SymmetricKey(data: newKeyData)
+
+        // Zero intermediate key material to prevent memory scraping
+        newKeyData.resetBytes(in: 0..<newKeyData.count)
 
         // Reset message count (nonce is NOT reset)
         messageCount = 0
