@@ -13,6 +13,7 @@ struct ChatListView: View {
     @State private var searchText: String = ""
     @State private var isRefreshing = false
     @State private var showNewMessage = false
+    @State private var showAddFriend = false
     @State private var selectedConversation: ConversationPreview? = nil
     @Environment(\.theme) private var theme
 
@@ -33,6 +34,20 @@ struct ChatListView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "Search conversations"
             )
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAddFriend = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.blipAccentPurple)
+                    }
+                }
+            }
+            .sheet(isPresented: $showAddFriend) {
+                AddFriendByUsernameSheet()
+            }
             .sheet(isPresented: $showNewMessage) {
                 newMessageSheet
             }

@@ -43,12 +43,23 @@ final class UserSyncService: Sendable {
 
     /// Register a new user after onboarding completes.
     /// Fire-and-forget — failures are logged but don't block the user.
-    func registerUser(emailHash: String, username: String) async throws {
-        let body: [String: Any] = [
+    func registerUser(
+        emailHash: String,
+        username: String,
+        noisePublicKey: Data? = nil,
+        signingPublicKey: Data? = nil
+    ) async throws {
+        var body: [String: Any] = [
             "emailHash": emailHash,
             "username": username,
             "createdAt": ISO8601DateFormatter().string(from: Date())
         ]
+        if let key = noisePublicKey {
+            body["noisePublicKey"] = key.map { String(format: "%02x", $0) }.joined()
+        }
+        if let key = signingPublicKey {
+            body["signingPublicKey"] = key.map { String(format: "%02x", $0) }.joined()
+        }
 
         let (data, response) = try await post(path: "/users/register", body: body)
 
@@ -188,6 +199,56 @@ final class UserSyncService: Sendable {
         }
     }
 
+    // MARK: - Lookup by Username
+
+    /// Look up a user by username via the auth server.
+    /// Returns nil if not found (404).
+    func lookupUser(username: String) async throws -> RemoteLookupResult? {
+        guard let url = URL(string: "\(Self.baseURL)/users/lookup/\(username)") else {
+            throw SyncError.networkError("Invalid URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw SyncError.networkError("Invalid response")
+        }
+
+        if http.statusCode == 404 { return nil }
+
+        guard http.statusCode == 200 else {
+            let message = parseError(data) ?? "Status \(http.statusCode)"
+            throw SyncError.serverError(message)
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let userDict = json["user"] as? [String: Any] else {
+            throw SyncError.serverError("Invalid response body")
+        }
+
+        return RemoteLookupResult(
+            id: userDict["id"] as? String ?? "",
+            username: userDict["username"] as? String ?? "",
+            isVerified: userDict["isVerified"] as? Bool ?? false,
+            noisePublicKey: userDict["noisePublicKey"] as? String,
+            signingPublicKey: userDict["signingPublicKey"] as? String,
+            lastActiveAt: userDict["lastActiveAt"] as? String
+        )
+    }
+
+    struct RemoteLookupResult: Sendable {
+        let id: String
+        let username: String
+        let isVerified: Bool
+        let noisePublicKey: String?
+        let signingPublicKey: String?
+        let lastActiveAt: String?
+    }
+
     // MARK: - Types
 
     struct ReceiptResult: Sendable {
@@ -222,6 +283,22 @@ final class UserSyncService: Sendable {
         } catch {
             throw SyncError.networkError("Failed to encode request")
         }
+
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch {
+            throw SyncError.networkError(error.localizedDescription)
+        }
+    }
+
+    private func get(path: String) async throws -> (Data, URLResponse) {
+        guard let url = URL(string: Self.baseURL + path) else {
+            throw SyncError.networkError("Invalid URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
 
         do {
             return try await URLSession.shared.data(for: request)

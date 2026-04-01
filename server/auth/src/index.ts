@@ -40,6 +40,8 @@ interface RegisterBody {
   username?: string;
   createdAt?: string;
   isVerified?: boolean;
+  noisePublicKey?: string;
+  signingPublicKey?: string;
 }
 
 interface SyncBody {
@@ -79,6 +81,9 @@ export default {
     }
 
     // GET routes (besides health)
+    if (request.method === "GET" && url.pathname.startsWith("/v1/users/lookup/")) {
+        return handleLookupByUsername(url, env);
+    }
     if (request.method === "GET" && url.pathname.startsWith("/v1/users/")) {
         return handleGetUser(url, env);
     }
@@ -256,12 +261,17 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
     return json({ error: "Database not configured" }, 503, env);
   }
 
+  const noiseKey = body.noisePublicKey ? hexToBuffer(body.noisePublicKey) : null;
+  const signingKey = body.signingPublicKey ? hexToBuffer(body.signingPublicKey) : null;
+
   try {
     const result = await sql`
-      INSERT INTO users (email_hash, username, is_verified, created_at)
-      VALUES (${body.emailHash}, ${body.username}, FALSE, ${body.createdAt})
+      INSERT INTO users (email_hash, username, is_verified, created_at, noise_public_key, signing_public_key)
+      VALUES (${body.emailHash}, ${body.username}, FALSE, ${body.createdAt}, ${noiseKey}, ${signingKey})
       ON CONFLICT (email_hash) DO UPDATE SET
         username = EXCLUDED.username,
+        noise_public_key = COALESCE(EXCLUDED.noise_public_key, users.noise_public_key),
+        signing_public_key = COALESCE(EXCLUDED.signing_public_key, users.signing_public_key),
         updated_at = NOW()
       RETURNING id
     `;
@@ -361,6 +371,67 @@ function getMessageCredits(productID: string): number {
   return credits[productID] ?? 0;
 }
 
+// ─── Lookup by Username ─────────────────────────────────────
+
+async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
+  const parts = url.pathname.split("/");
+  const username = parts[parts.length - 1];
+
+  if (!username || username === "lookup") {
+    return json({ error: "Missing username" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const result = await sql`
+      SELECT id, username, is_verified, noise_public_key, signing_public_key, last_active_at
+      FROM users WHERE LOWER(username) = LOWER(${username})
+    `;
+
+    if (result.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+
+    const row = result[0];
+    return json({
+      user: {
+        id: row.id,
+        username: row.username,
+        isVerified: row.is_verified,
+        noisePublicKey: row.noise_public_key ? bufferToHex(row.noise_public_key) : null,
+        signingPublicKey: row.signing_public_key ? bufferToHex(row.signing_public_key) : null,
+        lastActiveAt: row.last_active_at,
+      },
+    }, 200, env);
+  } catch {
+    return json({ error: "Lookup failed" }, 500, env);
+  }
+}
+
+function hexToBuffer(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+function bufferToHex(buf: any): string {
+  if (buf instanceof Uint8Array || buf instanceof ArrayBuffer) {
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  if (typeof buf === "string") return buf;
+  return "";
+}
+
+function isValidHexKey(key: string | undefined): key is string {
+  return typeof key === "string" && /^[a-f0-9]{64}$/i.test(key);
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function codeKey(email: string): string {
@@ -387,7 +458,7 @@ export function isValidEmailHash(emailHash: string): boolean {
 
 export function sanitizeRegisterBody(
   body: RegisterBody | null
-): { emailHash: string; username: string; createdAt: string } | null {
+): { emailHash: string; username: string; createdAt: string; noisePublicKey?: string; signingPublicKey?: string } | null {
   if (!body?.emailHash || !body.username) {
     return null;
   }
@@ -403,6 +474,8 @@ export function sanitizeRegisterBody(
     emailHash,
     username,
     createdAt: body.createdAt ?? new Date().toISOString(),
+    noisePublicKey: isValidHexKey(body.noisePublicKey) ? body.noisePublicKey : undefined,
+    signingPublicKey: isValidHexKey(body.signingPublicKey) ? body.signingPublicKey : undefined,
   };
 }
 

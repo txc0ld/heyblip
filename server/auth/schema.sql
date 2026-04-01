@@ -12,8 +12,13 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Public keys for remote friend requests (BDEV: add-friend-by-username)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS noise_public_key BYTEA;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_public_key BYTEA;
+
 CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));
 
 -- Auto-update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

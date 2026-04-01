@@ -360,6 +360,82 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Friend Requests
 
+    /// Send a friend request to a remote user looked up by username.
+    ///
+    /// Calls the auth server to resolve the username, creates a local User record,
+    /// registers the peer in PeerStore, then sends through the normal friend request flow
+    /// (falls back to WebSocket relay if BLE is unavailable).
+    @MainActor
+    func sendFriendRequestByUsername(_ username: String) async throws {
+        let syncService = UserSyncService()
+
+        guard let remote = try await syncService.lookupUser(username: username) else {
+            throw MessageServiceError.invalidRecipient
+        }
+
+        guard let noiseKeyHex = remote.noisePublicKey else {
+            throw MessageServiceError.invalidRecipient
+        }
+
+        let noiseKeyData = Data(hexString: noiseKeyHex)
+        guard !noiseKeyData.isEmpty else {
+            throw MessageServiceError.invalidRecipient
+        }
+
+        let signingKeyData: Data
+        if let sigHex = remote.signingPublicKey {
+            signingKeyData = Data(hexString: sigHex)
+        } else {
+            signingKeyData = Data()
+        }
+
+        // Derive PeerID from noise public key (SHA256[0:8])
+        let peerID = PeerID(noisePublicKey: noiseKeyData)
+
+        // Register in PeerStore so transport layer can route to them
+        let peerInfo = PeerInfo(
+            peerID: peerID.bytes,
+            noisePublicKey: noiseKeyData,
+            signingPublicKey: signingKeyData,
+            username: remote.username,
+            rssi: 0,
+            isConnected: false,
+            lastSeenAt: Date(),
+            hopCount: 0
+        )
+        peerStore.upsert(peer: peerInfo)
+
+        // Create/update User record in SwiftData
+        let context = ModelContext(modelContainer)
+        let targetUsername = remote.username
+        let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == targetUsername })
+        let user: User
+        if let existing = try context.fetch(userDesc).first {
+            if existing.noisePublicKey.isEmpty {
+                existing.noisePublicKey = noiseKeyData
+            }
+            if existing.signingPublicKey.isEmpty && !signingKeyData.isEmpty {
+                existing.signingPublicKey = signingKeyData
+            }
+            user = existing
+        } else {
+            user = User(
+                username: remote.username,
+                displayName: remote.username,
+                emailHash: "",
+                noisePublicKey: noiseKeyData,
+                signingPublicKey: signingKeyData
+            )
+            context.insert(user)
+        }
+        try context.save()
+
+        // Send friend request through normal flow
+        try await sendFriendRequest(to: peerID)
+
+        DebugLogger.shared.log("DM", "FRIEND_REQ by username → \(remote.username)")
+    }
+
     /// Send a friend request to a nearby peer identified by their 8-byte PeerID data.
     ///
     /// Convenience wrapper for views that don't import BlipProtocol.
@@ -2123,6 +2199,21 @@ extension MessageService: TransportDelegate {
 }
 
 // MARK: - Notification Names
+
+// MARK: - Data Hex Extension
+
+extension Data {
+    /// Initialize Data from a hex-encoded string (e.g. "a1b2c3" → 3 bytes).
+    init(hexString: String) {
+        self.init()
+        let chars = Array(hexString)
+        for i in stride(from: 0, to: chars.count - 1, by: 2) {
+            if let byte = UInt8(String(chars[i...i+1]), radix: 16) {
+                append(byte)
+            }
+        }
+    }
+}
 
 extension Notification.Name {
     static let didReceiveSOSPacket = Notification.Name("com.blip.didReceiveSOSPacket")
