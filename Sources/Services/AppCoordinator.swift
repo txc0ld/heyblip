@@ -210,17 +210,33 @@ final class AppCoordinator {
         // Ensures users who registered before key upload was added get their keys uploaded.
         let keyMgr = keyManager
         Task {
-            let context = ModelContext(modelContainer)
-            let userDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-            if let user = try? context.fetch(userDesc).first,
-               !user.emailHash.isEmpty,
-               let loadedIdentity = try? keyMgr.loadIdentity() {
-                try? await UserSyncService().registerUser(
+            do {
+                let context = ModelContext(modelContainer)
+                let userDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+                guard let user = try context.fetch(userDesc).first,
+                      !user.emailHash.isEmpty else {
+                    DebugLogger.shared.log("AUTH", "Key re-sync skipped — no local user or empty emailHash")
+                    return
+                }
+                guard let loadedIdentity = try keyMgr.loadIdentity() else {
+                    DebugLogger.shared.log("AUTH", "Key re-sync skipped — no identity in Keychain")
+                    return
+                }
+
+                let noiseKeyHex = loadedIdentity.noisePublicKey.rawRepresentation.map { String(format: "%02x", $0) }.joined()
+                let signingKeyHex = loadedIdentity.signingPublicKey.map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("AUTH", "Key re-sync starting for \(user.username) — noiseKey: \(noiseKeyHex.prefix(16))…, signingKey: \(signingKeyHex.prefix(16))…")
+
+                try await UserSyncService().registerUser(
                     emailHash: user.emailHash,
                     username: user.username,
                     noisePublicKey: loadedIdentity.noisePublicKey.rawRepresentation,
                     signingPublicKey: loadedIdentity.signingPublicKey
                 )
+
+                DebugLogger.shared.log("AUTH", "Key upload succeeded for \(user.username)")
+            } catch {
+                DebugLogger.shared.log("AUTH", "Key upload failed: \(error.localizedDescription)", isError: true)
             }
         }
 
