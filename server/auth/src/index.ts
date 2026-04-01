@@ -275,12 +275,15 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
         updated_at = NOW()
       RETURNING id
     `;
-    return json({ userId: result[0]?.id }, 201, env);
+    return json({ userId: result[0]?.id }, 200, env);
   } catch (error: any) {
-    if (error.message?.includes("users_username_key")) {
+    const msg = error?.message ?? String(error);
+    const code = error?.code ?? "";
+    const constraint = error?.constraint ?? "";
+    if (code === "23505" || constraint.includes("username") || msg.includes("users_username_key")) {
       return json({ error: "Username already taken" }, 409, env);
     }
-    return json({ error: "Registration failed" }, 500, env);
+    return json({ error: "Registration failed", detail: msg }, 500, env);
   }
 }
 
