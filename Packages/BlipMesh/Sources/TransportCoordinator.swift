@@ -219,6 +219,62 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         }
     }
 
+    // MARK: - K-of-N Relay
+
+    /// Relay data to a K-of-N subset of connected peers, excluding the source.
+    ///
+    /// K is determined by `fanoutCount(totalPeers:)` — small meshes relay to all,
+    /// larger meshes select a subset to reduce bandwidth while maintaining coverage.
+    ///
+    /// Peers are selected deterministically using a seed derived from the packet data
+    /// so that the same message picks the same subset on retransmission.
+    public func relayToSubset(data: Data, excludedPeer: PeerID, seed: UInt64) {
+        let eligible = connectedPeers.filter { $0 != excludedPeer }
+        guard !eligible.isEmpty else { return }
+
+        let k = fanoutCount(totalPeers: eligible.count)
+        let selected = deterministicSelect(from: eligible, count: k, seed: seed)
+
+        for peer in selected {
+            do {
+                try bleTransport.send(data: data, to: peer)
+            } catch {
+                do {
+                    try webSocketTransport.send(data: data, to: peer)
+                } catch {
+                    logger.debug("Relay send failed to \(peer): \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// How many peers to relay to, given the total eligible count.
+    public func fanoutCount(totalPeers: Int) -> Int {
+        switch totalPeers {
+        case ...3:    return totalPeers
+        case 4...10:  return 3
+        case 11...30: return max(3, totalPeers / 3)
+        case 31...60: return max(3, totalPeers / 5)
+        default:      return max(3, totalPeers / 8)
+        }
+    }
+
+    /// Select `count` peers deterministically using a seeded Fisher-Yates shuffle.
+    private func deterministicSelect(from peers: [PeerID], count: Int, seed: UInt64) -> [PeerID] {
+        guard count < peers.count else { return peers }
+
+        var array = peers
+        var rng = seed
+        for i in 0..<count {
+            rng ^= rng << 13
+            rng ^= rng >> 7
+            rng ^= rng << 17
+            let j = i + Int(rng % UInt64(array.count - i))
+            array.swapAt(i, j)
+        }
+        return Array(array.prefix(count))
+    }
+
     /// Send a location update, rate-limited to 1 per 30 seconds per peer.
     /// Returns `false` if rate limited (caller should skip this update).
     public func sendLocationUpdate(data: Data, to peerID: PeerID) -> Bool {

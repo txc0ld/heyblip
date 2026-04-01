@@ -135,6 +135,13 @@ public final class GossipRouter: @unchecked Sendable {
                 return true // Packet is new, deliver locally, but don't relay.
             }
             relayPacket.ttl -= 1
+
+            // Last-hop suppression: if TTL just hit 0, deliver locally but don't relay further.
+            // This prevents the packet from being sent to peers who will just drop it anyway.
+            guard relayPacket.ttl > 0 else {
+                logger.debug("Last-hop suppression: TTL=0 after decrement, not relaying \(packet.type)")
+                return true
+            }
         }
 
         // SOS: always relay with no probability check.

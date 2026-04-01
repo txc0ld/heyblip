@@ -137,6 +137,23 @@ extension MeshRelayService: TransportDelegate {
     }
 }
 
+// MARK: - Helpers
+
+extension MeshRelayService {
+
+    /// Derive a UInt64 seed from packet data for deterministic peer selection.
+    /// Uses FNV-1a hash of the first 24 bytes (header: sender + timestamp + type).
+    private func packetSeed(_ data: Data) -> UInt64 {
+        var hash: UInt64 = 14695981039346656037 // FNV offset basis
+        let bytes = data.prefix(24)
+        for byte in bytes {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211 // FNV prime
+        }
+        return hash
+    }
+}
+
 // MARK: - GossipRouterDelegate
 
 extension MeshRelayService: GossipRouterDelegate {
@@ -170,10 +187,18 @@ extension MeshRelayService: GossipRouterDelegate {
             }
         }
 
-        // Gossip relay: broadcast to all connected peers except the source.
-        transport.broadcastExcluding(data: wireData, excludedPeer: excludedPeer)
-
+        // Gossip relay: SOS broadcasts to ALL for maximum coverage;
+        // normal packets use K-of-N subset selection.
         let isSOS = packet.type.isSOS
-        print("[Blip-Relay] \(isSOS ? "SOS " : "")Gossip relay to \(transport.connectedPeers.count - 1) peer(s), TTL=\(packet.ttl)")
+        if isSOS {
+            transport.broadcastExcluding(data: wireData, excludedPeer: excludedPeer)
+        } else {
+            let seed = packetSeed(wireData)
+            transport.relayToSubset(data: wireData, excludedPeer: excludedPeer, seed: seed)
+        }
+
+        let eligible = transport.connectedPeers.count - 1
+        let k = isSOS ? eligible : transport.fanoutCount(totalPeers: eligible)
+        print("[Blip-Relay] \(isSOS ? "SOS " : "")Gossip relay to \(k)/\(eligible) peer(s), TTL=\(packet.ttl)")
     }
 }
