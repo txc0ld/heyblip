@@ -4,12 +4,22 @@ import BlipProtocol
 
 // MARK: - Errors
 
-public enum SignerError: Error, Sendable {
+public enum SignerError: Error, Sendable, Equatable, LocalizedError {
     case signatureFailed
     case invalidSignatureLength(Int)
     case invalidPublicKeyLength(Int)
     case invalidSecretKeyLength(Int)
     case packetTooShort
+
+    public var errorDescription: String? {
+        switch self {
+        case .signatureFailed: return "Failed to sign packet"
+        case .invalidSignatureLength(let n): return "Invalid signature length: \(n)"
+        case .invalidPublicKeyLength(let n): return "Invalid public key length: \(n)"
+        case .invalidSecretKeyLength(let n): return "Invalid secret key length: \(n)"
+        case .packetTooShort: return "Packet too short for signature extraction"
+        }
+    }
 }
 
 // MARK: - Signer
@@ -51,7 +61,7 @@ public enum Signer {
             throw SignerError.packetTooShort
         }
 
-        let signable = extractSignableData(from: packetData)
+        let signable = try extractSignableData(from: packetData)
         guard let signature = sodium.sign.signature(
             message: Bytes(signable),
             secretKey: Bytes(secretKey)
@@ -97,7 +107,7 @@ public enum Signer {
 
         // Extract the signature (last 64 bytes)
         let signature = Data(packetData.suffix(signatureLength))
-        let signable = extractSignableData(from: packetData)
+        let signable = try extractSignableData(from: packetData)
 
         return sodium.sign.verify(
             message: Bytes(signable),
@@ -134,8 +144,10 @@ public enum Signer {
     /// [12..15] payloadLength (4 bytes)
     /// [16..] sender + optional recipient + payload + optional signature
     /// ```
-    internal static func extractSignableData(from wireData: Data) -> Data {
-        guard wireData.count > 3 else { return wireData }
+    internal static func extractSignableData(from wireData: Data) throws -> Data {
+        guard wireData.count >= Packet.headerSize else {
+            throw SignerError.packetTooShort
+        }
 
         var result = Data()
         // Bytes before TTL: version(0) + type(1)
