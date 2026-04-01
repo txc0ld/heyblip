@@ -127,6 +127,18 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Encryption State
+
+    /// Whether this conversation has an active Noise encryption session.
+    /// True for DM conversations where a connected peer holds a non-empty noise public key.
+    private var isEncrypted: Bool {
+        // Groups don't use Noise DM sessions
+        guard conversation.ringStyle != .none else { return false }
+
+        let peers = coordinator.peerStore.connectedPeers()
+        return peers.contains { !$0.noisePublicKey.isEmpty }
+    }
+
     // MARK: - Navigation Title
 
     private var navigationTitleView: some View {
@@ -140,17 +152,35 @@ struct ChatView: View {
             )
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(conversation.displayName)
-                    .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
-                    .foregroundStyle(theme.colors.text)
+                HStack(spacing: BlipSpacing.xs) {
+                    Text(conversation.displayName)
+                        .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
+                        .foregroundStyle(theme.colors.text)
 
-                Text(conversation.isOnline ? "Online" : "Last seen recently")
-                    .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
-                    .foregroundStyle(
-                        conversation.isOnline
-                            ? theme.colors.statusGreen
-                            : theme.colors.mutedText
-                    )
+                    if isEncrypted {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.blipMint)
+                            .accessibilityLabel("End-to-end encrypted")
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+
+                HStack(spacing: BlipSpacing.xs) {
+                    Text(conversation.isOnline ? "Online" : "Last seen recently")
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(
+                            conversation.isOnline
+                                ? theme.colors.statusGreen
+                                : theme.colors.mutedText
+                        )
+
+                    if isEncrypted {
+                        Text("\u{00B7} Encrypted")
+                            .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                            .foregroundStyle(Color.blipMint.opacity(0.8))
+                    }
+                }
             }
         }
     }
