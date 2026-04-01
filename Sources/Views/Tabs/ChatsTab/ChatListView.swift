@@ -85,6 +85,12 @@ struct ChatListView: View {
                             },
                             onToggleMute: {
                                 toggleMute(for: conversation)
+                            },
+                            onTogglePin: {
+                                togglePin(for: conversation)
+                            },
+                            onArchive: {
+                                archiveConversation(conversation)
                             }
                         )
                     }
@@ -325,7 +331,7 @@ struct ChatListView: View {
                 timestamp: channel.lastActivityAt,
                 unreadCount: unread,
                 isOnline: false,
-                isPinned: false,
+                isPinned: channel.isPinned,
                 isMuted: channel.isMuted,
                 isFromMe: lastMessage?.sender == nil,
                 deliveryStatus: lastMessage.map { Self.mapDeliveryStatus($0.status) } ?? .sent,
@@ -336,16 +342,20 @@ struct ChatListView: View {
     }
 
     private var filteredConversations: [ConversationPreview] {
+        let base: [ConversationPreview]
         if searchText.isEmpty {
-            return conversations.sorted { $0.timestamp > $1.timestamp }
-        }
-        let query = searchText.lowercased()
-        return conversations
-            .filter {
+            base = conversations
+        } else {
+            let query = searchText.lowercased()
+            base = conversations.filter {
                 $0.displayName.lowercased().contains(query) ||
                 $0.lastMessagePreview.lowercased().contains(query)
             }
-            .sorted { $0.timestamp > $1.timestamp }
+        }
+        return base.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
+            return lhs.timestamp > rhs.timestamp
+        }
     }
 
     private static func mapDeliveryStatus(_ status: MessageStatus) -> StatusBadge.DeliveryStatus {
@@ -393,6 +403,29 @@ struct ChatListView: View {
         }
     }
 
+    private func togglePin(for conversation: ConversationPreview) {
+        guard let channel = chatViewModel?.channels.first(where: { $0.id == conversation.id }) else {
+            return
+        }
+
+        chatViewModel?.togglePin(for: channel)
+
+        Task {
+            await chatViewModel?.loadChannels()
+        }
+    }
+
+    private func archiveConversation(_ conversation: ConversationPreview) {
+        guard let channel = chatViewModel?.channels.first(where: { $0.id == conversation.id }) else {
+            return
+        }
+
+        Task {
+            await chatViewModel?.deleteChannel(channel)
+            await chatViewModel?.loadChannels()
+        }
+    }
+
     private func makeConversationPreview(for channel: Channel) -> ConversationPreview {
         let lastMessage = channel.messages.sorted(by: { $0.createdAt < $1.createdAt }).last
         let unread = chatViewModel?.unreadCounts[channel.id] ?? 0
@@ -407,7 +440,7 @@ struct ChatListView: View {
             timestamp: channel.lastActivityAt,
             unreadCount: unread,
             isOnline: false,
-            isPinned: false,
+            isPinned: channel.isPinned,
             isMuted: channel.isMuted,
             isFromMe: lastMessage?.sender == nil,
             deliveryStatus: lastMessage.map { Self.mapDeliveryStatus($0.status) } ?? .sent,

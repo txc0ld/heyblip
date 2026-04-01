@@ -11,6 +11,8 @@ struct ChatListCell: View {
     let index: Int
     var onTap: () -> Void = {}
     var onToggleMute: (() -> Void)? = nil
+    var onTogglePin: (() -> Void)? = nil
+    var onArchive: (() -> Void)? = nil
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -30,12 +32,26 @@ struct ChatListCell: View {
                 // Text content
                 VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                     HStack {
+                        if conversation.isPinned {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.blipAccentPurple)
+                                .rotationEffect(.degrees(45))
+                        }
+
                         Text(conversation.displayName)
                             .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
+                            .fontWeight(conversation.unreadCount > 0 ? .bold : .medium)
                             .foregroundStyle(theme.colors.text)
                             .lineLimit(1)
 
                         Spacer()
+
+                        if conversation.isMuted {
+                            Image(systemName: "bell.slash.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(theme.colors.tertiaryText)
+                        }
 
                         Text(conversation.formattedTimestamp)
                             .font(theme.typography.caption)
@@ -90,11 +106,28 @@ struct ChatListCell: View {
                         lineWidth: BlipSizing.hairline
                     )
             )
+            .overlay(alignment: .leading) {
+                if conversation.unreadCount > 0 {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.blipAccentPurple)
+                        .frame(width: 3)
+                        .padding(.vertical, BlipSpacing.sm)
+                }
+            }
         }
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)
         .staggeredReveal(index: index)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // Archive (destructive position)
+            if let onArchive {
+                Button(role: .destructive, action: onArchive) {
+                    Label("Archive", systemImage: "archivebox.fill")
+                }
+                .tint(theme.colors.statusAmber)
+            }
+
+            // Mute
             if let onToggleMute {
                 Button(action: onToggleMute) {
                     Label(
@@ -103,6 +136,17 @@ struct ChatListCell: View {
                     )
                 }
                 .tint(.orange)
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if let onTogglePin {
+                Button(action: onTogglePin) {
+                    Label(
+                        conversation.isPinned ? "Unpin" : "Pin",
+                        systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill"
+                    )
+                }
+                .tint(.blipAccentPurple)
             }
         }
         .accessibilityElement(children: .combine)

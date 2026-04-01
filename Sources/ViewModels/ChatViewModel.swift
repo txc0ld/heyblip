@@ -205,6 +205,18 @@ final class ChatViewModel {
         }
     }
 
+    /// Toggle pin status for a channel.
+    func togglePin(for channel: Channel) {
+        let context = ModelContext(modelContainer)
+        channel.isPinned.toggle()
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save pin status: \(error.localizedDescription)")
+            errorMessage = "Failed to save pin status: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Active Conversation
 
     /// Open a conversation by loading its messages.
