@@ -57,7 +57,8 @@ final class MessageRetryService: @unchecked Sendable {
 
     // MARK: - State
 
-    private var scanTimer: Timer?
+    private let retryQueue = DispatchQueue(label: "com.blip.retry", qos: .utility)
+    private var scanTimer: DispatchSourceTimer?
     private var isRunning = false
     private let lock = NSLock()
     private var activeSends: Set<UUID> = []
@@ -83,13 +84,15 @@ final class MessageRetryService: @unchecked Sendable {
         guard !isRunning else { return }
         isRunning = true
 
-        let timer = Timer(timeInterval: RetryConfig.scanInterval, repeats: true) { [weak self] _ in
+        let timer = DispatchSource.makeTimerSource(queue: retryQueue)
+        timer.schedule(deadline: .now() + RetryConfig.scanInterval, repeating: RetryConfig.scanInterval)
+        timer.setEventHandler { [weak self] in
             guard let self else { return }
             Task { @MainActor in
                 await self.scanAndRetry()
             }
         }
-        RunLoop.main.add(timer, forMode: .common)
+        timer.resume()
         scanTimer = timer
     }
 
@@ -99,7 +102,7 @@ final class MessageRetryService: @unchecked Sendable {
         defer { lock.unlock() }
 
         isRunning = false
-        scanTimer?.invalidate()
+        scanTimer?.cancel()
         scanTimer = nil
     }
 

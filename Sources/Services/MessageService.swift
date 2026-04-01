@@ -44,6 +44,14 @@ protocol MessageServiceDelegate: AnyObject, Sendable {
 /// - MessageQueue for retry tracking
 final class MessageService: @unchecked Sendable {
 
+    // MARK: - Queues
+
+    /// Queue for message processing (receive pipeline, packet handling).
+    private let messageQueue = DispatchQueue(label: "com.blip.messages", qos: .userInitiated)
+
+    /// Queue for encryption/decryption and Noise handshake operations.
+    private let encryptionQueue = DispatchQueue(label: "com.blip.encryption", qos: .userInitiated)
+
     // MARK: - Logging
 
     private let logger = Logger(subsystem: "com.blip", category: "MessageService")
@@ -329,7 +337,7 @@ final class MessageService: @unchecked Sendable {
             recipientID: peerID
         )
 
-        try sendPacket(packet)
+        try await sendPacket(packet)
     }
 
     /// Send a read receipt for a message.
@@ -347,7 +355,7 @@ final class MessageService: @unchecked Sendable {
             recipientID: peerID
         )
 
-        try sendPacket(packet)
+        try await sendPacket(packet)
     }
 
     // MARK: - Friend Requests
@@ -395,7 +403,7 @@ final class MessageService: @unchecked Sendable {
             recipientID: peerID
         )
 
-        try sendPacket(packet)
+        try await sendPacket(packet)
 
         // Create or update local Friend record for the remote peer
         let peerData = peerID.bytes
@@ -474,7 +482,7 @@ final class MessageService: @unchecked Sendable {
             recipientID: recipientPeerID
         )
 
-        try sendPacket(packet)
+        try await sendPacket(packet)
 
         logger.info("Accepted friend request from \(friendUser.username)")
 
@@ -519,7 +527,7 @@ final class MessageService: @unchecked Sendable {
             recipientID: nil
         )
 
-        try sendPacket(packet)
+        try await sendPacket(packet)
         DebugLogger.shared.log("TX", "ANNOUNCE → \(localUser.username)")
     }
 
@@ -527,104 +535,113 @@ final class MessageService: @unchecked Sendable {
 
     /// Process incoming raw data from the transport layer.
     ///
-    /// Flow: deserialize -> deduplicate -> decrypt -> store -> notify delegate
-    @MainActor
-    func receive(data: Data, from peerID: PeerID) async throws {
+    /// Flow: deserialize (messageQueue) -> verify -> deduplicate -> route to handler (MainActor for DB)
+    func receive(data: Data, from peerID: PeerID) {
         let transportData = peerID.bytes
         let peerHex = transportData.prefix(4).map { String(format: "%02x", $0) }.joined()
-        DebugLogger.shared.log("RX", "receive(): \(data.count)B from \(peerHex)")
+        DebugLogger.emit("RX", "receive(): \(data.count)B from \(peerHex)")
 
-        // Deserialize the packet
-        let packet: Packet
-        do {
-            packet = try PacketSerializer.decode(data)
-            DebugLogger.shared.log("RX", "Decoded packet: type=\(packet.type) flags=\(packet.flags)")
-        } catch {
-            DebugLogger.shared.log("RX", "DESERIALIZE FAILED: \(error)", isError: true)
-            throw MessageServiceError.deserializationFailed(error.localizedDescription)
-        }
+        messageQueue.async { [weak self] in
+            guard let self else { return }
 
-        // BDEV-86: Sender binding check — reject packets from a bound peripheral
-        // claiming a different sender than their first announce.
-        let claimedSender = packet.senderID.bytes
-        let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-        if let boundSender = senderBindings[transportData] {
-            if boundSender != claimedSender {
-                let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.shared.log("RX", "⚠️ SENDER MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
+            // Deserialize the packet (CPU-bound, off main)
+            let packet: Packet
+            do {
+                packet = try PacketSerializer.decode(data)
+                DebugLogger.emit("RX", "Decoded packet: type=\(packet.type) flags=\(packet.flags)")
+            } catch {
+                DebugLogger.emit("RX", "DESERIALIZE FAILED: \(error)", isError: true)
                 return
             }
-        }
 
-        // Verify Ed25519 signature if present
-        if packet.flags.contains(.hasSignature) {
-            let senderData = packet.senderID.bytes
-            let senderHex = senderData.prefix(4).map { String(format: "%02x", $0) }.joined()
-            let signingKey: Data?
-
-            // Look up sender's signing public key via PeerStore
-            if let peerInfo = peerStore.findPeer(byPeerIDBytes: senderData),
-               !peerInfo.signingPublicKey.isEmpty {
-                signingKey = peerInfo.signingPublicKey
-            } else {
-                signingKey = nil
+            // BDEV-86: Sender binding check
+            let claimedSender = packet.senderID.bytes
+            let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+            let boundSender = self.lock.withLock { self.senderBindings[transportData] }
+            if let boundSender, boundSender != claimedSender {
+                let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.emit("RX", "⚠️ SENDER MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
+                return
             }
 
-            if let key = signingKey {
-                let keyPrefix = key.prefix(4).map { String(format: "%02x", $0) }.joined()
-                do {
-                    let valid = try Signer.verify(packet: packet, publicKey: key)
-                    if !valid {
-                        DebugLogger.shared.log("RX", "SIG INVALID from \(senderHex) key=\(keyPrefix) — dropped", isError: true)
+            // Verify Ed25519 signature (crypto-bound, off main)
+            if packet.flags.contains(.hasSignature) {
+                let senderData = packet.senderID.bytes
+                let senderHex = senderData.prefix(4).map { String(format: "%02x", $0) }.joined()
+                let signingKey: Data?
+
+                if let peerInfo = self.peerStore.findPeer(byPeerIDBytes: senderData),
+                   !peerInfo.signingPublicKey.isEmpty {
+                    signingKey = peerInfo.signingPublicKey
+                } else {
+                    signingKey = nil
+                }
+
+                if let key = signingKey {
+                    let keyPrefix = key.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    do {
+                        let valid = try Signer.verify(packet: packet, publicKey: key)
+                        if !valid {
+                            DebugLogger.emit("RX", "SIG INVALID from \(senderHex) key=\(keyPrefix) — dropped", isError: true)
+                            return
+                        }
+                        DebugLogger.emit("RX", "SIG OK from \(senderHex) key=\(keyPrefix)")
+                        self.lock.withLock { self.unverifiedPacketCounts.removeValue(forKey: senderData) }
+                    } catch {
+                        DebugLogger.emit("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
+                    }
+                } else {
+                    let count: Int = self.lock.withLock {
+                        let c = (self.unverifiedPacketCounts[senderData] ?? 0) + 1
+                        self.unverifiedPacketCounts[senderData] = c
+                        return c
+                    }
+                    if count > Self.maxUnverifiedPackets {
+                        DebugLogger.emit("RX", "UNVERIFIED LIMIT: \(senderHex) sent \(count) packets without announcing — DROPPED", isError: true)
                         return
                     }
-                    DebugLogger.shared.log("RX", "SIG OK from \(senderHex) key=\(keyPrefix)")
-                    // Successful signature verification resets unverified counter
-                    unverifiedPacketCounts.removeValue(forKey: senderData)
-                } catch {
-                    DebugLogger.shared.log("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
+                    DebugLogger.emit("RX", "No signing key for \(senderHex) — accepting unverified (\(count)/\(Self.maxUnverifiedPackets))")
                 }
-            } else {
-                // No signing key known yet (pre-announce bootstrap) — accept with limit
-                let count = (unverifiedPacketCounts[senderData] ?? 0) + 1
-                unverifiedPacketCounts[senderData] = count
-                if count > Self.maxUnverifiedPackets {
-                    DebugLogger.shared.log("RX", "UNVERIFIED LIMIT: \(senderHex) sent \(count) packets without announcing — DROPPED", isError: true)
-                    return
-                }
-                DebugLogger.shared.log("RX", "No signing key for \(senderHex) — accepting unverified (\(count)/\(Self.maxUnverifiedPackets))")
             }
-        }
 
-        // Deduplicate via Bloom filter
-        let packetIDData = buildPacketID(packet)
-        if bloomFilter.contains(packetIDData) {
-            DebugLogger.shared.log("RX", "DUPLICATE packet — skipping")
-            return // Already processed
-        }
-        bloomFilter.insert(packetIDData)
-        DebugLogger.shared.log("RX", "Bloom: new packet, inserted")
+            // Deduplicate via Bloom filter
+            let packetIDData = self.buildPacketID(packet)
+            if self.bloomFilter.contains(packetIDData) {
+                DebugLogger.emit("RX", "DUPLICATE packet — skipping")
+                return
+            }
+            self.bloomFilter.insert(packetIDData)
+            DebugLogger.emit("RX", "Bloom: new packet, inserted")
 
-        // Route based on packet type
-        switch packet.type {
-        case .announce:
-            try await handleAnnounce(packet, from: peerID)
-        case .noiseHandshake:
-            try await handleNoiseHandshake(packet, from: peerID)
-        case .noiseEncrypted:
-            try await handleEncryptedPacket(packet, from: peerID)
-        case .meshBroadcast:
-            try await handleBroadcastMessage(packet)
-        case .sosAlert, .sosAccept, .sosPreciseLocation, .sosResolve, .sosNearbyAssist:
-            try await handleSOSPacket(packet)
-        case .locationShare, .locationRequest, .proximityPing, .iAmHereBeacon:
-            try await handleLocationPacket(packet, from: peerID)
-        case .pttAudio:
-            try await handlePTTAudio(packet, from: peerID)
-        case .orgAnnouncement:
-            try await handleOrgAnnouncement(packet)
-        default:
-            break // Other packet types handled by mesh layer
+            // Dispatch handler to MainActor for SwiftData writes
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    switch packet.type {
+                    case .announce:
+                        try await self.handleAnnounce(packet, from: peerID)
+                    case .noiseHandshake:
+                        try await self.handleNoiseHandshake(packet, from: peerID)
+                    case .noiseEncrypted:
+                        try await self.handleEncryptedPacket(packet, from: peerID)
+                    case .meshBroadcast:
+                        try await self.handleBroadcastMessage(packet)
+                    case .sosAlert, .sosAccept, .sosPreciseLocation, .sosResolve, .sosNearbyAssist:
+                        try await self.handleSOSPacket(packet)
+                    case .locationShare, .locationRequest, .proximityPing, .iAmHereBeacon:
+                        try await self.handleLocationPacket(packet, from: peerID)
+                    case .pttAudio:
+                        try await self.handlePTTAudio(packet, from: peerID)
+                    case .orgAnnouncement:
+                        try await self.handleOrgAnnouncement(packet)
+                    default:
+                        break
+                    }
+                } catch {
+                    let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    DebugLogger.shared.log("RX", "HANDLER FAILED from \(peerHex): \(error)", isError: true)
+                }
+            }
         }
     }
 
@@ -677,8 +694,8 @@ final class MessageService: @unchecked Sendable {
                     senderID: identity.peerID,
                     recipientID: recipientPeerID
                 )
-                try sendPacket(packet)
-            } else if try initiateHandshakeIfNeeded(with: recipientPeerID) {
+                try await sendPacket(packet)
+            } else if try await initiateHandshakeIfNeeded(with: recipientPeerID) {
                 // Handshake initiated — queue this message
                 DebugLogger.emit("DM", "encryptAndSend: queuing message for \(recipientHex) pending handshake")
                 let pending = PendingEncryptedMessage(
@@ -708,7 +725,7 @@ final class MessageService: @unchecked Sendable {
                     senderID: identity.peerID,
                     recipientID: recipientPeerID
                 )
-                try sendPacket(packet)
+                try await sendPacket(packet)
             }
         } else {
             // Group/channel: broadcast (no Noise encryption for groups yet)
@@ -720,7 +737,7 @@ final class MessageService: @unchecked Sendable {
                 senderID: identity.peerID,
                 recipientID: nil
             )
-            try sendPacket(packet)
+            try await sendPacket(packet)
         }
 
         // Enqueue for retry if needed
@@ -729,52 +746,57 @@ final class MessageService: @unchecked Sendable {
         }
     }
 
-    private func sendPacket(_ packet: Packet) throws {
+    /// Sign, encode, and transmit a packet. Dispatches signing + encoding to
+    /// the encryption queue to keep the main thread free.
+    private func sendPacket(_ packet: Packet) async throws {
         guard let transport else {
-            print("[Blip-TX] SEND FAILED: no transport available")
             DebugLogger.emit("TX", "SEND FAILED: no transport available", isError: true)
             throw MessageServiceError.noTransportAvailable
         }
 
-        // Sign the packet with our Ed25519 key before encoding
-        let signedPacket: Packet
-        if let identity = getIdentity() {
-            do {
-                signedPacket = try Signer.sign(packet: packet, secretKey: identity.signingSecretKey)
-                DebugLogger.emit("TX", "Ed25519 signing OK")
-            } catch {
-                print("[Blip-TX] SIGNING FAILED: \(error) — sending unsigned")
-                DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned", isError: true)
-                signedPacket = packet
+        // Sign + encode on encryptionQueue (CPU-bound crypto)
+        let (wireData, signedPacket) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Data, Packet), Error>) in
+            encryptionQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: MessageServiceError.noTransportAvailable)
+                    return
+                }
+                let signed: Packet
+                if let identity = self.getIdentity() {
+                    do {
+                        signed = try Signer.sign(packet: packet, secretKey: identity.signingSecretKey)
+                        DebugLogger.emit("TX", "Ed25519 signing OK")
+                    } catch {
+                        DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned", isError: true)
+                        signed = packet
+                    }
+                } else {
+                    signed = packet
+                }
+
+                do {
+                    let data = try PacketSerializer.encode(signed)
+                    continuation.resume(returning: (data, signed))
+                } catch {
+                    DebugLogger.emit("TX", "ENCODE FAILED: \(error)", isError: true)
+                    continuation.resume(throwing: error)
+                }
             }
-        } else {
-            signedPacket = packet
         }
 
-        let wireData: Data
-        do {
-            wireData = try PacketSerializer.encode(signedPacket)
-        } catch {
-            print("[Blip-TX] ENCODE FAILED: \(error)")
-            DebugLogger.emit("TX", "ENCODE FAILED: \(error)", isError: true)
-            throw error
-        }
-
+        // Transport send (thread-safe)
         if let recipientID = signedPacket.recipientID, !recipientID.isBroadcast {
             let recipientHex = recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
             do {
                 try transport.send(data: wireData, to: recipientID)
-                print("[Blip-TX] SENT \(wireData.count)B (signed) to \(recipientHex)")
                 DebugLogger.emit("TX", "SENT \(wireData.count)B → \(recipientHex) (peer-specific)")
             } catch {
-                print("[Blip-TX] SEND FAILED to peer: \(error) — falling back to broadcast")
                 DebugLogger.emit("TX", "SEND FAILED to \(recipientHex): \(error) — fallback broadcast", isError: true)
                 transport.broadcast(data: wireData)
                 DebugLogger.emit("TX", "BROADCAST fallback \(wireData.count)B")
             }
         } else {
             transport.broadcast(data: wireData)
-            print("[Blip-TX] BROADCAST \(wireData.count)B (signed)")
             DebugLogger.emit("TX", "BROADCAST \(wireData.count)B")
         }
     }
@@ -941,7 +963,7 @@ final class MessageService: @unchecked Sendable {
                 senderID: identity.peerID,
                 recipientID: peerID
             )
-            try sendPacket(responsePacket)
+            try await sendPacket(responsePacket)
             DebugLogger.shared.log("NOISE", "→ handshake msg2 to \(peerHex)")
 
         case 0x02:
@@ -960,7 +982,7 @@ final class MessageService: @unchecked Sendable {
                     senderID: identity.peerID,
                     recipientID: peerID
                 )
-                try sendPacket(responsePacket)
+                try await sendPacket(responsePacket)
                 DebugLogger.shared.log("NOISE", "→ handshake msg3 to \(peerHex)")
             }
             // Session should now be established (after msg3 was written)
@@ -984,7 +1006,7 @@ final class MessageService: @unchecked Sendable {
     ///
     /// Returns `true` if a handshake was initiated (message needs queuing),
     /// `false` if a session already exists (can encrypt immediately).
-    private func initiateHandshakeIfNeeded(with recipientPeerID: PeerID) throws -> Bool {
+    private func initiateHandshakeIfNeeded(with recipientPeerID: PeerID) async throws -> Bool {
         guard let sessionManager = noiseSessionManager, let identity = getIdentity() else {
             return false
         }
@@ -1016,7 +1038,7 @@ final class MessageService: @unchecked Sendable {
             senderID: identity.peerID,
             recipientID: recipientPeerID
         )
-        try sendPacket(packet)
+        try await sendPacket(packet)
         DebugLogger.emit("NOISE", "→ handshake msg1 to \(peerHex)")
 
         // Initialize pending queue
@@ -2071,15 +2093,7 @@ final class MessageService: @unchecked Sendable {
 extension MessageService: TransportDelegate {
 
     func transport(_ transport: any Transport, didReceiveData data: Data, from peerID: PeerID) {
-        Task { @MainActor in
-            do {
-                try await self.receive(data: data, from: peerID)
-            } catch {
-                let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
-                self.logger.error("Failed to process incoming packet: \(error.localizedDescription)")
-                DebugLogger.shared.log("RX", "PROCESS FAILED from \(peerHex): \(error)", isError: true)
-            }
-        }
+        receive(data: data, from: peerID)
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
