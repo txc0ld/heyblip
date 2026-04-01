@@ -240,7 +240,10 @@ struct ChatView: View {
 
     /// Map ViewModel's active messages to UI model, falling back to sample data in preview.
     private var messages: [ChatMessage] {
-        guard let vm = chatViewModel else { return ChatMessage.sampleMessages }
+        guard let vm = chatViewModel else {
+            DebugLogger.emit("UI", "ChatView: chatViewModel is nil — showing empty state", isError: true)
+            return []
+        }
         return vm.activeMessages.map { message in
             ChatMessage(
                 id: message.id,
@@ -286,7 +289,9 @@ struct ChatView: View {
     private func sendMessage(text: String) async {
         guard let vm = chatViewModel else { return }
         await vm.sendTextMessage(text: text)
-        await coordinator.profileViewModel?.loadProfile()
+        if let profileVM = coordinator.profileViewModel {
+            await profileVM.loadProfile()
+        }
     }
 
     // MARK: - Formatting
