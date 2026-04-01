@@ -40,6 +40,7 @@ final class Channel {
 
     var muteStatusRaw: String
     var maxRetention: TimeInterval
+    var isPinned: Bool
     var isAutoJoined: Bool
     var createdAt: Date
     var lastActivityAt: Date
@@ -94,6 +95,7 @@ final class Channel {
         geohash: String? = nil,
         muteStatus: MuteStatus = .unmuted,
         maxRetention: TimeInterval = .infinity,
+        isPinned: Bool = false,
         isAutoJoined: Bool = false,
         createdAt: Date = Date(),
         lastActivityAt: Date = Date()
@@ -105,6 +107,7 @@ final class Channel {
         self.geohash = geohash
         self.muteStatusRaw = muteStatus.rawValue
         self.maxRetention = maxRetention
+        self.isPinned = isPinned
         self.isAutoJoined = isAutoJoined
         self.createdAt = createdAt
         self.lastActivityAt = lastActivityAt
