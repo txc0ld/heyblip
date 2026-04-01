@@ -426,11 +426,13 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     }
 
     /// Record a connection failure and compute exponential backoff.
+    /// Base delay is `reconnectBackoff` (5s), doubled per failure, capped at `reconnectBackoffMax` (60s).
     /// Must be called while holding `lock`.
     private func recordConnectionFailure(for uuid: UUID) {
         let count = (failureCounts[uuid] ?? 0) + 1
         failureCounts[uuid] = count
-        let backoffSeconds = min(15.0 * pow(2.0, Double(count - 1)), 300.0)
+        let base = BLEConstants.reconnectBackoff
+        let backoffSeconds = min(base * pow(2.0, Double(count - 1)), BLEConstants.reconnectBackoffMax)
         backoffUntil[uuid] = Date().addingTimeInterval(backoffSeconds)
         let shortUUID = uuid.uuidString.prefix(8)
         logger.info("Backoff for \(shortUUID): \(count) failures, next attempt in \(Int(backoffSeconds))s")
@@ -589,8 +591,9 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     /// Handle disconnection.
     func handleDidDisconnect(peripheralUUID uuid: UUID) {
-        logger.info("Disconnected from \(uuid)")
-        transportEventHandler?("BLE", "DISCONNECTED peripheral \(uuid.uuidString.prefix(8))")
+        let shortUUID = uuid.uuidString.prefix(8)
+        logger.info("Disconnected from \(shortUUID)")
+        transportEventHandler?("BLE", "DISCONNECTED peripheral \(shortUUID)")
 
         let peerID: PeerID? = lock.withLock {
             let pid = peripheralToPeerID.removeValue(forKey: uuid)
@@ -601,6 +604,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             connectedPeripheralRefs.removeValue(forKey: uuid)
             peripheralRSSI.removeValue(forKey: uuid)
             connectingPeripherals.remove(uuid)
+
+            // Apply reconnection backoff to prevent thrashing (BDEV-121)
+            timedOutPeripherals[uuid] = Date()
+            recordConnectionFailure(for: uuid)
+
             return pid
         }
 
@@ -626,11 +634,16 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         return PeerID(noisePublicKey: data)
     }
 
-    /// Clean up stale timed-out entries.
+    /// Clean up stale timed-out and backoff entries.
     private func pruneTimedOutPeripherals() {
         let now = Date()
         timedOutPeripherals = timedOutPeripherals.filter { _, date in
-            now.timeIntervalSince(date) < BLEConstants.reconnectBackoff
+            now.timeIntervalSince(date) < BLEConstants.reconnectBackoffMax
+        }
+        // Clear expired backoff entries so memory doesn't grow unbounded
+        backoffUntil = backoffUntil.filter { _, until in now < until }
+        for uuid in failureCounts.keys where backoffUntil[uuid] == nil {
+            failureCounts.removeValue(forKey: uuid)
         }
     }
 
