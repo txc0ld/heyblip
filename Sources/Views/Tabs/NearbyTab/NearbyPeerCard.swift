@@ -17,6 +17,7 @@ struct NearbyPeerCard: View {
     let isFriend: Bool
 
     var onTap: (() -> Void)?
+    var onAddFriend: (() -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.theme) private var theme
@@ -28,6 +29,22 @@ struct NearbyPeerCard: View {
                 peerInfo
                 Spacer(minLength: 0)
                 rssiIndicator
+                if !isFriend, let onAddFriend {
+                    Button(action: onAddFriend) {
+                        Text("Add")
+                            .font(.custom(BlipFontName.semiBold, size: 12, relativeTo: .caption2))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, BlipSpacing.sm + 2)
+                            .padding(.vertical, BlipSpacing.xs + 1)
+                            .background(
+                                Capsule()
+                                    .fill(LinearGradient.blipAccent)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
+                    .accessibilityLabel("Add \(displayName) as friend")
+                }
             }
         }
         .buttonStyle(.plain)
@@ -117,6 +134,16 @@ struct NearbyPeerCard: View {
                         Capsule()
                             .fill(theme.colors.hover)
                     )
+
+                Text(estimatedDistance)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.mutedText)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(theme.colors.hover)
+                    )
             }
         }
     }
@@ -165,6 +192,21 @@ struct NearbyPeerCard: View {
 
     // MARK: - Helpers
 
+    /// Estimated distance from RSSI using log-distance path loss model.
+    /// Very approximate — BLE RSSI is noisy, especially in crowds.
+    private var estimatedDistance: String {
+        // Reference: -59 dBm at 1 meter (typical BLE)
+        let txPower: Double = -59
+        let n: Double = 2.5 // Path loss exponent (2-4, higher in crowds)
+        let distance = pow(10.0, (txPower - Double(rssi)) / (10.0 * n))
+
+        if distance < 2 { return "~1m" }
+        if distance < 5 { return "~\(Int(distance))m" }
+        if distance < 15 { return "~\(Int(round(distance / 5) * 5))m" }
+        if distance < 50 { return "~\(Int(round(distance / 10) * 10))m" }
+        return "50m+"
+    }
+
     private var initials: String {
         let components = displayName.split(separator: " ")
         if components.count >= 2 {
@@ -195,6 +237,7 @@ struct NearbyPeerCard: View {
         var desc = "\(displayName)"
         if isFriend { desc += ", friend" }
         desc += ", \(hopDescription) away"
+        desc += ", approximately \(estimatedDistance)"
         desc += ", signal \(signalDescription)"
         if isOnline { desc += ", online" }
         return desc
@@ -242,6 +285,48 @@ struct NearbyPeerCard: View {
                 hopCount: 5,
                 rssi: -90,
                 isOnline: false,
+                isFriend: false
+            )
+        }
+        .padding()
+    }
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Peer Card - Add Friend Button") {
+    ZStack {
+        GradientBackground()
+        VStack(spacing: BlipSpacing.md) {
+            NearbyPeerCard(
+                displayName: "Alex Rivera",
+                username: "alexr",
+                avatarData: nil,
+                hopCount: 1,
+                rssi: -58,
+                isOnline: true,
+                isFriend: false,
+                onAddFriend: { }
+            )
+
+            NearbyPeerCard(
+                displayName: "Morgan Lee",
+                username: "morganl",
+                avatarData: nil,
+                hopCount: 0,
+                rssi: -42,
+                isOnline: true,
+                isFriend: false,
+                onAddFriend: { }
+            )
+
+            // No onAddFriend — simulates pending state (no button shown)
+            NearbyPeerCard(
+                displayName: "Pending Pal",
+                username: "pendingp",
+                avatarData: nil,
+                hopCount: 2,
+                rssi: -75,
+                isOnline: true,
                 isFriend: false
             )
         }

@@ -293,21 +293,19 @@ struct NearbyView: View {
                 .padding(.horizontal, BlipSpacing.md)
 
                 ForEach(Array(nonFriendPeers.enumerated()), id: \.element.id) { index, peer in
-                    Button {
-                        selectedPeer = peer
-                    } label: {
-                        NearbyPeerCard(
-                            displayName: peer.displayName ?? peer.username ?? "Unknown",
-                            username: peer.username,
-                            avatarData: nil,
-                            hopCount: peer.isDirectPeer ? 0 : 1,
-                            rssi: peer.rssi,
-                            isOnline: true,
-                            isFriend: false
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(peerAccessibilityLabel(peer))
+                    NearbyPeerCard(
+                        displayName: peer.displayName ?? peer.username ?? "Unknown",
+                        username: peer.username,
+                        avatarData: nil,
+                        hopCount: peer.isDirectPeer ? 0 : 1,
+                        rssi: peer.rssi,
+                        isOnline: true,
+                        isFriend: false,
+                        onTap: { selectedPeer = peer },
+                        onAddFriend: peer.friendStatus == .pending || friendRequestSent.contains(peer.id)
+                            ? nil  // No button if already pending
+                            : { sendFriendRequest(to: peer) }
+                    )
                     .overlay(alignment: .trailing) {
                         if peer.friendStatus == .pending || friendRequestSent.contains(peer.id) {
                             Text("Pending")
@@ -317,15 +315,11 @@ struct NearbyView: View {
                                 .padding(.vertical, BlipSpacing.xs)
                                 .background(Capsule().fill(BlipColors.darkColors.statusAmber.opacity(0.12)))
                                 .padding(.trailing, BlipSpacing.md + BlipSpacing.sm)
-                        } else {
-                            Image(systemName: "person.badge.plus")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.blipAccentPurple)
-                                .padding(.trailing, BlipSpacing.md + BlipSpacing.sm)
                         }
                     }
                     .padding(.horizontal, BlipSpacing.md)
                     .staggeredReveal(index: index)
+                    .accessibilityLabel(peerAccessibilityLabel(peer))
                 }
             }
         }
