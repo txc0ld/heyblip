@@ -14,8 +14,8 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     // MARK: - Constants
 
-    /// WebSocket relay endpoint.
-    public static let relayURL = URL(string: "wss://blip-relay.john-mckean.workers.dev/ws")!
+    /// Default WebSocket relay endpoint. Override via init parameter.
+    public static let defaultRelayURL = URL(string: "wss://blip-relay.john-mckean.workers.dev/ws")!
 
     /// Minimum reconnect delay in seconds.
     public static let minReconnectDelay: TimeInterval = 1.0
@@ -46,6 +46,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     }
 
     // MARK: - Properties
+
+    /// The relay URL for this instance.
+    private let relayURL: URL
 
     /// The Noise public key used for authentication.
     private let noisePublicKey: Data
@@ -85,9 +88,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// - Parameters:
     ///   - localPeerID: This device's PeerID.
     ///   - noisePublicKey: The Noise static public key for authentication.
-    public init(localPeerID: PeerID, noisePublicKey: Data) {
+    ///   - relayURL: WebSocket relay endpoint. Defaults to `defaultRelayURL`.
+    public init(localPeerID: PeerID, noisePublicKey: Data, relayURL: URL? = nil) {
         self.localPeerID = localPeerID
         self.noisePublicKey = noisePublicKey
+        self.relayURL = relayURL ?? Self.defaultRelayURL
         self.serverPeerID = PeerID(noisePublicKey: Data("relay.blip.app".utf8))
 
         super.init()
@@ -150,7 +155,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         state = .starting
 
         // Build the request with authentication header.
-        var request = URLRequest(url: Self.relayURL)
+        var request = URLRequest(url: self.relayURL)
         let token = noisePublicKey.base64EncodedString()
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(localPeerID.description, forHTTPHeaderField: "X-Peer-ID")
@@ -162,7 +167,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         // Start receiving messages.
         receiveNextMessage()
 
-        logger.info("WebSocket connecting to \(Self.relayURL)")
+        logger.info("WebSocket connecting to \(self.relayURL)")
     }
 
     private func disconnect() {

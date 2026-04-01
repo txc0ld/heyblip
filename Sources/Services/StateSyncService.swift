@@ -14,7 +14,7 @@ final class StateSyncService: @unchecked Sendable {
     // MARK: - Configuration
 
     /// Relay server base URL for state endpoints.
-    private static let stateEndpoint = "https://blip-relay.john-mckean.workers.dev/state"
+    private static let stateEndpoint = ServerConfig.relayBaseURL + "/state"
 
     /// Sync interval (15 minutes).
     private static let syncInterval: TimeInterval = 900

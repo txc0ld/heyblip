@@ -10,7 +10,7 @@ final class UserSyncService: Sendable {
 
     // MARK: - Configuration
 
-    private static let baseURL = "https://blip-auth.john-mckean.workers.dev/v1"
+    private static let baseURL = ServerConfig.authBaseURL
 
     private let logger = Logger(subsystem: "com.blip", category: "UserSync")
 

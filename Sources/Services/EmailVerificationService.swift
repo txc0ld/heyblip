@@ -9,7 +9,7 @@ final class EmailVerificationService: Sendable {
 
     // MARK: - Configuration
 
-    private static let baseURL = "https://blip-auth.john-mckean.workers.dev/v1/auth"
+    private static let baseURL = ServerConfig.authBaseURL + "/auth"
 
     private let logger = Logger(subsystem: "com.blip", category: "EmailVerification")
 

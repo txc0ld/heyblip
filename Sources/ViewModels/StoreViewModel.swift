@@ -100,7 +100,7 @@ final class StoreViewModel {
     private static let allProductIDs: Set<String> = Set(productIDs.map(\.0))
 
     /// Backend URL for receipt verification.
-    private static let verifyReceiptURL = "https://blip-auth.john-mckean.workers.dev/v1/receipts/verify"
+    private static let verifyReceiptURL = ServerConfig.authBaseURL + "/receipts/verify"
 
     // MARK: - Init
 
