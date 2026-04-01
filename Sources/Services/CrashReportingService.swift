@@ -11,6 +11,10 @@ final class CrashReportingService {
 
     private let logger = Logger(subsystem: "com.blip.app", category: "crash-reporting")
 
+    /// Whether Sentry SDK has been successfully started.
+    /// All public methods no-op when this is false.
+    private(set) var isConfigured = false
+
     private init() {}
 
     /// Call once at app launch, before any other setup.
@@ -45,11 +49,13 @@ final class CrashReportingService {
             #endif
         }
 
+        isConfigured = true
         logger.info("Sentry crash reporting configured")
     }
 
     /// Set user context (call after auth/profile load).
     func setUser(id: String, username: String?) {
+        guard isConfigured else { return }
         let user = Sentry.User()
         user.userId = id
         user.username = username
@@ -58,11 +64,13 @@ final class CrashReportingService {
 
     /// Clear user context on logout.
     func clearUser() {
+        guard isConfigured else { return }
         SentrySDK.setUser(nil)
     }
 
     /// Add a breadcrumb manually (for important non-crash events).
     func addBreadcrumb(category: String, message: String, level: SentryLevel = .info) {
+        guard isConfigured else { return }
         let crumb = Breadcrumb(level: level, category: category)
         crumb.message = message
         SentrySDK.addBreadcrumb(crumb)
@@ -70,6 +78,7 @@ final class CrashReportingService {
 
     /// Capture a non-fatal error with optional context.
     func captureError(_ error: Error, context: [String: Any]? = nil) {
+        guard isConfigured else { return }
         SentrySDK.capture(error: error) { scope in
             if let context {
                 scope.setContext(value: context, key: "blip")
@@ -79,6 +88,7 @@ final class CrashReportingService {
 
     /// Capture a message (for important events that aren't errors).
     func captureMessage(_ message: String, level: SentryLevel = .info) {
+        guard isConfigured else { return }
         SentrySDK.capture(message: message) { scope in
             scope.setLevel(level)
         }
