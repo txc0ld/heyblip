@@ -19,6 +19,7 @@ final class UserSyncService: Sendable {
     enum SyncError: LocalizedError, Sendable {
         case networkError(String)
         case serverError(String)
+        case badRequest(String)
         case usernameTaken
         case userNotFound
         case databaseNotConfigured
@@ -29,6 +30,8 @@ final class UserSyncService: Sendable {
                 return "Network error: \(detail)"
             case .serverError(let detail):
                 return "Server error: \(detail)"
+            case .badRequest(let detail):
+                return detail
             case .usernameTaken:
                 return "Username is already taken."
             case .userNotFound:
@@ -67,9 +70,15 @@ final class UserSyncService: Sendable {
             throw SyncError.networkError("Invalid response")
         }
 
+        let responseBody = String(data: data, encoding: .utf8) ?? "<non-UTF8>"
+        DebugLogger.emit("AUTH", "Register \(username): \(http.statusCode) — \(responseBody)")
+
         switch http.statusCode {
-        case 201:
+        case 200, 201:
             logger.info("User registered: \(username, privacy: .private)")
+        case 400:
+            let message = parseError(data) ?? "Invalid registration data"
+            throw SyncError.badRequest(message)
         case 409:
             throw SyncError.usernameTaken
         case 503:

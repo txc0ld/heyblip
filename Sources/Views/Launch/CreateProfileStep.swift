@@ -402,13 +402,22 @@ struct CreateProfileStep: View {
     private func createProfile() async {
         isCreatingIdentity = true
         identityError = nil
+        usernameError = nil
 
         do {
-            let identity = try KeyManager.shared.generateIdentity()
-            try KeyManager.shared.storeIdentity(identity)
+            // Reuse identity from a previous attempt, or generate a new one
+            let identity: Identity
+            if let existing = try KeyManager.shared.loadIdentity() {
+                identity = existing
+            } else {
+                identity = try KeyManager.shared.generateIdentity()
+                try KeyManager.shared.storeIdentity(identity)
+            }
 
             let thumbnailData = selectedAvatarImage?
                 .jpegData(compressionQuality: 0.5)
+
+            let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
 
             let emailHash = email
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -418,37 +427,79 @@ struct CreateProfileStep: View {
                     SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
                 } ?? ""
 
-            let user = User(
-                username: username.trimmingCharacters(in: .whitespacesAndNewlines),
-                displayName: username,
-                emailHash: emailHash,
-                noisePublicKey: identity.noisePublicKey.rawRepresentation,
-                signingPublicKey: identity.signingPublicKey,
-                avatarThumbnail: thumbnailData
-            )
+            // Save locally first (idempotent — updates existing record on retry)
+            let existingUsers = try modelContext.fetch(FetchDescriptor<User>())
+            let user: User
+            if let existing = existingUsers.first {
+                existing.username = trimmedUsername
+                existing.displayName = trimmedUsername
+                user = existing
+            } else {
+                user = User(
+                    username: trimmedUsername,
+                    displayName: trimmedUsername,
+                    emailHash: emailHash,
+                    noisePublicKey: identity.noisePublicKey.rawRepresentation,
+                    signingPublicKey: identity.signingPublicKey,
+                    avatarThumbnail: thumbnailData
+                )
+                modelContext.insert(user)
+            }
 
-            modelContext.insert(user)
-
-            let preferences = UserPreferences()
-            preferences.theme = appTheme
-            preferences.defaultLocationSharing = .fuzzy
-            modelContext.insert(preferences)
+            if try modelContext.fetch(FetchDescriptor<UserPreferences>()).isEmpty {
+                let preferences = UserPreferences()
+                preferences.theme = appTheme
+                preferences.defaultLocationSharing = .fuzzy
+                modelContext.insert(preferences)
+            }
 
             try modelContext.save()
 
-            // Register on backend with encryption keys (fire-and-forget with retry)
-            let syncService = UserSyncService()
-            let registrationUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
-            let registrationEmailHash = emailHash
+            // Register on backend — await so we can surface errors
             let noiseKey = identity.noisePublicKey.rawRepresentation
             let signingKey = identity.signingPublicKey
-            Task {
-                await syncService.registerUserWithRetry(
-                    emailHash: registrationEmailHash,
-                    username: registrationUsername,
+            do {
+                try await UserSyncService().registerUser(
+                    emailHash: emailHash,
+                    username: trimmedUsername,
                     noisePublicKey: noiseKey,
                     signingPublicKey: signingKey
                 )
+            } catch UserSyncService.SyncError.usernameTaken {
+                // Username conflict — roll back local data so user can pick a new name
+                modelContext.delete(user)
+                for pref in (try? modelContext.fetch(FetchDescriptor<UserPreferences>())) ?? [] {
+                    modelContext.delete(pref)
+                }
+                try? modelContext.save()
+                try? KeyManager.shared.deleteIdentity()
+                usernameError = "Username already taken. Try a different one."
+                DebugLogger.shared.log("AUTH", "Username '\(trimmedUsername)' already taken", isError: true)
+                isCreatingIdentity = false
+                return
+            } catch let error as UserSyncService.SyncError {
+                // Non-fatal — log, queue background retry, still proceed
+                DebugLogger.shared.log("AUTH", "Registration failed (will retry): \(error.localizedDescription)", isError: true)
+                let svc = UserSyncService()
+                Task {
+                    await svc.registerUserWithRetry(
+                        emailHash: emailHash,
+                        username: trimmedUsername,
+                        noisePublicKey: noiseKey,
+                        signingPublicKey: signingKey
+                    )
+                }
+            } catch {
+                DebugLogger.shared.log("AUTH", "Registration failed (will retry): \(error.localizedDescription)", isError: true)
+                let svc = UserSyncService()
+                Task {
+                    await svc.registerUserWithRetry(
+                        emailHash: emailHash,
+                        username: trimmedUsername,
+                        noisePublicKey: noiseKey,
+                        signingPublicKey: signingKey
+                    )
+                }
             }
 
             onComplete()
