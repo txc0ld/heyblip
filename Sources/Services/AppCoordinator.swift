@@ -66,6 +66,7 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
+    private(set) var messageCleanupService: MessageCleanupService?
 
     // MARK: - Init
 
@@ -168,6 +169,8 @@ final class AppCoordinator {
         // Create retry service for queued messages (exponential backoff)
         let retryService = MessageRetryService(modelContainer: modelContainer, messageService: msgService)
         self.messageRetryService = retryService
+
+        self.messageCleanupService = MessageCleanupService(modelContainer: modelContainer)
 
         self.chatViewModel = ChatViewModel(
             modelContainer: modelContainer,
@@ -485,6 +488,8 @@ final class AppCoordinator {
         RunLoop.main.add(pruneTimer, forMode: .common)
         peerPruneTimer = pruneTimer
 
+        messageCleanupService?.start()
+
         logger.info("Transports started")
     }
 
@@ -497,6 +502,7 @@ final class AppCoordinator {
         announceTimer = nil
         peerPruneTimer?.invalidate()
         peerPruneTimer = nil
+        messageCleanupService?.stop()
         logger.info("Transports stopped")
     }
 
