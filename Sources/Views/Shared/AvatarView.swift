@@ -73,8 +73,8 @@ struct AvatarView: View {
                 onlineIndicatorDot
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name) avatar")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(name) avatar\(showOnlineIndicator ? ", online" : "")")
     }
 
     // MARK: - Avatar Image / Initials

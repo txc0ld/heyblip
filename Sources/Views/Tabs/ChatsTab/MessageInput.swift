@@ -92,6 +92,7 @@ struct MessageInput: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, BlipSpacing.xs)
                 .focused($isTextFieldFocused)
+                .accessibilityLabel("Message input")
                 .onChange(of: text) { _, newValue in
                     withAnimation(SpringConstants.bouncyAnimation) {
                         isSendMode = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -166,6 +167,9 @@ struct MessageInput: View {
                         )
                 )
         }
+        .accessibilityLabel("Push to talk")
+        .accessibilityHint("Double tap and hold to record, release to send")
+        .accessibilityAddTraits(.startsMediaSession)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in

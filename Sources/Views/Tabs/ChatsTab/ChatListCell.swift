@@ -122,6 +122,7 @@ struct ChatListCell: View {
                     .fill(Color.blipAccentPurple)
             )
             .contentTransition(.numericText())
+            .accessibilityLabel("\(conversation.unreadCount) unread message\(conversation.unreadCount == 1 ? "" : "s")")
     }
 
     // MARK: - Background
