@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - SettingsView
 
-/// App settings: theme, location, notifications, PTT mode,
-/// recovery export, and about/legal sections.
+/// App settings coordinator. All `@AppStorage` lives here and is passed
+/// as `@Binding` to individual section views under `Settings/`.
 struct SettingsView: View {
 
     var profileViewModel: ProfileViewModel? = nil
@@ -32,28 +32,36 @@ struct SettingsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: BlipSpacing.lg) {
-                    appearanceSection
+                    AppearanceSettings(appTheme: themeBinding)
                         .staggeredReveal(index: 0)
 
-                    networkSection
+                    NetworkSettings(transportMode: $transportModeRaw)
                         .staggeredReveal(index: 1)
 
-                    locationSection
-                        .staggeredReveal(index: 2)
+                    LocationSettings(
+                        locationSharing: locationSharingBinding,
+                        proximityAlerts: proximityAlertsBinding,
+                        breadcrumbs: breadcrumbsBinding,
+                        crowdPulse: crowdPulseBinding
+                    )
+                    .staggeredReveal(index: 2)
 
-                    notificationsSection
-                        .staggeredReveal(index: 3)
+                    NotificationSettings(
+                        pushNotifications: notificationsBinding,
+                        autoJoinChannels: autoJoinChannelsBinding
+                    )
+                    .staggeredReveal(index: 3)
 
-                    chatSection
+                    ChatSettings(pttMode: pttModeBinding)
                         .staggeredReveal(index: 4)
 
-                    securitySection
+                    SecuritySettings()
                         .staggeredReveal(index: 5)
 
-                    aboutSection
+                    AboutSettings()
                         .staggeredReveal(index: 6)
 
-                    dangerZone
+                    AccountSettings(showSignOutConfirm: $showSignOutConfirm)
                         .staggeredReveal(index: 7)
 
                     Spacer().frame(height: BlipSpacing.xxl)
@@ -90,321 +98,6 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Remote account deletion is not wired in this build. Local sign-out above is the only supported reset path.")
-        }
-    }
-
-    // MARK: - Appearance
-
-    private var appearanceSection: some View {
-        settingsGroup(title: "Appearance", icon: "paintbrush.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                settingsRow(title: "Theme") {
-                    Picker("Theme", selection: themeBinding) {
-                        ForEach(AppTheme.allCases, id: \.self) { themeOption in
-                            Label(themeOption.label, systemImage: themeOption.icon)
-                                .tag(themeOption)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220)
-                }
-            }
-        }
-    }
-
-    // MARK: - Network
-
-    private var networkSection: some View {
-        settingsGroup(title: "Network", icon: "network") {
-            VStack(spacing: BlipSpacing.md) {
-                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-                    Text("Transport Mode")
-                        .font(theme.typography.body)
-                        .foregroundStyle(theme.colors.text)
-
-                    Picker("Transport Mode", selection: $transportModeRaw) {
-                        ForEach(TransportMode.allCases, id: \.self) { mode in
-                            Label(mode.label, systemImage: mode.icon)
-                                .tag(mode.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    let currentMode = TransportMode(rawValue: transportModeRaw) ?? .allRadios
-                    Text(currentMode.caption)
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
-                }
-            }
-        }
-    }
-
-    // MARK: - Location
-
-    private var locationSection: some View {
-        settingsGroup(title: "Location", icon: "location.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                settingsRow(title: "Default Sharing") {
-                    Picker("Precision", selection: locationSharingBinding) {
-                        Text("Precise").tag(LocationPrecision.precise.rawValue)
-                        Text("Fuzzy").tag(LocationPrecision.fuzzy.rawValue)
-                        Text("Off").tag(LocationPrecision.off.rawValue)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220)
-                }
-
-                settingsToggleRow(title: "Proximity Alerts", subtitle: "Get notified when friends are nearby", isOn: proximityAlertsBinding)
-
-                settingsToggleRow(title: "Breadcrumb Trails", subtitle: "Track friend movement (opt-in, auto-deleted)", isOn: breadcrumbsBinding)
-
-                settingsToggleRow(title: "Crowd Pulse", subtitle: "Show crowd density heatmap", isOn: crowdPulseBinding)
-            }
-        }
-    }
-
-    // MARK: - Notifications
-
-    private var notificationsSection: some View {
-        settingsGroup(title: "Notifications", icon: "bell.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                settingsToggleRow(title: "Push Notifications", subtitle: "Receive notifications for messages", isOn: notificationsBinding)
-
-                settingsToggleRow(title: "Auto-Join Channels", subtitle: "Automatically join nearby location channels", isOn: autoJoinChannelsBinding)
-            }
-        }
-    }
-
-    // MARK: - Chat
-
-    private var chatSection: some View {
-        settingsGroup(title: "Chat", icon: "message.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                settingsRow(title: "Push-to-Talk Mode") {
-                    Picker("PTT Mode", selection: pttModeBinding) {
-                        Text("Hold").tag(PTTMode.holdToTalk.rawValue)
-                        Text("Toggle").tag(PTTMode.toggleTalk.rawValue)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 160)
-                }
-            }
-        }
-    }
-
-    // MARK: - Security
-
-    private var securitySection: some View {
-        settingsGroup(title: "Security", icon: "lock.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Recovery Kit Export")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Unavailable in this build until file export is wired")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.blipAccentPurple)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Export recovery kit")
-            }
-        }
-    }
-
-    // MARK: - About
-
-    @State private var buildStringCopied = false
-
-    private var aboutSection: some View {
-        settingsGroup(title: "About", icon: "info.circle.fill") {
-            VStack(spacing: BlipSpacing.md) {
-                settingsInfoRow(title: "Version", value: BuildInfo.version)
-                settingsInfoRow(title: "Build", value: BuildInfo.buildNumber)
-
-                settingsInfoRow(title: "Commit", value: BuildInfo.gitHash)
-                    .onTapGesture {
-                        UIPasteboard.general.string = BuildInfo.fullBuildString
-                        buildStringCopied = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { buildStringCopied = false }
-                    }
-                    .overlay(alignment: .trailing) {
-                        if buildStringCopied {
-                            Text("Copied!")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(.blipAccentPurple)
-                                .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: buildStringCopied)
-
-                settingsInfoRow(title: "Branch", value: BuildInfo.gitBranch)
-                settingsInfoRow(title: "Built", value: BuildInfo.buildDate)
-
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Privacy Policy")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Unavailable until hosted legal pages are published")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.colors.mutedText)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Privacy policy unavailable in this build")
-
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Terms of Service")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Unavailable until hosted legal pages are published")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.colors.mutedText)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Terms of service unavailable in this build")
-
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Open Source Licenses")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Unavailable until the in-app acknowledgements screen is wired")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.colors.mutedText)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Open source licenses unavailable in this build")
-            }
-        }
-    }
-
-    // MARK: - Account
-
-    private var dangerZone: some View {
-        settingsGroup(title: "Account", icon: "person.crop.circle") {
-            VStack(spacing: BlipSpacing.md) {
-                // Sign Out
-                Button(action: { showSignOutConfirm = true }) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Sign Out")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Clear local session and return to setup")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 14))
-                            .foregroundStyle(theme.colors.mutedText)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Sign out")
-
-                Divider().opacity(0.15)
-
-                // Export My Data
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Export My Data")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
-
-                            Text("Unavailable in this build until account export is wired")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.blipAccentPurple)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Export my data as JSON")
-
-                Divider().opacity(0.15)
-
-                // Delete Account
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Delete Account & Data")
-                                .font(theme.typography.body)
-                                .foregroundStyle(BlipColors.darkColors.statusRed)
-
-                            Text("Unavailable until remote deletion is wired end to end")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "trash")
-                            .font(.system(size: 14))
-                            .foregroundStyle(BlipColors.darkColors.statusRed)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Delete account unavailable in this build")
-            }
         }
     }
 
@@ -513,71 +206,6 @@ struct SettingsView: View {
                 profileViewModel?.updatePreferences(autoJoinNearbyChannels: newValue)
             }
         )
-    }
-
-    // MARK: - Reusable Components
-
-    private func settingsGroup<Content: View>(title: String, icon: String, @ViewBuilder content: @escaping () -> Content) -> some View {
-        GlassCard(thickness: .regular) {
-            VStack(alignment: .leading, spacing: BlipSpacing.md) {
-                HStack(spacing: BlipSpacing.sm) {
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.blipAccentPurple)
-
-                    Text(title)
-                        .font(theme.typography.body)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(theme.colors.text)
-                }
-
-                content()
-            }
-        }
-    }
-
-    private func settingsRow<Content: View>(title: String, @ViewBuilder trailing: () -> Content) -> some View {
-        HStack {
-            Text(title)
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.text)
-
-            Spacer()
-
-            trailing()
-        }
-        .frame(minHeight: BlipSizing.minTapTarget)
-    }
-
-    private func settingsToggleRow(title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                Text(title)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.text)
-
-                Text(subtitle)
-                    .font(theme.typography.caption)
-                    .foregroundStyle(theme.colors.mutedText)
-            }
-        }
-        .tint(.blipAccentPurple)
-        .frame(minHeight: BlipSizing.minTapTarget)
-        .sensoryFeedback(.selection, trigger: isOn.wrappedValue)
-    }
-
-    private func settingsInfoRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.text)
-
-            Spacer()
-
-            Text(value)
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-        }
     }
 }
 

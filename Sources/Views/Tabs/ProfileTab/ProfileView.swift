@@ -144,9 +144,9 @@ struct ProfileView: View {
     // MARK: - Avatar Section
 
     private func avatarSection(_ user: User) -> some View {
-        GlassCard(thickness: .regular) {
+        GlassCard(elevation: .floating) {
             VStack(spacing: BlipSpacing.md) {
-                // Large avatar with verified badge
+                // Large avatar with verified badge and glass ring
                 ZStack {
                     if let thumbData = user.avatarThumbnail,
                        let uiImage = UIImage(data: thumbData) {
@@ -155,6 +155,17 @@ struct ProfileView: View {
                             .scaledToFill()
                             .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                             .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.05)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 2
+                                    )
+                            )
                     } else {
                         Circle()
                             .fill(LinearGradient.blipAccent)
@@ -163,6 +174,17 @@ struct ProfileView: View {
                                 Text(String(user.resolvedDisplayName.prefix(1)).uppercased())
                                     .font(.system(size: 32, weight: .bold))
                                     .foregroundStyle(.white)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.05)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 2
+                                    )
                             )
                     }
 
@@ -261,7 +283,7 @@ struct ProfileView: View {
 
     private func quickActionCard(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
+            GlassCard(elevation: .raised, cornerRadius: BlipCornerRadius.xl) {
                 VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     Image(systemName: icon)
                         .font(.system(size: 22))
