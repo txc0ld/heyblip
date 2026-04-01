@@ -18,7 +18,7 @@ Blip is a Bluetooth mesh chat app for festivals. iOS-first, SwiftUI, MVVM. The a
 
 **Build command:**
 ```bash
-xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet
 ```
 
 **Test commands (per package — NOT xcodebuild test):**
