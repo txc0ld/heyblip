@@ -32,7 +32,21 @@ final class DebugLogger {
     private(set) var entries: [Entry] = []
     private let maxEntries = 500
 
+    /// Deduplication window — identical category+message within this interval is suppressed.
+    private let dedupWindow: TimeInterval = 0.5
+    private var lastLogKey: String = ""
+    private var lastLogTime: Date = .distantPast
+
     func log(_ category: String, _ message: String, isError: Bool = false) {
+        // Deduplicate: skip if same category+message was logged within the dedup window
+        let key = "\(category):\(message)"
+        let now = Date()
+        if key == lastLogKey, now.timeIntervalSince(lastLogTime) < dedupWindow {
+            return
+        }
+        lastLogKey = key
+        lastLogTime = now
+
         let entry = Entry(category: category, message: message, isError: isError)
         entries.insert(entry, at: 0)
         if entries.count > maxEntries { entries.removeLast() }
