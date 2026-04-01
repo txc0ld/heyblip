@@ -36,16 +36,22 @@ final class DebugLogger {
     private let dedupWindow: TimeInterval = 0.5
     private var lastLogKey: String = ""
     private var lastLogTime: Date = .distantPast
+    private let dedupLock = NSLock()
 
     func log(_ category: String, _ message: String, isError: Bool = false) {
-        // Deduplicate: skip if same category+message was logged within the dedup window
-        let key = "\(category):\(message)"
-        let now = Date()
-        if key == lastLogKey, now.timeIntervalSince(lastLogTime) < dedupWindow {
-            return
+        // Deduplicate: skip if same category+message was logged within the dedup window.
+        // Lock protects lastLogKey/lastLogTime from concurrent access via emit().
+        let isDuplicate: Bool = dedupLock.withLock {
+            let key = "\(category):\(message)"
+            let now = Date()
+            if key == lastLogKey, now.timeIntervalSince(lastLogTime) < dedupWindow {
+                return true
+            }
+            lastLogKey = key
+            lastLogTime = now
+            return false
         }
-        lastLogKey = key
-        lastLogTime = now
+        if isDuplicate { return }
 
         let entry = Entry(category: category, message: message, isError: isError)
         entries.insert(entry, at: 0)
