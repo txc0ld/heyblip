@@ -164,6 +164,7 @@ final class FriendFinderViewModel {
     // MARK: - Stale Cleanup
 
     private func startCleanupTimer() {
+        cleanupTimer?.invalidate()
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.cleanupStalePeers()

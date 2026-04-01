@@ -79,6 +79,20 @@ final class AppCoordinator {
         loadIdentityAndConfigure()
     }
 
+    deinit {
+        // Clean up NotificationCenter observers that may outlive the coordinator.
+        // These are nonisolated(unsafe) so direct access from deinit is safe.
+        if let obs = broadcastObservation {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        if let obs = peerStateObservation {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        peerSyncTimer?.invalidate()
+        announceTimer?.invalidate()
+        peerPruneTimer?.invalidate()
+    }
+
     // MARK: - Configuration
 
     private func loadIdentityAndConfigure() {

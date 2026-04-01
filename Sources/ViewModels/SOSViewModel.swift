@@ -124,6 +124,7 @@ final class SOSViewModel {
     private let notificationService: NotificationService
     private let logger = Logger(subsystem: "com.blip", category: "SOSViewModel")
     nonisolated(unsafe) private var sosObservation: NSObjectProtocol?
+    nonisolated(unsafe) private var countdownTimer: Timer?
 
     // MARK: - Constants
 
@@ -194,17 +195,17 @@ final class SOSViewModel {
         gpsProgress = 0
 
         let location: CLLocation
-        do {
-            // Start a progress timer
-            let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
-                Task { @MainActor in
-                    guard let self else { timer.invalidate(); return }
-                    self.gpsProgress = min(1.0, self.gpsProgress + (0.5 / Self.gpsTimeout))
-                }
+        // Start a progress timer — defer ensures cleanup on ALL exit paths
+        let progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            Task { @MainActor in
+                guard let self else { timer.invalidate(); return }
+                self.gpsProgress = min(1.0, self.gpsProgress + (0.5 / Self.gpsTimeout))
             }
+        }
+        defer { progressTimer.invalidate() }
 
+        do {
             location = try await locationService.requestSOSLocation()
-            progressTimer.invalidate()
             gpsProgress = 1.0
         } catch {
             isAcquiringGPS = false
@@ -260,6 +261,8 @@ final class SOSViewModel {
 
     /// Cancel the SOS flow before broadcasting.
     func cancelFlow() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
         flowState = .idle
         selectedSeverity = nil
         alertDescription = ""
@@ -741,12 +744,14 @@ final class SOSViewModel {
     private func startConfirmationCountdown(severity: SOSSeverity) {
         flowState = .confirmingAlert(severity: severity)
 
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        countdownTimer?.invalidate()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             Task { @MainActor in
                 guard let self else { timer.invalidate(); return }
                 self.confirmationCountdown -= 1
                 if self.confirmationCountdown <= 0 {
                     timer.invalidate()
+                    self.countdownTimer = nil
                 }
             }
         }
@@ -756,6 +761,8 @@ final class SOSViewModel {
 
     /// Reset all SOS state.
     func reset() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
         flowState = .idle
         activeAlert = nil
         selectedSeverity = nil
