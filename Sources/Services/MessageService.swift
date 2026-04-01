@@ -785,6 +785,19 @@ final class MessageService: @unchecked Sendable {
     /// they appear in the "People Nearby" list.
     @MainActor
     private func handleAnnounce(_ packet: Packet, from peerID: PeerID) async throws {
+        // BDEV-87: Reject stale or future-dated announces
+        let announceAge = Date().timeIntervalSince(packet.date)
+        if announceAge > 900 {
+            let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            DebugLogger.shared.log("RX", "STALE ANNOUNCE from \(peerHex) — \(Int(announceAge))s old, dropping", isError: true)
+            return
+        }
+        if announceAge < -60 {
+            let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            DebugLogger.shared.log("RX", "FUTURE ANNOUNCE from \(peerHex) — \(Int(-announceAge))s ahead, dropping", isError: true)
+            return
+        }
+
         let context = ModelContext(modelContainer)
 
         // Parse: username + 0x00 + displayName + 0x00 + noisePublicKey(32 bytes)
@@ -852,7 +865,8 @@ final class MessageService: @unchecked Sendable {
             rssi: peerStore.peer(for: senderData)?.rssi ?? -60,
             isConnected: true,
             lastSeenAt: Date(),
-            hopCount: 1
+            hopCount: 1,
+            lastAnnounceTimestamp: packet.timestamp
         )
         peerStore.upsert(peer: info)
 

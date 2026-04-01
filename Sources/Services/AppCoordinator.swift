@@ -64,6 +64,7 @@ final class AppCoordinator {
     nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
     nonisolated(unsafe) private var peerSyncTimer: Timer?
     nonisolated(unsafe) private var announceTimer: Timer?
+    nonisolated(unsafe) private var peerPruneTimer: Timer?
 
     // MARK: - Init
 
@@ -355,6 +356,13 @@ final class AppCoordinator {
         RunLoop.main.add(aTimer, forMode: .common)
         announceTimer = aTimer
 
+        // Prune peers not seen in 2 minutes (separate from announce staleness)
+        let pruneTimer = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
+            self?.peerStore.pruneStale(olderThan: 120)
+        }
+        RunLoop.main.add(pruneTimer, forMode: .common)
+        peerPruneTimer = pruneTimer
+
         logger.info("Transports started")
     }
 
@@ -365,6 +373,8 @@ final class AppCoordinator {
         peerSyncTimer = nil
         announceTimer?.invalidate()
         announceTimer = nil
+        peerPruneTimer?.invalidate()
+        peerPruneTimer = nil
         logger.info("Transports stopped")
     }
 

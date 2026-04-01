@@ -15,6 +15,8 @@ struct PeerInfo: Sendable {
     var isConnected: Bool
     var lastSeenAt: Date
     var hopCount: Int
+    /// Packet timestamp (ms since epoch) from the most recent announce.
+    var lastAnnounceTimestamp: UInt64 = 0
 }
 
 // MARK: - PeerStore
@@ -74,9 +76,17 @@ final class PeerStore: @unchecked Sendable {
     // MARK: - Write
 
     /// Insert or update a peer. Merges fields that the caller provides.
+    /// Rejects stale replay: if the new announce timestamp is older than stored, the upsert is skipped.
     func upsert(peer info: PeerInfo) {
         queue.async(flags: .barrier) { [self] in
             if var existing = peers[info.peerID] {
+                // Reject stale replay: newer timestamp wins
+                if info.lastAnnounceTimestamp > 0 && existing.lastAnnounceTimestamp > 0
+                    && info.lastAnnounceTimestamp < existing.lastAnnounceTimestamp {
+                    let shortID = info.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    logger.info("STALE REPLAY: announce for \(shortID) has older timestamp than last seen — skipping upsert")
+                    return
+                }
                 // Merge — caller-provided fields win
                 if !info.noisePublicKey.isEmpty {
                     existing.noisePublicKey = info.noisePublicKey
@@ -91,6 +101,9 @@ final class PeerStore: @unchecked Sendable {
                 existing.isConnected = info.isConnected
                 existing.lastSeenAt = info.lastSeenAt
                 existing.hopCount = info.hopCount
+                if info.lastAnnounceTimestamp > 0 {
+                    existing.lastAnnounceTimestamp = info.lastAnnounceTimestamp
+                }
                 peers[info.peerID] = existing
             } else {
                 peers[info.peerID] = info
