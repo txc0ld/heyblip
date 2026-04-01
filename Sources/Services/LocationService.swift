@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftData
+import os
 
 // MARK: - Location Service Error
 
@@ -159,8 +160,10 @@ final class LocationService: NSObject, @unchecked Sendable {
         locationManager.startUpdatingLocation()
 
         return try await withCheckedThrowingContinuation { continuation in
-            // Use a one-shot callback via notification
+            // Atomic flag to ensure only one resume (BDEV-96)
+            let resumed = OSAllocatedUnfairLock(initialState: false)
             var observation: NSObjectProtocol?
+
             observation = NotificationCenter.default.addObserver(
                 forName: .locationServiceDidGetSOSFix,
                 object: self,
@@ -170,9 +173,17 @@ final class LocationService: NSObject, @unchecked Sendable {
                     NotificationCenter.default.removeObserver(obs)
                 }
                 if let location = notification.userInfo?["location"] as? CLLocation {
-                    continuation.resume(returning: location)
+                    resumed.withLock { alreadyResumed in
+                        guard !alreadyResumed else { return }
+                        alreadyResumed = true
+                        continuation.resume(returning: location)
+                    }
                 } else {
-                    continuation.resume(throwing: LocationServiceError.locationUnavailable)
+                    resumed.withLock { alreadyResumed in
+                        guard !alreadyResumed else { return }
+                        alreadyResumed = true
+                        continuation.resume(throwing: LocationServiceError.locationUnavailable)
+                    }
                 }
             }
 
@@ -181,10 +192,14 @@ final class LocationService: NSObject, @unchecked Sendable {
                 if let obs = observation {
                     NotificationCenter.default.removeObserver(obs)
                 }
-                if let location = self?.currentLocation {
-                    continuation.resume(returning: location)
-                } else {
-                    continuation.resume(throwing: LocationServiceError.locationUnavailable)
+                resumed.withLock { alreadyResumed in
+                    guard !alreadyResumed else { return }
+                    alreadyResumed = true
+                    if let location = self?.currentLocation {
+                        continuation.resume(returning: location)
+                    } else {
+                        continuation.resume(throwing: LocationServiceError.locationUnavailable)
+                    }
                 }
             }
         }
