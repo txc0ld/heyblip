@@ -41,10 +41,10 @@ final class GroupMembership {
 
     var isMutedNow: Bool {
         guard muted else { return false }
-        if let until = mutedUntil {
-            return Date() < until
-        }
-        return true
+        // Require an expiry date — nil mutedUntil means the mute has no duration,
+        // which should be treated as "not muted" to prevent accidental permanent mutes.
+        guard let until = mutedUntil else { return false }
+        return Date() < until
     }
 
     // MARK: - Init

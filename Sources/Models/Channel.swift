@@ -46,13 +46,13 @@ final class Channel {
 
     // MARK: - Inverse Relationships
 
-    @Relationship(inverse: \Message.channel)
+    @Relationship(deleteRule: .cascade, inverse: \Message.channel)
     var messages: [Message] = []
 
-    @Relationship(inverse: \MeetingPoint.channel)
+    @Relationship(deleteRule: .cascade, inverse: \MeetingPoint.channel)
     var meetingPoints: [MeetingPoint] = []
 
-    @Relationship(inverse: \GroupSenderKey.channel)
+    @Relationship(deleteRule: .cascade, inverse: \GroupSenderKey.channel)
     var senderKeys: [GroupSenderKey] = []
 
     // MARK: - Computed Properties

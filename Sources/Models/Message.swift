@@ -32,7 +32,7 @@ final class Message {
     var encryptedPayload: Data
     var statusRaw: String
 
-    @Relationship
+    @Relationship(deleteRule: .nullify)
     var replyTo: Message?
 
     @Relationship(deleteRule: .cascade, inverse: \Attachment.message)

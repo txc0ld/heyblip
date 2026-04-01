@@ -21,7 +21,7 @@ final class Festival {
     @Relationship(deleteRule: .cascade, inverse: \Stage.festival)
     var stages: [Stage] = []
 
-    @Relationship(inverse: \Channel.festival)
+    @Relationship(deleteRule: .cascade, inverse: \Channel.festival)
     var channels: [Channel] = []
 
     @Relationship(inverse: \MedicalResponder.festival)
