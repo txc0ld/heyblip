@@ -49,10 +49,25 @@ enum BlipSchema {
         )
     }
 
+    /// Ensure the Application Support directory exists before SwiftData/CoreData
+    /// tries to create the store file. On first launch the directory may not exist,
+    /// causing ~100 "Failed to stat path" warnings in the console.
+    static func ensureStoreDirectoryExists() {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else { return }
+        try? FileManager.default.createDirectory(
+            at: appSupport,
+            withIntermediateDirectories: true
+        )
+    }
+
     /// Creates the production ModelContainer.
     @MainActor
     static func createContainer() throws -> ModelContainer {
-        try ModelContainer(
+        ensureStoreDirectoryExists()
+        return try ModelContainer(
             for: schema,
             configurations: [defaultConfiguration]
         )

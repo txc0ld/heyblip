@@ -11,6 +11,7 @@ struct BlipApp: App {
     @State private var coordinator = AppCoordinator()
 
     var sharedModelContainer: ModelContainer = {
+        BlipSchema.ensureStoreDirectoryExists()
         do {
             return try ModelContainer(
                 for: BlipSchema.schema,
