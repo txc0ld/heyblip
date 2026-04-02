@@ -549,6 +549,9 @@ final class MessageService: @unchecked Sendable {
             }
         }
 
+        // Fallback: fetch from auth server if PeerStore didn't have keys
+        await fetchRemoteKeysIfNeeded(for: friendUser, context: context)
+
         // Ensure DM channel exists
         try createDMChannel(with: friendUser, context: context)
 
@@ -1731,6 +1734,9 @@ final class MessageService: @unchecked Sendable {
             return
         }
 
+        // Fetch keys from auth server if still missing after PeerStore resolution
+        await fetchRemoteKeysIfNeeded(for: senderUser, context: context)
+
         // Create Friend record with pending status (or update if exists)
         try createOrUpdateFriend(user: senderUser, status: .pending, context: context)
 
@@ -1820,6 +1826,9 @@ final class MessageService: @unchecked Sendable {
                 DebugLogger.shared.log("DM", "Backfilled keys for \(resolvedUsername) before createDMChannel")
             }
         }
+
+        // Fallback: fetch from auth server if PeerStore didn't have keys
+        await fetchRemoteKeysIfNeeded(for: resolvedUser, context: context)
 
         // Create DM channel
         try createDMChannel(with: resolvedUser, context: context)
@@ -1961,6 +1970,61 @@ final class MessageService: @unchecked Sendable {
         try context.save()
     }
 
+    /// Fetch and store public keys for a remote user from the auth server.
+    /// No-op if the user already has a non-empty noisePublicKey.
+    @MainActor
+    private func fetchRemoteKeysIfNeeded(for user: User, context: ModelContext) async {
+        guard user.noisePublicKey.isEmpty else { return }
+        let username = user.username
+        guard !username.isEmpty else { return }
+
+        do {
+            let syncService = UserSyncService()
+            guard let remote = try await syncService.lookupUser(username: username),
+                  let noiseKeyHex = remote.noisePublicKey else {
+                DebugLogger.shared.log("DM", "fetchRemoteKeys: no keys on server for \(username)")
+                return
+            }
+
+            let noiseKeyData = Data(hexString: noiseKeyHex)
+            guard !noiseKeyData.isEmpty else {
+                DebugLogger.shared.log("DM", "fetchRemoteKeys: invalid noiseKey hex for \(username)")
+                return
+            }
+
+            let signingKeyData: Data
+            if let sigHex = remote.signingPublicKey {
+                signingKeyData = Data(hexString: sigHex)
+            } else {
+                signingKeyData = Data()
+            }
+
+            user.noisePublicKey = noiseKeyData
+            if user.signingPublicKey.isEmpty && !signingKeyData.isEmpty {
+                user.signingPublicKey = signingKeyData
+            }
+            try context.save()
+
+            // Register in PeerStore so transport layer can route to them
+            let derivedPeerID = PeerID(noisePublicKey: noiseKeyData)
+            let peerInfo = PeerInfo(
+                peerID: derivedPeerID.bytes,
+                noisePublicKey: noiseKeyData,
+                signingPublicKey: signingKeyData,
+                username: username,
+                rssi: 0,
+                isConnected: false,
+                lastSeenAt: Date(),
+                hopCount: 0
+            )
+            peerStore.upsert(peer: peerInfo)
+
+            DebugLogger.shared.log("DM", "fetchRemoteKeys: stored keys for \(username) from server")
+        } catch {
+            DebugLogger.shared.log("DM", "fetchRemoteKeys: failed for \(username): \(error.localizedDescription)", isError: true)
+        }
+    }
+
     /// Create a DM channel with the given user if one doesn't already exist.
     @MainActor
     private func createDMChannel(with remoteUser: User, context: ModelContext) throws {
@@ -1970,10 +2034,21 @@ final class MessageService: @unchecked Sendable {
         })
         let existingChannels = try context.fetch(dmDescriptor)
         for channel in existingChannels {
-            for membership in channel.memberships {
-                if membership.user?.id == remoteUser.id {
-                    return // DM already exists
-                }
+            let hasMatch = channel.memberships.contains { $0.user?.id == remoteUser.id }
+            if hasMatch {
+                return // DM already exists with proper membership
+            }
+            // Repair: channel created before keys were fetched may have 0 memberships
+            if channel.memberships.isEmpty && channel.name == remoteUser.resolvedDisplayName {
+                let repairMembership = GroupMembership(
+                    user: remoteUser,
+                    channel: channel,
+                    role: .member
+                )
+                context.insert(repairMembership)
+                try context.save()
+                logger.info("Repaired DM channel membership for \(remoteUser.username)")
+                return
             }
         }
 
