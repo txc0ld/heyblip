@@ -5,7 +5,7 @@
 ### 1. App shell and feature wiring
 
 - `BlipApp` now passes the shared `AppCoordinator` into `MainTabView`.
-- `AppCoordinator` now owns and starts `ChatViewModel`, `FestivalViewModel`, and `ProfileViewModel`.
+- `AppCoordinator` now owns and starts `ChatViewModel`, `EventViewModel`, and `ProfileViewModel`.
 - runtime teardown/startup now clears observers, transports, geofencing, delegate wiring, and feature models cleanly.
 
 Resolves:
@@ -25,9 +25,9 @@ Resolves:
 - nearby-to-chat runtime drift
 - duplicate/detached DM channel creation risk
 
-### 3. Festival and profile/settings truth surfaces
+### 3. Event and profile/settings truth surfaces
 
-- festival tab now renders injected runtime state, sync/error banners, and honest empty states instead of sample-backed assumptions.
+- event tab now renders injected runtime state, sync/error banners, and honest empty states instead of sample-backed assumptions.
 - settings now bind to persisted `UserPreferences`.
 - onboarding seeds preferences.
 - sign-out now clears identity and the local store instead of only flipping `AppStorage`.

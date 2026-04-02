@@ -30,11 +30,11 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | T6 | **PaywallSheet design** | Polish the message pack purchase sheet. Make it feel inviting, not pushy. Design the pack option cards, "best value" badge, and the soft prompt that appears after free messages are used. | Not started |
 | T7 | **Typing indicator + status badges** | Fine-tune the 3-dot typing indicator pulse timing. Polish delivery status checkmark animations (sent/delivered/read). Ensure they feel subtle, not distracting. | Not started |
 
-### P0 — Festival & Map Experience
+### P0 — Event & Map Experience
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| T8 | **Stage map design** | Design the interactive stage map experience. How do stage hotspots look? How does the crowd pulse heatmap overlay feel? Design meeting point pin visuals. Test with real festival map images. | Not started |
+| T8 | **Stage map design** | Design the interactive stage map experience. How do stage hotspots look? How does the crowd pulse heatmap overlay feel? Design meeting point pin visuals. Test with real event map images. | Not started |
 | T9 | **Schedule view** | Polish ScheduleView and SetTimeCell. Design the "LIVE NOW" badge. Make the save star and reminder bell feel satisfying to tap. Ensure the collapsible stage sections are intuitive. | Not started |
 | T10 | **Nearby tab particles** | Refine MeshParticleView — the ambient floating dots representing mesh peers. Tune particle count, float speed, bloom pulse on new peer. Make it feel alive but not distracting. | Not started |
 
@@ -52,7 +52,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | T13 | **Waveform visualizer** | Polish WaveformView for voice notes and PTT. Tune the bezier curve smoothness, gradient fill, and the mirrored bottom wave. Make recording feel expressive. | Not started |
 | T14 | **Ripple effect for PTT** | Tune the expanding concentric rings animation. Color, speed, ring count, ring spacing. It should feel like sonar/radio waves. | Not started |
 | T15 | **Connection banner** | Polish the "Connected to X people nearby" glass capsule. Entry/exit animations. Auto-dismiss timing (3s). It should feel informative, not interruptive. | Not started |
-| T16 | **Empty states** | Design empty state graphics for: no chats, no friends, no nearby peers, no festival joined. Each should be on-brand with helpful text. | Not started |
+| T16 | **Empty states** | Design empty state graphics for: no chats, no friends, no nearby peers, no event joined. Each should be on-brand with helpful text. | Not started |
 | T17 | **Dark/light theme QA** | Test every screen in both themes. Verify glass materials, borders, text contrast, and accent purple work perfectly in both. Fix any inconsistencies. | Not started |
 | T18 | **Responsive layout QA** | Test all views on iPhone SE, iPhone 16, iPhone 16 Pro Max, iPad (if supporting), and macOS. Fix layout breaks, text truncation, and spacing issues. | Not started |
 
@@ -91,35 +91,35 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | J3 | **Phone verification backend** | Set up the Twilio Verify (or Firebase Auth) integration for SMS OTP. Create the minimal API endpoint. Test the full send/verify/store flow. Ensure rate limiting (60s cooldown, 5/hour). | Not started |
 | J4 | **WebSocket relay server** | Build and deploy the `wss://relay.blip.app/ws` relay. Zero-knowledge: receives binary packets, forwards by recipient ID, stores nothing. Cloudflare Workers with Durable Objects. | Not started |
 
-### P0 — Festival Infrastructure
+### P0 — Event Infrastructure
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| J8 | **Festival manifest system** | Set up the CDN-hosted JSON manifest. Build the organizer submission web form. Implement Ed25519 manifest signing. Set up the daily fetch + signature verification in the app. | Not started |
-| J9 | **Geofence system** | Test CLLocationManager geofencing with real festival coordinates. Verify 2km detection radius, 15-minute periodic checks, and background location updates. Tune for battery efficiency. | Not started |
+| J8 | **Event manifest system** | Set up the CDN-hosted JSON manifest. Build the organizer submission web form. Implement Ed25519 manifest signing. Set up the daily fetch + signature verification in the app. | Not started |
+| J9 | **Geofence system** | Test CLLocationManager geofencing with real event coordinates. Verify 2km detection radius, 15-minute periodic checks, and background location updates. Tune for battery efficiency. | Not started |
 | J10 | **Crowd pulse data pipeline** | Implement the geohash-7 peer density aggregation. Test CrowdPulseOverlay with real mesh peer data. Ensure it updates smoothly as you walk through a venue. | Not started |
 
 ### P0 — Medical/SOS Backend
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| J11 | **Medical responder access codes** | Implement the organizer-issued rotating access code system. Codes in the festival manifest, verified locally, unlocks MedicalDashboardView. | Not started |
+| J11 | **Medical responder access codes** | Implement the organizer-issued rotating access code system. Codes in the event manifest, verified locally, unlocks MedicalDashboardView. | Not started |
 
 ### P1 — Scalability & Performance
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| J14 | **Crowd-scale mode testing** | Simulate each crowd-scale mode (Gather/Festival/Mega/Massive) with varying peer counts. Verify mode transitions, TTL table changes, media restrictions, and relay probability adjustments. | Not started |
+| J14 | **Crowd-scale mode testing** | Simulate each crowd-scale mode (Gather/Event/Mega/Massive) with varying peer counts. Verify mode transitions, TTL table changes, media restrictions, and relay probability adjustments. | Not started |
 | J15 | **Traffic shaper tuning** | Test the 4-lane priority queue under load. Measure: lane bandwidth allocation (100%/60%/30%/10%), rate limiting (20pps in, 15pps out), burst behavior, backpressure at 80%/95%. | Not started |
-| J16 | **Battery profiling** | Measure battery drain per crowd-scale mode over 8 hours (simulated festival day). Tune scan duty cycles and advertise intervals per power tier. Target: <50% drain at Festival mode. | Not started |
+| J16 | **Battery profiling** | Measure battery drain per crowd-scale mode over 8 hours (simulated event day). Tune scan duty cycles and advertise intervals per power tier. Target: <50% drain at Event mode. | Not started |
 | J17 | **Fragmentation stress test** | Send large payloads (images, voice notes) over BLE. Verify fragmentation at 416-byte threshold, reassembly from out-of-order fragments, 30-second timeout, 128 concurrent assembly limit. | Not started |
 
 ### P1 — Data & SEO
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| J19 | **Festival database** | Build the initial festival database. Scrape/collect data for major festivals (coordinates, dates, stages, lineups). Structure as JSON manifest entries. Start with 10-20 festivals for launch. | Not started |
-| J20 | **Landing page + SEO** | Build `blip.app` landing page. Optimise for: "festival chat app", "bluetooth mesh chat", "festival communication", "no signal festival app". Include App Store links, feature overview, download CTAs. | Not started |
+| J19 | **Event database** | Build the initial event database. Scrape/collect data for major events (coordinates, dates, stages, lineups). Structure as JSON manifest entries. Start with 10-20 events for launch. | Not started |
+| J20 | **Landing page + SEO** | Build `blip.app` landing page. Optimise for: "event chat app", "bluetooth mesh chat", "event communication", "no signal event app". Include App Store links, feature overview, download CTAs. | Not started |
 | J21 | **App Store Optimization** | Research keywords, write optimized title/subtitle/description, plan screenshot strategy (coordinate with Tay on design). Target launch categories. | Not started |
 | J22 | **Analytics infrastructure** | Set up privacy-respecting analytics (no PII, no message content). Track: DAU, mesh peer counts, crowd-scale mode distribution, message delivery rates, SOS usage, purchase conversion. | Not started |
 
@@ -127,7 +127,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| J23 | **Reputation system testing** | Test block-vote tallying across a simulated cluster. Verify: 10 votes = deprioritize, 25 votes = drop broadcasts, SOS exempt, per-festival reset. | Not started |
+| J23 | **Reputation system testing** | Test block-vote tallying across a simulated cluster. Verify: 10 votes = deprioritize, 25 votes = drop broadcasts, SOS exempt, per-event reset. | Not started |
 | J24 | **Directed routing validation** | Test directed routing at Mega/Massive scale simulation. Verify routing table from neighbor lists, 5-minute entry expiry, fallback to gossip. Measure delivery improvement vs pure gossip. | Not started |
 | J25 | **Push notification setup** | Configure APNs for internet-side message notifications when the app is backgrounded. Set up the lightweight push relay endpoint. | Not started |
 | J25 | **Push notification setup** | Configure APNs for internet-side message notifications when the app is backgrounded. Set up the lightweight push relay endpoint. | Not started |
@@ -145,7 +145,7 @@ Every task is tagged with an owner. Some tasks are collaborative — both names 
 | C3 | **Voice notes + PTT** | Tay (waveform UI) + John (audio encoding/streaming) | Tay polishes WaveformView and the recording UI. John handles Opus encoding, PTT packet streaming, and playback queue. | P1 | Not started |
 | C4 | **Image sharing** | Tay (ImageViewer, thumbnails) + John (compression, fragmentation) | Tay polishes the image viewer (pinch-zoom, swipe dismiss). John handles JPEG compression to fit mesh MTU, fragmentation, and LRU cache. | P1 | Not started |
 | C5 | **TestFlight beta** | Tay (screenshots, beta page) + John (provisioning, distribution) | Tay prepares beta invitation assets. John handles App Store Connect setup, provisioning profiles, and TestFlight distribution. | P1 | Not started |
-| C6 | **Real festival field test** | Both | Take 5-10 devices to a real event. Test mesh formation, message delivery, SOS, friend finder, battery life. Document findings, file bugs, prioritize fixes. | P1 | Not started |
+| C6 | **Real event field test** | Both | Take 5-10 devices to a real event. Test mesh formation, message delivery, SOS, friend finder, battery life. Document findings, file bugs, prioritize fixes. | P1 | Not started |
 
 ---
 

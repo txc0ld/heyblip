@@ -38,4 +38,4 @@
 
 1. Run two-device location-sharing validation across Nearby and Friend Finder.
 2. Add UI tests or focused view-model tests for unavailable-state copy and store ownership.
-3. Finish real festival public-board and responder workflows before re-enabling those surfaces.
+3. Finish real event public-board and responder workflows before re-enabling those surfaces.

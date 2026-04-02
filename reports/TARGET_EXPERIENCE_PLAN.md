@@ -16,7 +16,7 @@
 
 - Nearby should lead naturally into the full friend-finder map.
 - Store and paywall should feel like one purchase system, not parallel sheets with separate state.
-- Festival utility surfaces should be discoverable without pretending to be live.
+- Event utility surfaces should be discoverable without pretending to be live.
 
 ## Intended Backend Abstraction Approach
 

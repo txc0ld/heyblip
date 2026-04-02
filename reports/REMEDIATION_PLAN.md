@@ -5,9 +5,9 @@
 ### A. Critical defects
 
 1. Enforce coordinator-owned feature composition
-   - Why it matters: fixes the broadest class of chat/profile/festival/runtime drift
+   - Why it matters: fixes the broadest class of chat/profile/event/runtime drift
    - Root cause: app shell allowed tabs to create or prefer private state
-   - Affected systems: `BlipApp`, `MainTabView`, `AppCoordinator`, chat/festival/profile views
+   - Affected systems: `BlipApp`, `MainTabView`, `AppCoordinator`, chat/event/profile views
    - Fix strategy: inject coordinator-owned view models/services and centralize teardown/startup
    - Dependencies: none
    - Validation: native build, chat tests
@@ -33,10 +33,10 @@
    - Validation: `ChatViewModelTests`
    - Linear update: yes
 
-4. Replace festival demo behavior with honest runtime state
-   - Why it matters: festival mode is a headline feature and must not masquerade as live when data is missing
+4. Replace event demo behavior with honest runtime state
+   - Why it matters: event mode is a headline feature and must not masquerade as live when data is missing
    - Root cause: view-local sample data and always-on assumptions
-   - Affected systems: `FestivalView`, `FestivalViewModel`, location/geofence startup
+   - Affected systems: `EventView`, `EventViewModel`, location/geofence startup
    - Fix strategy: drive from injected view model, show empty/error/sync state, keep tab visible but truthful
    - Dependencies: item 1
    - Validation: native build and source inspection
@@ -116,7 +116,7 @@ No dedicated performance changes were required for this batch. Performance remai
 
 - coordinator composition-root enforcement
 - profile/settings/sign-out truthfulness and persistence
-- festival runtime honesty
+- event runtime honesty
 - DM creation and chat regression tests
 - auth worker input hardening and safer defaults
 - README / verification-trust copy correction

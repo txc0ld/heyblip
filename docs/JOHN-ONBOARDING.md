@@ -79,7 +79,7 @@ Follow the execution lifecycle in AGENTS.md.
 ### Paste this into your LLM's first message:
 
 ```
-I am John, working on the Blip project (BLE mesh chat app for festivals).
+I am John, working on the Blip project (BLE mesh chat app for events).
 
 My role: Backend, data, infrastructure, SEO.
 
@@ -137,15 +137,15 @@ john/J4-websocket-relay
 - Stores NOTHING — zero-knowledge relay
 - Suggested: Cloudflare Workers with Durable Objects
 
-### J5 — Festival manifest
-- `Sources/ViewModels/FestivalViewModel.swift` — client fetch code exists
+### J5 — Event manifest
+- `Sources/ViewModels/EventViewModel.swift` — client fetch code exists
 - JSON format defined in spec Section 9.2
 - Needs Ed25519 manifest signing (key embedded in app binary)
 - Host on GitHub Pages or CDN
 
-### J8 — Festival manifest system
-- Build the organizer web form for submitting festivals
-- Output: signed JSON manifest with festival data, stage maps, schedules
+### J8 — Event manifest system
+- Build the organizer web form for submitting events
+- Output: signed JSON manifest with event data, stage maps, schedules
 
 ## 7. Build commands
 

@@ -2,7 +2,7 @@
 
 ## What Blip Is
 
-Blip/FezChat is a BLE-first festival communication app intended to provide nearby discovery, DMs, friend coordination, festival map/schedule workflows, SOS/medical escalation, and lightweight monetization when normal mobile infrastructure is unreliable.
+Blip/FezChat is a BLE-first event communication app intended to provide nearby discovery, DMs, friend coordination, event map/schedule workflows, SOS/medical escalation, and lightweight monetization when normal mobile infrastructure is unreliable.
 
 ## What Linear Indicated
 
@@ -19,7 +19,7 @@ The repo already had substantial protocol, crypto, mesh, and UI infrastructure. 
 
 ## What Was Wrong
 
-1. Chat, festival, and profile tabs could drift away from the shared runtime truth.
+1. Chat, event, and profile tabs could drift away from the shared runtime truth.
 2. Sign-out and settings persistence were incomplete.
 3. Verification/account-management surfaces could mislead users.
 4. Auth worker input handling allowed client-controlled privileged fields and dev bypass defaults.
@@ -29,7 +29,7 @@ The repo already had substantial protocol, crypto, mesh, and UI infrastructure. 
 
 1. `AppCoordinator` now acts as the real feature-composition root.
 2. Chat uses the shared runtime stack and DM creation is regression-tested.
-3. Festival, profile, and settings surfaces now prefer real persisted/runtime state and honest empty/error/unavailable behavior.
+3. Event, profile, and settings surfaces now prefer real persisted/runtime state and honest empty/error/unavailable behavior.
 4. Sign-out now clears identity and local persisted state.
 5. Auth worker registration/sync/receipt flows are hardened and dev bypass defaults are safer.
 6. README and user-facing verification copy are now materially more honest about current trust guarantees.

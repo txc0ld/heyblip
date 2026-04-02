@@ -9,11 +9,11 @@
 - `Sources/Services`
   - coordinator, messaging, transport glue, location, notifications, auth sync
 - `Sources/ViewModels`
-  - tab/domain logic for chat, festival, profile, SOS, mesh, store
+  - tab/domain logic for chat, event, profile, SOS, mesh, store
 - `Sources/Views`
   - SwiftUI tab surfaces and onboarding
 - `Sources/Models`
-  - SwiftData entities for users, friends, channels, messages, festivals, responders, packs
+  - SwiftData entities for users, friends, channels, messages, events, responders, packs
 
 ### Swift packages
 
@@ -46,14 +46,14 @@
 
 Before remediation, `ChatListView` could instantiate a private `MessageService` + `ChatViewModel`, bypassing the coordinator-wired transport stack.
 
-### Festival flow
+### Event flow
 
-- `FestivalView`
-- `FestivalViewModel`
+- `EventView`
+- `EventViewModel`
 - `LocationService`
-- `Festival`, `Stage`, `SetTime`, `CrowdPulse`
+- `Event`, `Stage`, `SetTime`, `CrowdPulse`
 
-Before remediation, the tab remained partly sample-data driven and could present festival UI as live even when no active festival state existed.
+Before remediation, the tab remained partly sample-data driven and could present event UI as live even when no active event state existed.
 
 ### Profile/settings/store flow
 
@@ -91,7 +91,7 @@ The app had a coordinator, but the tabs were not consistently treating it as the
 
 - chat state split across multiple services
 - profile/settings surfaces reading stale/default state
-- festival-mode UI presenting itself as live without real activation
+- event-mode UI presenting itself as live without real activation
 
 ### 2. Sample/demo drift in shipped UI
 
@@ -128,10 +128,10 @@ Weaknesses:
 
 | Zone | Why it matters |
 |---|---|
-| App composition | Single root cause for chat/profile/festival drift |
+| App composition | Single root cause for chat/profile/event drift |
 | MessageService trust semantics | Direct user trust and docs alignment issue |
 | Server auth worker | Privilege escalation / unsafe dev posture risk |
-| Festival activation | High-visibility feature can silently degrade into demo state |
+| Event activation | High-visibility feature can silently degrade into demo state |
 | Sign-out / reset path | Identity and local state persistence can drift or leak |
 
 ## Source-Level Observations

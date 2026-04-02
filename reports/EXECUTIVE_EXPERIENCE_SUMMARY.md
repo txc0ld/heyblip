@@ -7,7 +7,7 @@ The app already looked more polished than a typical prototype, but several secon
 ## What Was Wrong
 
 - The strongest location-sharing surface still drifted away from real runtime state.
-- Public and responder festival tools still overpromised capability.
+- Public and responder event tools still overpromised capability.
 - Purchase state risked splitting across sheets.
 - Some action surfaces remained visually broader than the reliable behavior behind them.
 
@@ -26,9 +26,9 @@ The refinement strategy favored truthfulness over cosmetic expansion. Instead of
 ## Remaining Weaknesses
 
 - Real-device validation is still the largest experience gap for location and mesh-dependent behavior.
-- Some festival utility workflows remain intentionally unavailable.
+- Some event utility workflows remain intentionally unavailable.
 - Simulator-backed XCTest remains unstable in this environment.
 
 ## Final Judgment
 
-Quality is materially higher than before, especially in trust-sensitive UX. The app feels more coherent and less misleading, but it is still not fully product-ready until location-sharing validation, responder workflows, and festival public-channel wiring are completed.
+Quality is materially higher than before, especially in trust-sensitive UX. The app feels more coherent and less misleading, but it is still not fully product-ready until location-sharing validation, responder workflows, and event public-channel wiring are completed.

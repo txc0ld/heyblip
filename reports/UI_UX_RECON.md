@@ -2,11 +2,11 @@
 
 ## Current Product Experience
 
-Blip is a mesh-first festival communication app. The primary user jobs exposed in the app are:
+Blip is a mesh-first event communication app. The primary user jobs exposed in the app are:
 
 - discover nearby people and friends
 - start and continue direct conversations
-- understand whether festival-specific features are available on the current device
+- understand whether event-specific features are available on the current device
 - manage identity, balance, and emergency actions without reading transport details
 
 The visual shell is already stronger than the underlying runtime truth in several places. The recurring experience problem was not lack of UI effort, but screens that looked finished while still relying on private state, sample content, or incomplete backend wiring.
@@ -19,9 +19,9 @@ The visual shell is already stronger than the underlying runtime truth in severa
 2. Friend location and beacon sharing
    - User expects location sharing and the friend finder map to represent actual shared coordinates or explain clearly why the map is empty.
    - Evidence: `Sources/Views/Tabs/NearbyTab/FriendFinderMapView.swift`, `Sources/ViewModels/FriendFinderViewModel.swift`, `Sources/ViewModels/LocationViewModel.swift`
-3. Festival companion workflows
+3. Event companion workflows
    - User expects lost-and-found and medical surfaces to be trustworthy, especially because they imply public coordination and safety response.
-   - Evidence: `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`, `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
+   - Evidence: `Sources/Views/Tabs/EventsTab/LostAndFoundView.swift`, `Sources/Views/Tabs/EventsTab/MedicalDashboard/MedicalDashboardView.swift`
 4. Monetization and message recovery
    - User expects message pack and paywall flows to use real StoreKit data, or to fail honestly when catalog and entitlements are unavailable.
    - Evidence: `Sources/Views/Tabs/ProfileTab/MessagePackStore.swift`, `Sources/Views/Shared/PaywallSheet.swift`, `Sources/ViewModels/StoreViewModel.swift`

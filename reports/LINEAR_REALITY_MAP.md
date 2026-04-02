@@ -10,16 +10,16 @@
 
 ## What Linear Says The Product Is
 
-Blip/FezChat is intended to be a BLE-first festival communication app with:
+Blip/FezChat is intended to be a BLE-first event communication app with:
 
 - mesh DMs and group messaging
 - nearby discovery and friend management
-- festival-mode map, schedule, announcements, and crowd pulse
+- event-mode map, schedule, announcements, and crowd pulse
 - medical/SOS responder workflows
 - message-pack monetization and verified-profile upsell
 - real-device resilience when towers are saturated or absent
 
-The strongest product signal is not "social chat app." It is "festival coordination app that must remain useful when infrastructure fails."
+The strongest product signal is not "social chat app." It is "event coordination app that must remain useful when infrastructure fails."
 
 ## Product Intent Model
 
@@ -27,7 +27,7 @@ The strongest product signal is not "social chat app." It is "festival coordinat
 
 1. Onboard, verify identity, and enter the app with a stable local profile.
 2. Discover nearby peers over BLE, add friends, and open a DM thread.
-3. Use festival mode for map/schedule/announcements once a manifest or geofence is available.
+3. Use event mode for map/schedule/announcements once a manifest or geofence is available.
 4. Trigger urgent SOS / medical responder flows with reliable packet delivery.
 5. Buy message packs or verified status without undermining user trust.
 
@@ -63,7 +63,7 @@ Linear comments also indicate a pattern of "top 12 fixed" / "PR ready" notes tha
 1. BLE discovery, advertising, and DM routing on physical devices
 2. session / identity / friend lifecycle correctness
 3. transport trust guarantees versus app and docs claims
-4. festival mode live-data activation instead of sample/demo state
+4. event mode live-data activation instead of sample/demo state
 5. StoreKit / verification surfaces that can mislead users
 
 ### Secondary but material areas
@@ -97,7 +97,7 @@ That clustering strongly suggests shared root causes in composition, transport i
 |---|---:|---|
 | BLE discovery + DM flow | 5 | Open tickets, real-device blocker, direct user-journey breakage |
 | Transport trust/security | 5 | Product/docs claim strong privacy while app wiring is incomplete |
-| Festival-mode activation | 4 | Feature breadth exists, but runtime truth vs sample state drifts |
+| Event-mode activation | 4 | Feature breadth exists, but runtime truth vs sample state drifts |
 | Profile/settings/store trust | 4 | Unsupported actions and fake commerce affordances damage trust |
 | Release safety / stacked branches | 4 | Linear comments reference PR chains and branch-local readiness |
 | Swift 6 readiness | 3 | Not an immediate outage, but warnings are systemic debt |
@@ -135,7 +135,7 @@ That clustering strongly suggests shared root causes in composition, transport i
 - Verify nearby discovery cards reflect live peer data.
 - Verify DM creation uses persisted users and real message transport.
 - Verify sign-out resets identity and local state rather than only toggling `AppStorage`.
-- Verify festival mode uses fetched/cached manifests and geofence state, not permanent sample data.
+- Verify event mode uses fetched/cached manifests and geofence state, not permanent sample data.
 - Verify verified-profile and account-management affordances are honest.
 - Verify backend auth endpoints do not accept client-controlled privilege escalation.
 - Verify README / docs match current implementation reality.

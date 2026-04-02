@@ -25,9 +25,9 @@ Some later remote streams disconnected before returning final outputs. Those are
 
 ### Product Reality Agent
 
-- Product promise centers on a trustworthy festival communication stack, not just a styled chat UI.
+- Product promise centers on a trustworthy event communication stack, not just a styled chat UI.
 - Highest drift was between "feature looks live" and "feature is actually wired."
-- Festival, verification, and account surfaces risked misleading users about readiness.
+- Event, verification, and account surfaces risked misleading users about readiness.
 
 ### Architecture & Systems Agent
 
@@ -39,12 +39,12 @@ Some later remote streams disconnected before returning final outputs. Those are
 
 - DM creation and active chat flow were vulnerable to context drift because persisted users and real transport wiring were not consistently used.
 - Sign-out/onboarding flow risked leaving stale runtime state behind.
-- Friend and festival flows depended on adjacent state truth that was not centrally managed.
+- Friend and event flows depended on adjacent state truth that was not centrally managed.
 
 ### Frontend UX Integrity Agent
 
 - Several polished surfaces contained placeholder/fallback behavior hidden behind production-like presentation.
-- Empty/loading/error states were weak or dishonest in festival and store/profile flows.
+- Empty/loading/error states were weak or dishonest in event and store/profile flows.
 - Swipe actions and settings/account actions exposed capabilities that were not actually wired.
 
 ### Backend & Data Integrity Agent

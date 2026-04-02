@@ -11,11 +11,11 @@
 
 ### 1.1 What is Blip?
 
-Blip is a Bluetooth mesh chat application designed for festivals and large gatherings where mobile reception is unreliable. Every user's device becomes a node in a self-forming mesh network, relaying messages between peers via Bluetooth Low Energy (BLE). WiFi and cellular act as automatic fallbacks when available.
+Blip is a Bluetooth mesh chat application designed for events and large gatherings where mobile reception is unreliable. Every user's device becomes a node in a self-forming mesh network, relaying messages between peers via Bluetooth Low Energy (BLE). WiFi and cellular act as automatic fallbacks when available.
 
 ### 1.2 Core value proposition
 
-"Chat at festivals, even without signal."
+"Chat at events, even without signal."
 
 - No accounts, no servers required for core messaging
 - Messages relay through other users' devices automatically
@@ -40,7 +40,7 @@ Message-based monetization with free tier:
 | Free | 10 (on signup) | $0.00 |
 | Starter | 10 | $0.99 |
 | Social | 25 | $1.99 |
-| Festival | 50 | $3.99 |
+| Event | 50 | $3.99 |
 | Squad | 100 | $5.99 |
 | Season Pass | 1000 | $29.99 |
 | Unlimited | Subscription (monthly/seasonal) | TBD |
@@ -108,7 +108,7 @@ A thin backend is required for four specific functions. Everything else is P2P.
 | Service | Purpose | Implementation |
 |---|---|---|
 | Phone verification | SMS OTP for identity confirmation | Twilio Verify API or Firebase Auth |
-| Festival manifest | JSON list of registered festivals, stages, schedules | Static JSON on GitHub Pages / CDN |
+| Event manifest | JSON list of registered events, stages, schedules | Static JSON on GitHub Pages / CDN |
 | StoreKit validation | Server-side receipt verification for IAP | Lightweight API (Cloudflare Workers / Vercel Edge) |
 | Push notifications | Wake app for internet-side messages when backgrounded | APNs via lightweight relay |
 
@@ -170,18 +170,18 @@ A thin backend is required for four specific functions. Everything else is P2P.
 | DM | 1-on-1 private messages | Noise XX E2E | Forever on device, 2hr mesh relay cache |
 | Group | Invite-only group chat | Sender Key E2E (see 4.5) | Forever on device, 30min mesh relay cache |
 | Location channel | Auto-joined by proximity/geohash | Signed but not encrypted (public) | 24hr on device, 5min mesh relay cache |
-| Stage channel | Festival-specific, auto-joined by geofence | Signed but not encrypted (public) | Duration of festival, 5min mesh relay cache |
-| Lost & Found | Per-festival public channel | Signed but not encrypted | Duration of festival |
-| Emergency | Medical/SOS channel | Encrypted to medical responders only | Festival + 24hr, then hard delete |
+| Stage channel | Event-specific, auto-joined by geofence | Signed but not encrypted (public) | Duration of event, 5min mesh relay cache |
+| Lost & Found | Per-event public channel | Signed but not encrypted | Duration of event |
+| Emergency | Medical/SOS channel | Encrypted to medical responders only | Event + 24hr, then hard delete |
 
 ### 4.2 Media types
 
 | Type | Format | Max size | Mesh transport | Crowd scaling |
 |---|---|---|---|---|
 | Text | UTF-8 | 4KB | Always | Always available |
-| Voice note | Opus codec | 30s (15s in Festival mode) | Gather + Festival | Mega+: internet only |
-| Image | JPEG/HEIF compressed | 500KB | Gather only | Festival+: internet only |
-| PTT audio | Opus 8-16kbps real-time | 30s session | Gather + Festival | Mega+: internet only |
+| Voice note | Opus codec | 30s (15s in Event mode) | Gather + Event | Mega+: internet only |
+| Image | JPEG/HEIF compressed | 500KB | Gather only | Event+: internet only |
+| PTT audio | Opus 8-16kbps real-time | 30s session | Gather + Event | Mega+: internet only |
 
 ### 4.3 Message delivery states
 
@@ -225,7 +225,7 @@ Groups use a **Sender Key** scheme to avoid per-member fan-out:
 | Crowd mode | Max group size | Rationale |
 |---|---|---|
 | Gather | 50 members | Plenty of bandwidth |
-| Festival | 30 members | Conserve relay capacity |
+| Event | 30 members | Conserve relay capacity |
 | Mega | 20 members | Text-only, keep traffic manageable |
 | Massive | 10 members | Minimal mesh overhead |
 
@@ -316,7 +316,7 @@ Every device operates as BOTH a BLE Central (scanner/client) and BLE Peripheral 
 | Group messages | 30 minutes |
 | Location/stage channels | 5 minutes |
 | Organizer announcements | 1 hour |
-| SOS alerts | Until resolved or festival ends |
+| SOS alerts | Until resolved or event ends |
 | Voice/images | Not cached on relay nodes (too large) |
 
 ### 5.7 Fragmentation
@@ -449,8 +449,8 @@ The multi-tier Bloom filter (Section 8.7) has ~0.3% aggregate false positive rat
 0x22  fileTransfer        Binary file payload
 0x23  pttAudio            Real-time push-to-talk chunk
 
--- Festival
-0x30  orgAnnouncement     Festival organizer broadcast
+-- Event
+0x30  orgAnnouncement     Event organizer broadcast
 0x31  channelUpdate       Location channel metadata
 
 -- Medical/SOS
@@ -572,7 +572,7 @@ The app auto-detects crowd density and adapts its entire operating profile.
 | Mode | Peer estimate | Mesh features | Media on mesh |
 |---|---|---|---|
 | Gather | < 500 | Full features, relaxed relay | All media types |
-| Festival | 500 - 5,000 | Moderate throttle | Text + compressed voice (8kbps, 15s max) |
+| Event | 500 - 5,000 | Moderate throttle | Text + compressed voice (8kbps, 15s max) |
 | Mega | 5,000 - 25,000 | Text-first, tight relay | Text only |
 | Massive | 25,000 - 100,000+ | Text-only, aggressive clustering | Text only, all media internet-only |
 
@@ -591,7 +591,7 @@ Priority 0 through 11, where 0 is highest:
 | 6 | Delivery/read receipts + location shares | Dropped first under load |
 | 7 | Location channel broadcasts | Local cluster only |
 | 8 | Sync/GCS reconciliation | Deferred under congestion |
-| 9 | Voice notes on mesh | Gather/Festival only |
+| 9 | Voice notes on mesh | Gather/Event only |
 | 10 | Images/files on mesh | Gather only |
 | 11 | Profile picture requests | Lowest, internet-preferred |
 
@@ -611,7 +611,7 @@ Capped at 1.0, floor at 0.05. SOS always 1.0 regardless.
 
 **Dynamic TTL per crowd mode:**
 
-| Type | Gather | Festival | Mega | Massive |
+| Type | Gather | Event | Mega | Massive |
 |---|---|---|---|---|
 | SOS | 7 | 7 | 7 | 7 |
 | DM | 7 | 5 | 4 | 3 |
@@ -675,23 +675,23 @@ SOS packets at any crowd scale:
 
 ---
 
-## 9. Festival System
+## 9. Event System
 
-### 9.1 Festival discovery
+### 9.1 Event discovery
 
 **Three modes (all coexist):**
 
-1. **Registered:** Organizers submit festival data via web form. Published to JSON manifest on CDN. App fetches daily.
-2. **Auto-discovery:** 20+ mesh peers in geohash-6 area (~1.2km) without registered festival -> auto-create ad-hoc location channel.
+1. **Registered:** Organizers submit event data via web form. Published to JSON manifest on CDN. App fetches daily.
+2. **Auto-discovery:** 20+ mesh peers in geohash-6 area (~1.2km) without registered event -> auto-create ad-hoc location channel.
 3. **Ad-hoc:** Any user creates a local channel. Visible to nearby mesh peers only.
 
-### 9.2 Festival data structure (JSON manifest)
+### 9.2 Event data structure (JSON manifest)
 
 ```json
 {
   "version": 12,
-  "signature": "<Ed25519 signature of festivals array by Blip manifest signing key>",
-  "festivals": [
+  "signature": "<Ed25519 signature of events array by Blip manifest signing key>",
+  "events": [
     {
       "id": "uuid",
       "name": "Glastonbury 2026",
@@ -700,7 +700,7 @@ SOS packets at any crowd scale:
       "startDate": "2026-06-24",
       "endDate": "2026-06-28",
       "stageMapUrl": "https://cdn.blip.app/maps/glasto-2026.jpg",
-      "organizerSigningKey": "<Ed25519 public key for this festival's organizer>",
+      "organizerSigningKey": "<Ed25519 public key for this event's organizer>",
       "stages": [
         {
           "id": "uuid",
@@ -718,16 +718,16 @@ SOS packets at any crowd scale:
 
 ### 9.3 Manifest and organizer authentication
 
-**Manifest integrity:** The festival JSON manifest is signed with the Blip manifest Ed25519 key. The corresponding public key is embedded in the app binary. The app verifies the signature before accepting any manifest update. A compromised CDN or DNS hijack cannot inject fake festivals.
+**Manifest integrity:** The event JSON manifest is signed with the Blip manifest Ed25519 key. The corresponding public key is embedded in the app binary. The app verifies the signature before accepting any manifest update. A compromised CDN or DNS hijack cannot inject fake events.
 
-**Organizer authentication:** Each registered festival includes an `organizerSigningKey` in the manifest. Organizer announcement packets (0x30) MUST be signed with this key. Peers verify the signature against the manifest-provided key before displaying or relaying the announcement. Unsigned or incorrectly signed announcements are silently dropped. This prevents attackers from flooding the mesh with fake priority broadcasts.
+**Organizer authentication:** Each registered event includes an `organizerSigningKey` in the manifest. Organizer announcement packets (0x30) MUST be signed with this key. Peers verify the signature against the manifest-provided key before displaying or relaying the announcement. Unsigned or incorrectly signed announcements are silently dropped. This prevents attackers from flooding the mesh with fake priority broadcasts.
 
 ### 9.4 Geofence behavior
 
 - GPS check on launch + every 15 minutes while active
-- Within 2km: prompt "Looks like you're at [Festival]! Join?"
-- One tap: Festival tab appears, stage channels auto-populate
-- Leave geofence: Festival tab greys out, channels remain accessible but marked "Out of range"
+- Within 2km: prompt "Looks like you're at [Event]! Join?"
+- One tap: Event tab appears, stage channels auto-populate
+- Leave geofence: Event tab greys out, channels remain accessible but marked "Out of range"
 - No persistent location tracking
 
 ### 9.5 Organizer capabilities
@@ -740,7 +740,7 @@ SOS packets at any crowd scale:
 - Aggregate stats only: approximate peer count, channel activity levels
 - NO access to user messages, DMs, group chats, or individual identity
 
-### 9.6 Festival tab structure
+### 9.6 Event tab structure
 
 - Stage map (interactive, with crowd pulse heatmap overlay, friend dots, meeting point pins)
 - Announcements feed
@@ -767,7 +767,7 @@ SOS packets at any crowd scale:
 
 - Tiered confirmation (above) prevents accidental taps
 - 10-second cancel window after send (alert silently withdrawn)
-- 2+ false alarms in one festival: simple drag-captcha added to amber/red
+- 2+ false alarms in one event: simple drag-captcha added to amber/red
 - No activation from lock screen or background
 - Proximity sensor check: phone face-down/in-pocket blocks activation with "Pick up your phone to confirm"
 - "Report for friend" requires typed description (3-word minimum)
@@ -799,7 +799,7 @@ SOS packets at any crowd scale:
 ### 10.4 Medical responder dashboard
 
 Unlocked via organizer-issued rotating access code. Shows:
-- Live map with SOS pins (MapKit overlay on festival grounds)
+- Live map with SOS pins (MapKit overlay on event grounds)
 - Active alerts sorted by severity then recency
 - Per-alert: Accept, Navigate (walking directions), Resolve
 - Response stats: resolved count, average response time
@@ -825,7 +825,7 @@ No precise location shared with general peers. Opt-out available in settings.
 - Phone number never shared with medical team
 - Precise GPS auto-deletes from responder devices after 24 hours
 - Medical dashboard accessible only with organizer-issued rotating codes
-- No persistent health data — alert history purged after festival + 24 hours
+- No persistent health data — alert history purged after event + 24 hours
 
 ---
 
@@ -841,7 +841,7 @@ No precise location shared with general peers. Opt-out available in settings.
 
 ### 11.2 Friend finder (GPS)
 
-**Map view** in Nearby tab showing friend locations on festival map.
+**Map view** in Nearby tab showing friend locations on event map.
 
 **Privacy controls (per-friend):**
 
@@ -952,7 +952,7 @@ Theme follows system preference with manual override in settings.
 
 ### 13.1 Onboarding (3 screens)
 
-1. **Welcome:** "Chat at festivals, even without signal" + animated gradient hero
+1. **Welcome:** "Chat at events, even without signal" + animated gradient hero
 2. **Create profile:** Username, phone (SMS OTP), optional avatar. Single screen.
 3. **Permissions:** "Blip needs Bluetooth to connect with people nearby." One tap.
 
@@ -964,7 +964,7 @@ No mention of mesh, nodes, protocols, encryption, or transport. Ever.
 |---|---|
 | Chats | DMs + group chats, sorted by recent, unread badges |
 | Nearby | Location channels, nearby friends, mesh peer indicator ("X people nearby"), friend finder map |
-| Festival | Stage map + heatmap + friend dots + meeting pins, announcements, schedule, lost & found, stage channels (appears only when at/joined a festival) |
+| Event | Stage map + heatmap + friend dots + meeting pins, announcements, schedule, lost & found, stage channels (appears only when at/joined a event) |
 | Profile | Username, avatar, friends list, message pack balance, settings, SOS history |
 
 ### 13.3 Invisible complexity
@@ -979,7 +979,7 @@ All technical details hidden from user:
 | Checkmarks | Encrypted ACK over mesh gossip |
 | PTT button | Audio streaming via BLE |
 | "No connection" banner | No peers, no internet — queued |
-| Festival in Discover | GPS matched organizer manifest |
+| Event in Discover | GPS matched organizer manifest |
 | "3 friends nearby" | BLE discovery matched friend keys |
 | "Huge crowd - text mode" | Massive mode activated by peer density |
 
@@ -1019,7 +1019,7 @@ All technical details hidden from user:
 - Peers tally block votes via a local counter per user ID
 - If a user accumulates block votes from 10+ distinct peers within a cluster: relay nodes in that cluster deprioritize (but do not drop) that user's non-SOS packets
 - At 25+ block votes: relay nodes drop that user's broadcast/channel packets (DMs still relayed to preserve 1-on-1 communication)
-- Block votes reset per festival (no permanent reputation score)
+- Block votes reset per event (no permanent reputation score)
 - SOS packets are NEVER affected by block votes — safety overrides moderation
 
 **Privacy nutrition labels:** Accurate App Store privacy disclosure. Data collected: phone number (verification only), approximate location (when in use), usage data (message counts for billing). Data NOT collected: message content, contacts, browsing history, precise location (except during SOS).
@@ -1103,7 +1103,7 @@ id: UUID
 type: enum (dm, group, locationChannel, stageChannel, lostAndFound, emergency)
 name: String?
 memberships: [GroupMembership]
-festival: Festival?
+event: Event?
 geohash: String?
 pinnedMessages: [Message]
 muteStatus: enum (unmuted, mutedTimed, mutedForever)
@@ -1125,7 +1125,7 @@ mutedUntil: Date?
 joinedAt: Date
 ```
 
-**Festival**
+**Event**
 ```
 id: UUID
 name: String
@@ -1144,7 +1144,7 @@ manifestVersion: Int
 ```
 id: UUID
 name: String
-festival: Festival
+event: Event
 coordinates: GeoPoint
 channel: Channel
 schedule: [SetTime]
@@ -1164,7 +1164,7 @@ reminderSet: Bool
 **MessagePack**
 ```
 id: UUID
-packType: enum (starter10, social25, festival50, squad100, season1000, unlimited)
+packType: enum (starter10, social25, event50, squad100, season1000, unlimited)
 messagesRemaining: Int
 purchaseDate: Date
 transactionID: String
@@ -1210,7 +1210,7 @@ acceptedBy: MedicalResponder?
 acceptedAt: Date?
 resolvedAt: Date?
 resolution: enum (treatedOnSite, transported, falseAlarm, cancelled)?
-falseAlarmCount: Int (per festival, for throttling)
+falseAlarmCount: Int (per event, for throttling)
 createdAt: Date
 expiresAt: Date
 ```
@@ -1219,7 +1219,7 @@ expiresAt: Date
 ```
 id: UUID
 user: User
-festival: Festival
+event: Event
 accessCodeHash: String
 callsign: String
 isOnDuty: Bool
@@ -1310,7 +1310,7 @@ pttMode: enum (holdToTalk, toggleTalk)
 autoJoinNearbyChannels: Bool
 crowdPulseVisible: Bool
 friendFinderMapStyle: enum (satellite, standard, hybrid)
-lastFestivalID: UUID?
+lastEventID: UUID?
 ```
 
 ### 14.2 Indexed fields
@@ -1387,8 +1387,8 @@ Blip/
 |   |   |   |   |-- LocationChannelList.swift
 |   |   |   |   |-- FriendFinderMap.swift
 |   |   |   |   +-- MeshParticleView.swift
-|   |   |   |-- FestivalTab/
-|   |   |   |   |-- FestivalView.swift
+|   |   |   |-- EventsTab/
+|   |   |   |   |-- EventView.swift
 |   |   |   |   |-- StageMapView.swift
 |   |   |   |   |-- CrowdPulseOverlay.swift
 |   |   |   |   |-- MeetingPointSheet.swift
@@ -1429,7 +1429,7 @@ Blip/
 |   |-- ViewModels/
 |   |   |-- ChatViewModel.swift
 |   |   |-- MeshViewModel.swift
-|   |   |-- FestivalViewModel.swift
+|   |   |-- EventViewModel.swift
 |   |   |-- ProfileViewModel.swift
 |   |   |-- SOSViewModel.swift
 |   |   |-- StoreViewModel.swift
@@ -1577,6 +1577,6 @@ The binary protocol specification (Section 6) is the single source of truth for 
 - Music integration (Spotify/Apple Music)
 - Gamification/badges
 - Multi-language localization (beyond English)
-- Widget / Live Activity for active festival
+- Widget / Live Activity for active event
 - Apple Watch companion (mesh relay + SOS)
-- Festival organizer web dashboard (React)
+- Event organizer web dashboard (React)

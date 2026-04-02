@@ -26,11 +26,11 @@
 - Subsystem: app architecture / frontend / runtime composition
 - Severity: High
 - Likelihood: High
-- Blast radius: Chats, festival, profile, settings, sign-out, onboarding transitions
+- Blast radius: Chats, event, profile, settings, sign-out, onboarding transitions
 - Evidence:
   - `BlipApp` owned `AppCoordinator`, but `MainTabView` and downstream tabs were not consistently consuming coordinator-owned view models/services.
   - `ChatListView` could construct its own `MessageService` and `ChatViewModel`.
-  - festival/profile surfaces had parallel local state and fallbacks.
+  - event/profile surfaces had parallel local state and fallbacks.
 - Impact:
   - live transport wiring could be bypassed
   - tab state diverged from actual app runtime state
@@ -40,14 +40,14 @@
 - Validation method: native build, chat view-model tests, code-path inspection
 - Dependency notes: prerequisite for stabilizing most user-visible flows
 
-### F2. Festival/profile/settings surfaces presented unsupported behavior as live
+### F2. Event/profile/settings surfaces presented unsupported behavior as live
 
 - Subsystem: UX integrity / product alignment
 - Severity: High
 - Likelihood: High
-- Blast radius: Festival tab, verified-profile purchase, account actions, settings persistence
+- Blast radius: Event tab, verified-profile purchase, account actions, settings persistence
 - Evidence:
-  - festival tab previously fell back to sample/runtime-static state
+  - event tab previously fell back to sample/runtime-static state
   - verified-profile purchase previously mutated local state without real StoreKit/server verification
   - export/delete/recovery actions were placeholder affordances
   - settings mixed `AppStorage` and SwiftData truth sources
@@ -56,7 +56,7 @@
   - incorrect expectations around safety/privacy/account recovery
   - inconsistent app state across restarts
 - Suspected root cause: polished UI shells shipped ahead of real backend/runtime integration
-- Recommended fix direction: persist one preference source of truth, make unsupported actions visibly unavailable, and only present live festival state when it exists
+- Recommended fix direction: persist one preference source of truth, make unsupported actions visibly unavailable, and only present live event state when it exists
 - Validation method: native build, manual source inspection of runtime paths
 - Dependency notes: coupled to F1 because injected view models are needed for real state
 
@@ -132,7 +132,7 @@
 - Nearby-to-DM end-to-end reliability
 - real-device BLE validation
 - verified commerce/trust surfaces
-- final festival-mode activation behavior
+- final event-mode activation behavior
 
 ### Implemented in code, underrepresented in Linear confidence
 

@@ -18,12 +18,12 @@
 - Reliability issue: live peer pins needed stable identity so map selection and updates did not churn.
 - Evidence: `Sources/Views/Tabs/NearbyTab/FriendFinderMapView.swift`, `Sources/ViewModels/FriendFinderViewModel.swift`
 
-### Festival Utility Surfaces
+### Event Utility Surfaces
 
 - Lost & Found issue: screen presented itself like a live public board while only appending local state.
 - Medical issue: a client-only unlock path exposed fake responder capability and sample incidents in a safety-critical surface.
 - Trust impact: high.
-- Evidence: `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`, `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
+- Evidence: `Sources/Views/Tabs/EventsTab/LostAndFoundView.swift`, `Sources/Views/Tabs/EventsTab/MedicalDashboard/MedicalDashboardView.swift`
 
 ### Store / Paywall
 

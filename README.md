@@ -10,11 +10,11 @@
 </h1>
 
 <p align="center">
-  <strong>Chat at festivals, even without signal.</strong>
+  <strong>Chat at events, even without signal.</strong>
 </p>
 
 <p align="center">
-  A Bluetooth mesh chat app that turns every phone at a festival into a communication node.<br>
+  A Bluetooth mesh chat app that turns every phone at a event into a communication node.<br>
   No towers. No WiFi. No problem.
 </p>
 
@@ -22,7 +22,7 @@
 
 ## The Problem
 
-At large festivals (10,000 - 100,000+ attendees), mobile networks collapse. Towers get overwhelmed, texts fail, and finding your friends becomes a shouting match in a crowd of strangers. Emergency services can't reach you. You're disconnected at the one place you came to connect.
+At large events (10,000 - 100,000+ attendees), mobile networks collapse. Towers get overwhelmed, texts fail, and finding your friends becomes a shouting match in a crowd of strangers. Emergency services can't reach you. You're disconnected at the one place you came to connect.
 
 ## The Solution
 
@@ -38,7 +38,7 @@ When signal is available, Blip seamlessly falls back to WiFi and cellular. But t
 - **1-on-1 DMs** — Private chats over BLE mesh with signed packets; pairwise Noise encryption is still being wired end-to-end
 - **Group chats** — Invite-only group threads with signed transport; sender-key encryption remains in progress
 - **Location channels** — Auto-joined public channels based on where you are
-- **Stage channels** — Festival-specific channels per stage, auto-populated
+- **Stage channels** — Event-specific channels per stage, auto-populated
 
 ### Walkie-Talkie
 - **Push-to-talk** — Hold to talk, release to send, just like a radio
@@ -46,17 +46,17 @@ When signal is available, Blip seamlessly falls back to WiFi and cellular. But t
 - **Graceful degradation** — Real-time on mesh, voice note on internet, queued offline
 
 ### Find Your Friends
-- **GPS friend finder** — See friends on the festival map (privacy controls per friend)
+- **GPS friend finder** — See friends on the event map (privacy controls per friend)
 - **Proximity alerts** — "Jake is nearby!" when a friend enters Bluetooth range
 - **"I'm here" beacons** — Drop a pin and share your location with your group
 - **Meeting points** — Set a pin on the map with a label and expiry time
 
-### Festival Integration
+### Event Integration
 - **Stage map** — Interactive map with crowd density heatmap
 - **Schedule** — Lineup with set time alerts ("Bicep starts in 15 min!")
-- **Announcements** — Priority broadcasts from festival organizers
-- **Lost & Found** — Dedicated channel per festival
-- **Auto-discovery** — App detects which festival you're at via GPS
+- **Announcements** — Priority broadcasts from event organizers
+- **Lost & Found** — Dedicated channel per event
+- **Auto-discovery** — App detects which event you're at via GPS
 
 ### Medical SOS
 - **One-tap emergency** — 3 severity tiers (Green / Amber / Red)
@@ -183,7 +183,7 @@ Blip/
 │       └── Tabs/
 │           ├── ChatsTab/         # Chat list, message thread, voice notes
 │           ├── NearbyTab/        # Peer cards, channels, friend finder map
-│           ├── FestivalTab/      # Stage map, schedule, announcements, medical
+│           ├── EventsTab/      # Stage map, schedule, announcements, medical
 │           └── ProfileTab/       # Profile, friends, settings, message packs
 ├── Packages/
 │   ├── BlipProtocol/        # Binary wire format + tests
@@ -223,7 +223,7 @@ Full specification: [`docs/PROTOCOL.md`](docs/PROTOCOL.md)
 | Mode | Peers | Mesh Features | Media |
 |---|---|---|---|
 | **Gather** | < 500 | Full features | All media types |
-| **Festival** | 500 - 5K | Moderate throttle | Text + compressed voice |
+| **Event** | 500 - 5K | Moderate throttle | Text + compressed voice |
 | **Mega** | 5K - 25K | Text-first | Text only on mesh |
 | **Massive** | 25K - 100K+ | Aggressive clustering | Text only, media via internet |
 
@@ -238,7 +238,7 @@ SOS alerts are **never throttled** at any scale. TTL 7, 100% relay, queue-jumpin
 | Free | 10 | $0.00 |
 | Starter | 10 | $0.99 |
 | Social | 25 | $1.99 |
-| Festival | 50 | $3.99 |
+| Event | 50 | $3.99 |
 | Squad | 100 | $5.99 |
 | Season Pass | 1,000 | $29.99 |
 | Unlimited | Subscription | TBD |
@@ -310,5 +310,5 @@ Blip is currently in private development. If you're interested in contributing t
 ---
 
 <p align="center">
-  <strong>Built for festivals. Powered by the crowd.</strong>
+  <strong>Built for events. Powered by the crowd.</strong>
 </p>

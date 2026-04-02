@@ -32,7 +32,7 @@ Blip implements defense-in-depth encryption for all communications:
 ### Mesh Security
 - **Packet Signing**: Ed25519 signatures on all broadcast packets
 - **Traffic Analysis Resistance**: PKCS#7 padding to fixed block sizes (256/512/1024/2048)
-- **Organizer Authentication**: Ed25519 key in signed festival manifest
+- **Organizer Authentication**: Ed25519 key in signed event manifest
 - **Reputation System**: Decentralized block-vote mechanism for abuse prevention
 
 ### What We Don't Do

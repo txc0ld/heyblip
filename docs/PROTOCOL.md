@@ -93,11 +93,11 @@ All type values are single-byte identifiers stored in the header Type field.
 | `0x22` | fileTransfer    | Binary file payload (e.g., avatar thumbnails).               |
 | `0x23` | pttAudio        | Real-time push-to-talk audio chunk (Opus).                   |
 
-### 4.4 Festival
+### 4.4 Event
 
 | Hex    | Name              | Description                                                |
 |--------|-------------------|------------------------------------------------------------|
-| `0x30` | orgAnnouncement   | Festival organizer broadcast (must be signed with organizer key). |
+| `0x30` | orgAnnouncement   | Event organizer broadcast (must be signed with organizer key). |
 | `0x31` | channelUpdate     | Location channel metadata update.                          |
 
 ### 4.5 Medical / SOS
@@ -439,7 +439,7 @@ Avatar thumbnail (~2-4 KB) is sent separately via `fileTransfer` (`0x22`) after 
 | 6        | Receipts + location shares| Dropped first under load               |
 | 7        | Location channel broadcasts| Local cluster only                    |
 | 8        | Sync/GCS reconciliation   | Deferred under congestion              |
-| 9        | Voice notes on mesh       | Gather/Festival modes only             |
+| 9        | Voice notes on mesh       | Gather/Event modes only             |
 | 10       | Images/files on mesh      | Gather mode only                       |
 | 11       | Profile picture requests  | Lowest, internet-preferred             |
 
@@ -461,7 +461,7 @@ Rate limits: 20 packets/s inbound per peer, 15 packets/s outbound. Burst: 2x for
 | Mode    | Peer Estimate  | TTL (DM) | TTL (Group) | TTL (Broadcast) | TTL (SOS) |
 |---------|----------------|----------|-------------|-----------------|-----------|
 | Gather  | < 500          | 7        | 5           | 5               | 7         |
-| Festival| 500-5,000      | 5        | 4           | 3               | 7         |
+| Event| 500-5,000      | 5        | 4           | 3               | 7         |
 | Mega    | 5,000-25,000   | 4        | 3           | 2               | 7         |
 | Massive | 25,000-100,000+| 3        | 2           | suppressed      | 7         |
 

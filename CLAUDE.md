@@ -2,7 +2,7 @@
 
 ## Project Identity
 
-Blip is a Bluetooth mesh chat app for festivals. iOS-first, SwiftUI, MVVM. The app lets users chat at festivals via BLE mesh when mobile reception is unavailable.
+Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events via BLE mesh when mobile reception is unavailable.
 
 **Design spec:** `docs/superpowers/specs/2026-03-28-blip-design.md` — read this before any implementation work. It is the single source of truth.
 
@@ -80,7 +80,7 @@ Three SPM packages under `Packages/`:
 ### App Source
 
 App source is under `Sources/` with MVVM layout:
-- `Sources/Views/` — SwiftUI views organized by tab (ChatsTab, NearbyTab, FestivalTab, ProfileTab)
+- `Sources/Views/` — SwiftUI views organized by tab (ChatsTab, NearbyTab, EventsTab, ProfileTab)
 - `Sources/ViewModels/` — ObservableObject view models
 - `Sources/Models/` — SwiftData model definitions
 - `Sources/Services/` — Business logic services (messaging, audio, location, notifications)

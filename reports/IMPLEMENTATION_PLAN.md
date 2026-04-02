@@ -28,7 +28,7 @@
 
 ## Deferred
 
-- Real festival public-channel posting
+- Real event public-channel posting
 - Responder authentication and live medical dashboard
 - Real-device location + mesh UX validation
 - Broad Swift 6 warning cleanup

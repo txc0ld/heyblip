@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a production-grade iOS BLE mesh chat app for festivals with E2E encryption, 4 crowd-scale modes, medical SOS, friend finder, and glassmorphism UI.
+**Goal:** Build a production-grade iOS BLE mesh chat app for events with E2E encryption, 4 crowd-scale modes, medical SOS, friend finder, and glassmorphism UI.
 
 **Architecture:** Pure Swift, 3 SPM packages (Protocol, Mesh, Crypto) + SwiftUI MVVM app. BLE mesh primary transport, WebSocket fallback. SwiftData persistence. StoreKit 2 monetization.
 
@@ -521,7 +521,7 @@ git commit -m "feat(mesh): add gossip router, store-forward cache, adaptive rela
 
 - [ ] **Step 1: Implement `CrowdScaleManager.swift`**
 
-4 modes: Gather (<500), Festival (500-5K), Mega (5K-25K), Massive (25K-100K+). Detection via unique peer count (direct + announced neighbors, EMA smoothed, 60s hysteresis). Publishes current mode via Combine.
+4 modes: Gather (<500), Event (500-5K), Mega (5K-25K), Massive (25K-100K+). Detection via unique peer count (direct + announced neighbors, EMA smoothed, 60s hysteresis). Publishes current mode via Combine.
 
 - [ ] **Step 2: Implement `ClusterManager.swift`**
 
@@ -537,7 +537,7 @@ RSSI-based proximity grouping. Target: 20-60 peers per cluster. Bridge node dete
 
 - [ ] **Step 5: Implement `ReputationManager.swift`**
 
-Block vote tallying per cluster. 10 votes → deprioritize. 25 votes → drop broadcasts. Reset per festival. SOS exempt.
+Block vote tallying per cluster. 10 votes → deprioritize. 25 votes → drop broadcasts. Reset per event. SOS exempt.
 
 - [ ] **Step 6: Run tests, commit**
 
@@ -596,10 +596,10 @@ SwiftData `@Model` classes matching spec Section 14.1 exactly. All relationships
 git commit -m "feat(models): add core SwiftData models — User, Friend, Message, Channel, etc"
 ```
 
-### Task 5.2: Festival & Medical Models
+### Task 5.2: Event & Medical Models
 
 **Files:**
-- Create: `Sources/Models/Festival.swift`
+- Create: `Sources/Models/Event.swift`
 - Create: `Sources/Models/Stage.swift`
 - Create: `Sources/Models/SetTime.swift`
 - Create: `Sources/Models/MeetingPoint.swift`
@@ -613,14 +613,14 @@ git commit -m "feat(models): add core SwiftData models — User, Friend, Message
 - Create: `Sources/Models/GroupSenderKey.swift`
 - Create: `Sources/Models/NoiseSessionModel.swift`
 
-- [ ] **Step 1: Implement all festival, medical, and support models**
+- [ ] **Step 1: Implement all event, medical, and support models**
 
-All remaining SwiftData models from spec Section 14.1. Festival with `organizerSigningKey`. SOSAlert with `description` field. MessagePack with pack types. UserPreferences with all settings. GroupSenderKey with key material, counter, epoch.
+All remaining SwiftData models from spec Section 14.1. Event with `organizerSigningKey`. SOSAlert with `description` field. MessagePack with pack types. UserPreferences with all settings. GroupSenderKey with key material, counter, epoch.
 
 - [ ] **Step 2: Commit**
 
 ```bash
-git commit -m "feat(models): add festival, medical, location, preferences, and crypto models"
+git commit -m "feat(models): add event, medical, location, preferences, and crypto models"
 ```
 
 ---
@@ -658,7 +658,7 @@ git commit -m "feat(services): add message service and retry queue"
 
 - [ ] **Step 1: Implement `LocationService.swift`**
 
-`CLLocationManager` wrapper. GPS for SOS (precise), friend sharing (configurable precision), geofence for festival detection. Geohash computation. 15-minute periodic checks.
+`CLLocationManager` wrapper. GPS for SOS (precise), friend sharing (configurable precision), geofence for event detection. Geohash computation. 15-minute periodic checks.
 
 - [ ] **Step 2: Implement `AudioService.swift`**
 
@@ -695,7 +695,7 @@ git commit -m "feat(services): add location, audio, image, notification, phone v
 - Create: `Sources/ViewModels/StoreViewModel.swift`
 - Create: `Sources/ViewModels/LocationViewModel.swift`
 - Create: `Sources/ViewModels/PTTViewModel.swift`
-- Create: `Sources/ViewModels/FestivalViewModel.swift`
+- Create: `Sources/ViewModels/EventViewModel.swift`
 - Create: `Sources/ViewModels/SOSViewModel.swift`
 
 - [ ] **Step 1: Implement `ChatViewModel.swift`**
@@ -722,9 +722,9 @@ Friend finder map state. Location sharing toggle per friend. "I'm here" beacon. 
 
 Push-to-talk state machine: idle → recording → sending. Audio capture → Opus encode → stream packets. Playback of received PTT.
 
-- [ ] **Step 7: Implement `FestivalViewModel.swift`**
+- [ ] **Step 7: Implement `EventViewModel.swift`**
 
-Festival discovery, manifest fetch, geofence. Stage map state, schedule, set time alerts. Crowd pulse aggregation.
+Event discovery, manifest fetch, geofence. Stage map state, schedule, set time alerts. Crowd pulse aggregation.
 
 - [ ] **Step 8: Implement `SOSViewModel.swift`**
 
@@ -733,7 +733,7 @@ SOS flow: severity selection → confirmation → GPS acquisition → broadcast.
 - [ ] **Step 9: Commit**
 
 ```bash
-git commit -m "feat(viewmodels): add all view models — chat, mesh, profile, store, location, PTT, festival, SOS"
+git commit -m "feat(viewmodels): add all view models — chat, mesh, profile, store, location, PTT, event, SOS"
 ```
 
 ---
@@ -759,7 +759,7 @@ SwiftData model container with all models. Environment injection: theme, view mo
 
 - [ ] **Step 3: Implement `MainTabView.swift`**
 
-Custom floating glass tab bar. 4 tabs: Chats, Nearby, Festival (conditional), Profile. Accent glow on active tab. Cross-fade transitions. SOSButton overlay in top-right.
+Custom floating glass tab bar. 4 tabs: Chats, Nearby, Event (conditional), Profile. Accent glow on active tab. Cross-fade transitions. SOSButton overlay in top-right.
 
 - [ ] **Step 4: Implement `ConnectionBanner.swift`**
 
@@ -794,7 +794,7 @@ Animated logo reveal with accent purple gradient. Fades to onboarding or main vi
 
 - [ ] **Step 3: Implement `WelcomeStep.swift`**
 
-"Chat at festivals, even without signal." Animated gradient hero. Continue button.
+"Chat at events, even without signal." Animated gradient hero. Continue button.
 
 - [ ] **Step 4: Implement `CreateProfileStep.swift`**
 
@@ -891,7 +891,7 @@ git commit -m "feat(ui): add chat view — message bubbles, input, typing indica
 
 ---
 
-## Phase 10: UI — Nearby & Festival Tabs
+## Phase 10: UI — Nearby & Event Tabs
 
 ### Task 10.1: Nearby Tab
 
@@ -928,21 +928,21 @@ Combines: "X people nearby" header, mesh particle background, friends section, l
 git commit -m "feat(ui): add nearby tab — mesh particles, peer cards, location channels, friend finder map"
 ```
 
-### Task 10.2: Festival Tab
+### Task 10.2: Event Tab
 
 **Files:**
-- Create: `Sources/Views/Tabs/FestivalTab/FestivalView.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/StageMapView.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/CrowdPulseOverlay.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/MeetingPointSheet.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/ScheduleView.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/SetTimeCell.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/AnnouncementFeed.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/LostAndFoundView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/EventView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/StageMapView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/CrowdPulseOverlay.swift`
+- Create: `Sources/Views/Tabs/EventsTab/MeetingPointSheet.swift`
+- Create: `Sources/Views/Tabs/EventsTab/ScheduleView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/SetTimeCell.swift`
+- Create: `Sources/Views/Tabs/EventsTab/AnnouncementFeed.swift`
+- Create: `Sources/Views/Tabs/EventsTab/LostAndFoundView.swift`
 
 - [ ] **Step 1: Implement `StageMapView.swift`**
 
-Interactive MapKit view with festival bounds. Stage hotspots (tappable → stage channel). Friend dots overlay. Meeting point pins. Pre-cached tiles for offline.
+Interactive MapKit view with event bounds. Stage hotspots (tappable → stage channel). Friend dots overlay. Meeting point pins. Pre-cached tiles for offline.
 
 - [ ] **Step 2: Implement `CrowdPulseOverlay.swift`**
 
@@ -962,16 +962,16 @@ Priority announcements from organizers. Glass cards with severity color coding. 
 
 - [ ] **Step 6: Implement `LostAndFoundView.swift`**
 
-Simple chat view for the lost & found channel. Pinned in festival tab.
+Simple chat view for the lost & found channel. Pinned in event tab.
 
-- [ ] **Step 7: Implement `FestivalView.swift`**
+- [ ] **Step 7: Implement `EventView.swift`**
 
-Combines all above. Conditionally shown when at/joined a festival. Greyed out when out of geofence range.
+Combines all above. Conditionally shown when at/joined a event. Greyed out when out of geofence range.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git commit -m "feat(ui): add festival tab — stage map, crowd pulse, schedule, announcements, lost & found"
+git commit -m "feat(ui): add event tab — stage map, crowd pulse, schedule, announcements, lost & found"
 ```
 
 ---
@@ -1031,10 +1031,10 @@ git commit -m "feat(ui): add profile tab — edit, avatar crop, friends list, me
 
 **Files:**
 - Create: `Sources/Views/Shared/SOSConfirmationSheet.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/MedicalDashboard/MedicalDashboardView.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/MedicalDashboard/AlertCard.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/MedicalDashboard/ResponderMapView.swift`
-- Create: `Sources/Views/Tabs/FestivalTab/MedicalDashboard/AlertDetailSheet.swift`
+- Create: `Sources/Views/Tabs/EventsTab/MedicalDashboard/MedicalDashboardView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/MedicalDashboard/AlertCard.swift`
+- Create: `Sources/Views/Tabs/EventsTab/MedicalDashboard/ResponderMapView.swift`
+- Create: `Sources/Views/Tabs/EventsTab/MedicalDashboard/AlertDetailSheet.swift`
 
 - [ ] **Step 1: Implement `SOSConfirmationSheet.swift`**
 
@@ -1107,7 +1107,7 @@ Cross-platform binary protocol specification extracted from design spec Section 
 
 - [ ] **Step 2: Create `WHITEPAPER.md`**
 
-Blip whitepaper: problem statement, solution architecture, mesh networking approach, scalability, security model, festival integration. Public-facing document.
+Blip whitepaper: problem statement, solution architecture, mesh networking approach, scalability, security model, event integration. Public-facing document.
 
 - [ ] **Step 3: Commit**
 
@@ -1173,7 +1173,7 @@ git commit -m "test: add integration tests for protocol, crypto, mesh, and view 
 | 7 | ViewModels | Phase 5, 6 | ~8 |
 | 8 | UI: Navigation + Onboarding | Phase 1, 7 | ~10 |
 | 9 | UI: Chat System | Phase 1, 7 | ~10 |
-| 10 | UI: Nearby + Festival | Phase 1, 7 | ~15 |
+| 10 | UI: Nearby + Event | Phase 1, 7 | ~15 |
 | 11 | UI: Profile + Settings | Phase 1, 7 | ~8 |
 | 12 | UI: Medical/SOS | Phase 1, 7 | ~5 |
 | 13 | Animations + Polish | Phase 8-12 | ~3 |

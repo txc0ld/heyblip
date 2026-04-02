@@ -46,7 +46,7 @@ These failures were not introduced by this branch; they were visible during base
 
 ## Manual Validation Notes
 
-- code inspection confirmed the coordinator is now the composition root for chat, festival, and profile flows
+- code inspection confirmed the coordinator is now the composition root for chat, event, and profile flows
 - code inspection confirmed sign-out now clears identity and local persisted state
 - code inspection confirmed unsupported verification/account actions no longer pretend to complete real work
 - README now reflects the actual transport-trust posture instead of overstating confidentiality

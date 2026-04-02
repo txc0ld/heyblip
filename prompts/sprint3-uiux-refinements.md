@@ -142,10 +142,10 @@ In EditProfileView.swift:
 ```
 Network
 ├─ Transport Mode (segmented picker)
-│   ├─ "BLE Only" — mesh only, zero internet (festival mode)
+│   ├─ "BLE Only" — mesh only, zero internet (event mode)
 │   ├─ "BLE + WiFi" — mesh + WiFi relay
 │   └─ "All Radios" — BLE + WiFi + Cellular (default)
-├─ Toggle: "Auto Festival Mode" — auto-switch to BLE Only in festival geofence
+├─ Toggle: "Auto Event Mode" — auto-switch to BLE Only in event geofence
 └─ Caption: "BLE Only saves battery and works offline. Messages route through nearby devices."
 ```
 
@@ -293,7 +293,7 @@ Apply to:
 - **ProfileView**: avatar → name → bio → SOS button → quick actions grid (5 elements, 250ms total)
 - **ChatListView**: search bar → first cell → second cell → ... (cells stagger in)
 - **NearbyView**: mesh status bar → peer cards stagger in
-- **FestivalView**: header → stage map → schedule section → announcements
+- **EventView**: header → stage map → schedule section → announcements
 - **MainTabView**: tab bar slides up on first launch
 
 Check `UIAccessibility.isReduceMotionEnabled` — if true, show everything immediately with a simple 0.2s opacity fade, no translation.
@@ -320,7 +320,7 @@ Apply to:
 - Settings sections (each group reveals as scrolled to)
 - Chat messages (already have spring slide-in — verify it works)
 - Nearby peer cards
-- Festival tab sections
+- Event tab sections
 - Friend Finder bottom sheet friend list
 - MessagePackStore pack cards
 
@@ -368,8 +368,8 @@ Each tab's first screen (before scroll) must be clean and focused. Audit and enf
 - This IS the hero — the avatar section should feel spacious, not cramped
 - Verified badge should have breathing room
 
-**FestivalView first viewport:**
-- Festival name/header + stage map (full-width, edge-to-edge if possible)
+**EventView first viewport:**
+- Event name/header + stage map (full-width, edge-to-edge if possible)
 - Schedule and announcements below the fold
 
 ### G5. Visual Hierarchy & Spacing Rhythm
@@ -452,7 +452,7 @@ struct ShimmerModifier: ViewModifier {
 Apply to:
 - Chat list: 3-4 placeholder glass cells with shimmer
 - Nearby: 2-3 placeholder peer cards with shimmer
-- Festival: placeholder stage map rect + 2 schedule bars
+- Event: placeholder stage map rect + 2 schedule bars
 - Profile: avatar circle + 2 text bars + 4 action squares
 
 ### G9. Empty States — Personality, Not Just Text
@@ -463,7 +463,7 @@ Every empty state should feel intentional, not broken:
 |---|---|---|---|---|
 | Chat list | `bubble.left.and.bubble.right` | "No conversations yet" | "Find people nearby to start chatting" | "Go to Nearby" (switches tab) |
 | Nearby | `antenna.radiowaves.left.and.right` | "Scanning for people..." | "Make sure Bluetooth is on" | "Open Settings" (deep link) |
-| Festival | `party.popper` (or `music.note.house`) | "No active festival" | "Join a festival to see stages, schedules, and friends" | None (informational) |
+| Event | `party.popper` (or `music.note.house`) | "No active event" | "Join a event to see stages, schedules, and friends" | None (informational) |
 | Friends | `person.2` | "No friends yet" | "Add friends from Nearby or share your QR code" | "Share QR" |
 | Messages (in chat) | `text.bubble` | "Say hello!" | "Messages are end-to-end encrypted via mesh" | None (text input is the CTA) |
 

@@ -7,7 +7,7 @@ Copy the prompt below into Claude Dispatch or Cowork to begin working.
 ## Dispatch Prompt
 
 ```
-I am Tay, working on Blip — a BLE mesh chat app for festivals.
+I am Tay, working on Blip — a BLE mesh chat app for events.
 
 ## Project
 - Repo: https://github.com/txc0ld/FezChat

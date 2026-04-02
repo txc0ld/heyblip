@@ -1,4 +1,4 @@
-# Blip: Decentralized Mesh Communication for Festivals and Large Gatherings
+# Blip: Decentralized Mesh Communication for Events and Large Gatherings
 
 **Version:** 1.0
 **Date:** March 2026
@@ -7,15 +7,15 @@
 
 ## Abstract
 
-Blip is a mobile communication application that enables text messaging, voice notes, push-to-talk audio, location sharing, and emergency coordination at festivals and large gatherings -- environments where cellular infrastructure is routinely overwhelmed or entirely absent. By forming a self-organizing Bluetooth Low Energy (BLE) mesh network from attendees' smartphones, Blip creates a decentralized, zero-infrastructure communication fabric that scales from a campfire of 50 people to a major festival of 100,000 or more. All messages are end-to-end encrypted using the Noise Protocol Framework, relay nodes cannot read the content they forward, and the system operates with no accounts, no servers, and no persistent data collection. A lightweight medical emergency system enables festival-goers to summon help with precise GPS delivery to on-site medical teams, potentially saving lives when seconds matter.
+Blip is a mobile communication application that enables text messaging, voice notes, push-to-talk audio, location sharing, and emergency coordination at events and large gatherings -- environments where cellular infrastructure is routinely overwhelmed or entirely absent. By forming a self-organizing Bluetooth Low Energy (BLE) mesh network from attendees' smartphones, Blip creates a decentralized, zero-infrastructure communication fabric that scales from a campfire of 50 people to a major event of 100,000 or more. All messages are end-to-end encrypted using the Noise Protocol Framework, relay nodes cannot read the content they forward, and the system operates with no accounts, no servers, and no persistent data collection. A lightweight medical emergency system enables event-goers to summon help with precise GPS delivery to on-site medical teams, potentially saving lives when seconds matter.
 
 ---
 
-## 1. Problem: Festival Connectivity
+## 1. Problem: Event Connectivity
 
 ### 1.1 The Connectivity Gap
 
-Music festivals, sporting events, protests, camping gatherings, and community celebrations share a common infrastructure failure: when tens of thousands of people congregate in a confined area, cellular networks collapse. Base station capacity is designed for the residential population density of an area, not for temporary concentrations of 10,000 to 200,000 people within a few square kilometers.
+Music events, sporting events, protests, camping gatherings, and community celebrations share a common infrastructure failure: when tens of thousands of people congregate in a confined area, cellular networks collapse. Base station capacity is designed for the residential population density of an area, not for temporary concentrations of 10,000 to 200,000 people within a few square kilometers.
 
 The result is predictable and universal:
 - Text messages queue for minutes or never deliver.
@@ -38,7 +38,7 @@ Existing solutions -- walkie-talkies, event apps dependent on WiFi, SMS-based gr
 A viable solution must satisfy hard constraints:
 - **No infrastructure dependency:** The system must work with zero internet connectivity.
 - **No specialized hardware:** It must run on ordinary smartphones already in attendees' pockets.
-- **No accounts or sign-up friction:** Adoption at a festival happens in the moment or not at all.
+- **No accounts or sign-up friction:** Adoption at a event happens in the moment or not at all.
 - **Privacy by default:** In a post-Snowden era, users will not adopt communication tools that create surveillance opportunities.
 - **Scalability across four orders of magnitude:** The same protocol must function for 50 people and 100,000 people, with graceful degradation rather than catastrophic failure.
 
@@ -82,7 +82,7 @@ The transport layer manages all physical communication channels:
 
 The protocol layer defines the binary wire format:
 - **16-byte fixed header** with version, type, TTL, timestamp, flags, and payload length.
-- **24 message types** spanning core messaging, encryption, data transfer, festival operations, medical emergencies, and location sharing.
+- **24 message types** spanning core messaging, encryption, data transfer, event operations, medical emergencies, and location sharing.
 - **Fragmentation and reassembly** for payloads exceeding the 416-byte BLE MTU limit.
 - **Zlib compression** with size-aware policies (skip for small payloads, conditional for medium, mandatory for large).
 - **PKCS#7-style padding** to block boundaries (256, 512, 1024, 2048 bytes) for traffic analysis resistance.
@@ -103,7 +103,7 @@ The application layer implements the user-facing experience:
 - **SwiftUI views** with MVVM architecture.
 - **SwiftData persistence** for messages, channels, peers, and user profiles.
 - **Message service** coordinating send/receive flows across transport and crypto layers.
-- **Festival integration** with geofenced auto-discovery, organizer announcements, and stage scheduling.
+- **Event integration** with geofenced auto-discovery, organizer announcements, and stage scheduling.
 
 ---
 
@@ -194,21 +194,21 @@ Group messages use a Sender Key scheme: each group member generates a symmetric 
 
 ---
 
-## 6. Festival Integration
+## 6. Event Integration
 
-### 6.1 Festival Discovery
+### 6.1 Event Discovery
 
-Blip supports three modes of festival awareness:
+Blip supports three modes of event awareness:
 
-1. **Registered festivals:** Organizers submit festival data via a web form. A signed JSON manifest is published to a CDN and fetched daily by the app. The manifest is signed with a Blip Ed25519 key embedded in the app binary, preventing CDN compromise from injecting fake festivals.
+1. **Registered events:** Organizers submit event data via a web form. A signed JSON manifest is published to a CDN and fetched daily by the app. The manifest is signed with a Blip Ed25519 key embedded in the app binary, preventing CDN compromise from injecting fake events.
 
-2. **Auto-discovery:** When 20 or more mesh peers are detected within a geohash-6 area (~1.2 km) without a registered festival, the app auto-creates an ad-hoc location channel.
+2. **Auto-discovery:** When 20 or more mesh peers are detected within a geohash-6 area (~1.2 km) without a registered event, the app auto-creates an ad-hoc location channel.
 
 3. **Ad-hoc channels:** Any user can create a local channel visible to nearby mesh peers.
 
 ### 6.2 Organizer Tools
 
-Festival organizers receive a signing keypair published in the manifest. Their capabilities include:
+Event organizers receive a signing keypair published in the manifest. Their capabilities include:
 - Priority announcements (weather, schedule changes, safety alerts) that are cryptographically signed and verified by all peers before display or relay.
 - Stage channel configuration and scheduling data.
 - Interactive stage maps with crowd density heatmap overlays.
@@ -224,7 +224,7 @@ Proximity-based public channels that users auto-join when entering a geographic 
 
 ### 7.1 Design Philosophy
 
-At a festival with 50,000 attendees and limited cellular connectivity, a medical emergency -- heat stroke, severe dehydration, allergic anaphylaxis, a fall -- can become fatal if the victim cannot summon help. Blip's SOS system is designed to deliver medical assistance requests reliably, even when the cellular network is completely unavailable.
+At a event with 50,000 attendees and limited cellular connectivity, a medical emergency -- heat stroke, severe dehydration, allergic anaphylaxis, a fall -- can become fatal if the victim cannot summon help. Blip's SOS system is designed to deliver medical assistance requests reliably, even when the cellular network is completely unavailable.
 
 ### 7.2 Activation Flow
 
@@ -267,7 +267,7 @@ On-site medical teams access a dedicated dashboard (unlocked via organizer-issue
 
 - Tiered confirmation prevents accidental activation.
 - A 10-second cancel window allows immediate withdrawal after send.
-- After 2 or more false alarms at one festival, additional confirmation friction is added.
+- After 2 or more false alarms at one event, additional confirmation friction is added.
 - No activation from lock screen or background.
 - Proximity sensor check blocks activation when the phone is face-down or in a pocket.
 
@@ -276,7 +276,7 @@ On-site medical teams access a dedicated dashboard (unlocked via organizer-issue
 - Users are anonymous to medical responders by default.
 - Phone numbers are never shared with the medical team.
 - Precise GPS auto-deletes from responder devices after 24 hours.
-- Alert history is purged after the festival plus 24 hours.
+- Alert history is purged after the event plus 24 hours.
 
 ---
 
@@ -289,7 +289,7 @@ Blip adapts its operating profile dynamically based on crowd density, measured b
 | Mode     | Peer Estimate   | Media on Mesh                   | Key Adaptations                     |
 |----------|-----------------|----------------------------------|--------------------------------------|
 | Gather   | < 500           | Text, voice, images, PTT         | Full features, relaxed relay         |
-| Festival | 500-5,000       | Text + compressed voice (8kbps)  | Moderate throttle, reduced TTL       |
+| Event | 500-5,000       | Text + compressed voice (8kbps)  | Moderate throttle, reduced TTL       |
 | Mega     | 5,000-25,000    | Text only                        | Directed routing for DMs, tight relay|
 | Massive  | 25,000-100,000+ | Text only, all media internet-only| Aggressive clustering, minimal gossip|
 
@@ -327,7 +327,7 @@ Blip uses a message-based monetization model with a free tier:
 | Free          | 10       | $0.00   |
 | Starter       | 10       | $0.99   |
 | Social        | 25       | $1.99   |
-| Festival      | 50       | $3.99   |
+| Event      | 50       | $3.99   |
 | Squad         | 100      | $5.99   |
 | Season Pass   | 1,000    | $29.99  |
 | Unlimited     | Subscription | TBD |
@@ -342,7 +342,7 @@ This model aligns monetization with value delivered: users pay for the messages 
 
 ### 10.1 WiFi Direct Transport (v2)
 
-WiFi Direct offers approximately 125x the bandwidth of BLE (250 Mbps vs 2 Mbps) and 4x the range (200m vs 50m). Integration as a secondary transport layer would dramatically improve media delivery in Gather and Festival modes. The primary challenge on iOS is that WiFi Direct requires explicit user pairing and cannot operate in background discovery mode.
+WiFi Direct offers approximately 125x the bandwidth of BLE (250 Mbps vs 2 Mbps) and 4x the range (200m vs 50m). Integration as a secondary transport layer would dramatically improve media delivery in Gather and Event modes. The primary challenge on iOS is that WiFi Direct requires explicit user pairing and cannot operate in background discovery mode.
 
 ### 10.2 Android Implementation
 
@@ -350,11 +350,11 @@ The binary protocol specification serves as the cross-platform contract. An Andr
 
 ### 10.3 Mesh Analytics for Organizers
 
-Aggregate, privacy-preserving mesh telemetry could provide festival organizers with crowd flow heatmaps, stage popularity metrics, and real-time density alerts -- all derived from mesh topology data without accessing any message content or individual identity.
+Aggregate, privacy-preserving mesh telemetry could provide event organizers with crowd flow heatmaps, stage popularity metrics, and real-time density alerts -- all derived from mesh topology data without accessing any message content or individual identity.
 
 ### 10.4 Offline Maps and Navigation
 
-Pre-cached vector map tiles for festival grounds would enable peer-to-peer walking directions, meeting point navigation, and stage-to-stage routing without any internet dependency.
+Pre-cached vector map tiles for event grounds would enable peer-to-peer walking directions, meeting point navigation, and stage-to-stage routing without any internet dependency.
 
 ### 10.5 Multi-Hop Voice Streaming
 
@@ -362,7 +362,7 @@ Real-time voice streaming over multi-hop BLE mesh is technically feasible but ch
 
 ### 10.6 Interoperability with Emergency Services
 
-Integration with national emergency dispatch systems (e.g., 911/112 relay) would allow SOS alerts to reach professional emergency services when festival medical teams are overwhelmed. This requires regulatory coordination and is a longer-term goal.
+Integration with national emergency dispatch systems (e.g., 911/112 relay) would allow SOS alerts to reach professional emergency services when event medical teams are overwhelmed. This requires regulatory coordination and is a longer-term goal.
 
 ---
 

@@ -57,7 +57,7 @@
 - **Gossip routing** — TTL decrement, adaptive relay probability, SOS bypass, store-and-forward cache
 - **Directed routing** — Announcement-based routing table for Mega/Massive modes
 - **Congestion control** — Traffic shaper, priority queues (SOS > Normal > Background), per-peer rate limits
-- **Crowd scale** — Auto-detection: Gather (<500) / Festival (5K) / Mega (25K) / Massive (25K+)
+- **Crowd scale** — Auto-detection: Gather (<500) / Event (5K) / Mega (25K) / Massive (25K+)
 - **Power management** — Battery-tier scan interval adjustment
 - **Peer management** — RSSI-based connection selection, role-based limits, 20% hysteresis swaps
 
@@ -74,7 +74,7 @@
 - **Onboarding** — 3-step flow: Welcome → Profile (identity gen) → Permissions
 - **Chat** — ChatListView + ChatView wired to ChatViewModel; MessageBubble, VoiceNotePlayer, ImageViewer
 - **Nearby** — NearbyView wired to MeshViewModel; peer cards, particle background, friend finder map
-- **Festival** — StageMap, Schedule, Announcements, LostAndFound, MeetingPoint, MedicalDashboard (UI complete, sample data)
+- **Event** — StageMap, Schedule, Announcements, LostAndFound, MeetingPoint, MedicalDashboard (UI complete, sample data)
 - **Profile** — ProfileView, EditProfile, FriendsList, AvatarCrop, MessagePackStore, Settings (UI complete, sample data)
 
 ### Relay Server (100%)
@@ -92,7 +92,7 @@
 |------|------|-------|
 | **End-to-end messaging** | Wire MessageService → Noise encryption → Transport → delivery | Individual pieces work; need integration testing of the full pipeline |
 | **Message decryption for display** | ChatView maps `encryptedPayload` directly; needs decrypt layer | Currently does `String(data: encryptedPayload)` — works for local, not for received |
-| **Festival tab data binding** | FestivalView, StageMapView, ScheduleView, CrowdPulseOverlay use sample data | FestivalViewModel exists with manifest fetch/geofence logic |
+| **Event tab data binding** | EventView, StageMapView, ScheduleView, CrowdPulseOverlay use sample data | EventViewModel exists with manifest fetch/geofence logic |
 | **Profile tab data binding** | ProfileView, FriendsListView, SettingsView use sample data | ProfileViewModel exists |
 | **Friend system wiring** | Friend discovery, add/accept flow, location sharing toggle | Models and basic ViewModel exist |
 
@@ -102,7 +102,7 @@
 |------|------|-------|
 | **Group encryption** | Double ratchet / sender key protocol for group channels | GroupSenderKey model exists; protocol implementation needed |
 | **SOS responder assignment** | Connect SOSViewModel broadcast → mesh → responder accept | Models, UI, and state machine defined; broadcast uses Identity correctly |
-| **Festival manifest** | CDN fetch + Ed25519 signature verification of festival data | FestivalViewModel has CDN URL and fetch logic; needs testing |
+| **Event manifest** | CDN fetch + Ed25519 signature verification of event data | EventViewModel has CDN URL and fetch logic; needs testing |
 | **PTT streaming** | Live push-to-talk audio over mesh | PTTViewModel has recording state; chunked streaming partially done |
 | **Image pipeline** | Compression, thumbnail generation, progressive loading | ImageService is basic; needs HEIF/JPEG quality ladder |
 
@@ -139,10 +139,10 @@
 ```
 ┌─────────────────────────────────────────────┐
 │                   Views                      │
-│  ChatsTab · NearbyTab · FestivalTab · Profile│
+│  ChatsTab · NearbyTab · EventsTab · Profile│
 ├─────────────────────────────────────────────┤
 │                ViewModels                    │
-│  Chat · Mesh · Festival · SOS · Location     │
+│  Chat · Mesh · Event · SOS · Location     │
 ├─────────────────────────────────────────────┤
 │              AppCoordinator                  │
 │  Identity · Services · Transport lifecycle   │
