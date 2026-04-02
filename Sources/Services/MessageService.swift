@@ -2238,7 +2238,7 @@ final class MessageService: @unchecked Sendable {
             }
 
             // Create new DM channel with proper membership for the remote user
-            let channel = Channel(type: .dm)
+            let channel = Channel(type: .dm, name: senderUser?.resolvedDisplayName)
             context.insert(channel)
             if let user = senderUser {
                 let membership = GroupMembership(user: user, channel: channel)

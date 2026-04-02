@@ -337,7 +337,7 @@ struct ChatListView: View {
 
             return ConversationPreview(
                 id: channel.id,
-                displayName: channel.name ?? "Chat",
+                displayName: Self.resolveDisplayName(for: channel),
                 avatarData: nil,
                 lastMessagePreview: lastMessage.flatMap {
                     String(data: $0.encryptedPayload, encoding: .utf8)
@@ -353,6 +353,17 @@ struct ChatListView: View {
                 messageType: lastMessage.map { $0.type } ?? .text
             )
         }
+    }
+
+    /// Resolve a display name for the channel, falling back to the first member's name for DMs.
+    private static func resolveDisplayName(for channel: Channel) -> String {
+        if let name = channel.name, !name.isEmpty {
+            return name
+        }
+        if channel.type == .dm, let member = channel.memberships.first?.user {
+            return member.resolvedDisplayName
+        }
+        return "Chat"
     }
 
     private var filteredConversations: [ConversationPreview] {
@@ -446,7 +457,7 @@ struct ChatListView: View {
 
         return ConversationPreview(
             id: channel.id,
-            displayName: channel.name ?? "Chat",
+            displayName: Self.resolveDisplayName(for: channel),
             avatarData: nil,
             lastMessagePreview: lastMessage.flatMap {
                 String(data: $0.encryptedPayload, encoding: .utf8)
