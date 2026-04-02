@@ -587,6 +587,12 @@ final class MessageService: @unchecked Sendable {
         logger.info("Accepted friend request from \(friendUser.username)")
 
         NotificationCenter.default.post(
+            name: .didAcceptFriendRequest,
+            object: nil,
+            userInfo: ["username": friendUser.username]
+        )
+
+        NotificationCenter.default.post(
             name: .friendListDidChange,
             object: nil
         )
@@ -2448,6 +2454,7 @@ extension Notification.Name {
     static let didReceivePTTAudio = Notification.Name("com.blip.didReceivePTTAudio")
     static let didReceiveFriendRequest = Notification.Name("com.blip.didReceiveFriendRequest")
     static let didReceiveFriendAccept = Notification.Name("com.blip.didReceiveFriendAccept")
+    static let didAcceptFriendRequest = Notification.Name("com.blip.didAcceptFriendRequest")
     static let friendListDidChange = Notification.Name("com.blip.friendListDidChange")
     static let didReceiveGroupManagement = Notification.Name("com.blip.didReceiveGroupManagement")
     static let didReceiveBlipMessage = Notification.Name("com.blip.didReceiveMessage")

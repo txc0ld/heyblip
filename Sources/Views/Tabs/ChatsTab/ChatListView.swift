@@ -5,7 +5,13 @@ import SwiftData
 
 /// Chat list with NavigationStack, search, sorted by lastActivityAt.
 /// Pull-to-refresh, floating action button for new message.
+/// Toggle between Chats (existing conversations) and Friends (all accepted friends).
 struct ChatListView: View {
+
+    enum ChatListMode: String, CaseIterable {
+        case chats = "Chats"
+        case friends = "Friends"
+    }
 
     var chatViewModel: ChatViewModel? = nil
 
@@ -16,13 +22,31 @@ struct ChatListView: View {
     @State private var showAddFriend = false
     @State private var showMessageSearch = false
     @State private var selectedConversation: ConversationPreview? = nil
+    @State private var listMode: ChatListMode = .chats
     @Environment(\.theme) private var theme
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 // Main content
-                scrollContent
+                VStack(spacing: 0) {
+                    modeToggle
+                    if listMode == .chats {
+                        scrollContent
+                    } else {
+                        ScrollView {
+                            ChatFriendsListView(
+                                chatViewModel: chatViewModel,
+                                onStartConversation: { friend in
+                                    startConversation(with: friend)
+                                }
+                            )
+                        }
+                        .refreshable {
+                            await performRefresh()
+                        }
+                    }
+                }
 
                 // Floating Action Button - New Message
                 newMessageFAB
@@ -73,6 +97,44 @@ struct ChatListView: View {
         .task {
             await chatViewModel?.loadChannels()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .didAcceptFriendRequest)) { notification in
+            navigateToFriendDM(from: notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .didReceiveFriendAccept)) { notification in
+            navigateToFriendDM(from: notification)
+        }
+    }
+
+    // MARK: - Mode Toggle
+
+    private var modeToggle: some View {
+        HStack(spacing: BlipSpacing.xs) {
+            ForEach(ChatListMode.allCases, id: \.self) { mode in
+                Button {
+                    withAnimation(SpringConstants.accessiblePageEntrance) {
+                        listMode = mode
+                    }
+                } label: {
+                    Text(mode.rawValue)
+                        .font(theme.typography.body)
+                        .fontWeight(listMode == mode ? .semibold : .regular)
+                        .foregroundStyle(listMode == mode ? .white : theme.colors.text)
+                        .padding(.horizontal, BlipSpacing.md)
+                        .padding(.vertical, BlipSpacing.sm)
+                        .background(
+                            listMode == mode
+                                ? AnyShapeStyle(.blipAccentPurple)
+                                : AnyShapeStyle(.ultraThinMaterial)
+                        )
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(listMode == mode ? .isSelected : [])
+            }
+            Spacer()
+        }
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
     }
 
     // MARK: - Scroll Content
@@ -391,6 +453,21 @@ struct ChatListView: View {
         case .sent: return .sent
         case .delivered: return .delivered
         case .read: return .read
+        }
+    }
+
+    private func navigateToFriendDM(from notification: Notification) {
+        guard let username = notification.userInfo?["username"] as? String else { return }
+        // Find the friend's User and their DM channel
+        guard let friend = friends.first(where: { $0.user?.username == username }),
+              let user = friend.user else { return }
+        Task {
+            guard let channel = await chatViewModel?.createDMChannel(with: user) else { return }
+            await chatViewModel?.loadChannels()
+            await MainActor.run {
+                listMode = .chats
+                selectedConversation = makeConversationPreview(for: channel)
+            }
         }
     }
 
