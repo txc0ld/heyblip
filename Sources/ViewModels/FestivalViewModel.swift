@@ -120,8 +120,8 @@ final class FestivalViewModel {
 
     // MARK: - Constants
 
-    /// Festival manifest CDN URL.
-    private static let manifestURL = "https://cdn.blip.app/manifests/festivals.json"
+    /// Event manifest CDN URL.
+    private static let manifestURL = "https://cdn.blip.app/manifests/events.json"
 
     /// Crowd pulse refresh interval.
     private static let crowdPulseRefreshInterval: TimeInterval = 30.0
@@ -163,7 +163,7 @@ final class FestivalViewModel {
                 return
             }
 
-            let manifest = try JSONDecoder.festivalDecoder.decode(FestivalManifest.self, from: data)
+            let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
 
             // Verify manifest signature
             if !verifyManifestSignature(manifest) {
@@ -171,8 +171,8 @@ final class FestivalViewModel {
                 return
             }
 
-            // Store festivals in SwiftData
-            await storeFestivals(manifest.festivals)
+            // Store events in SwiftData
+            await storeFestivals(manifest.events)
 
             // Reload from SwiftData
             await loadFestivals()
@@ -485,13 +485,17 @@ final class FestivalViewModel {
 
     // MARK: - Private: Manifest
 
-    private struct FestivalManifest: Codable {
+    private struct EventManifest: Codable {
         let version: Int
         let signature: String?
-        let festivals: [ManifestFestival]
+        let events: [ManifestEvent]
+
+        enum CodingKeys: String, CodingKey {
+            case version, signature, events
+        }
     }
 
-    private struct ManifestFestival: Codable {
+    private struct ManifestEvent: Codable {
         let id: String
         let name: String
         let latitude: Double
@@ -518,17 +522,17 @@ final class FestivalViewModel {
         let endTime: String
     }
 
-    private func verifyManifestSignature(_ manifest: FestivalManifest) -> Bool {
+    private func verifyManifestSignature(_ manifest: EventManifest) -> Bool {
         // In production: verify Ed25519 signature of the manifest data
         // For now, accept all manifests (signature infrastructure TBD)
         return true
     }
 
-    private func storeFestivals(_ manifestFestivals: [ManifestFestival]) async {
+    private func storeFestivals(_ manifestEvents: [ManifestEvent]) async {
         let context = ModelContext(modelContainer)
         let dateFormatter = ISO8601DateFormatter()
 
-        for mf in manifestFestivals {
+        for mf in manifestEvents {
             guard let uuid = UUID(uuidString: mf.id),
                   let startDate = dateFormatter.date(from: mf.startDate),
                   let endDate = dateFormatter.date(from: mf.endDate) else { continue }
@@ -629,7 +633,7 @@ final class FestivalViewModel {
 // MARK: - JSON Decoder Extension
 
 private extension JSONDecoder {
-    static let festivalDecoder: JSONDecoder = {
+    static let eventDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
