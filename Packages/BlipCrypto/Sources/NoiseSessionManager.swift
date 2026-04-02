@@ -221,6 +221,13 @@ public final class NoiseSessionManager: @unchecked Sendable {
         getSession(for: peerID) != nil
     }
 
+    /// Whether there is an in-progress handshake (any role) with the given peer.
+    public func hasPendingHandshake(for peerID: PeerID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return pendingHandshakes[peerID] != nil
+    }
+
     // MARK: - Handshake initiation
 
     /// Begin a new XX handshake as the initiator.
@@ -244,14 +251,28 @@ public final class NoiseSessionManager: @unchecked Sendable {
 
     /// Begin a new XX handshake as the responder after receiving message 1.
     ///
-    /// Returns the pending handshake state. Call `respondToHandshake` next
-    /// to generate message 2.
+    /// Returns the pending handshake state and payload, or `nil` if a simultaneous
+    /// initiation tiebreaker determined we should keep our initiator role.
+    ///
+    /// **Tiebreaker rule:** When both peers initiate simultaneously, the peer with
+    /// the lexicographically lower PeerID becomes the responder. The higher PeerID
+    /// peer keeps its initiator role and the incoming msg1 is discarded.
     public func receiveHandshakeInit(
         from peerID: PeerID,
         message: Data
-    ) throws -> (PendingHandshake, Data) {
+    ) throws -> (PendingHandshake, Data)? {
         lock.lock()
         defer { lock.unlock() }
+
+        // Simultaneous initiation: we have a pending outbound handshake as initiator
+        if let existing = pendingHandshakes[peerID], existing.handshake.role == .initiator {
+            let localPeerID = PeerID(noisePublicKey: localStaticKey.publicKey)
+            if !localPeerID.bytes.lexicographicallyPrecedes(peerID.bytes) {
+                // Our PeerID >= remote → we keep initiator role, discard incoming msg1
+                return nil
+            }
+            // Our PeerID < remote → we yield, cancel initiator, become responder below
+        }
 
         let handshake = NoiseHandshake(
             role: .responder,

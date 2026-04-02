@@ -159,7 +159,7 @@ public final class NoiseHandshake: @unchecked Sendable {
 
     // MARK: - State
 
-    private let role: NoiseRole
+    public let role: NoiseRole
     private let symmetricState: SymmetricState
 
     /// Our static keypair (long-term identity).

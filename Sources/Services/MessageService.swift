@@ -1071,7 +1071,11 @@ final class MessageService: @unchecked Sendable {
         case 0x01:
             // We are responder — receive msg1, send msg2
             DebugLogger.shared.log("NOISE", "← handshake msg1 from \(peerHex)")
-            _ = try sessionManager.receiveHandshakeInit(from: peerID, message: handshakeData)
+            guard let _ = try sessionManager.receiveHandshakeInit(from: peerID, message: handshakeData) else {
+                // Tiebreaker: we have the higher PeerID — keep our initiator role, discard this msg1
+                DebugLogger.shared.log("NOISE", "Tiebreak won against \(peerHex) — keeping initiator role")
+                return
+            }
             let msg2 = try sessionManager.respondToHandshake(for: peerID)
             var response = Data([0x02])
             response.append(msg2)
@@ -1143,6 +1147,28 @@ final class MessageService: @unchecked Sendable {
 
         if alreadyPending {
             DebugLogger.emit("NOISE", "Handshake already pending for \(peerHex)")
+            return true
+        }
+
+        // A handshake may already be in progress as responder (we received their msg1
+        // and sent msg2, waiting for msg3). Don't start a competing initiator handshake —
+        // just queue messages on the existing handshake.
+        if sessionManager.hasPendingHandshake(for: recipientPeerID) {
+            DebugLogger.emit("NOISE", "Handshake in progress (responder) for \(peerHex) — queueing")
+            let needsTimeout: Bool = lock.withLock {
+                let isNew = pendingHandshakeMessages[recipientPeerID.bytes] == nil
+                if isNew {
+                    pendingHandshakeMessages[recipientPeerID.bytes] = []
+                }
+                return isNew
+            }
+            if needsTimeout {
+                let peerBytes = recipientPeerID.bytes
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(30))
+                    self.handleHandshakeTimeout(peerIDBytes: peerBytes)
+                }
+            }
             return true
         }
 

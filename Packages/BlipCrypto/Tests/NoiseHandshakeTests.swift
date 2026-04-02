@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CryptoKit
+import BlipProtocol
 @testable import BlipCrypto
 
 @Suite("Noise XX Handshake Tests")
@@ -335,6 +336,84 @@ struct NoiseHandshakeTests {
         }
         // Nonce should not have advanced
         #expect(responderResult.receiveCipher.currentNonce == 0)
+    }
+
+    // MARK: - Simultaneous Initiation Tiebreaker
+
+    @Test("Simultaneous initiation: lower PeerID becomes responder")
+    func testTiebreakerLowerBecomesResponder() throws {
+        let keyA = Curve25519.KeyAgreement.PrivateKey()
+        let keyB = Curve25519.KeyAgreement.PrivateKey()
+
+        let peerA = PeerID(noisePublicKey: keyA.publicKey)
+        let peerB = PeerID(noisePublicKey: keyB.publicKey)
+
+        // Determine which is lexicographically lower
+        let aIsLower = peerA.bytes.lexicographicallyPrecedes(peerB.bytes)
+        let (lowerKey, higherKey) = aIsLower ? (keyA, keyB) : (keyB, keyA)
+        let lowerPeerID = aIsLower ? peerA : peerB
+        let higherPeerID = aIsLower ? peerB : peerA
+
+        let managerLow = NoiseSessionManager(localStaticKey: lowerKey)
+        let managerHigh = NoiseSessionManager(localStaticKey: higherKey)
+
+        // Both initiate handshakes simultaneously
+        let (_, msg1FromLow) = try managerLow.initiateHandshake(with: higherPeerID)
+        let (_, msg1FromHigh) = try managerHigh.initiateHandshake(with: lowerPeerID)
+
+        // Lower PeerID receives msg1 from higher → should become responder (returns non-nil)
+        let resultLow = try managerLow.receiveHandshakeInit(from: higherPeerID, message: msg1FromHigh)
+        #expect(resultLow != nil, "Lower PeerID should accept incoming msg1 and become responder")
+
+        // Higher PeerID receives msg1 from lower → should keep initiator (returns nil)
+        let resultHigh = try managerHigh.receiveHandshakeInit(from: lowerPeerID, message: msg1FromLow)
+        #expect(resultHigh == nil, "Higher PeerID should win tiebreak and keep initiator role")
+
+        // Complete the handshake: low is now responder to high's initiator
+        let msg2 = try managerLow.respondToHandshake(for: higherPeerID)
+        let (_, sessionHigh) = try managerHigh.processHandshakeMessage(from: lowerPeerID, message: msg2)
+        #expect(sessionHigh == nil, "Initiator needs to send msg3 before session completes")
+
+        let (msg3, completedHigh) = try managerHigh.completeHandshake(with: lowerPeerID)
+        let (_, completedLow) = try managerLow.processHandshakeMessage(from: higherPeerID, message: msg3)
+
+        #expect(completedLow != nil, "Responder session should be established after msg3")
+
+        // Verify bidirectional encryption works
+        let plaintext = Data("tiebreaker test".utf8)
+        let ct = try completedHigh.encrypt(plaintext: plaintext)
+        let pt = try completedLow!.decrypt(ciphertext: ct)
+        #expect(pt == plaintext)
+    }
+
+    @Test("No tiebreaker needed when no pending initiator handshake")
+    func testReceiveMsg1WithoutPendingInitiator() throws {
+        let keyA = Curve25519.KeyAgreement.PrivateKey()
+        let keyB = Curve25519.KeyAgreement.PrivateKey()
+        let peerB = PeerID(noisePublicKey: keyB.publicKey)
+
+        let manager = NoiseSessionManager(localStaticKey: keyA)
+
+        // B initiates, A has no pending handshake — normal responder path
+        let initiator = NoiseHandshake(role: .initiator, staticKey: keyB)
+        let msg1 = try initiator.writeMessage()
+
+        let result = try manager.receiveHandshakeInit(from: peerB, message: msg1)
+        #expect(result != nil, "Should accept msg1 normally when no competing initiator exists")
+    }
+
+    @Test("hasPendingHandshake returns true during active handshake")
+    func testHasPendingHandshake() throws {
+        let keyA = Curve25519.KeyAgreement.PrivateKey()
+        let keyB = Curve25519.KeyAgreement.PrivateKey()
+        let peerB = PeerID(noisePublicKey: keyB.publicKey)
+
+        let manager = NoiseSessionManager(localStaticKey: keyA)
+
+        #expect(!manager.hasPendingHandshake(for: peerB))
+
+        _ = try manager.initiateHandshake(with: peerB)
+        #expect(manager.hasPendingHandshake(for: peerB))
     }
 
     // MARK: - Helpers
