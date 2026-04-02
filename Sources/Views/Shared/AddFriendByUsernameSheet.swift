@@ -90,6 +90,7 @@ struct AddFriendByUsernameSheet: View {
                 }
             }
             .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || isSearching)
+            .accessibilityLabel("Search for user")
         }
     }
 
@@ -98,17 +99,25 @@ struct AddFriendByUsernameSheet: View {
     @ViewBuilder
     private var resultArea: some View {
         if let error = errorMessage {
-            errorCard(message: error)
+            AddFriendSheetComponents.errorCard(message: error, theme: theme)
                 .transition(.scale.combined(with: .opacity))
+                .animation(SpringConstants.accessiblePageEntrance, value: errorMessage)
         } else if let success = successMessage {
-            successCard(message: success)
+            AddFriendSheetComponents.successCard(message: success, theme: theme)
                 .transition(.scale.combined(with: .opacity))
+                .animation(SpringConstants.accessiblePageEntrance, value: successMessage)
         } else if isSearching {
             searchingIndicator
                 .transition(.opacity)
         } else if let result = lookupResult {
-            resultCard(for: result)
-                .transition(.scale.combined(with: .opacity))
+            AddFriendSheetComponents.resultCard(
+                for: result,
+                isSending: isSending,
+                theme: theme,
+                onSendRequest: { Task { await sendRequest(to: result) } }
+            )
+            .transition(.scale.combined(with: .opacity))
+            .animation(SpringConstants.accessiblePageEntrance, value: lookupResult?.id)
         } else {
             emptyState
                 .transition(.opacity)
@@ -148,99 +157,6 @@ struct AddFriendByUsernameSheet: View {
         }
         .padding(.vertical, BlipSpacing.xl)
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Error Card
-
-    private func errorCard(message: String) -> some View {
-        GlassCard(thickness: .ultraThin) {
-            HStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(theme.colors.statusAmber)
-                Text(message)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText)
-            }
-        }
-        .animation(SpringConstants.accessiblePageEntrance, value: errorMessage)
-    }
-
-    // MARK: - Success Card
-
-    private func successCard(message: String) -> some View {
-        GlassCard(thickness: .ultraThin) {
-            HStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text(message)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(.green)
-            }
-        }
-        .animation(SpringConstants.accessiblePageEntrance, value: successMessage)
-    }
-
-    // MARK: - Result Card
-
-    private func resultCard(for result: UserSyncService.RemoteLookupResult) -> some View {
-        GlassCard(thickness: .regular) {
-            VStack(spacing: BlipSpacing.md) {
-                HStack(spacing: BlipSpacing.sm) {
-                    AvatarView(
-                        imageData: nil,
-                        name: result.username,
-                        size: BlipSizing.avatarMedium,
-                        ringStyle: result.isVerified ? .subscriber : .none,
-                        showOnlineIndicator: false
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: BlipSpacing.xs) {
-                            Text(result.username)
-                                .font(.custom(BlipFontName.semiBold, size: 16, relativeTo: .body))
-                                .foregroundStyle(theme.colors.text)
-
-                            if result.isVerified {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.blipAccentPurple)
-                            }
-                        }
-
-                        Text(result.noisePublicKey != nil ? "Keys available" : "No encryption keys")
-                            .font(theme.typography.caption)
-                            .foregroundStyle(result.noisePublicKey != nil ? .green : theme.colors.mutedText)
-                    }
-
-                    Spacer()
-                }
-
-                Button {
-                    Task { await sendRequest(to: result) }
-                } label: {
-                    HStack {
-                        if isSending {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Image(systemName: "person.badge.plus")
-                            Text("Send Friend Request")
-                        }
-                    }
-                    .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .body))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.sm + 2)
-                    .background(
-                        LinearGradient.blipAccent,
-                        in: RoundedRectangle(cornerRadius: BlipCornerRadius.lg)
-                    )
-                    .opacity(result.noisePublicKey == nil ? 0.5 : 1.0)
-                }
-                .disabled(isSending || result.noisePublicKey == nil)
-            }
-        }
-        .animation(SpringConstants.accessiblePageEntrance, value: lookupResult?.id)
     }
 
     // MARK: - Actions
@@ -286,19 +202,7 @@ struct AddFriendByUsernameSheet: View {
 
 // MARK: - Preview
 
-#Preview("Add Friend by Username") {
+#Preview("Add Friend") {
     AddFriendByUsernameSheet()
-        .environment(\.theme, Theme.shared)
-}
-
-#Preview("Empty State") {
-    AddFriendByUsernameSheet()
-        .environment(\.theme, Theme.shared)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Light Mode") {
-    AddFriendByUsernameSheet()
-        .environment(\.theme, Theme.shared)
-        .preferredColorScheme(.light)
+        .blipTheme()
 }
