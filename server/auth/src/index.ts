@@ -271,6 +271,17 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   const noiseKey = body.noisePublicKey ? hexToBuffer(body.noisePublicKey) : null;
   const signingKey = body.signingPublicKey ? hexToBuffer(body.signingPublicKey) : null;
 
+  // Registration upsert handles two re-registration scenarios:
+  //
+  // 1. Same device (same email_hash, same or updated username):
+  //    → ON CONFLICT (email_hash) DO UPDATE — updates keys and username in place.
+  //
+  // 2. Reinstall / new device (new email_hash, same username):
+  //    → The INSERT hits the username unique constraint (23505). We catch this and
+  //      UPDATE the existing row by username, resetting is_verified to FALSE so the
+  //      user must re-verify their email. This prevents a different person from
+  //      silently stealing a username — they'd need access to the email to complete
+  //      verification.
   try {
     const result = await sql`
       INSERT INTO users (email_hash, username, is_verified, created_at, noise_public_key, signing_public_key)
@@ -279,6 +290,7 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
         username = EXCLUDED.username,
         noise_public_key = COALESCE(EXCLUDED.noise_public_key, users.noise_public_key),
         signing_public_key = COALESCE(EXCLUDED.signing_public_key, users.signing_public_key),
+        is_verified = FALSE,
         updated_at = NOW()
       RETURNING id
     `;
@@ -287,9 +299,29 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
     const msg = error?.message ?? String(error);
     const code = error?.code ?? "";
     const constraint = error?.constraint ?? "";
-    if (code === "23505" || constraint.includes("username") || msg.includes("users_username_key")) {
-      return json({ error: "Username already taken" }, 409, env);
+
+    // Username conflict: reinstall with new email_hash — update existing row
+    if (code === "23505" && (constraint.includes("username") || msg.includes("users_username_key"))) {
+      try {
+        const result = await sql`
+          UPDATE users SET
+            email_hash = ${body.emailHash},
+            noise_public_key = COALESCE(${noiseKey}, noise_public_key),
+            signing_public_key = COALESCE(${signingKey}, signing_public_key),
+            is_verified = FALSE,
+            updated_at = NOW()
+          WHERE username = ${body.username}
+          RETURNING id
+        `;
+        if (result.length === 0) {
+          return json({ error: "Registration failed" }, 500, env);
+        }
+        return json({ userId: result[0]?.id }, 200, env);
+      } catch (updateError: any) {
+        return json({ error: "Registration failed", detail: updateError?.message ?? String(updateError) }, 500, env);
+      }
     }
+
     return json({ error: "Registration failed", detail: msg }, 500, env);
   }
 }
