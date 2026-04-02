@@ -369,15 +369,33 @@ final class MessageService: @unchecked Sendable {
     }
 
     /// Send a delivery acknowledgement for a received message.
+    ///
+    /// Encrypts through the Noise session (if active) to keep nonce counters
+    /// in sync with regular messages. Previously sent as plaintext, which caused
+    /// nonce desync when acks interleaved with encrypted messages over BLE.
+    @MainActor
     func sendDeliveryAck(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
 
-        var payload = Data()
-        payload.append(messageID.uuidString.data(using: .utf8) ?? Data())
+        let taggedPayload = prependSubType(.deliveryAck, to: messageID.uuidString.data(using: .utf8) ?? Data())
+
+        let finalPayload: Data
+        if let session = noiseSessionManager?.getSession(for: peerID) {
+            do {
+                finalPayload = try session.encrypt(plaintext: taggedPayload)
+                let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("CRYPTO", "deliveryAck encrypted for \(peerHex) nonce=\(session.sendCipher.currentNonce)")
+            } catch {
+                DebugLogger.shared.log("CRYPTO", "deliveryAck encrypt failed, sending plaintext: \(error)", isError: true)
+                finalPayload = taggedPayload
+            }
+        } else {
+            finalPayload = taggedPayload
+        }
 
         let packet = buildPacket(
             type: .noiseEncrypted,
-            payload: prependSubType(.deliveryAck, to: payload),
+            payload: finalPayload,
             flags: [.hasRecipient, .hasSignature, .isReliable],
             senderID: identity.peerID,
             recipientID: peerID
@@ -387,15 +405,32 @@ final class MessageService: @unchecked Sendable {
     }
 
     /// Send a read receipt for a message.
+    ///
+    /// Encrypts through the Noise session (if active) to keep nonce counters
+    /// in sync with regular messages.
+    @MainActor
     func sendReadReceipt(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
 
-        var payload = Data()
-        payload.append(messageID.uuidString.data(using: .utf8) ?? Data())
+        let taggedPayload = prependSubType(.readReceipt, to: messageID.uuidString.data(using: .utf8) ?? Data())
+
+        let finalPayload: Data
+        if let session = noiseSessionManager?.getSession(for: peerID) {
+            do {
+                finalPayload = try session.encrypt(plaintext: taggedPayload)
+                let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log("CRYPTO", "readReceipt encrypted for \(peerHex) nonce=\(session.sendCipher.currentNonce)")
+            } catch {
+                DebugLogger.shared.log("CRYPTO", "readReceipt encrypt failed, sending plaintext: \(error)", isError: true)
+                finalPayload = taggedPayload
+            }
+        } else {
+            finalPayload = taggedPayload
+        }
 
         let packet = buildPacket(
             type: .noiseEncrypted,
-            payload: prependSubType(.readReceipt, to: payload),
+            payload: finalPayload,
             flags: [.hasRecipient, .hasSignature],
             senderID: identity.peerID,
             recipientID: peerID
@@ -1322,13 +1357,14 @@ final class MessageService: @unchecked Sendable {
         // Attempt Noise decryption if we have an active session with this peer
         if let session = noiseSessionManager?.getSession(for: peerID) {
             do {
+                let nonceBefore = session.receiveCipher.currentNonce
                 let recoveryBefore = session.receiveCipher.nonceRecoveryCount
                 payload = try session.decrypt(ciphertext: payload)
                 let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
                 if session.receiveCipher.nonceRecoveryCount > recoveryBefore {
-                    DebugLogger.shared.log("NOISE", "Decrypted \(payload.count)B from \(senderHex) (nonce recovery)")
+                    DebugLogger.shared.log("CRYPTO", "Decrypted \(payload.count)B from \(senderHex) nonce=\(nonceBefore)→\(session.receiveCipher.currentNonce) (recovery)")
                 } else {
-                    DebugLogger.shared.log("NOISE", "Decrypted \(payload.count)B from \(senderHex)")
+                    DebugLogger.shared.log("CRYPTO", "Decrypted \(payload.count)B from \(senderHex) nonce=\(nonceBefore)→\(session.receiveCipher.currentNonce)")
                 }
             } catch {
                 // Decryption failed — fall through to try as plaintext (backward compat)
@@ -1472,8 +1508,8 @@ final class MessageService: @unchecked Sendable {
             throw error
         }
 
-        // Send delivery ack
-        Task { [logger] in
+        // Send delivery ack (MainActor for Noise cipher state access)
+        Task { @MainActor [logger] in
             do {
                 try await sendDeliveryAck(for: messageID, to: senderPeerID)
             } catch {
