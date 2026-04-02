@@ -169,14 +169,29 @@ final class MessageService: @unchecked Sendable {
 
         let context = ModelContext(modelContainer)
 
+        // Re-fetch Channel in this context to avoid cross-context insert crash
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let localChannel = try context.fetch(channelDesc).first else {
+            throw MessageServiceError.channelNotFound
+        }
+
+        // Re-fetch replyTo in this context if present
+        var localReplyTo: Message?
+        if let replyTo {
+            let replyToID = replyTo.id
+            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyToID })
+            localReplyTo = try context.fetch(replyDesc).first
+        }
+
         // Create the message model
         let message = Message(
             sender: nil, // Local user, resolved via identity
-            channel: channel,
+            channel: localChannel,
             type: .text,
             encryptedPayload: content.data(using: .utf8) ?? Data(),
             status: .queued,
-            replyTo: replyTo,
+            replyTo: localReplyTo,
             createdAt: Date()
         )
         context.insert(message)
@@ -224,8 +239,15 @@ final class MessageService: @unchecked Sendable {
 
         let context = ModelContext(modelContainer)
 
+        // Re-fetch Channel in this context to avoid cross-context insert crash
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let localChannel = try context.fetch(channelDesc).first else {
+            throw MessageServiceError.channelNotFound
+        }
+
         let message = Message(
-            channel: channel,
+            channel: localChannel,
             type: .voiceNote,
             encryptedPayload: Data(),
             status: .queued,
@@ -276,8 +298,15 @@ final class MessageService: @unchecked Sendable {
 
         let context = ModelContext(modelContainer)
 
+        // Re-fetch Channel in this context to avoid cross-context insert crash
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let localChannel = try context.fetch(channelDesc).first else {
+            throw MessageServiceError.channelNotFound
+        }
+
         let message = Message(
-            channel: channel,
+            channel: localChannel,
             type: .image,
             encryptedPayload: Data(),
             status: .queued,
