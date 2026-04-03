@@ -103,21 +103,34 @@ public enum PacketValidator {
             errors.append(.ttlOutOfRange(ttl))
         }
 
-        // Payload length bounds check (UInt32 big-endian at header offset 12)
-        let payloadLength = data.withUnsafeBytes { buffer in
-            buffer.load(fromByteOffset: 12, as: UInt32.self).bigEndian
+        let flags = PacketFlags(rawValue: data[11])
+
+        // Payload length is the last 4 bytes of the fixed 16-byte header.
+        let payloadLength = data[12..<16].withUnsafeBytes { buffer in
+            UInt32(bigEndian: buffer.loadUnaligned(as: UInt32.self))
         }
-        // Reject if claimed payload length exceeds actual remaining data (header + senderID minimum)
-        let minRequired = Packet.headerSize + PeerID.length + Int(payloadLength)
-        if minRequired > data.count {
+
+        // Reject unreasonably large payload claims from the header alone.
+        if payloadLength > maxPayloadLength {
+            errors.append(.payloadTooLarge(payloadLength))
+        }
+
+        // A bare header is enough for quick validation. If more bytes are present, ensure
+        // the remaining buffer can satisfy the fixed fields implied by the header.
+        var minimumWireSize = Packet.headerSize + PeerID.length + Int(payloadLength)
+        if flags.contains(.hasRecipient) {
+            minimumWireSize += PeerID.length
+        }
+        if flags.contains(.hasSignature) {
+            minimumWireSize += Packet.signatureSize
+        }
+
+        if data.count > Packet.headerSize && minimumWireSize > data.count {
+            let actualPayloadBytes = max(0, data.count - (minimumWireSize - Int(payloadLength)))
             errors.append(.payloadLengthMismatch(
                 claimed: Int(payloadLength),
-                actual: max(0, data.count - Packet.headerSize - PeerID.length)
+                actual: actualPayloadBytes
             ))
-        }
-        // Reject unreasonably large payloads
-        if payloadLength > 4096 {
-            errors.append(.payloadTooLarge(payloadLength))
         }
 
         return errors

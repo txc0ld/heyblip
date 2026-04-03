@@ -435,4 +435,18 @@ struct PacketValidatorTests {
             return false
         }))
     }
+
+    @Test("Quick validate rejects oversized payload claims from the header")
+    func quickValidateRejectsOversizedPayload() {
+        var data = Data(repeating: 0, count: 16)
+        data[0] = Packet.currentVersion
+        data[2] = 3
+        data[12] = 0x00
+        data[13] = 0x04
+        data[14] = 0x00
+        data[15] = 0x01
+
+        let errors = PacketValidator.quickValidate(data)
+        #expect(errors.contains(.payloadTooLarge(PacketValidator.maxPayloadLength + 1)))
+    }
 }
