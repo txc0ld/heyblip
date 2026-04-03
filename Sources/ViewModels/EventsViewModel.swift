@@ -167,8 +167,17 @@ final class EventsViewModel {
 
     // MARK: - Constants
 
-    /// Event manifest CDN URL.
-    private static let manifestURL = "https://cdn.blip.app/manifests/events.json"
+    /// Event manifest CDN URL — enable when events API is deployed.
+    // private static let manifestURL = "https://cdn.blip.app/manifests/events.json"
+
+    /// Max retry attempts for remote fetch.
+    private static let maxRetries = 3
+
+    /// Base delay for exponential backoff (seconds).
+    private static let baseRetryDelay: TimeInterval = 2.0
+
+    /// Current retry count (reset on pull-to-refresh).
+    private var fetchRetryCount = 0
 
     /// Crowd pulse refresh interval.
     private static let crowdPulseRefreshInterval: TimeInterval = 30.0
@@ -193,41 +202,91 @@ final class EventsViewModel {
 
     // MARK: - Event Discovery
 
-    /// Fetch the event manifest from the CDN.
+    /// Fetch the event manifest — loads bundled JSON first, then attempts remote overlay.
     func fetchEvents() async {
         discoveryState = .fetching
 
-        guard let url = URL(string: Self.manifestURL) else {
-            discoveryState = .failed("Invalid manifest URL")
+        // Always load bundled events first for instant content
+        await loadBundledEvents()
+
+        // Attempt remote fetch with retry backoff (when URL is configured)
+        // await fetchRemoteEventsWithRetry()
+    }
+
+    /// Reset retry state and fetch again (called on pull-to-refresh).
+    func refreshEvents() async {
+        fetchRetryCount = 0
+        await fetchEvents()
+    }
+
+    /// Load events from the bundled events.json in Resources/.
+    private func loadBundledEvents() async {
+        guard let url = Bundle.main.url(forResource: "events", withExtension: "json") else {
+            DebugLogger.shared.log("EVENT", "Bundled events.json not found", isError: true)
+            discoveryState = .failed("No events data available")
             return
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                discoveryState = .failed("Failed to fetch manifest")
-                return
-            }
-
+            let data = try Data(contentsOf: url)
             let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
+            await storeEvents(manifest.events)
+            await loadEvents()
+            discoveryState = .loaded
+            DebugLogger.shared.log("EVENT", "Loaded \(manifest.events.count) events from bundle")
+        } catch {
+            DebugLogger.shared.log("EVENT", "Failed to decode bundled events: \(error)", isError: true)
+            discoveryState = .failed("Failed to load events")
+        }
+    }
 
-            // Verify manifest signature
-            if !verifyManifestSignature(manifest) {
-                discoveryState = .failed("Manifest signature verification failed")
-                return
+    /// Fetch events from remote CDN with exponential backoff (up to 3 retries).
+    /// Currently disabled — enable when events API is deployed.
+    private func fetchRemoteEventsWithRetry() async {
+        // guard let url = URL(string: ServerConfig.eventsManifestURL) else { return }
+        guard let url = URL(string: "https://cdn.blip.app/manifests/events.json") else { return }
+
+        for attempt in 1...Self.maxRetries {
+            if attempt > 1 {
+                let delay = Self.baseRetryDelay * pow(2.0, Double(attempt - 2))
+                DebugLogger.shared.log("EVENT", "Fetch retry \(attempt)/\(Self.maxRetries) after \(Int(delay))s delay")
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } catch {
+                    DebugLogger.shared.log("EVENT", "Retry sleep cancelled: \(error)")
+                    return
+                }
             }
 
-            // Store events in SwiftData
-            await storeEvents(manifest.events)
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    DebugLogger.shared.log("EVENT", "Remote manifest returned non-200 (attempt \(attempt))", isError: true)
+                    continue
+                }
 
-            // Reload from SwiftData
-            await loadEvents()
+                let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
 
-            discoveryState = .loaded
+                if !verifyManifestSignature(manifest) {
+                    DebugLogger.shared.log("EVENT", "Manifest signature verification failed", isError: true)
+                    discoveryState = .failed("Manifest verification failed")
+                    return
+                }
 
-        } catch {
-            discoveryState = .failed("Fetch error: \(error.localizedDescription)")
+                await storeEvents(manifest.events)
+                await loadEvents()
+                discoveryState = .loaded
+                DebugLogger.shared.log("EVENT", "Loaded \(manifest.events.count) events from remote (attempt \(attempt))")
+                return
+            } catch {
+                DebugLogger.shared.log("EVENT", "Remote fetch failed (attempt \(attempt)): \(error)", isError: true)
+            }
+        }
+
+        DebugLogger.shared.log("EVENT", "Fetch failed after \(Self.maxRetries) retries", isError: true)
+        // Don't override bundled data state — if bundled loaded successfully, keep .loaded
+        if case .fetching = discoveryState {
+            discoveryState = .failed("Could not reach events server after \(Self.maxRetries) attempts")
         }
     }
 
