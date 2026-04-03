@@ -35,7 +35,7 @@ struct EventsView: View {
                 if hasJoinedEvent {
                     eventContent
                 } else {
-                    noEventState
+                    EventDiscoveryView(eventsViewModel: eventsViewModel)
                 }
             }
             .navigationTitle(eventTitle)
