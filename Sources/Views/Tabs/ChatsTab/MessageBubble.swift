@@ -70,6 +70,8 @@ struct MessageBubble: View {
         .padding(.horizontal, BlipSpacing.md)
         .opacity(isVisible ? 1.0 : 0.0)
         .offset(x: isVisible ? 0 : (message.isFromMe ? 30 : -30))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(bubbleAccessibilityLabel)
         .onAppear {
             animateEntrance()
         }
@@ -136,7 +138,7 @@ struct MessageBubble: View {
         .clipShape(bubbleShape)
         .overlay(
             bubbleShape
-                .stroke(borderColor, lineWidth: BlipSizing.hairline)
+                .stroke(borderColor, lineWidth: 0.5)
         )
     }
 
@@ -297,13 +299,20 @@ struct MessageBubble: View {
     }
 
     private var borderColor: Color {
-        if message.isFromMe {
-            return Color.white.opacity(0.20)
-        } else {
-            return colorScheme == .dark
-                ? Color.white.opacity(0.12)
-                : Color.black.opacity(0.06)
+        Color.white.opacity(0.20)
+    }
+
+    private var bubbleAccessibilityLabel: String {
+        let sender = message.isFromMe ? "You" : message.senderName
+        let content: String
+        switch message.contentType {
+        case .text: content = message.text
+        case .voiceNote, .pttAudio: content = "Voice note"
+        case .image: content = "Image"
         }
+        let time = message.formattedTime
+        let edited = message.isEdited ? ", edited" : ""
+        return "\(sender): \(content), \(time)\(edited)"
     }
 
     // MARK: - Animation
