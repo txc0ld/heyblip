@@ -174,7 +174,7 @@ struct GossipMultiHopTests {
 
     // MARK: 4 — SOS priority relay through chain
 
-    @Test("SOS packet reaches all 5 nodes, TTL preserved, uses SOS Bloom filter")
+    @Test("SOS packet reaches all 5 nodes, TTL decrements, uses SOS Bloom filter")
     func sosPriorityRelay() {
         let nodes = buildLinearChain(count: 5)
         let source = makePeerID(0x01)
@@ -190,12 +190,13 @@ struct GossipMultiHopTests {
                     "Node \(i) should receive the SOS")
         }
 
-        // (b) TTL preserved while > 4 (spec 8.9 rule 4: no decrement for first 3 hops).
+        // (b) TTL decrements each hop (BDEV-107 fix: was previously preserved indefinitely).
         for i in 0..<4 {
             let relayed = nodes[i].delegate.relayedPackets
             #expect(relayed.count == 1)
-            #expect(relayed[0].ttl == 7,
-                    "Node \(i) should relay with TTL 7 (TTL > 4 preservation)")
+            let expectedTTL = UInt8(7 - (i + 1))
+            #expect(relayed[0].ttl == expectedTTL,
+                    "Node \(i) should relay with TTL \(expectedTTL)")
         }
 
         // (c) SOS Bloom filter used; normal Bloom filter untouched.
