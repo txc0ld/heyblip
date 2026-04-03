@@ -155,7 +155,8 @@ struct MessageBubble: View {
         VoiceNotePlayer(
             duration: message.voiceNoteDuration ?? 0,
             waveformSamples: message.waveformSamples,
-            isFromMe: message.isFromMe
+            isFromMe: message.isFromMe,
+            audioData: message.audioData
         )
         .frame(width: 200)
     }
@@ -339,6 +340,7 @@ struct ChatMessage: Identifiable, Sendable {
     let imageData: Data?
     let voiceNoteDuration: TimeInterval?
     let waveformSamples: [Float]
+    let audioData: Data?
 
     var formattedTime: String {
         let formatter = DateFormatter()
@@ -358,7 +360,7 @@ extension ChatMessage {
             contentType: .text, deliveryStatus: .read,
             timestamp: Date().addingTimeInterval(-3600),
             isEdited: false, replyPreview: nil, imageData: nil,
-            voiceNoteDuration: nil, waveformSamples: []
+            voiceNoteDuration: nil, waveformSamples: [], audioData: nil
         ),
         ChatMessage(
             id: UUID(), senderName: "Me", senderAvatarData: nil,
@@ -367,7 +369,7 @@ extension ChatMessage {
             contentType: .text, deliveryStatus: .read,
             timestamp: Date().addingTimeInterval(-3500),
             isEdited: false, replyPreview: nil, imageData: nil,
-            voiceNoteDuration: nil, waveformSamples: []
+            voiceNoteDuration: nil, waveformSamples: [], audioData: nil
         ),
         ChatMessage(
             id: UUID(), senderName: "Alice", senderAvatarData: nil,
@@ -376,7 +378,7 @@ extension ChatMessage {
             contentType: .text, deliveryStatus: .delivered,
             timestamp: Date().addingTimeInterval(-3400),
             isEdited: false, replyPreview: "Just arrived! Where are you?", imageData: nil,
-            voiceNoteDuration: nil, waveformSamples: []
+            voiceNoteDuration: nil, waveformSamples: [], audioData: nil
         ),
         ChatMessage(
             id: UUID(), senderName: "Me", senderAvatarData: nil,
@@ -385,7 +387,7 @@ extension ChatMessage {
             contentType: .text, deliveryStatus: .sent,
             timestamp: Date().addingTimeInterval(-60),
             isEdited: true, replyPreview: nil, imageData: nil,
-            voiceNoteDuration: nil, waveformSamples: []
+            voiceNoteDuration: nil, waveformSamples: [], audioData: nil
         ),
         ChatMessage(
             id: UUID(), senderName: "Alice", senderAvatarData: nil,
@@ -395,7 +397,8 @@ extension ChatMessage {
             timestamp: Date().addingTimeInterval(-30),
             isEdited: false, replyPreview: nil, imageData: nil,
             voiceNoteDuration: 12.5,
-            waveformSamples: [0.2, 0.4, 0.6, 0.8, 0.5, 0.3, 0.7, 0.9, 0.4, 0.2, 0.5, 0.6]
+            waveformSamples: [0.2, 0.4, 0.6, 0.8, 0.5, 0.3, 0.7, 0.9, 0.4, 0.2, 0.5, 0.6],
+            audioData: nil
         )
     ]
 }

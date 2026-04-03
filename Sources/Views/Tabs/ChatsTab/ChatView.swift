@@ -17,6 +17,8 @@ struct ChatView: View {
     @State private var scrollToBottomID: UUID? = nil
     @State private var isPTTRecording = false
     @State private var pttAudioLevels: [Float] = []
+    @State private var isRecordingVoiceNote = false
+    @State private var voiceNoteService = AudioService()
 
     @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.theme) private var theme
@@ -84,7 +86,7 @@ struct ChatView: View {
                     Task { await sendMessage(text: trimmedText) }
                 },
                 onAttachment: {
-                    // TODO: BDEV-136 — wire attachment picker (camera, photo library, voice note)
+                    Task { await recordAndSendVoiceNote() }
                 },
                 onPTTStart: {
                     isPTTRecording = true
@@ -290,8 +292,9 @@ struct ChatView: View {
                     String(data: $0.encryptedPayload, encoding: .utf8)
                 },
                 imageData: message.attachments.first?.fullData ?? message.attachments.first?.thumbnail,
-                voiceNoteDuration: nil,
-                waveformSamples: []
+                voiceNoteDuration: message.attachments.first(where: { $0.isAudio })?.duration,
+                waveformSamples: [],
+                audioData: message.attachments.first(where: { $0.isAudio })?.fullData
             )
         }
     }
@@ -321,6 +324,40 @@ struct ChatView: View {
         await vm.sendTextMessage(text: text)
         if let profileVM = coordinator.profileViewModel {
             await profileVM.loadProfile()
+        }
+    }
+
+    // MARK: - Voice Note
+
+    private func recordAndSendVoiceNote() async {
+        let audioService = voiceNoteService
+        guard !isRecordingVoiceNote else {
+            // Stop ongoing recording and send
+            do {
+                let (data, duration) = try audioService.stopRecording()
+                isRecordingVoiceNote = false
+                guard let channel = chatViewModel?.activeChannel else { return }
+                do {
+                    try await coordinator.messageService?.sendVoiceNote(
+                        audioData: data,
+                        duration: duration,
+                        to: channel
+                    )
+                } catch {
+                    DebugLogger.shared.log("AUDIO", "Failed to send voice note: \(error)", isError: true)
+                }
+            } catch {
+                DebugLogger.shared.log("AUDIO", "Failed to stop recording: \(error)", isError: true)
+                isRecordingVoiceNote = false
+            }
+            return
+        }
+        // Start recording
+        do {
+            try audioService.startRecording(maxDuration: 60)
+            isRecordingVoiceNote = true
+        } catch {
+            DebugLogger.shared.log("AUDIO", "Failed to start recording: \(error)", isError: true)
         }
     }
 

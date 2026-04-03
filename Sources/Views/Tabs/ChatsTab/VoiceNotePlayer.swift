@@ -14,9 +14,14 @@ struct VoiceNotePlayer: View {
     /// Whether this voice note is in an outgoing (from me) bubble.
     let isFromMe: Bool
 
+    /// Opus-encoded audio data for playback. Nil in previews.
+    var audioData: Data? = nil
+
     @State private var isPlaying = false
     @State private var playbackProgress: CGFloat = 0.0
     @State private var playbackSpeed: PlaybackSpeed = .normal
+    @State private var playbackTimer: Timer?
+    @State private var playerService = AudioService()
 
     @Environment(\.theme) private var theme
 
@@ -166,27 +171,74 @@ struct VoiceNotePlayer: View {
     }
 
     private func togglePlayback() {
-        isPlaying.toggle()
         if isPlaying {
-            simulatePlayback()
+            stopPlayback()
+        } else {
+            startPlayback()
         }
     }
 
-    private func simulatePlayback() {
-        // TODO: BDEV-136 — replace with real AVAudioPlayer playback using audioData
-        let adjustedDuration = duration / playbackSpeed.rawValue
-        let steps = Int(adjustedDuration * 20) // 20 updates per second
-        let stepDuration = adjustedDuration / Double(steps)
+    private func startPlayback() {
+        guard let data = audioData else {
+            DebugLogger.shared.log("AUDIO", "No audio data available for playback", isError: true)
+            simulateFallback()
+            return
+        }
 
-        for step in 0..<steps {
-            DispatchQueue.main.asyncAfter(deadline: .now() + stepDuration * Double(step)) {
-                guard isPlaying else { return }
-                withAnimation(.linear(duration: stepDuration)) {
-                    playbackProgress = CGFloat(step + 1) / CGFloat(steps)
-                }
-                if step == steps - 1 {
-                    isPlaying = false
+        do {
+            try playerService.play(data: data)
+            isPlaying = true
+            startProgressTimer()
+        } catch {
+            DebugLogger.shared.log("AUDIO", "Playback failed: \(error)", isError: true)
+            simulateFallback()
+        }
+    }
+
+    private func stopPlayback() {
+        playerService.stopPlayback()
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+        isPlaying = false
+    }
+
+    private func startProgressTimer() {
+        let adjustedDuration = duration / playbackSpeed.rawValue
+        guard adjustedDuration > 0 else { return }
+        let interval = 0.05 // 20 updates per second
+        playbackTimer?.invalidate()
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            Task { @MainActor in
+                let newProgress = playbackProgress + CGFloat(interval / adjustedDuration)
+                if newProgress >= 1.0 {
                     playbackProgress = 0
+                    isPlaying = false
+                    playbackTimer?.invalidate()
+                    playbackTimer = nil
+                } else {
+                    playbackProgress = newProgress
+                }
+            }
+        }
+    }
+
+    /// Fallback animation when no audioData is available (previews).
+    private func simulateFallback() {
+        isPlaying = true
+        let adjustedDuration = duration / playbackSpeed.rawValue
+        guard adjustedDuration > 0 else { return }
+        let interval = 0.05
+        playbackTimer?.invalidate()
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            Task { @MainActor in
+                let newProgress = playbackProgress + CGFloat(interval / adjustedDuration)
+                if newProgress >= 1.0 {
+                    playbackProgress = 0
+                    isPlaying = false
+                    playbackTimer?.invalidate()
+                    playbackTimer = nil
+                } else {
+                    playbackProgress = newProgress
                 }
             }
         }
