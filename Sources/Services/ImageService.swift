@@ -121,15 +121,20 @@ final class ImageService: @unchecked Sendable {
         let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         cacheDirectory = paths[0].appendingPathComponent("com.blip.images", isDirectory: true)
 
-        // Create cache directory if needed
-        do {
-            try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        } catch {
-            logger.warning("Failed to create image cache directory: \(error.localizedDescription)")
-        }
+        let directoryExists = FileManager.default.fileExists(atPath: cacheDirectory.path)
 
-        // Load existing cache metadata
-        loadCacheMetadata()
+        if !directoryExists {
+            // First launch: create directory, skip metadata scan (nothing to scan)
+            do {
+                try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+                DebugLogger.emit("APP", "Created image cache directory")
+            } catch {
+                DebugLogger.emit("APP", "Failed to create image cache directory: \(error)", isError: true)
+            }
+        } else {
+            // Existing cache: scan for metadata
+            loadCacheMetadata()
+        }
     }
 
     // MARK: - Compression
@@ -440,11 +445,16 @@ final class ImageService: @unchecked Sendable {
     // MARK: - Private: Cache Metadata
 
     private func loadCacheMetadata() {
+        guard fileManager.fileExists(atPath: cacheDirectory.path) else {
+            DebugLogger.emit("APP", "Cache directory does not exist, skipping metadata scan")
+            return
+        }
+
         let contents: [URL]
         do {
             contents = try fileManager.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])
         } catch {
-            logger.warning("Failed to list image cache directory: \(error.localizedDescription)")
+            DebugLogger.emit("APP", "Failed to list image cache directory: \(error)", isError: true)
             return
         }
 
@@ -456,7 +466,7 @@ final class ImageService: @unchecked Sendable {
                     totalSize += size
                 }
             } catch {
-                logger.warning("Failed to read resource values for cached file: \(error.localizedDescription)")
+                DebugLogger.emit("APP", "Failed to read cache file metadata: \(error)", isError: true)
             }
         }
         cacheUsage = totalSize
