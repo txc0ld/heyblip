@@ -49,15 +49,21 @@
         <string>bluetooth-peripheral</string>
         <string>audio</string>
         <string>remote-notification</string>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.blip.mesh-sync</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Blip uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
     <string>Blip uses Bluetooth to allow nearby devices to discover and connect with you.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Blip uses your location to find nearby festivals, show friends on the map, and share your location with friends you choose.</string>
+    <string>Blip uses your location to find nearby events, show friends on the map, and share your location with friends you choose.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Blip uses your location in the background to keep your friends updated and detect when you arrive at festivals.</string>
+    <string>Blip uses your location in the background to keep your friends updated and detect when you arrive at events.</string>
     <key>NSCameraUsageDescription</key>
     <string>Blip uses the camera to take profile photos and share images in chats.</string>
     <key>NSPhotoLibraryUsageDescription</key>

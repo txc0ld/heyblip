@@ -29,10 +29,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     // MARK: - UIApplicationDelegate
 
+    /// Background task service — registered once at launch.
+    let backgroundTaskService = BackgroundTaskService()
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Register BGTaskScheduler handlers before any tasks can fire.
+        backgroundTaskService.registerTasks()
+
         // Check if launched due to BLE event
         if let bleOptions = launchOptions?[.bluetoothCentrals] as? [String] {
             handleCentralRestoration(identifiers: bleOptions)

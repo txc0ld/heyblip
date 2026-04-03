@@ -39,6 +39,7 @@ final class AppCoordinator {
     private(set) var peerStore = PeerStore.shared
     private(set) var locationService = LocationService()
     private(set) var notificationService = NotificationService()
+    private(set) var backgroundTaskService: BackgroundTaskService?
 
     // MARK: - Feature View Models
 
@@ -239,6 +240,11 @@ final class AppCoordinator {
                 DebugLogger.shared.log("AUTH", "Key upload failed: \(error.localizedDescription)", isError: true)
             }
         }
+
+        // Wire background task service for BGTaskScheduler-based mesh sync.
+        let bgService = BackgroundTaskService(coordinator: self)
+        bgService.scheduleNextSync()
+        self.backgroundTaskService = bgService
 
         isReady = true
         logger.info("AppCoordinator configured — services ready")

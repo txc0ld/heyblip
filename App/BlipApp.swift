@@ -8,6 +8,7 @@ struct BlipApp: App {
 
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var coordinator = AppCoordinator()
 
     var sharedModelContainer: ModelContainer = {
@@ -36,6 +37,19 @@ struct BlipApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                coordinator.backgroundTaskService?.scheduleNextSync()
+                if coordinator.bleService?.state == .running {
+                    coordinator.backgroundTaskService?.postBackgroundActiveNotification()
+                }
+            case .active:
+                coordinator.backgroundTaskService?.removeBackgroundActiveNotification()
+            default:
+                break
+            }
+        }
     }
 }
 
