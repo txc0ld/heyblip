@@ -59,7 +59,54 @@ final class EventsViewModel {
     /// Success message for transient feedback.
     var successMessage: String?
 
+    // MARK: - Discovery State
+
+    /// Browsable events for the discovery tab.
+    var discoveryEvents: [DiscoverableEvent] = []
+
+    /// Current category filter for discovery.
+    var selectedCategory: EventCategory = .all
+
+    /// Search text for filtering events.
+    var discoverySearchText: String = ""
+
+    /// IDs of events the user has joined (loaded from SwiftData).
+    private var joinedEventIds: Set<String> = []
+
+    /// Filtered events based on category and search.
+    var filteredDiscoveryEvents: [DiscoverableEvent] {
+        discoveryEvents.filter { event in
+            let matchesCategory = selectedCategory == .all || event.category == selectedCategory
+            let matchesSearch = discoverySearchText.isEmpty ||
+                event.name.localizedCaseInsensitiveContains(discoverySearchText) ||
+                event.location.localizedCaseInsensitiveContains(discoverySearchText)
+            return matchesCategory && matchesSearch
+        }
+    }
+
     // MARK: - Supporting Types
+
+    enum EventCategory: String, CaseIterable, Sendable {
+        case all = "All"
+        case festival = "Festivals"
+        case sport = "Sports"
+        case marathon = "Marathons"
+        case concert = "Concerts"
+        case other = "Other"
+    }
+
+    struct DiscoverableEvent: Identifiable, Sendable {
+        let id: String
+        let name: String
+        let location: String
+        let startDate: Date
+        let endDate: Date
+        let description: String
+        let imageURL: String?
+        let attendeeCount: Int
+        let category: EventCategory
+        var isJoined: Bool
+    }
 
     struct EventInfo: Identifiable, Sendable {
         let id: UUID
@@ -221,6 +268,106 @@ final class EventsViewModel {
         } catch {
             errorMessage = "Failed to load events: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Event Discovery
+
+    /// Fetch browsable events from the manifest and load joined state.
+    func fetchDiscoveryEvents() async {
+        discoveryState = .fetching
+
+        guard let url = URL(string: ServerConfig.eventsManifestURL) else {
+            discoveryState = .failed("Invalid manifest URL")
+            DebugLogger.shared.log("EVENT", "Invalid events manifest URL", isError: true)
+            return
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                discoveryState = .failed("Failed to fetch events")
+                DebugLogger.shared.log("EVENT", "Events manifest returned non-200", isError: true)
+                return
+            }
+
+            let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
+            await loadJoinedEventIds()
+
+            discoveryEvents = manifest.events.map { event in
+                DiscoverableEvent(
+                    id: event.id.uuidString,
+                    name: event.name,
+                    location: event.location ?? "Unknown location",
+                    startDate: event.startDate,
+                    endDate: event.endDate,
+                    description: event.description ?? "",
+                    imageURL: event.imageURL,
+                    attendeeCount: event.attendeeCount ?? 0,
+                    category: EventCategory(rawValue: event.category ?? "Other") ?? .other,
+                    isJoined: joinedEventIds.contains(event.id.uuidString)
+                )
+            }
+
+            discoveryState = discoveryEvents.isEmpty ? .idle : .loaded
+            DebugLogger.shared.log("EVENT", "Loaded \(discoveryEvents.count) events from manifest")
+
+        } catch {
+            discoveryState = .failed("Fetch error: \(error.localizedDescription)")
+            DebugLogger.shared.log("EVENT", "Failed to fetch discovery events: \(error)", isError: true)
+        }
+    }
+
+    /// Load joined event IDs from SwiftData.
+    private func loadJoinedEventIds() async {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<JoinedEvent>()
+        do {
+            let joined = try context.fetch(descriptor)
+            joinedEventIds = Set(joined.map(\.eventId))
+        } catch {
+            DebugLogger.shared.log("EVENT", "Failed to load joined events: \(error)", isError: true)
+        }
+    }
+
+    /// Join an event — persists to SwiftData.
+    func joinEvent(_ eventId: String) {
+        let context = ModelContext(modelContainer)
+        let joinedEvent = JoinedEvent(eventId: eventId)
+        context.insert(joinedEvent)
+        do {
+            try context.save()
+            joinedEventIds.insert(eventId)
+            if let index = discoveryEvents.firstIndex(where: { $0.id == eventId }) {
+                discoveryEvents[index].isJoined = true
+            }
+            DebugLogger.shared.log("EVENT", "Joined event \(eventId)")
+        } catch {
+            DebugLogger.shared.log("EVENT", "Failed to join event: \(error)", isError: true)
+        }
+    }
+
+    /// Leave an event — removes from SwiftData.
+    func leaveEvent(_ eventId: String) {
+        let context = ModelContext(modelContainer)
+        let targetId = eventId
+        let descriptor = FetchDescriptor<JoinedEvent>(predicate: #Predicate { $0.eventId == targetId })
+        do {
+            let matches = try context.fetch(descriptor)
+            for match in matches { context.delete(match) }
+            try context.save()
+            joinedEventIds.remove(eventId)
+            if let index = discoveryEvents.firstIndex(where: { $0.id == eventId }) {
+                discoveryEvents[index].isJoined = false
+            }
+            DebugLogger.shared.log("EVENT", "Left event \(eventId)")
+        } catch {
+            DebugLogger.shared.log("EVENT", "Failed to leave event: \(error)", isError: true)
+        }
+    }
+
+    /// Check if user has joined a specific event.
+    func isJoined(_ eventId: String) -> Bool {
+        joinedEventIds.contains(eventId)
     }
 
     // MARK: - Geofencing
@@ -496,15 +643,20 @@ final class EventsViewModel {
     }
 
     private struct ManifestEvent: Codable {
-        let id: String
+        let id: UUID
         let name: String
         let latitude: Double
         let longitude: Double
         let radiusMeters: Double
-        let startDate: String
-        let endDate: String
+        let startDate: Date
+        let endDate: Date
         let organizerSigningKey: String
         let stages: [ManifestStage]?
+        let location: String?
+        let description: String?
+        let imageURL: String?
+        let attendeeCount: Int?
+        let category: String?
     }
 
     private struct ManifestStage: Codable {
@@ -533,10 +685,9 @@ final class EventsViewModel {
         let dateFormatter = ISO8601DateFormatter()
 
         for mf in manifestEvents {
-            guard let uuid = UUID(uuidString: mf.id),
-                  let startDate = dateFormatter.date(from: mf.startDate),
-                  let endDate = dateFormatter.date(from: mf.endDate) else { continue }
-
+            let uuid = mf.id
+            let startDate = mf.startDate
+            let endDate = mf.endDate
             let signingKey = Data(base64Encoded: mf.organizerSigningKey) ?? Data()
 
             // Check if event already exists

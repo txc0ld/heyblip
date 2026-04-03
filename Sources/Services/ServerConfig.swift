@@ -14,4 +14,7 @@ enum ServerConfig {
 
     /// WebSocket relay endpoint.
     static let relayWebSocketURL = URL(string: "wss://blip-relay.john-mckean.workers.dev/ws")!
+
+    /// Events manifest CDN URL.
+    static let eventsManifestURL = "https://cdn.blip.app/manifests/events.json"
 }

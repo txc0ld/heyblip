@@ -24,7 +24,8 @@ enum BlipSchema {
         CrowdPulse.self,
         UserPreferences.self,
         GroupSenderKey.self,
-        NoiseSessionModel.self
+        NoiseSessionModel.self,
+        JoinedEvent.self
     ]
 
     /// The SwiftData Schema containing all model types.
