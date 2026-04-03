@@ -186,13 +186,12 @@ struct GossipRouterTests {
         #expect(!router.bloomFilter.contains(packetID))
     }
 
-    @Test("SOS TTL skips decrement for first 3 hops")
-    func sosTTLSkip() {
+    @Test("SOS TTL decrements every hop")
+    func sosTTLDecrements() {
         let router = GossipRouter()
         let mockDelegate = MockGossipDelegate()
         router.delegate = mockDelegate
 
-        // TTL 7: first hop, should not decrement (TTL > 4).
         let packet = makeSOSPacket(ttl: 7)
         let source = makePeerID(0x10)
 
@@ -200,7 +199,59 @@ struct GossipRouterTests {
 
         #expect(mockDelegate.relayCount == 1)
         let relayed = mockDelegate.relayedPackets[0].0
-        #expect(relayed.ttl == 7) // TTL preserved for first 3 hops.
+        #expect(relayed.ttl == 6) // TTL decremented from 7 to 6.
+    }
+
+    @Test("SOS packet relays even at TTL 1 (no last-hop suppression)")
+    func sosNoLastHopSuppression() {
+        let router = GossipRouter()
+        let mockDelegate = MockGossipDelegate()
+        router.delegate = mockDelegate
+
+        let packet = makeSOSPacket(ttl: 1)
+        let source = makePeerID(0x10)
+
+        _ = router.handleIncoming(packet: packet, from: source)
+
+        #expect(mockDelegate.relayCount == 1, "SOS should relay even when TTL decrements to 0")
+        let relayed = mockDelegate.relayedPackets[0].0
+        #expect(relayed.ttl == 0)
+    }
+
+    @Test("SOS packet with TTL 0 is not relayed")
+    func sosTTLZeroNotRelayed() {
+        let router = GossipRouter()
+        let mockDelegate = MockGossipDelegate()
+        router.delegate = mockDelegate
+
+        let packet = makeSOSPacket(ttl: 0)
+        let source = makePeerID(0x10)
+
+        let isNew = router.handleIncoming(packet: packet, from: source)
+
+        #expect(isNew == true, "TTL 0 SOS still delivered locally")
+        #expect(mockDelegate.relayCount == 0, "TTL 0 SOS should not relay")
+    }
+
+    @Test("Regular packet TTL 1 triggers last-hop suppression but SOS does not")
+    func regularVsSosLastHop() {
+        // Regular: TTL 1 → decrement to 0 → last-hop suppression → no relay
+        let router1 = GossipRouter()
+        let delegate1 = MockGossipDelegate()
+        router1.delegate = delegate1
+        router1.adaptiveRelay.connectedPeerCount = 1
+
+        _ = router1.handleIncoming(packet: makePacket(ttl: 1), from: makePeerID(0x10))
+        Thread.sleep(forTimeInterval: 0.1)
+        #expect(delegate1.relayCount == 0, "Regular TTL 1 should not relay")
+
+        // SOS: TTL 1 → decrement to 0 → no suppression → relay
+        let router2 = GossipRouter()
+        let delegate2 = MockGossipDelegate()
+        router2.delegate = delegate2
+
+        _ = router2.handleIncoming(packet: makeSOSPacket(ttl: 1), from: makePeerID(0x10))
+        #expect(delegate2.relayCount == 1, "SOS TTL 1 should still relay")
     }
 
     // MARK: - Relay exclusion

@@ -122,22 +122,25 @@ public final class GossipRouter: @unchecked Sendable {
         // Step 4: Decrement TTL and relay.
         var relayPacket = packet
 
-        // SOS override: skip TTL reduction for first 3 hops (spec 8.9 rule 4).
-        if isSOS && packet.ttl > 4 {
-            // Do not decrement TTL for the first 3 hops (TTL 7->7, 6->6, 5->5).
-            // After that, normal decrement.
-        } else {
-            guard relayPacket.ttl > 0 else {
-                lock.lock()
-                packetsDropped += 1
-                lock.unlock()
-                logger.debug("TTL expired, not relaying: \(packet.type)")
-                return true // Packet is new, deliver locally, but don't relay.
-            }
-            relayPacket.ttl -= 1
+        // TTL decrement: always decrement for all packet types.
+        // SOS packets skip last-hop suppression so they relay even at TTL=0,
+        // giving one extra hop of reach. The always-relay at 100% probability
+        // for SOS is handled below (line ~148).
+        //
+        // Previous code skipped decrement entirely for SOS when TTL > 4,
+        // which caused SOS packets to relay indefinitely (BDEV-107).
+        guard relayPacket.ttl > 0 else {
+            lock.lock()
+            packetsDropped += 1
+            lock.unlock()
+            logger.debug("TTL expired, not relaying: \(packet.type)")
+            return true // Packet is new, deliver locally, but don't relay.
+        }
+        relayPacket.ttl -= 1
 
-            // Last-hop suppression: if TTL just hit 0, deliver locally but don't relay further.
-            // This prevents the packet from being sent to peers who will just drop it anyway.
+        // Last-hop suppression for non-SOS packets only.
+        // SOS packets relay even at TTL=0 to maximize reach.
+        if !isSOS {
             guard relayPacket.ttl > 0 else {
                 logger.debug("Last-hop suppression: TTL=0 after decrement, not relaying \(packet.type)")
                 return true
