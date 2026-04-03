@@ -349,42 +349,67 @@ struct EventsView: View {
 
     // MARK: - No Event State
 
+    @ViewBuilder
     private var noEventState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-
-            Image(systemName: "music.note.house")
-                .font(.system(size: 60))
-                .foregroundStyle(theme.colors.mutedText)
-
-            Text("No Event Joined")
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.text)
-
-            Text(noEventDescription)
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, BlipSpacing.xl)
-
-            if !availableEventNames.isEmpty {
-                VStack(spacing: BlipSpacing.sm) {
-                    ForEach(availableEventNames, id: \.self) { eventName in
-                        Text(eventName)
+        if eventsViewModel?.discoveryState == .fetching {
+            // Loading state — glassmorphism card with progress
+            VStack(spacing: BlipSpacing.lg) {
+                Spacer()
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.md) {
+                        ProgressView()
+                            .tint(.blipAccentPurple)
+                            .scaleEffect(1.2)
+                        Text("Loading events...")
                             .font(theme.typography.secondary)
                             .foregroundStyle(theme.colors.text)
+                        Text("Checking for nearby event manifests and cached events.")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, BlipSpacing.md)
+                Spacer()
+            }
+            .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
+        } else if let failed = eventsViewModel?.discoveryState,
+                  case let .failed(message) = failed {
+            // Error state — glass error card with retry
+            VStack(spacing: BlipSpacing.lg) {
+                Spacer()
+                ErrorStateView(
+                    title: "Couldn't load events",
+                    subtitle: message
+                ) {
+                    Task {
+                        await eventsViewModel?.fetchEvents()
+                        await loadEventData()
                     }
                 }
+                .padding(.horizontal, BlipSpacing.md)
+                Spacer()
             }
-
-            GlassButton("Refresh Event Directory", icon: "arrow.clockwise") {
-                Task {
-                    await eventsViewModel?.fetchEvents()
-                    await loadEventData()
+            .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
+        } else {
+            // Empty state — no events available
+            VStack(spacing: BlipSpacing.lg) {
+                Spacer()
+                EmptyStateView(
+                    icon: "calendar.badge.plus",
+                    title: "No Event Joined",
+                    subtitle: "Browse the event directory or enter a geofenced venue to unlock the live map, schedule, and announcements.",
+                    ctaTitle: "Refresh Event Directory"
+                ) {
+                    Task {
+                        await eventsViewModel?.fetchEvents()
+                        await loadEventData()
+                    }
                 }
+                Spacer()
             }
-
-            Spacer()
+            .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
         }
     }
 

@@ -357,24 +357,27 @@ struct NearbyView: View {
 
             if nearbyFriends.isEmpty && nonFriendPeers.isEmpty {
                 if resolvedMeshViewModel?.isBLEActive == true {
-                    // Scanning state — show pulsing animation
-                    VStack(spacing: BlipSpacing.md) {
-                        ProgressView()
-                            .tint(.blipAccentPurple)
-                            .scaleEffect(1.2)
+                    // Scanning state — glassmorphism card with pulsing indicator
+                    GlassCard(thickness: .ultraThin) {
+                        VStack(spacing: BlipSpacing.md) {
+                            ProgressView()
+                                .tint(.blipAccentPurple)
+                                .scaleEffect(1.2)
 
-                        Text("Scanning for nearby peers...")
-                            .font(theme.typography.secondary)
-                            .foregroundStyle(theme.colors.mutedText)
+                            Text("Scanning for nearby peers...")
+                                .font(theme.typography.secondary)
+                                .foregroundStyle(theme.colors.text)
 
-                        Text("Make sure Bluetooth is enabled and you're near other Blip users.")
-                            .font(theme.typography.caption)
-                            .foregroundStyle(theme.colors.mutedText.opacity(0.7))
-                            .multilineTextAlignment(.center)
+                            Text("Make sure Bluetooth is enabled and you're near other Blip users.")
+                                .font(theme.typography.caption)
+                                .foregroundStyle(theme.colors.mutedText)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.xl)
                     .padding(.horizontal, BlipSpacing.md)
+                    .padding(.vertical, BlipSpacing.lg)
+                    .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
                 } else {
                     EmptyStateView(
                         icon: "antenna.radiowaves.left.and.right.slash",
@@ -382,31 +385,33 @@ struct NearbyView: View {
                         subtitle: "Turn on Bluetooth to discover people nearby and join the mesh network.",
                         ctaTitle: "Open Settings"
                     ) {
-                        #if canImport(UIKit)
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             UIApplication.shared.open(url)
                         }
-                        #endif
                     }
                     .padding(.vertical, BlipSpacing.lg)
+                    .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
                 }
             } else if nearbyFriends.isEmpty {
-                VStack(spacing: BlipSpacing.sm) {
-                    Image(systemName: "person.2.slash")
-                        .font(.system(size: 24))
-                        .foregroundStyle(theme.colors.mutedText)
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.sm) {
+                        Image(systemName: "person.2.slash")
+                            .font(.system(size: 24))
+                            .foregroundStyle(theme.colors.mutedText)
 
-                    Text("No friends nearby")
-                        .font(theme.typography.body)
-                        .fontWeight(.medium)
-                        .foregroundStyle(theme.colors.text)
+                        Text("No friends nearby")
+                            .font(theme.typography.body)
+                            .fontWeight(.medium)
+                            .foregroundStyle(theme.colors.text)
 
-                    Text("Tap a peer above to send a friend request.")
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
+                        Text("Tap a peer above to send a friend request.")
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, BlipSpacing.lg)
+                .padding(.horizontal, BlipSpacing.md)
+                .transition(.opacity.animation(SpringConstants.accessiblePageEntrance))
             } else {
                 ForEach(Array(nearbyFriends.enumerated()), id: \.element.id) { index, friend in
                     NearbyPeerCard(
