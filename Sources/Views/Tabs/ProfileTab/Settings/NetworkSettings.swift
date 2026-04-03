@@ -24,6 +24,7 @@ struct NetworkSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityLabel("Transport mode")
 
                     let currentMode = TransportMode(rawValue: transportMode) ?? .allRadios
                     Text(currentMode.caption)

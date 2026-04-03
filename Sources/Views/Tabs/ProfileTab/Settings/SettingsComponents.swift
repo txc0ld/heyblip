@@ -70,6 +70,7 @@ enum SettingsComponents {
         .tint(.blipAccentPurple)
         .frame(minHeight: BlipSizing.minTapTarget)
         .sensoryFeedback(.selection, trigger: isOn.wrappedValue)
+        .accessibilityLabel(title)
     }
 
     /// An info row showing a label and its value.

@@ -19,6 +19,7 @@ struct ChatSettings: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 160)
+                    .accessibilityLabel("Push-to-Talk mode")
                 }
             }
         }

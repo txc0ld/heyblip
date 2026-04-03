@@ -23,6 +23,7 @@ struct LocationSettings: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
+                    .accessibilityLabel("Location sharing precision")
                 }
 
                 SettingsComponents.settingsToggleRow(

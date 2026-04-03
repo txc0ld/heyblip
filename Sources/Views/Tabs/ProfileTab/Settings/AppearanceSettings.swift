@@ -21,6 +21,7 @@ struct AppearanceSettings: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 220)
+                    .accessibilityLabel("Theme")
                 }
             }
         }
