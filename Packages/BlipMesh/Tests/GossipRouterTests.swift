@@ -10,7 +10,7 @@ private func makePeerID(_ byte: UInt8) -> PeerID {
 }
 
 private func makePacket(
-    type: MessageType = .meshBroadcast,
+    type: MessageType = .noiseEncrypted,
     ttl: UInt8 = 5,
     senderByte: UInt8 = 0x01,
     payload: Data = Data([0xAA, 0xBB]),
@@ -54,6 +54,14 @@ final class MockGossipDelegate: GossipRouterDelegate, @unchecked Sendable {
 
     var relayCount: Int {
         lock.withLock { relayedPackets.count }
+    }
+
+    var firstRelayedPacket: Packet? {
+        lock.withLock { relayedPackets.first?.0 }
+    }
+
+    var firstExcludedPeer: PeerID? {
+        lock.withLock { relayedPackets.first?.1 }
     }
 }
 
@@ -198,8 +206,7 @@ struct GossipRouterTests {
         _ = router.handleIncoming(packet: packet, from: source)
 
         #expect(mockDelegate.relayCount == 1)
-        let relayed = mockDelegate.relayedPackets[0].0
-        #expect(relayed.ttl == 6) // TTL decremented from 7 to 6.
+        #expect(mockDelegate.firstRelayedPacket?.ttl == 6) // TTL decremented from 7 to 6.
     }
 
     @Test("SOS packet relays even at TTL 1 (no last-hop suppression)")
@@ -214,8 +221,7 @@ struct GossipRouterTests {
         _ = router.handleIncoming(packet: packet, from: source)
 
         #expect(mockDelegate.relayCount == 1, "SOS should relay even when TTL decrements to 0")
-        let relayed = mockDelegate.relayedPackets[0].0
-        #expect(relayed.ttl == 0)
+        #expect(mockDelegate.firstRelayedPacket?.ttl == 0)
     }
 
     @Test("SOS packet with TTL 0 is not relayed")
@@ -269,8 +275,7 @@ struct GossipRouterTests {
         _ = router.handleIncoming(packet: sosPacket, from: source)
 
         #expect(mockDelegate.relayCount == 1)
-        let excludedPeer = mockDelegate.relayedPackets[0].1
-        #expect(excludedPeer == source)
+        #expect(mockDelegate.firstExcludedPeer == source)
     }
 
     // MARK: - Metrics
@@ -436,9 +441,7 @@ struct GossipRouterTests {
 
         Thread.sleep(forTimeInterval: 0.1)
         #expect(delegate.relayCount == 1, "TTL 2 should be relayed")
-
-        let relayed = delegate.relayedPackets[0].0
-        #expect(relayed.ttl == 1, "Relayed TTL should be decremented by 1")
+        #expect(delegate.firstRelayedPacket?.ttl == 1, "Relayed TTL should be decremented by 1")
     }
 
     @Test("High TTL packet is relayed with TTL decremented by 1")
@@ -454,8 +457,6 @@ struct GossipRouterTests {
         // Wait for jitter (up to 25ms) + async dispatch
         Thread.sleep(forTimeInterval: 0.3)
         #expect(delegate.relayCount == 1)
-
-        let relayed = delegate.relayedPackets[0].0
-        #expect(relayed.ttl == 6, "Relayed TTL should be original - 1")
+        #expect(delegate.firstRelayedPacket?.ttl == 6, "Relayed TTL should be original - 1")
     }
 }
