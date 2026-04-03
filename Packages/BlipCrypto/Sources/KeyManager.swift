@@ -59,6 +59,90 @@ public enum KeyManagerError: Error, Sendable {
     case ed25519KeyGenFailed
 }
 
+// MARK: - Storage Backends
+
+protocol KeyManagerStore: Sendable {
+    func store(tag: String, data: Data) throws
+    func load(tag: String) throws -> Data?
+    func delete(tag: String) throws
+}
+
+private final class KeychainKeyManagerStore: @unchecked Sendable, KeyManagerStore {
+    func store(tag: String, data: Data) throws {
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: tag,
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: tag,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeyManagerError.keychainWriteFailed(status)
+        }
+    }
+
+    func load(tag: String) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: tag,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return nil
+        }
+        guard status == errSecSuccess else {
+            throw KeyManagerError.keychainReadFailed(status)
+        }
+        guard let data = result as? Data else {
+            throw KeyManagerError.corruptedKeychainData
+        }
+        return data
+    }
+
+    func delete(tag: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: tag,
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeyManagerError.keychainDeleteFailed(status)
+        }
+    }
+}
+
+final class InMemoryKeyManagerStore: @unchecked Sendable, KeyManagerStore {
+    private var values: [String: Data] = [:]
+    private let lock = NSLock()
+
+    func store(tag: String, data: Data) throws {
+        lock.withLock {
+            values[tag] = data
+        }
+    }
+
+    func load(tag: String) throws -> Data? {
+        lock.withLock {
+            values[tag]
+        }
+    }
+
+    func delete(tag: String) throws {
+        lock.withLock {
+            _ = values.removeValue(forKey: tag)
+        }
+    }
+}
+
 // MARK: - KeyManager
 
 /// Generates, stores, and recovers the user's cryptographic identity.
@@ -92,9 +176,16 @@ public final class KeyManager: @unchecked Sendable {
     public static let shared = KeyManager()
 
     private let sodium: Sodium
+    private let keyStore: KeyManagerStore
 
     public init() {
+        self.keyStore = KeychainKeyManagerStore()
         self.sodium = Sodium()
+    }
+
+    init(keyStore: KeyManagerStore, sodium: Sodium = Sodium()) {
+        self.keyStore = keyStore
+        self.sodium = sodium
     }
 
     // MARK: - Generate
@@ -123,17 +214,17 @@ public final class KeyManager: @unchecked Sendable {
     /// Persist the identity's keys into the iOS Keychain.
     public func storeIdentity(_ identity: Identity) throws {
         // Store Noise private key (raw 32-byte scalar)
-        try keychainStore(
+        try keyStore.store(
             tag: Self.noiseKeyTag,
             data: identity.noisePrivateKey.rawRepresentation
         )
         // Store Ed25519 secret key (64 bytes)
-        try keychainStore(
+        try keyStore.store(
             tag: Self.signingSecretTag,
             data: identity.signingSecretKey
         )
         // Store Ed25519 public key (32 bytes)
-        try keychainStore(
+        try keyStore.store(
             tag: Self.signingPublicTag,
             data: identity.signingPublicKey
         )
@@ -145,13 +236,13 @@ public final class KeyManager: @unchecked Sendable {
     ///
     /// Returns `nil` if no identity has been stored yet.
     public func loadIdentity() throws -> Identity? {
-        guard let noiseRaw = try keychainLoad(tag: Self.noiseKeyTag) else {
+        guard let noiseRaw = try keyStore.load(tag: Self.noiseKeyTag) else {
             return nil
         }
-        guard let signingSecret = try keychainLoad(tag: Self.signingSecretTag) else {
+        guard let signingSecret = try keyStore.load(tag: Self.signingSecretTag) else {
             throw KeyManagerError.corruptedKeychainData
         }
-        guard let signingPublic = try keychainLoad(tag: Self.signingPublicTag) else {
+        guard let signingPublic = try keyStore.load(tag: Self.signingPublicTag) else {
             throw KeyManagerError.corruptedKeychainData
         }
 
@@ -178,9 +269,9 @@ public final class KeyManager: @unchecked Sendable {
 
     /// Remove all stored keys from the Keychain.
     public func deleteIdentity() throws {
-        try keychainDelete(tag: Self.noiseKeyTag)
-        try keychainDelete(tag: Self.signingSecretTag)
-        try keychainDelete(tag: Self.signingPublicTag)
+        try keyStore.delete(tag: Self.noiseKeyTag)
+        try keyStore.delete(tag: Self.signingSecretTag)
+        try keyStore.delete(tag: Self.signingPublicTag)
     }
 
     // MARK: - Recovery Kit
@@ -285,11 +376,11 @@ public final class KeyManager: @unchecked Sendable {
 
     /// Load or generate the per-user salt used for phone number hashing.
     public func loadOrCreatePhoneSalt() throws -> Data {
-        if let existing = try keychainLoad(tag: Self.phoneSaltTag) {
+        if let existing = try keyStore.load(tag: Self.phoneSaltTag) {
             return existing
         }
         let salt = generateRandomBytes(count: 32)
-        try keychainStore(tag: Self.phoneSaltTag, data: salt)
+        try keyStore.store(tag: Self.phoneSaltTag, data: salt)
         return salt
     }
 
@@ -319,59 +410,5 @@ public final class KeyManager: @unchecked Sendable {
             _ = SecRandomCopyBytes(kSecRandomDefault, count, ptr)
         }
         return bytes
-    }
-
-    // MARK: - Keychain primitives
-
-    private func keychainStore(tag: String, data: Data) throws {
-        // Delete any existing item first
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: tag,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: tag,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-        ]
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw KeyManagerError.keychainWriteFailed(status)
-        }
-    }
-
-    private func keychainLoad(tag: String) throws -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: tag,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound {
-            return nil
-        }
-        guard status == errSecSuccess else {
-            throw KeyManagerError.keychainReadFailed(status)
-        }
-        guard let data = result as? Data else {
-            throw KeyManagerError.corruptedKeychainData
-        }
-        return data
-    }
-
-    private func keychainDelete(tag: String) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: tag,
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeyManagerError.keychainDeleteFailed(status)
-        }
     }
 }

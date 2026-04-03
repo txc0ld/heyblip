@@ -130,7 +130,7 @@ struct NoiseHandshakeValidationTests {
 
     // MARK: - Tampered Message Detection
 
-    @Test("Bit flip in message 1 causes read failure")
+    @Test("Bit flip in message 1 breaks the handshake on the next encrypted message")
     func testTamperedMessage1() throws {
         let initiatorStatic = Curve25519.KeyAgreement.PrivateKey()
         let responderStatic = Curve25519.KeyAgreement.PrivateKey()
@@ -145,10 +145,15 @@ struct NoiseHandshakeValidationTests {
             msg1[0] ^= 0x01
         }
 
-        // Responder should be able to read (message 1 is not encrypted in XX pattern)
-        // but it should be malformed
+        // XX message 1 only carries the initiator's ephemeral public key and optional
+        // plaintext payload. A tampered ephemeral can still parse, but the handshake
+        // must fail when the initiator later tries to process the responder's encrypted
+        // message 2 because the two sides derived different handshake keys.
+        _ = try responder.readMessage(msg1)
+
+        let msg2 = try responder.writeMessage()
         #expect(throws: NoiseHandshakeError.self) {
-            _ = try responder.readMessage(msg1)
+            _ = try initiator.readMessage(msg2)
         }
     }
 
@@ -221,9 +226,9 @@ struct NoiseHandshakeValidationTests {
             _ = try responder.readMessage(truncated1)
         }
 
-        // Even with valid message 1, truncated message 2 should fail
-        let msg1Full = try initiator.writeMessage()
-        _ = try responder.readMessage(msg1Full)
+        // A valid message 1 should still let the handshake continue, and a truncated
+        // encrypted message 2 must then be rejected.
+        _ = try responder.readMessage(msg1)
 
         let msg2 = try responder.writeMessage()
         let truncated2 = Data(msg2.prefix(20))

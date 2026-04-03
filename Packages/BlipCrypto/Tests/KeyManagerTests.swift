@@ -4,41 +4,8 @@ import CryptoKit
 @testable import BlipCrypto
 import BlipProtocol
 
-/// Helper: Check whether the iOS Keychain is accessible in this environment.
-/// Returns `true` if we can write and read a test item.
-private func isKeychainAccessible() -> Bool {
-    let testTag = "com.blip.crypto.test.probe"
-    let testData = Data("probe".utf8)
-
-    // Try to delete any leftover probe
-    let deleteQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: testTag,
-    ]
-    SecItemDelete(deleteQuery as CFDictionary)
-
-    // Try to add
-    let addQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: testTag,
-        kSecValueData as String: testData,
-        kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-    ]
-    let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-    guard addStatus == errSecSuccess else { return false }
-
-    // Try to read back
-    let readQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: testTag,
-        kSecReturnData as String: true,
-        kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-    var result: AnyObject?
-    let readStatus = SecItemCopyMatching(readQuery as CFDictionary, &result)
-    SecItemDelete(deleteQuery as CFDictionary)  // Clean up
-
-    return readStatus == errSecSuccess && (result as? Data) == testData
+private func makeTestKeyManager() -> KeyManager {
+    KeyManager(keyStore: InMemoryKeyManagerStore())
 }
 
 @Suite("KeyManager Tests")
@@ -87,15 +54,13 @@ struct KeyManagerTests {
         #expect(identity.peerID == manualPeerID)
     }
 
-    // MARK: - Keychain Store/Load (Integration)
-    // These tests require Keychain access. They are skipped when running in
-    // environments without Keychain (e.g. bare `swift test` on macOS CLI).
+    // MARK: - Storage-backed Store/Load
+    // These tests use the in-memory secure store so they can run under CLI `swift test`
+    // while still exercising the KeyManager persistence logic.
 
     @Test("Store and load identity round-trips correctly")
     func testStoreAndLoadIdentity() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
         try? km.deleteIdentity()
 
         let original = try km.generateIdentity()
@@ -116,9 +81,7 @@ struct KeyManagerTests {
 
     @Test("Load returns nil when no identity is stored")
     func testLoadNoIdentity() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
         try? km.deleteIdentity()
 
         let loaded = try km.loadIdentity()
@@ -127,9 +90,7 @@ struct KeyManagerTests {
 
     @Test("loadOrCreateIdentity creates and stores when none exists")
     func testLoadOrCreate() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
         try? km.deleteIdentity()
 
         let identity = try km.loadOrCreateIdentity()
@@ -147,9 +108,7 @@ struct KeyManagerTests {
 
     @Test("Export and import recovery kit round-trips correctly")
     func testRecoveryKit() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
         try? km.deleteIdentity()
 
         let original = try km.generateIdentity()
@@ -181,9 +140,7 @@ struct KeyManagerTests {
 
     @Test("Import recovery kit with wrong password fails")
     func testRecoveryKitWrongPassword() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
         try? km.deleteIdentity()
 
         let original = try km.generateIdentity()
@@ -229,9 +186,7 @@ struct KeyManagerTests {
 
     @Test("Phone salt is generated and persisted")
     func testPhoneSalt() throws {
-        try #require(isKeychainAccessible(), "Keychain not accessible in this environment")
-
-        let km = KeyManager()
+        let km = makeTestKeyManager()
 
         let salt1 = try km.loadOrCreatePhoneSalt()
         #expect(salt1.count == 32)
