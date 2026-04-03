@@ -167,17 +167,11 @@ final class EventsViewModel {
 
     // MARK: - Constants
 
-    /// Event manifest CDN URL — enable when events API is deployed.
-    // private static let manifestURL = "https://cdn.blip.app/manifests/events.json"
-
     /// Max retry attempts for remote fetch.
     private static let maxRetries = 3
 
     /// Base delay for exponential backoff (seconds).
     private static let baseRetryDelay: TimeInterval = 2.0
-
-    /// Current retry count (reset on pull-to-refresh).
-    private var fetchRetryCount = 0
 
     /// Crowd pulse refresh interval.
     private static let crowdPulseRefreshInterval: TimeInterval = 30.0
@@ -202,20 +196,19 @@ final class EventsViewModel {
 
     // MARK: - Event Discovery
 
-    /// Fetch the event manifest — loads bundled JSON first, then attempts remote overlay.
+    /// Load the bundled full manifest used for geofencing and local event storage.
     func fetchEvents() async {
         discoveryState = .fetching
 
         // Always load bundled events first for instant content
         await loadBundledEvents()
 
-        // Attempt remote fetch with retry backoff (when URL is configured)
-        // await fetchRemoteEventsWithRetry()
+        // The live CDN worker currently serves discovery payloads only.
+        // Keep geofencing/event storage on the bundled full manifest for now.
     }
 
     /// Reset retry state and fetch again (called on pull-to-refresh).
     func refreshEvents() async {
-        fetchRetryCount = 0
         await fetchEvents()
     }
 
@@ -240,11 +233,13 @@ final class EventsViewModel {
         }
     }
 
-    /// Fetch events from remote CDN with exponential backoff (up to 3 retries).
-    /// Currently disabled — enable when events API is deployed.
+    /// Fetch the full remote manifest with exponential backoff when the CDN serves it.
+    /// The current live worker serves discovery events only, so this remains unused.
     private func fetchRemoteEventsWithRetry() async {
-        // guard let url = URL(string: ServerConfig.eventsManifestURL) else { return }
-        guard let url = URL(string: "https://cdn.blip.app/manifests/events.json") else { return }
+        guard let url = URL(string: ServerConfig.eventsManifestURL) else {
+            DebugLogger.shared.log("APP", "Invalid events manifest URL: \(ServerConfig.eventsManifestURL)", isError: true)
+            return
+        }
 
         for attempt in 1...Self.maxRetries {
             if attempt > 1 {
@@ -261,14 +256,14 @@ final class EventsViewModel {
             do {
                 let (data, response) = try await URLSession.shared.data(from: url)
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                    DebugLogger.shared.log("EVENT", "Remote manifest returned non-200 (attempt \(attempt))", isError: true)
+                    DebugLogger.shared.log("APP", "Remote manifest returned non-200 (attempt \(attempt))", isError: true)
                     continue
                 }
 
                 let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
 
                 if !verifyManifestSignature(manifest) {
-                    DebugLogger.shared.log("EVENT", "Manifest signature verification failed", isError: true)
+                    DebugLogger.shared.log("APP", "Manifest signature verification failed", isError: true)
                     discoveryState = .failed("Manifest verification failed")
                     return
                 }
@@ -279,11 +274,11 @@ final class EventsViewModel {
                 DebugLogger.shared.log("EVENT", "Loaded \(manifest.events.count) events from remote (attempt \(attempt))")
                 return
             } catch {
-                DebugLogger.shared.log("EVENT", "Remote fetch failed (attempt \(attempt)): \(error)", isError: true)
+                DebugLogger.shared.log("APP", "Remote fetch failed (attempt \(attempt)): \(error)", isError: true)
             }
         }
 
-        DebugLogger.shared.log("EVENT", "Fetch failed after \(Self.maxRetries) retries", isError: true)
+        DebugLogger.shared.log("APP", "Fetch failed after \(Self.maxRetries) retries", isError: true)
         // Don't override bundled data state — if bundled loaded successfully, keep .loaded
         if case .fetching = discoveryState {
             discoveryState = .failed("Could not reach events server after \(Self.maxRetries) attempts")
@@ -337,7 +332,7 @@ final class EventsViewModel {
 
         guard let url = URL(string: ServerConfig.eventsManifestURL) else {
             discoveryState = .failed("Invalid manifest URL")
-            DebugLogger.shared.log("EVENT", "Invalid events manifest URL", isError: true)
+            DebugLogger.shared.log("APP", "Invalid events manifest URL: \(ServerConfig.eventsManifestURL)", isError: true)
             return
         }
 
@@ -345,14 +340,14 @@ final class EventsViewModel {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 discoveryState = .failed("Failed to fetch events")
-                DebugLogger.shared.log("EVENT", "Events manifest returned non-200", isError: true)
+                DebugLogger.shared.log("APP", "Events manifest returned non-200", isError: true)
                 return
             }
 
-            let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
+            let events = try decodeDiscoveryManifestEvents(from: data)
             await loadJoinedEventIds()
 
-            discoveryEvents = manifest.events.map { event in
+            discoveryEvents = events.map { event in
                 DiscoverableEvent(
                     id: event.id.uuidString,
                     name: event.name,
@@ -362,17 +357,17 @@ final class EventsViewModel {
                     description: event.description ?? "",
                     imageURL: event.imageURL,
                     attendeeCount: event.attendeeCount ?? 0,
-                    category: EventCategory(rawValue: event.category ?? "Other") ?? .other,
+                    category: eventCategory(for: event.category),
                     isJoined: joinedEventIds.contains(event.id.uuidString)
                 )
             }
 
             discoveryState = discoveryEvents.isEmpty ? .idle : .loaded
-            DebugLogger.shared.log("EVENT", "Loaded \(discoveryEvents.count) events from manifest")
+            DebugLogger.shared.log("EVENT", "Loaded \(discoveryEvents.count) discovery events from manifest")
 
         } catch {
             discoveryState = .failed("Fetch error: \(error.localizedDescription)")
-            DebugLogger.shared.log("EVENT", "Failed to fetch discovery events: \(error)", isError: true)
+            DebugLogger.shared.log("APP", "Failed to fetch discovery events: \(error)", isError: true)
         }
     }
 
@@ -726,11 +721,59 @@ final class EventsViewModel {
         let schedule: [ManifestSetTime]?
     }
 
+    private struct DiscoveryManifestEvent: Codable {
+        let id: UUID
+        let name: String
+        let location: String?
+        let startDate: Date
+        let endDate: Date
+        let description: String?
+        let imageURL: String?
+        let attendeeCount: Int?
+        let category: String?
+
+        init(from manifestEvent: ManifestEvent) {
+            self.id = manifestEvent.id
+            self.name = manifestEvent.name
+            self.location = manifestEvent.location
+            self.startDate = manifestEvent.startDate
+            self.endDate = manifestEvent.endDate
+            self.description = manifestEvent.description
+            self.imageURL = manifestEvent.imageURL
+            self.attendeeCount = manifestEvent.attendeeCount
+            self.category = manifestEvent.category
+        }
+    }
+
     private struct ManifestSetTime: Codable {
         let id: String
         let artistName: String
         let startTime: String
         let endTime: String
+    }
+
+    private func decodeDiscoveryManifestEvents(from data: Data) throws -> [DiscoveryManifestEvent] {
+        do {
+            let manifest = try JSONDecoder.eventDecoder.decode(EventManifest.self, from: data)
+            return manifest.events.map(DiscoveryManifestEvent.init)
+        } catch {
+            return try JSONDecoder.eventDecoder.decode([DiscoveryManifestEvent].self, from: data)
+        }
+    }
+
+    private func eventCategory(for rawCategory: String?) -> EventCategory {
+        switch rawCategory?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "festival":
+            return .festival
+        case "sport":
+            return .sport
+        case "marathon":
+            return .marathon
+        case "concert":
+            return .concert
+        default:
+            return .other
+        }
     }
 
     private func verifyManifestSignature(_ manifest: EventManifest) -> Bool {

@@ -12,9 +12,12 @@ enum ServerConfig {
     /// Base URL for the relay server (WebSocket + state sync).
     static let relayBaseURL = "https://blip-relay.john-mckean.workers.dev"
 
+    /// Base URL for the CDN worker that serves public event assets and manifests.
+    static let cdnBaseURL = "https://blip-cdn.john-mckean.workers.dev"
+
     /// WebSocket relay endpoint.
     static let relayWebSocketURL = URL(string: "wss://blip-relay.john-mckean.workers.dev/ws")!
 
     /// Events manifest CDN URL.
-    static let eventsManifestURL = "https://cdn.blip.app/manifests/events.json"
+    static let eventsManifestURL = "\(cdnBaseURL)/manifests/events.json"
 }
