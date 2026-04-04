@@ -22,7 +22,8 @@ struct NearbyView: View {
     @State private var selectedPeer: MeshViewModel.NearbyPeer?
     @State private var friendRequestSent: Set<UUID> = []
     @State private var isVisible = false
-    @State private var presenceTimer: Timer?
+    // Presence broadcast cadence is owned by AppCoordinator (30s timer).
+    // NearbyView only triggers an immediate broadcast on visibility toggle.
 
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var modelContext
@@ -102,7 +103,7 @@ struct NearbyView: View {
         .onDisappear {
             localMeshViewModel?.stopMonitoring()
             localLocationViewModel?.stopMonitoring()
-            stopPresenceBroadcast()
+            // Presence stops naturally via AppCoordinator when app backgrounds
         }
     }
 
@@ -440,56 +441,50 @@ struct NearbyView: View {
         saveVisibilityPreference()
 
         if isVisible {
-            startPresenceBroadcast()
+            broadcastPresenceOnce()
         } else {
-            stopPresenceBroadcast()
+            // Presence stops naturally via AppCoordinator when app backgrounds
         }
     }
 
     private func loadVisibilityPreference() {
         let context = ModelContext(modelContext.container)
         let descriptor = FetchDescriptor<UserPreferences>()
-        if let prefs = try? context.fetch(descriptor).first {
-            isVisible = prefs.nearbyVisibilityEnabled
-            if isVisible {
-                startPresenceBroadcast()
+        do {
+            if let prefs = try context.fetch(descriptor).first {
+                isVisible = prefs.nearbyVisibilityEnabled
+                if isVisible {
+                    broadcastPresenceOnce()
+                }
             }
+        } catch {
+            DebugLogger.shared.log("APP", "Failed to load visibility preference: \(error)", isError: true)
         }
     }
 
     private func saveVisibilityPreference() {
         let context = ModelContext(modelContext.container)
         let descriptor = FetchDescriptor<UserPreferences>()
-        if let prefs = try? context.fetch(descriptor).first {
-            prefs.nearbyVisibilityEnabled = isVisible
-            try? context.save()
-        }
-    }
-
-    private func startPresenceBroadcast() {
-        stopPresenceBroadcast()
-        // Broadcast immediately, then every 10 seconds
-        broadcastPresenceOnce()
-        guard let messageService = coordinator.messageService else { return }
-        let timer = Timer(timeInterval: 10.0, repeats: true) { [weak messageService] _ in
-            Task { @MainActor in
-                guard let messageService else { return }
-                try? await messageService.broadcastPresence()
+        do {
+            if let prefs = try context.fetch(descriptor).first {
+                prefs.nearbyVisibilityEnabled = isVisible
+                try context.save()
             }
+        } catch {
+            DebugLogger.shared.log("APP", "Failed to save visibility preference: \(error)", isError: true)
         }
-        RunLoop.main.add(timer, forMode: .common)
-        presenceTimer = timer
     }
 
-    private func stopPresenceBroadcast() {
-        presenceTimer?.invalidate()
-        presenceTimer = nil
-    }
-
+    /// Trigger a single immediate presence broadcast.
+    /// The recurring 30s cadence is owned by AppCoordinator.announceTimer.
     private func broadcastPresenceOnce() {
         guard let messageService = coordinator.messageService else { return }
         Task {
-            try? await messageService.broadcastPresence()
+            do {
+                try await messageService.broadcastPresence()
+            } catch {
+                DebugLogger.shared.log("PRESENCE", "Immediate broadcast failed: \(error)", isError: true)
+            }
         }
     }
 
