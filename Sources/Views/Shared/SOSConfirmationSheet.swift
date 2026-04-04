@@ -504,11 +504,11 @@ struct SOSConfirmationSheet: View {
 
     private func startCancelCountdown() {
         cancelCountdown = 10
-        cancelTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            Task { @MainActor [weak timer] in
+        cancelTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            Task { @MainActor in
                 cancelCountdown -= 1
                 if cancelCountdown <= 0 {
-                    timer?.invalidate()
+                    cancelTimer?.invalidate()
                     cancelTimer = nil
                 }
             }

@@ -60,8 +60,8 @@ final class ChatViewModel {
     /// Set of channel IDs the user has read up to (last read message timestamp).
     private var lastReadTimestamps: [UUID: Date] = [:]
 
-    /// Typing indicator cleanup timers keyed by "\(channelID)_\(peerID)".
-    @ObservationIgnored private var typingTimers: [String: Timer] = [:]
+    /// Typing indicator cleanup tasks keyed by "\(channelID)_\(peerID)".
+    @ObservationIgnored private var typingResetTasks: [String: Task<Void, Never>] = [:]
 
     // MARK: - Init
 
@@ -79,10 +79,10 @@ final class ChatViewModel {
     }
 
     deinit {
-        for timer in typingTimers.values {
-            timer.invalidate()
+        for task in typingResetTasks.values {
+            task.cancel()
         }
-        typingTimers.removeAll()
+        typingResetTasks.removeAll()
     }
 
     // MARK: - Channel List
@@ -93,12 +93,10 @@ final class ChatViewModel {
         defer { isLoading = false }
 
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<Channel>(
-            sortBy: [SortDescriptor(\.lastActivityAt, order: .reverse)]
-        )
 
         do {
-            channels = try context.fetch(descriptor)
+            channels = try context.fetch(FetchDescriptor<Channel>())
+                .sorted { $0.lastActivityAt > $1.lastActivityAt }
             recalculateUnreadCounts()
         } catch {
             errorMessage = "Failed to load channels: \(error.localizedDescription)"
@@ -110,13 +108,10 @@ final class ChatViewModel {
         let context = ModelContext(modelContainer)
         let userID = user.id
 
-        let userDescriptor = FetchDescriptor<User>(predicate: #Predicate { candidate in
-            candidate.id == userID
-        })
-
         let persistedUser: User
         do {
-            guard let fetchedUser = try context.fetch(userDescriptor).first else {
+            guard let fetchedUser = try context.fetch(FetchDescriptor<User>())
+                .first(where: { $0.id == userID }) else {
                 errorMessage = "Could not find the selected user."
                 return nil
             }
@@ -128,11 +123,9 @@ final class ChatViewModel {
 
         // Check if DM already exists
         let username = persistedUser.username
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-            $0.typeRaw == "dm"
-        })
         do {
-            let existing = try context.fetch(descriptor)
+            let existing = try context.fetch(FetchDescriptor<Channel>())
+                .filter { $0.typeRaw == "dm" }
             for channel in existing {
                 for membership in channel.memberships {
                     if membership.user?.username == username {
@@ -235,13 +228,10 @@ final class ChatViewModel {
         let context = ModelContext(modelContainer)
         let channelID = channel.id
 
-        let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id == channelID },
-            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
-        )
-
         do {
-            activeMessages = try context.fetch(descriptor)
+            activeMessages = try context.fetch(FetchDescriptor<Message>())
+                .filter { $0.channel?.id == channelID }
+                .sorted { $0.createdAt < $1.createdAt }
             markChannelAsRead(channel)
         } catch {
             errorMessage = "Failed to load messages: \(error.localizedDescription)"
@@ -358,13 +348,20 @@ final class ChatViewModel {
 
         // Auto-clear after 4 seconds
         let timerKey = "\(channelID.uuidString)_\(peerDescription)"
-        typingTimers[timerKey]?.invalidate()
-        typingTimers[timerKey] = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+        typingResetTasks[timerKey]?.cancel()
+        typingResetTasks[timerKey] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(4))
+            } catch {
+                return
+            }
+
+            await MainActor.run {
                 self?.typingIndicators[channelID]?.remove(peerDescription)
                 if self?.typingIndicators[channelID]?.isEmpty == true {
                     self?.typingIndicators.removeValue(forKey: channelID)
                 }
+                self?.typingResetTasks.removeValue(forKey: timerKey)
             }
         }
     }
@@ -394,12 +391,9 @@ final class ChatViewModel {
 
         // Send read receipts for recent messages
         let context = ModelContext(modelContainer)
-        let channelID = channel.id
-        let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id == channelID && $0.statusRaw == "delivered" }
-        )
         do {
-            let unread = try context.fetch(descriptor)
+            let unread = try context.fetch(FetchDescriptor<Message>())
+                .filter { $0.channel?.id == channel.id && $0.statusRaw == "delivered" }
             for message in unread {
                 if let sender = message.sender {
                     let peerID = PeerID(noisePublicKey: sender.noisePublicKey)
@@ -438,7 +432,15 @@ final class ChatViewModel {
     }
 
     /// Handle a newly received message (called by delegate or notification).
-    func handleReceivedMessage(_ message: Message, in channel: Channel) {
+    func handleReceivedMessage(messageID: UUID, channelID: UUID) {
+        let context = ModelContext(modelContainer)
+        guard let message = try? context.fetch(FetchDescriptor<Message>())
+            .first(where: { $0.id == messageID }),
+              let channel = try? context.fetch(FetchDescriptor<Channel>())
+            .first(where: { $0.id == channelID }) else {
+            return
+        }
+
         // Add to active messages if this is the open channel
         if activeChannel?.id == channel.id {
             activeMessages.append(message)
@@ -498,40 +500,30 @@ final class ChatViewModel {
 }
 
 extension ChatViewModel: MessageServiceDelegate {
-    nonisolated func messageService(_ service: MessageService, didReceiveMessage message: Message, in channel: Channel) {
-        Task { @MainActor in
-            self.handleReceivedMessage(message, in: channel)
+    func messageService(_ service: MessageService, didReceiveMessageWithID messageID: UUID, in channelID: UUID) {
+        handleReceivedMessage(messageID: messageID, channelID: channelID)
+    }
+
+    func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID) {
+        if let activeIndex = self.activeMessages.firstIndex(where: { $0.id == messageID }) {
+            self.activeMessages[activeIndex].status = status
         }
     }
 
-    nonisolated func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID) {
-        Task { @MainActor in
-            if let activeIndex = self.activeMessages.firstIndex(where: { $0.id == messageID }) {
-                self.activeMessages[activeIndex].status = status
-            }
-        }
-    }
-
-    nonisolated func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID) {
+    func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID) {
         let peerLabel = peerID.bytes
             .prefix(4)
             .map { String(format: "%02x", $0) }
             .joined()
 
-        Task { @MainActor in
-            self.handleTypingIndicator(from: "Peer \(peerLabel)", in: channelID)
-        }
+        self.handleTypingIndicator(from: "Peer \(peerLabel)", in: channelID)
     }
 
-    nonisolated func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID) {
-        Task { @MainActor in
-            self.handleDeliveryAck(for: messageID)
-        }
+    func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID) {
+        self.handleDeliveryAck(for: messageID)
     }
 
-    nonisolated func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID) {
-        Task { @MainActor in
-            self.handleReadReceipt(for: messageID)
-        }
+    func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID) {
+        self.handleReadReceipt(for: messageID)
     }
 }

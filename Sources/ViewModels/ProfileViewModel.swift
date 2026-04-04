@@ -94,11 +94,8 @@ final class ProfileViewModel {
 
         do {
             // Load user
-            let userDescriptor = FetchDescriptor<User>(
-                sortBy: [SortDescriptor(\.createdAt, order: .forward)]
-            )
-            let users = try context.fetch(userDescriptor)
-            currentUser = users.first
+            let users = try context.fetch(FetchDescriptor<User>())
+            currentUser = users.min(by: { $0.createdAt < $1.createdAt })
 
             if let user = currentUser {
                 editingUsername = user.username
@@ -110,10 +107,8 @@ final class ProfileViewModel {
             preferences = try loadOrCreatePreferences(in: context)
 
             // Load friends
-            let friendDescriptor = FetchDescriptor<Friend>(
-                sortBy: [SortDescriptor(\.addedAt, order: .reverse)]
-            )
-            let allFriends = try context.fetch(friendDescriptor)
+            let allFriends = try context.fetch(FetchDescriptor<Friend>())
+                .sorted { $0.addedAt > $1.addedAt }
             friends = allFriends.filter { $0.status == .accepted }
             pendingRequests = allFriends.filter { $0.status == .pending }
             blockedUsers = allFriends.filter { $0.status == .blocked }

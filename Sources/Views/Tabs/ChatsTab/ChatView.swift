@@ -342,7 +342,7 @@ struct ChatView: View {
                     return
                 }
                 do {
-                    try await coordinator.messageService?.sendVoiceNote(
+                    _ = try await coordinator.messageService?.sendVoiceNote(
                         audioData: data,
                         duration: duration,
                         to: channel

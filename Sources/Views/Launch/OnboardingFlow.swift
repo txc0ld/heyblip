@@ -113,8 +113,8 @@ struct OnboardingFlow: View {
             let username = deviceName.isEmpty ? "dev_\(UUID().uuidString.prefix(6))" : String(deviceName)
 
             // Check if User already exists
-            let existingDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-            let existingUsers = try modelContext.fetch(existingDesc)
+            let existingUsers = try modelContext.fetch(FetchDescriptor<User>())
+                .sorted { $0.createdAt < $1.createdAt }
 
             if existingUsers.isEmpty {
                 // Create dev email hash

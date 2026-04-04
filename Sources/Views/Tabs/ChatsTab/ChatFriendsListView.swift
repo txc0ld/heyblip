@@ -10,13 +10,10 @@ struct ChatFriendsListView: View {
 
     var chatViewModel: ChatViewModel?
 
-    @Query(filter: #Predicate<Friend> { $0.statusRaw == "accepted" },
-           sort: \Friend.addedAt, order: .reverse)
-    private var acceptedFriends: [Friend]
-
     @State private var searchText: String = ""
 
     @Environment(\.theme) private var theme
+    @Environment(\.modelContext) private var modelContext
     @Environment(AppCoordinator.self) private var coordinator
 
     /// Set by the parent to navigate to a DM conversation.
@@ -114,12 +111,20 @@ struct ChatFriendsListView: View {
     // MARK: - Helpers
 
     private var filteredFriends: [Friend] {
+        let acceptedFriends = fetchAcceptedFriends()
         guard !searchText.isEmpty else { return Array(acceptedFriends) }
         let query = searchText.lowercased()
         return acceptedFriends.filter {
             ($0.user?.resolvedDisplayName.lowercased().contains(query) ?? false) ||
             ($0.user?.username.lowercased().contains(query) ?? false)
         }
+    }
+
+    private func fetchAcceptedFriends() -> [Friend] {
+        let friends = (try? modelContext.fetch(FetchDescriptor<Friend>())) ?? []
+        return friends
+            .filter { $0.statusRaw == "accepted" }
+            .sorted { $0.addedAt > $1.addedAt }
     }
 
     private func isOnline(_ friend: Friend) -> Bool {

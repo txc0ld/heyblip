@@ -24,8 +24,9 @@ enum MessageServiceError: Error, Sendable {
 
 // MARK: - Message Service Delegate
 
-protocol MessageServiceDelegate: AnyObject, Sendable {
-    func messageService(_ service: MessageService, didReceiveMessage message: Message, in channel: Channel)
+@MainActor
+protocol MessageServiceDelegate: AnyObject {
+    func messageService(_ service: MessageService, didReceiveMessageWithID messageID: UUID, in channelID: UUID)
     func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID)
     func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID)
     func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID)
@@ -171,8 +172,7 @@ final class MessageService: @unchecked Sendable {
 
         // Re-fetch Channel in this context to avoid cross-context insert crash
         let channelID = channel.id
-        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
-        guard let localChannel = try context.fetch(channelDesc).first else {
+        guard let localChannel = try channels(in: context).first(where: { $0.id == channelID }) else {
             throw MessageServiceError.channelNotFound
         }
 
@@ -180,8 +180,7 @@ final class MessageService: @unchecked Sendable {
         var localReplyTo: Message?
         if let replyTo {
             let replyToID = replyTo.id
-            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyToID })
-            localReplyTo = try context.fetch(replyDesc).first
+            localReplyTo = try messages(in: context).first(where: { $0.id == replyToID })
         }
 
         // Create the message model
@@ -241,8 +240,7 @@ final class MessageService: @unchecked Sendable {
 
         // Re-fetch Channel in this context to avoid cross-context insert crash
         let channelID = channel.id
-        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
-        guard let localChannel = try context.fetch(channelDesc).first else {
+        guard let localChannel = try channels(in: context).first(where: { $0.id == channelID }) else {
             throw MessageServiceError.channelNotFound
         }
 
@@ -300,8 +298,7 @@ final class MessageService: @unchecked Sendable {
 
         // Re-fetch Channel in this context to avoid cross-context insert crash
         let channelID = channel.id
-        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
-        guard let localChannel = try context.fetch(channelDesc).first else {
+        guard let localChannel = try channels(in: context).first(where: { $0.id == channelID }) else {
             throw MessageServiceError.channelNotFound
         }
 
@@ -341,6 +338,7 @@ final class MessageService: @unchecked Sendable {
     }
 
     /// Send a typing indicator to a channel.
+    @MainActor
     func sendTypingIndicator(to channel: Channel) async throws {
         guard let identity = getIdentity() else { return }
 
@@ -489,9 +487,8 @@ final class MessageService: @unchecked Sendable {
         // Create/update User record in SwiftData
         let context = ModelContext(modelContainer)
         let targetUsername = remote.username
-        let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == targetUsername })
         let user: User
-        if let existing = try context.fetch(userDesc).first {
+        if let existing = try users(in: context).first(where: { $0.username == targetUsername }) {
             if existing.noisePublicKey.isEmpty {
                 existing.noisePublicKey = noiseKeyData
             }
@@ -541,8 +538,7 @@ final class MessageService: @unchecked Sendable {
         let context = ModelContext(modelContainer)
 
         // Get local user
-        let userDescriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-        guard let localUser = try context.fetch(userDescriptor).first else {
+        guard let localUser = try earliestUser(in: context) else {
             throw MessageServiceError.senderNotFound
         }
 
@@ -591,8 +587,7 @@ final class MessageService: @unchecked Sendable {
 
         // Update friend status
         let friendID = friend.id
-        let friendDesc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        if let existingFriend = try context.fetch(friendDesc).first {
+        if let existingFriend = try friends(in: context).first(where: { $0.id == friendID }) {
             existingFriend.statusRaw = FriendStatus.accepted.rawValue
             try context.save()
         }
@@ -630,8 +625,7 @@ final class MessageService: @unchecked Sendable {
             recipientPeerID = PeerID(noisePublicKey: friendUser.noisePublicKey)
         }
 
-        let localUserDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-        guard let localUser = try context.fetch(localUserDesc).first else {
+        guard let localUser = try earliestUser(in: context) else {
             throw MessageServiceError.senderNotFound
         }
 
@@ -675,8 +669,7 @@ final class MessageService: @unchecked Sendable {
         }
 
         let context = ModelContext(modelContainer)
-        let userDescriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-        guard let localUser = try context.fetch(userDescriptor).first else {
+        guard let localUser = try earliestUser(in: context) else {
             throw MessageServiceError.senderNotFound
         }
 
@@ -834,6 +827,7 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Private: Encrypt and Send
 
+    @MainActor
     private func encryptAndSend(
         payload: Data,
         subType: EncryptedSubType,
@@ -1082,8 +1076,7 @@ final class MessageService: @unchecked Sendable {
         peerStore.upsert(peer: info)
 
         // Create or update User record — always update noisePublicKey to latest
-        let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
-        if let existingUser = try context.fetch(userDesc).first {
+        if let existingUser = try users(in: context).first(where: { $0.username == username }) {
             var updated = false
             // Backfill noisePublicKey: update if empty, or if we now have a real 32-byte key
             // replacing a legacy PeerID-sized placeholder
@@ -1336,12 +1329,12 @@ final class MessageService: @unchecked Sendable {
     }
 
     /// Update a message's status in SwiftData.
+    @MainActor
     private func updateMessageStatus(messageID: UUID, to status: MessageStatus) {
         let context = ModelContext(modelContainer)
         let targetID = messageID
-        let desc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         do {
-            if let message = try context.fetch(desc).first {
+            if let message = try messages(in: context).first(where: { $0.id == targetID }) {
                 message.statusRaw = status.rawValue
                 try context.save()
             }
@@ -1448,8 +1441,7 @@ final class MessageService: @unchecked Sendable {
 
         // Check for duplicate
         let targetID = messageID
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
-        let existing = try context.fetch(descriptor)
+        let existing = try messages(in: context).filter { $0.id == targetID }
         if !existing.isEmpty {
             DebugLogger.shared.log("DM", "DUPLICATE msgID=\(messageID) — skipping")
             return
@@ -1461,9 +1453,8 @@ final class MessageService: @unchecked Sendable {
         DebugLogger.shared.log("DM", "Sender lookup: PeerStore=\(peerInfo != nil ? "found (\(peerInfo?.username ?? "no name"))" : "NOT FOUND")")
         let senderUser: User? = peerInfo.flatMap { peer in
             guard let username = peer.username else { return nil }
-            let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
             do {
-                return try context.fetch(userDesc).first
+                return try users(in: context).first(where: { $0.username == username })
             } catch {
                 logger.error("Failed to fetch user for peer username \(username): \(error.localizedDescription)")
                 return nil
@@ -1492,8 +1483,7 @@ final class MessageService: @unchecked Sendable {
 
         if let replyToID {
             let replyTargetID = replyToID
-            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyTargetID })
-            message.replyTo = try context.fetch(replyDesc).first
+            message.replyTo = try messages(in: context).first(where: { $0.id == replyTargetID })
         }
 
         context.insert(message)
@@ -1519,7 +1509,7 @@ final class MessageService: @unchecked Sendable {
         }
 
         // Notify delegate and post notification for any active ChatViewModel
-        delegate?.messageService(self, didReceiveMessage: message, in: channel)
+        delegate?.messageService(self, didReceiveMessageWithID: message.id, in: channel.id)
         NotificationCenter.default.post(
             name: .didReceiveBlipMessage,
             object: nil,
@@ -1579,7 +1569,7 @@ final class MessageService: @unchecked Sendable {
         channel.lastActivityAt = Date()
         try context.save()
 
-        delegate?.messageService(self, didReceiveMessage: message, in: channel)
+        delegate?.messageService(self, didReceiveMessageWithID: message.id, in: channel.id)
     }
 
     @MainActor
@@ -1592,8 +1582,7 @@ final class MessageService: @unchecked Sendable {
         // Find or create location channel
         let channel: Channel
         if let geohash {
-            let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.geohash == geohash })
-            if let existing = try context.fetch(descriptor).first {
+            if let existing = try channels(in: context).first(where: { $0.geohash == geohash }) {
                 channel = existing
             } else {
                 channel = Channel(
@@ -1606,8 +1595,7 @@ final class MessageService: @unchecked Sendable {
                 context.insert(channel)
             }
         } else {
-            let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.typeRaw == "locationChannel" })
-            if let existing = try context.fetch(descriptor).first {
+            if let existing = try channels(in: context).first(where: { $0.typeRaw == "locationChannel" }) {
                 channel = existing
             } else {
                 channel = Channel(type: .locationChannel, name: "Nearby", isAutoJoined: true)
@@ -1627,7 +1615,7 @@ final class MessageService: @unchecked Sendable {
         channel.lastActivityAt = Date()
         try context.save()
 
-        delegate?.messageService(self, didReceiveMessage: message, in: channel)
+        delegate?.messageService(self, didReceiveMessageWithID: message.id, in: channel.id)
     }
 
     @MainActor
@@ -1663,8 +1651,7 @@ final class MessageService: @unchecked Sendable {
         let context = ModelContext(modelContainer)
 
         let channel: Channel
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.typeRaw == "stageChannel" })
-        if let existing = try context.fetch(descriptor).first {
+        if let existing = try channels(in: context).first(where: { $0.typeRaw == "stageChannel" }) {
             channel = existing
         } else {
             channel = Channel(type: .stageChannel, name: "Announcements", isAutoJoined: true)
@@ -1683,7 +1670,7 @@ final class MessageService: @unchecked Sendable {
         channel.lastActivityAt = Date()
         try context.save()
 
-        delegate?.messageService(self, didReceiveMessage: message, in: channel)
+        delegate?.messageService(self, didReceiveMessageWithID: message.id, in: channel.id)
     }
 
     // MARK: - Leave
@@ -1747,18 +1734,21 @@ final class MessageService: @unchecked Sendable {
         DebugLogger.emit("RX", "Received channelUpdate from \(senderHex) (\(payloadSize) bytes) — not yet implemented")
     }
 
+    @MainActor
     private func handleDeliveryAck(data: Data) {
         guard let uuidString = String(data: data, encoding: .utf8),
               let messageID = UUID(uuidString: uuidString) else { return }
         delegate?.messageService(self, didReceiveDeliveryAck: messageID)
     }
 
+    @MainActor
     private func handleReadReceipt(data: Data) {
         guard let uuidString = String(data: data, encoding: .utf8),
               let messageID = UUID(uuidString: uuidString) else { return }
         delegate?.messageService(self, didReceiveReadReceipt: messageID)
     }
 
+    @MainActor
     private func handleTypingIndicator(from senderPeerID: PeerID, data: Data) {
         guard let channelIDString = String(data: data, encoding: .utf8),
               let channelID = UUID(uuidString: channelIDString) else { return }
@@ -1802,8 +1792,7 @@ final class MessageService: @unchecked Sendable {
                 DebugLogger.shared.log("RX", "FRIEND_REQ: pulled keys from PeerStore for fallback User \(username)")
             }
 
-            let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
-            if let existing = try context.fetch(userDesc).first {
+            if let existing = try users(in: context).first(where: { $0.username == username }) {
                 senderUser = existing
                 // Backfill keys if the existing User is missing them
                 if existing.noisePublicKey.isEmpty && !fallbackNoiseKey.isEmpty {
@@ -1841,9 +1830,8 @@ final class MessageService: @unchecked Sendable {
 
         // Send local push notification
         let senderUserID = senderUser.id
-        let friendDesc2 = FetchDescriptor<Friend>(predicate: #Predicate { $0.user?.id == senderUserID })
         do {
-            if let friendRecord = try context.fetch(friendDesc2).first {
+            if let friendRecord = try friends(in: context).first(where: { $0.user?.id == senderUserID }) {
                 NotificationService().notifyFriendRequest(
                     fromName: senderUser.resolvedDisplayName,
                     friendID: friendRecord.id
@@ -1889,8 +1877,7 @@ final class MessageService: @unchecked Sendable {
 
         // Fallback: find by username
         if friendUser == nil, let username = senderUsername, !username.isEmpty {
-            let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
-            friendUser = try context.fetch(userDesc).first
+            friendUser = try users(in: context).first(where: { $0.username == username })
         }
 
         guard let resolvedUser = friendUser else {
@@ -1900,10 +1887,7 @@ final class MessageService: @unchecked Sendable {
 
         // Update Friend status to accepted
         let userID = resolvedUser.id
-        let friendDesc = FetchDescriptor<Friend>(predicate: #Predicate {
-            $0.user?.id == userID
-        })
-        if let friend = try context.fetch(friendDesc).first {
+        if let friend = try friends(in: context).first(where: { $0.user?.id == userID }) {
             friend.statusRaw = FriendStatus.accepted.rawValue
             try context.save()
         }
@@ -1951,8 +1935,7 @@ final class MessageService: @unchecked Sendable {
 
         let context = ModelContext(modelContainer)
         let targetID = messageID
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
-        if let message = try context.fetch(descriptor).first {
+        if let message = try messages(in: context).first(where: { $0.id == targetID }) {
             context.delete(message)
             try context.save()
         }
@@ -1970,8 +1953,7 @@ final class MessageService: @unchecked Sendable {
 
         let context = ModelContext(modelContainer)
         let targetID = messageID
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
-        if let message = try context.fetch(descriptor).first {
+        if let message = try messages(in: context).first(where: { $0.id == targetID }) {
             message.encryptedPayload = newContent
             try context.save()
         }
@@ -2012,15 +1994,13 @@ final class MessageService: @unchecked Sendable {
     private func resolveOrCreateUser(for peerInfo: PeerInfo, context: ModelContext) throws -> User {
         // Try matching by noisePublicKey
         let peerKey = peerInfo.noisePublicKey
-        let keyDesc = FetchDescriptor<User>(predicate: #Predicate { $0.noisePublicKey == peerKey })
-        if let existing = try context.fetch(keyDesc).first {
+        if let existing = try users(in: context).first(where: { $0.noisePublicKey == peerKey }) {
             return existing
         }
 
         // Try matching by username
         if let username = peerInfo.username, !username.isEmpty {
-            let usernameDesc = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
-            if let existing = try context.fetch(usernameDesc).first {
+            if let existing = try users(in: context).first(where: { $0.username == username }) {
                 // Update public key if missing
                 if existing.noisePublicKey.isEmpty {
                     existing.noisePublicKey = peerInfo.noisePublicKey
@@ -2047,10 +2027,7 @@ final class MessageService: @unchecked Sendable {
     @MainActor
     private func createOrUpdateFriend(user: User, status: FriendStatus, context: ModelContext) throws {
         let userID = user.id
-        let existingDesc = FetchDescriptor<Friend>(predicate: #Predicate {
-            $0.user?.id == userID
-        })
-        if let existing = try context.fetch(existingDesc).first {
+        if let existing = try friends(in: context).first(where: { $0.user?.id == userID }) {
             // Don't downgrade accepted -> pending
             if existing.status != .accepted || status == .accepted {
                 existing.statusRaw = status.rawValue
@@ -2126,10 +2103,8 @@ final class MessageService: @unchecked Sendable {
     @MainActor
     private func createDMChannel(with remoteUser: User, context: ModelContext) throws {
         // Check for existing DM
-        let dmDescriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-            $0.typeRaw == "dm"
-        })
-        let existingChannels = try context.fetch(dmDescriptor)
+        let existingChannels = try channels(in: context)
+            .filter { $0.typeRaw == "dm" }
         for channel in existingChannels {
             let hasMatch = channel.memberships.contains { $0.user?.id == remoteUser.id }
             if hasMatch {
@@ -2286,17 +2261,14 @@ final class MessageService: @unchecked Sendable {
             if let channelPeer = peerStore.findPeer(byPeerIDBytes: peerData),
                !channelPeer.noisePublicKey.isEmpty {
                 let noiseKey = channelPeer.noisePublicKey
-                let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.noisePublicKey == noiseKey })
-                senderUser = try context.fetch(userDesc).first
+                senderUser = try users(in: context).first(where: { $0.noisePublicKey == noiseKey })
             } else {
                 senderUser = nil
             }
 
             // Look for existing DM channel with this peer via memberships
-            let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-                $0.typeRaw == "dm"
-            })
-            let channels = try context.fetch(descriptor)
+            let channels = try channels(in: context)
+                .filter { $0.typeRaw == "dm" }
 
             if let user = senderUser {
                 for ch in channels {
@@ -2320,10 +2292,7 @@ final class MessageService: @unchecked Sendable {
 
         case .groupMessage:
             // Group messages include a channel reference in the payload; fallback to first group
-            let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-                $0.typeRaw == "group"
-            })
-            if let existing = try context.fetch(descriptor).first {
+            if let existing = try channels(in: context).first(where: { $0.typeRaw == "group" }) {
                 return existing
             }
             let channel = Channel(type: .group, name: "Group")
@@ -2332,10 +2301,7 @@ final class MessageService: @unchecked Sendable {
 
         default:
             // Default to location channel
-            let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-                $0.typeRaw == "locationChannel"
-            })
-            if let existing = try context.fetch(descriptor).first {
+            if let existing = try channels(in: context).first(where: { $0.typeRaw == "locationChannel" }) {
                 return existing
             }
             let channel = Channel(type: .locationChannel, name: "Nearby", isAutoJoined: true)
@@ -2346,6 +2312,7 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Private: Recipient Resolution
 
+    @MainActor
     private func resolveRecipientPeerID(for channel: Channel) -> PeerID? {
         guard channel.type == .dm else { return nil }
 
@@ -2361,8 +2328,7 @@ final class MessageService: @unchecked Sendable {
         // returning empty memberships from a stale context
         let freshContext = ModelContext(modelContainer)
         let channelID = channel.id
-        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
-        guard let freshChannel = try? freshContext.fetch(channelDesc).first else {
+        guard let freshChannel = try? channels(in: freshContext).first(where: { $0.id == channelID }) else {
             DebugLogger.emit("DM", "resolveRecipient FAILED: channel not found in fresh context", isError: true)
             DebugLogger.emit("DM", "resolveRecipient FAILED: channel \(channelID) not found in fresh context", isError: true)
             return nil
@@ -2429,8 +2395,7 @@ final class MessageService: @unchecked Sendable {
     private func enqueueForRetry(messageID: UUID) async throws {
         let context = ModelContext(modelContainer)
         let targetID = messageID
-        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
-        guard let message = try context.fetch(descriptor).first else { return }
+        guard let message = try messages(in: context).first(where: { $0.id == targetID }) else { return }
 
         let queueEntry = MessageQueue(
             message: message,
@@ -2443,6 +2408,31 @@ final class MessageService: @unchecked Sendable {
     }
 
     // MARK: - Private: Helpers
+
+    @MainActor
+    private func users(in context: ModelContext) throws -> [User] {
+        try context.fetch(FetchDescriptor<User>())
+    }
+
+    @MainActor
+    private func channels(in context: ModelContext) throws -> [Channel] {
+        try context.fetch(FetchDescriptor<Channel>())
+    }
+
+    @MainActor
+    private func messages(in context: ModelContext) throws -> [Message] {
+        try context.fetch(FetchDescriptor<Message>())
+    }
+
+    @MainActor
+    private func friends(in context: ModelContext) throws -> [Friend] {
+        try context.fetch(FetchDescriptor<Friend>())
+    }
+
+    @MainActor
+    private func earliestUser(in context: ModelContext) throws -> User? {
+        try users(in: context).min(by: { $0.createdAt < $1.createdAt })
+    }
 
     private func getIdentity() -> Identity? {
         lock.lock()
@@ -2470,7 +2460,11 @@ extension MessageService: TransportDelegate {
         let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
             DebugLogger.shared.log("PEER", "CONNECTED: \(shortID)")
-            try? await self.broadcastPresence()
+            do {
+                try await self.broadcastPresence()
+            } catch {
+                DebugLogger.shared.log("PEER", "Failed to broadcast presence after connect: \(error.localizedDescription)", isError: true)
+            }
         }
     }
 

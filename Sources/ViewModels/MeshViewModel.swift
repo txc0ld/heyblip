@@ -264,10 +264,10 @@ final class MeshViewModel {
     // MARK: - Nearby Friends
 
     private func refreshNearbyFriends(peers: [PeerInfo], context: ModelContext) async {
-        let friendDescriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.statusRaw == "accepted" })
         let friends: [Friend]
         do {
-            friends = try context.fetch(friendDescriptor)
+            friends = try context.fetch(FetchDescriptor<Friend>())
+                .filter { $0.statusRaw == "accepted" }
         } catch {
             logger.error("Failed to fetch friends for nearby refresh: \(error.localizedDescription)")
             errorMessage = "Failed to fetch friends: \(error.localizedDescription)"
@@ -337,12 +337,10 @@ final class MeshViewModel {
     // MARK: - Location Channels
 
     private func refreshLocationChannels(context: ModelContext) async {
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-            $0.typeRaw == "locationChannel" || $0.typeRaw == "stageChannel"
-        })
         let channels: [Channel]
         do {
-            channels = try context.fetch(descriptor)
+            channels = try context.fetch(FetchDescriptor<Channel>())
+                .filter { $0.typeRaw == "locationChannel" || $0.typeRaw == "stageChannel" }
         } catch {
             logger.error("Failed to fetch location channels: \(error.localizedDescription)")
             errorMessage = "Failed to fetch channels: \(error.localizedDescription)"
@@ -400,10 +398,9 @@ final class MeshViewModel {
     /// Request to join a location channel.
     func joinLocationChannel(_ channelInfo: LocationChannelInfo) async {
         let context = ModelContext(modelContainer)
-        let targetID = channelInfo.id
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == targetID })
         do {
-            if let channel = try context.fetch(descriptor).first {
+            if let channel = try context.fetch(FetchDescriptor<Channel>())
+                .first(where: { $0.id == channelInfo.id }) {
                 channel.isAutoJoined = true
                 try context.save()
                 logEvent("Joined channel: \(channelInfo.name)")
@@ -418,10 +415,9 @@ final class MeshViewModel {
     /// Leave a location channel.
     func leaveLocationChannel(_ channelInfo: LocationChannelInfo) async {
         let context = ModelContext(modelContainer)
-        let targetID = channelInfo.id
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == targetID })
         do {
-            if let channel = try context.fetch(descriptor).first {
+            if let channel = try context.fetch(FetchDescriptor<Channel>())
+                .first(where: { $0.id == channelInfo.id }) {
                 channel.isAutoJoined = false
                 try context.save()
                 logEvent("Left channel: \(channelInfo.name)")
@@ -461,12 +457,14 @@ final class MeshViewModel {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            let isActive = notification.userInfo?["bleActive"] as? Bool
+            let isWebSocketConnected = notification.userInfo?["wsConnected"] as? Bool
             Task { @MainActor in
-                if let isActive = notification.userInfo?["bleActive"] as? Bool {
+                if let isActive {
                     self?.isBLEActive = isActive
                 }
-                if let isWS = notification.userInfo?["wsConnected"] as? Bool {
-                    self?.isWebSocketConnected = isWS
+                if let isWebSocketConnected {
+                    self?.isWebSocketConnected = isWebSocketConnected
                 }
                 self?.updateTransportState()
             }

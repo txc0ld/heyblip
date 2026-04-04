@@ -288,12 +288,10 @@ final class EventsViewModel {
     /// Load events from local SwiftData store.
     func loadEvents() async {
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<Event>(
-            sortBy: [SortDescriptor(\.startDate, order: .forward)]
-        )
 
         do {
-            let events = try context.fetch(descriptor)
+            let events = try context.fetch(FetchDescriptor<Event>())
+                .sorted { $0.startDate < $1.startDate }
 
             availableEvents = events.map { event in
                 EventInfo(
@@ -403,10 +401,9 @@ final class EventsViewModel {
     /// Leave an event — removes from SwiftData.
     func leaveEvent(_ eventId: String) {
         let context = ModelContext(modelContainer)
-        let targetId = eventId
-        let descriptor = FetchDescriptor<JoinedEvent>(predicate: #Predicate { $0.eventId == targetId })
         do {
-            let matches = try context.fetch(descriptor)
+            let matches = try context.fetch(FetchDescriptor<JoinedEvent>())
+                .filter { $0.eventId == eventId }
             for match in matches { context.delete(match) }
             try context.save()
             joinedEventIds.remove(eventId)
@@ -459,12 +456,11 @@ final class EventsViewModel {
     /// Handle entering a event geofence.
     func handleEventEntry(eventID: UUID) async {
         let context = ModelContext(modelContainer)
-        let targetID = eventID
-        let descriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.id == targetID })
 
         let event: Event
         do {
-            guard let fetched = try context.fetch(descriptor).first else { return }
+            guard let fetched = try context.fetch(FetchDescriptor<Event>())
+                .first(where: { $0.id == eventID }) else { return }
             event = fetched
         } catch {
             logger.error("Failed to fetch event for entry: \(error.localizedDescription)")
@@ -556,9 +552,9 @@ final class EventsViewModel {
 
         // Load saved set times
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.savedByUser == true })
         do {
-            savedSetTimes = try context.fetch(descriptor)
+            savedSetTimes = try context.fetch(FetchDescriptor<SetTime>())
+                .filter(\.savedByUser)
         } catch {
             logger.error("Failed to fetch saved set times: \(error.localizedDescription)")
             errorMessage = "Failed to fetch saved set times: \(error.localizedDescription)"
@@ -569,12 +565,11 @@ final class EventsViewModel {
     /// Save/unsave a set time.
     func toggleSaveSetTime(setTimeID: UUID) async {
         let context = ModelContext(modelContainer)
-        let targetID = setTimeID
-        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id == targetID })
 
         let setTime: SetTime
         do {
-            guard let fetched = try context.fetch(descriptor).first else { return }
+            guard let fetched = try context.fetch(FetchDescriptor<SetTime>())
+                .first(where: { $0.id == setTimeID }) else { return }
             setTime = fetched
         } catch {
             logger.error("Failed to fetch set time for toggle save: \(error.localizedDescription)")
@@ -605,12 +600,11 @@ final class EventsViewModel {
     /// Toggle reminder for a set time.
     func toggleReminder(setTimeID: UUID) async {
         let context = ModelContext(modelContainer)
-        let targetID = setTimeID
-        let descriptor = FetchDescriptor<SetTime>(predicate: #Predicate { $0.id == targetID })
 
         let setTime: SetTime
         do {
-            guard let fetched = try context.fetch(descriptor).first else { return }
+            guard let fetched = try context.fetch(FetchDescriptor<SetTime>())
+                .first(where: { $0.id == setTimeID }) else { return }
             setTime = fetched
         } catch {
             logger.error("Failed to fetch set time for toggle reminder: \(error.localizedDescription)")
@@ -652,13 +646,11 @@ final class EventsViewModel {
     /// Load crowd pulse data from nearby peer observations.
     func loadCrowdPulse() async {
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<CrowdPulse>(
-            sortBy: [SortDescriptor(\.lastUpdated, order: .reverse)]
-        )
 
         let pulses: [CrowdPulse]
         do {
-            pulses = try context.fetch(descriptor)
+            pulses = try context.fetch(FetchDescriptor<CrowdPulse>())
+                .sorted { $0.lastUpdated > $1.lastUpdated }
         } catch {
             logger.error("Failed to fetch crowd pulse data: \(error.localizedDescription)")
             errorMessage = "Failed to fetch crowd pulse data: \(error.localizedDescription)"
@@ -793,11 +785,10 @@ final class EventsViewModel {
             let signingKey = Data(base64Encoded: mf.organizerSigningKey) ?? Data()
 
             // Check if event already exists
-            let targetID = uuid
-            let descriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.id == targetID })
             let existing: Event?
             do {
-                existing = try context.fetch(descriptor).first
+                existing = try context.fetch(FetchDescriptor<Event>())
+                    .first(where: { $0.id == uuid })
             } catch {
                 logger.error("Failed to fetch existing event during store: \(error.localizedDescription)")
                 continue

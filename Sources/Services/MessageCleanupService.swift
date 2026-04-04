@@ -68,18 +68,12 @@ final class MessageCleanupService {
 
     /// Delete messages where expiresAt < now.
     private func sweepExpiredMessages(before date: Date, context: ModelContext) -> Int {
-        // Fetch all messages with an expiresAt, then filter in memory.
-        // SwiftData predicates don't reliably handle optional force-unwraps.
-        let descriptor = FetchDescriptor<Message>(
-            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
-        )
-
         do {
-            let allMessages = try context.fetch(descriptor)
+            let allMessages = try context.fetch(FetchDescriptor<Message>())
             let expired = allMessages.filter { msg in
                 guard let expiresAt = msg.expiresAt else { return false }
                 return expiresAt < date
-            }
+            }.sorted { $0.createdAt < $1.createdAt }
             let toDelete = expired.prefix(batchSize)
             for message in toDelete {
                 context.delete(message)
@@ -93,29 +87,17 @@ final class MessageCleanupService {
 
     /// Delete messages older than their channel's maxRetention.
     private func sweepRetentionPolicy(now: Date, context: ModelContext) -> Int {
-        // Filter for channels with a finite retention policy (< 1 year; default is .infinity)
         let maxFiniteRetention: TimeInterval = 31_536_000
-        let descriptor = FetchDescriptor<Channel>(
-            predicate: #Predicate<Channel> { channel in
-                channel.maxRetention > 0 && channel.maxRetention < maxFiniteRetention
-            }
-        )
-
         var deleted = 0
 
         do {
-            let channels = try context.fetch(descriptor)
+            let channels = try context.fetch(FetchDescriptor<Channel>())
+                .filter { $0.maxRetention > 0 && $0.maxRetention < maxFiniteRetention }
             for channel in channels {
                 let cutoff = now.addingTimeInterval(-channel.maxRetention)
-                let channelID = channel.id
-                let msgDescriptor = FetchDescriptor<Message>(
-                    predicate: #Predicate<Message> { message in
-                        message.channel?.id == channelID && message.createdAt < cutoff
-                    },
-                    sortBy: [SortDescriptor(\.createdAt, order: .forward)]
-                )
-
-                var stale = try context.fetch(msgDescriptor)
+                var stale = try context.fetch(FetchDescriptor<Message>())
+                    .filter { $0.channel?.id == channel.id && $0.createdAt < cutoff }
+                    .sorted { $0.createdAt < $1.createdAt }
                 if stale.count > batchSize {
                     stale = Array(stale.prefix(batchSize))
                 }

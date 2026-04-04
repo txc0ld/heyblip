@@ -26,6 +26,7 @@ struct CreateProfileStep: View {
     @State private var identityError: String? = nil
     @State private var contentVisible = false
     @State private var resendCooldown: Int = 0
+    @State private var resendCooldownTimer: Timer?
     @FocusState private var focusedField: Field?
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
@@ -356,12 +357,14 @@ struct CreateProfileStep: View {
 
     private func startResendCooldown() {
         resendCooldown = 60
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            Task { @MainActor [weak timer] in
+        resendCooldownTimer?.invalidate()
+        resendCooldownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in
                 if resendCooldown > 0 {
                     resendCooldown -= 1
                 } else {
-                    timer?.invalidate()
+                    resendCooldownTimer?.invalidate()
+                    resendCooldownTimer = nil
                 }
             }
         }
