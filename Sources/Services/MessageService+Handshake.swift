@@ -158,16 +158,60 @@ extension MessageService {
             }
         }
 
-        // Schedule 30-second timeout
+        // Handshake retry loop: retry msg1 at 60-second intervals for roughly 4 minutes.
+        // This handles relay paths where the recipient may connect after the first attempt.
         let peerBytes = recipientPeerID.bytes
+        let retryPeerID = recipientPeerID
         Task { @MainActor in
-            do {
-                try await Task.sleep(for: .seconds(30))
-            } catch {
-                DebugLogger.shared.log("NOISE", "Handshake timeout sleep cancelled: \(error)")
-                return
+            let retryDelays: [Duration] = [.seconds(60), .seconds(60), .seconds(60), .seconds(60)]
+            for (attempt, delay) in retryDelays.enumerated() {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    DebugLogger.shared.log("NOISE", "Handshake retry sleep cancelled: \(error)")
+                    return
+                }
+
+                // Check if session was established while we waited.
+                if self.noiseSessionManager?.hasSession(for: retryPeerID) == true {
+                    DebugLogger.shared.log("NOISE", "Handshake completed during retry wait")
+                    return
+                }
+
+                // Check if messages are still pending (not already timed out by another path).
+                let stillPending: Bool = self.lock.withLock {
+                    self.pendingHandshakeMessages[peerBytes] != nil
+                }
+                guard stillPending else { return }
+
+                // Retry: re-initiate handshake msg1 if no session yet.
+                if attempt < retryDelays.count - 1 {
+                    DebugLogger.shared.log("NOISE", "Handshake retry \(attempt + 1)/\(retryDelays.count - 1) for \(peerHex)")
+                    if let sessionManager = self.noiseSessionManager,
+                       let identity = self.getIdentity() {
+                        do {
+                            sessionManager.destroySession(for: retryPeerID)
+                            let (_, retryMsg1) = try sessionManager.initiateHandshake(with: retryPeerID)
+                            var retryPayload = Data([0x01])
+                            retryPayload.append(retryMsg1)
+                            let retryPacket = MessagePayloadBuilder.buildPacket(
+                                type: .noiseHandshake,
+                                payload: retryPayload,
+                                flags: [.hasRecipient],
+                                senderID: identity.peerID,
+                                recipientID: retryPeerID
+                            )
+                            try await self.sendPacket(retryPacket)
+                            DebugLogger.shared.log("NOISE", "→ handshake msg1 retry to \(peerHex)")
+                        } catch {
+                            DebugLogger.shared.log("NOISE", "Handshake retry failed: \(error)", isError: true)
+                        }
+                    }
+                } else {
+                    // Final timeout — give up.
+                    self.handleHandshakeTimeout(peerIDBytes: peerBytes)
+                }
             }
-            self.handleHandshakeTimeout(peerIDBytes: peerBytes)
         }
 
         return true

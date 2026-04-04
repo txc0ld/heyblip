@@ -328,13 +328,25 @@ final class UserSyncService: Sendable {
             throw SyncError.serverError(message)
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let userDict = json["user"] as? [String: Any] else {
+        let json: [String: Any]
+        do {
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SyncError.serverError("Invalid response body")
+            }
+            json = parsed
+        } catch let error as SyncError {
+            throw error
+        } catch {
             throw SyncError.serverError("Invalid response body")
         }
 
+        guard let userDict = json["user"] as? [String: Any] else {
+            throw SyncError.serverError("Invalid response body")
+        }
+
+        // Server returns 200 with id: null for unknown users (anti-enumeration).
         guard let id = userDict["id"] as? String, !id.isEmpty else {
-            throw SyncError.serverError("Missing user ID in lookup response")
+            return nil
         }
         guard let username = userDict["username"] as? String, !username.isEmpty else {
             throw SyncError.serverError("Missing username in lookup response")

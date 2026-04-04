@@ -65,6 +65,8 @@ function corsHeaders(env: Env): Record<string, string> {
     "Access-Control-Allow-Origin": env.CORS_ORIGIN ?? "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
   };
 }
 
@@ -444,7 +446,16 @@ async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
     `;
 
     if (result.length === 0) {
-      return json({ error: "User not found" }, 404, env);
+      return json({
+        user: {
+          id: null,
+          username,
+          isVerified: false,
+          noisePublicKey: null,
+          signingPublicKey: null,
+          lastActiveAt: null,
+        },
+      }, 200, env);
     }
 
     const row = result[0];

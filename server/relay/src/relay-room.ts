@@ -9,9 +9,11 @@ import {
   HEADER_SIZE,
   PEER_ID_LENGTH,
   OFFSET_FLAGS,
+  OFFSET_SENDER_ID,
   OFFSET_RECIPIENT_ID,
   FLAG_HAS_RECIPIENT,
   MIN_ADDRESSED_PACKET_SIZE,
+  MIN_PACKET_SIZE,
   type PeerIDHex,
 } from "./types";
 
@@ -29,6 +31,15 @@ const MAX_PACKET_SIZE = 512;
 
 /** Maximum messages per peer per second. */
 const RATE_LIMIT_PER_SECOND = 100;
+
+/** Store-and-forward: max queued packets per peer. */
+const MAX_QUEUED_PER_PEER = 50;
+
+/** Store-and-forward: queue TTL (1 hour). */
+const QUEUE_TTL_MS = 3600_000;
+
+/** Storage key prefix for queued packets. */
+const QUEUE_PREFIX = "q:";
 
 export class RelayRoom implements DurableObject {
   /** Connected peers indexed by hex PeerID. */
@@ -144,6 +155,9 @@ export class RelayRoom implements DurableObject {
     // Send "connected" text frame to confirm the connection (matches iOS client expectation).
     ws.send("connected");
 
+    // Drain any store-and-forward packets queued while this peer was offline.
+    this.drainQueue(peerIdHex, ws);
+
     ws.addEventListener("message", (event: MessageEvent) => {
       this.handleMessage(ws, event);
     });
@@ -186,18 +200,131 @@ export class RelayRoom implements DurableObject {
       this.messageTimestamps.set(senderPeerIdHex, recentTimestamps);
     }
 
+    // Verify the sender PeerID in the packet matches the authenticated connection.
+    if (senderPeerIdHex) {
+      const packetSenderHex = bytesToHex(
+        data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH)
+      );
+      if (packetSenderHex !== senderPeerIdHex) {
+        console.warn(
+          `Sender mismatch: packet=${packetSenderHex} connection=${senderPeerIdHex} — dropping`
+        );
+        return;
+      }
+    }
+
     const recipientHex = extractRecipient(data);
-    if (!recipientHex) return; // Not routable — silently drop.
 
+    if (!recipientHex) {
+      // No recipient — broadcast to all other connected peers.
+      // This enables presence/announce discovery over relay.
+      for (const [peerHex, peerWs] of this.peers) {
+        if (peerWs === senderWs) continue; // Don't echo back to sender.
+        try {
+          peerWs.send(data.buffer.slice(0)); // Copy buffer per recipient.
+        } catch {
+          this.removePeer(peerWs);
+        }
+      }
+      return;
+    }
+
+    // Addressed packet — try direct delivery.
     const recipientWs = this.peers.get(recipientHex);
-    if (!recipientWs) return; // Recipient not connected — silently drop.
+    if (recipientWs) {
+      try {
+        recipientWs.send(data.buffer);
+        return;
+      } catch {
+        this.removePeer(recipientWs);
+      }
+    }
 
-    // Forward the raw binary packet unchanged.
-    try {
-      recipientWs.send(data.buffer);
-    } catch {
-      // Recipient disconnected — clean up.
-      this.removePeer(recipientWs);
+    // Recipient not connected — store for later delivery.
+    this.queuePacket(recipientHex, data);
+  }
+
+  // MARK: - Store-and-forward queue
+
+  /** Queue a packet for offline delivery. Bounded by MAX_QUEUED_PER_PEER. */
+  private async queuePacket(recipientHex: PeerIDHex, data: Uint8Array): Promise<void> {
+    const storedAt = Date.now();
+    const queuePrefix = `${QUEUE_PREFIX}${recipientHex}:`;
+    const key = `${queuePrefix}${storedAt}:${Math.random().toString(36).slice(2, 8)}`;
+
+    // Keep queue insertion and cap enforcement atomic so bursts do not exceed the cap.
+    await this.state.storage.transaction(async (txn) => {
+      await txn.put(key, {
+        data: Array.from(data), // Serialize as number[] for DO storage.
+        storedAt,
+      });
+
+      const allKeys = await txn.list({ prefix: queuePrefix });
+      if (allKeys.size > MAX_QUEUED_PER_PEER) {
+        const sorted = [...allKeys.keys()].sort();
+        const toDelete = sorted.slice(0, allKeys.size - MAX_QUEUED_PER_PEER);
+        for (const staleKey of toDelete) {
+          await txn.delete(staleKey);
+        }
+      }
+    });
+
+    // Alarm scheduling stays outside the transaction because alarms are managed on storage.
+    const existingAlarm = await this.state.storage.getAlarm();
+    if (!existingAlarm) {
+      this.state.storage.setAlarm(storedAt + QUEUE_TTL_MS);
+    }
+  }
+
+  /** Drain queued packets for a peer who just connected. */
+  private async drainQueue(peerHex: PeerIDHex, ws: WebSocket): Promise<void> {
+    const entries = await this.state.storage.list({ prefix: `${QUEUE_PREFIX}${peerHex}:` });
+    if (entries.size === 0) return;
+
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+
+    for (const [key, value] of entries) {
+      const entry = value as { data: number[]; storedAt: number };
+
+      // Skip expired packets.
+      if (now - entry.storedAt > QUEUE_TTL_MS) {
+        keysToDelete.push(key);
+        continue;
+      }
+
+      try {
+        const packet = new Uint8Array(entry.data);
+        ws.send(packet.buffer);
+        keysToDelete.push(key);
+      } catch {
+        // WebSocket failed during drain — stop, remaining stay queued.
+        break;
+      }
+    }
+
+    // Clean up delivered/expired entries.
+    for (const key of keysToDelete) {
+      await this.state.storage.delete(key);
+    }
+  }
+
+  /** Periodic cleanup of expired queued packets. Called by DO alarm. */
+  async alarm(): Promise<void> {
+    const allEntries = await this.state.storage.list({ prefix: QUEUE_PREFIX });
+    const now = Date.now();
+    let deleted = 0;
+    for (const [key, value] of allEntries) {
+      const entry = value as { data: number[]; storedAt: number };
+      if (now - entry.storedAt > QUEUE_TTL_MS) {
+        await this.state.storage.delete(key);
+        deleted++;
+      }
+    }
+    // Schedule next cleanup if there are still queued items.
+    const remaining = await this.state.storage.list({ prefix: QUEUE_PREFIX, limit: 1 });
+    if (remaining.size > 0) {
+      this.state.storage.setAlarm(Date.now() + QUEUE_TTL_MS);
     }
   }
 
