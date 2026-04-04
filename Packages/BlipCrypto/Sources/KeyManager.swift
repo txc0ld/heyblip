@@ -79,7 +79,7 @@ private final class KeychainKeyManagerStore: @unchecked Sendable, KeyManagerStor
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: tag,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
         ]
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
@@ -147,8 +147,8 @@ final class InMemoryKeyManagerStore: @unchecked Sendable, KeyManagerStore {
 
 /// Generates, stores, and recovers the user's cryptographic identity.
 ///
-/// Keys are stored in the iOS Keychain with `kSecAttrAccessibleAfterFirstUnlock`
-/// so they survive device locks but are protected at rest.
+/// Keys are stored in the iOS Keychain with `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`
+/// so they are only available when the device has a passcode set and never migrate to other devices.
 public final class KeyManager: @unchecked Sendable {
 
     // MARK: - Logging
@@ -386,17 +386,24 @@ public final class KeyManager: @unchecked Sendable {
 
     // MARK: - Key Derivation
 
-    /// Derive a 256-bit symmetric key from a password and salt using HKDF-SHA256.
+    // TODO: Replace with Argon2id when dependency is approved (HKDF iteration is a mitigation, not ideal)
+    /// Derive a 256-bit symmetric key from a password and salt using iterated HKDF-SHA256.
+    ///
+    /// HKDF is not a password-based KDF, but CryptoKit does not provide PBKDF2 or Argon2.
+    /// We iterate HKDF 10,000 times to raise the cost of brute-force attacks (~0.5s on
+    /// modern iPhone, acceptable for the rare recovery kit export/import flow).
     private func deriveKey(password: String, salt: Data) -> SymmetricKey {
         let passwordData = Data(password.utf8)
-        let inputKey = SymmetricKey(data: passwordData)
-        let derived = HKDF<SHA256>.deriveKey(
-            inputKeyMaterial: inputKey,
-            salt: salt,
-            info: Self.recoveryInfo,
-            outputByteCount: 32
-        )
-        return derived
+        var currentKey = SymmetricKey(data: passwordData)
+        for _ in 0..<10_000 {
+            currentKey = SymmetricKey(data: HKDF<SHA256>.deriveKey(
+                inputKeyMaterial: currentKey,
+                salt: salt,
+                info: Self.recoveryInfo,
+                outputByteCount: 32
+            ))
+        }
+        return currentKey
     }
 
     // MARK: - Random Bytes
