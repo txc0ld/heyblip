@@ -68,6 +68,14 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
     private(set) var messageCleanupService: MessageCleanupService?
+    private var currentPeerSyncInterval: TimeInterval?
+    private var lastSyncedPeerIDs = Set<Data>()
+    private var lastPostedTransportState: TransportStateSnapshot?
+
+    private struct TransportStateSnapshot: Equatable {
+        let bleActive: Bool
+        let wsConnected: Bool
+    }
 
     // MARK: - Init
 
@@ -338,14 +346,46 @@ final class AppCoordinator {
             }
         }
 
-        // Also run a periodic sync every 5 seconds to catch RSSI drift and stale peers
-        let timer = Timer(timeInterval: 5.0, repeats: true) { [weak self] _ in
+        schedulePeerSyncTimer(forConnectedPeerCount: bleService.connectedPeers.count)
+    }
+
+    /// Keep RSSI refreshes frequent when peers are connected, but make the idle path cheap.
+    private func schedulePeerSyncTimer(forConnectedPeerCount count: Int) {
+        let interval: TimeInterval = count > 0 ? 5.0 : 15.0
+
+        guard peerSyncTimer == nil || currentPeerSyncInterval != interval else { return }
+
+        peerSyncTimer?.invalidate()
+
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.syncMeshPeers()
             }
         }
         RunLoop.main.add(timer, forMode: .common)
         peerSyncTimer = timer
+        currentPeerSyncInterval = interval
+    }
+
+    private func currentTransportStateSnapshot() -> TransportStateSnapshot {
+        TransportStateSnapshot(
+            bleActive: bleService?.state == .running,
+            wsConnected: webSocketTransport?.state == .running
+        )
+    }
+
+    private func postTransportStateIfNeeded(_ snapshot: TransportStateSnapshot) {
+        guard snapshot != lastPostedTransportState else { return }
+
+        NotificationCenter.default.post(
+            name: .meshTransportStateChanged,
+            object: nil,
+            userInfo: [
+                "bleActive": snapshot.bleActive,
+                "wsConnected": snapshot.wsConnected,
+            ]
+        )
+        lastPostedTransportState = snapshot
     }
 
     /// Sync connected BLE peers into the in-memory PeerStore.
@@ -356,6 +396,15 @@ final class AppCoordinator {
         let localID = localPeerID
 
         let connectedSet = Set(connectedPeerIDs.map(\.bytes))
+        let transportState = currentTransportStateSnapshot()
+        let peerSetChanged = connectedSet != lastSyncedPeerIDs
+
+        schedulePeerSyncTimer(forConnectedPeerCount: connectedPeerIDs.count)
+
+        guard !connectedPeerIDs.isEmpty || peerSetChanged else {
+            postTransportStateIfNeeded(transportState)
+            return
+        }
 
         // Upsert connected peers
         for peerID in connectedPeerIDs {
@@ -381,17 +430,12 @@ final class AppCoordinator {
         // Prune stale disconnected peers (>5 min)
         peerStore.pruneStale(olderThan: 300)
 
-        // Post transport state
-        NotificationCenter.default.post(
-            name: .meshTransportStateChanged,
-            object: nil,
-            userInfo: [
-                "bleActive": bleService.state == .running,
-                "wsConnected": self.webSocketTransport?.state == .running,
-            ]
-        )
+        postTransportStateIfNeeded(transportState)
+        lastSyncedPeerIDs = connectedSet
 
-        DebugLogger.shared.log("SYNC", "Peer sync: \(connectedPeerIDs.count) connected")
+        if !connectedPeerIDs.isEmpty {
+            DebugLogger.shared.log("SYNC", "Peer sync: \(connectedPeerIDs.count) connected")
+        }
     }
 
     // MARK: - Server Registration Self-Check
@@ -520,10 +564,13 @@ final class AppCoordinator {
         transportCoordinator?.stop()
         peerSyncTimer?.invalidate()
         peerSyncTimer = nil
+        currentPeerSyncInterval = nil
         announceTimer?.invalidate()
         announceTimer = nil
         peerPruneTimer?.invalidate()
         peerPruneTimer = nil
+        lastSyncedPeerIDs.removeAll()
+        lastPostedTransportState = nil
         messageCleanupService?.stop()
         logger.info("Transports stopped")
     }
