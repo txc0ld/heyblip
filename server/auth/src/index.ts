@@ -62,7 +62,7 @@ interface ReceiptVerifyBody {
 
 function corsHeaders(env: Env): Record<string, string> {
   return {
-    "Access-Control-Allow-Origin": env.CORS_ORIGIN ?? "https://blip.app",
+    "Access-Control-Allow-Origin": env.CORS_ORIGIN ?? "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "X-Content-Type-Options": "nosniff",
