@@ -204,7 +204,7 @@ final class MessageService: @unchecked Sendable {
         }
 
         // Encrypt and send
-        let payload = buildTextPayload(content: content, messageID: message.id, replyToID: replyTo?.id)
+        let payload = MessagePayloadBuilder.buildTextPayload(content: content, messageID: message.id, replyToID: replyTo?.id)
         do {
             try await encryptAndSend(
                 payload: payload,
@@ -266,7 +266,7 @@ final class MessageService: @unchecked Sendable {
         context.insert(attachment)
         try context.save()
 
-        let payload = buildMediaPayload(data: audioData, messageID: message.id, mediaMeta: VoiceNoteMeta(duration: duration))
+        let payload = MessagePayloadBuilder.buildMediaPayload(data: audioData, messageID: message.id, duration: duration)
         try await encryptAndSend(
             payload: payload,
             subType: .voiceNote,
@@ -325,7 +325,7 @@ final class MessageService: @unchecked Sendable {
         context.insert(attachment)
         try context.save()
 
-        let payload = buildMediaPayload(data: imageData, messageID: message.id, mediaMeta: nil)
+        let payload = MessagePayloadBuilder.buildMediaPayload(data: imageData, messageID: message.id, duration: nil)
         try await encryptAndSend(
             payload: payload,
             subType: .imageMessage,
@@ -377,7 +377,7 @@ final class MessageService: @unchecked Sendable {
     func sendDeliveryAck(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
 
-        let taggedPayload = prependSubType(.deliveryAck, to: messageID.uuidString.data(using: .utf8) ?? Data())
+        let taggedPayload = MessagePayloadBuilder.prependSubType(.deliveryAck, to: messageID.uuidString.data(using: .utf8) ?? Data())
 
         let finalPayload: Data
         if let session = noiseSessionManager?.getSession(for: peerID) {
@@ -393,7 +393,7 @@ final class MessageService: @unchecked Sendable {
             finalPayload = taggedPayload
         }
 
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .noiseEncrypted,
             payload: finalPayload,
             flags: [.hasRecipient, .hasSignature, .isReliable],
@@ -412,7 +412,7 @@ final class MessageService: @unchecked Sendable {
     func sendReadReceipt(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
 
-        let taggedPayload = prependSubType(.readReceipt, to: messageID.uuidString.data(using: .utf8) ?? Data())
+        let taggedPayload = MessagePayloadBuilder.prependSubType(.readReceipt, to: messageID.uuidString.data(using: .utf8) ?? Data())
 
         let finalPayload: Data
         if let session = noiseSessionManager?.getSession(for: peerID) {
@@ -428,7 +428,7 @@ final class MessageService: @unchecked Sendable {
             finalPayload = taggedPayload
         }
 
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .noiseEncrypted,
             payload: finalPayload,
             flags: [.hasRecipient, .hasSignature],
@@ -552,9 +552,9 @@ final class MessageService: @unchecked Sendable {
         payload.append(0x00)
         payload.append(localUser.resolvedDisplayName.data(using: .utf8) ?? Data())
 
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .noiseEncrypted,
-            payload: prependSubType(.friendRequest, to: payload),
+            payload: MessagePayloadBuilder.prependSubType(.friendRequest, to: payload),
             flags: [.hasRecipient, .hasSignature, .isReliable],
             senderID: identity.peerID,
             recipientID: peerID
@@ -638,9 +638,9 @@ final class MessageService: @unchecked Sendable {
         var payload = Data()
         payload.append(localUser.username.data(using: .utf8) ?? Data())
 
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .noiseEncrypted,
-            payload: prependSubType(.friendAccept, to: payload),
+            payload: MessagePayloadBuilder.prependSubType(.friendAccept, to: payload),
             flags: [.hasRecipient, .hasSignature, .isReliable],
             senderID: identity.peerID,
             recipientID: recipientPeerID
@@ -689,7 +689,7 @@ final class MessageService: @unchecked Sendable {
         payload.append(identity.noisePublicKey.rawRepresentation) // 32-byte Curve25519 key
         payload.append(identity.signingPublicKey) // 32-byte Ed25519 public key
 
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .announce,
             payload: payload,
             flags: [],
@@ -784,7 +784,7 @@ final class MessageService: @unchecked Sendable {
             }
 
             // Deduplicate via Bloom filter
-            let packetIDData = self.buildPacketID(packet)
+            let packetIDData = MessagePayloadBuilder.buildPacketID(packet)
             if self.bloomFilter.contains(packetIDData) {
                 DebugLogger.emit("RX", "DUPLICATE packet — skipping")
                 return
@@ -842,7 +842,7 @@ final class MessageService: @unchecked Sendable {
         messageID: UUID?
     ) async throws {
         DebugLogger.emit("DM", "encryptAndSend: subType=\(subType) payloadSize=\(payload.count)")
-        let taggedPayload = prependSubType(subType, to: payload)
+        let taggedPayload = MessagePayloadBuilder.prependSubType(subType, to: payload)
 
         // Determine compression: skip for pre-compressed types
         let isPreCompressed = (subType == .voiceNote || subType == .imageMessage)
@@ -874,7 +874,7 @@ final class MessageService: @unchecked Sendable {
                 let ciphertext = try session.encrypt(plaintext: compressed.data)
                 DebugLogger.emit("DM", "encryptAndSend: Noise encrypted \(compressed.data.count)B → \(ciphertext.count)B → \(recipientHex)")
 
-                let packet = buildPacket(
+                let packet = MessagePayloadBuilder.buildPacket(
                     type: .noiseEncrypted,
                     payload: ciphertext,
                     flags: flags,
@@ -912,7 +912,7 @@ final class MessageService: @unchecked Sendable {
         } else {
             // Group/channel: broadcast (no Noise encryption for groups yet)
             DebugLogger.emit("TX", "BROADCAST \(subType) (\(compressed.data.count)B)")
-            let packet = buildPacket(
+            let packet = MessagePayloadBuilder.buildPacket(
                 type: .noiseEncrypted,
                 payload: compressed.data,
                 flags: flags,
@@ -1144,7 +1144,7 @@ final class MessageService: @unchecked Sendable {
             let msg2 = try sessionManager.respondToHandshake(for: peerID)
             var response = Data([0x02])
             response.append(msg2)
-            let responsePacket = buildPacket(
+            let responsePacket = MessagePayloadBuilder.buildPacket(
                 type: .noiseHandshake,
                 payload: response,
                 flags: [.hasRecipient],
@@ -1163,7 +1163,7 @@ final class MessageService: @unchecked Sendable {
                 let (msg3, _) = try sessionManager.completeHandshake(with: peerID)
                 var response = Data([0x03])
                 response.append(msg3)
-                let responsePacket = buildPacket(
+                let responsePacket = MessagePayloadBuilder.buildPacket(
                     type: .noiseHandshake,
                     payload: response,
                     flags: [.hasRecipient],
@@ -1246,7 +1246,7 @@ final class MessageService: @unchecked Sendable {
         let (_, msg1) = try sessionManager.initiateHandshake(with: recipientPeerID)
         var payload = Data([0x01])
         payload.append(msg1)
-        let packet = buildPacket(
+        let packet = MessagePayloadBuilder.buildPacket(
             type: .noiseHandshake,
             payload: payload,
             flags: [.hasRecipient],
@@ -1448,7 +1448,7 @@ final class MessageService: @unchecked Sendable {
         let context = ModelContext(modelContainer)
 
         // Parse message ID and content from payload
-        let (messageID, content, replyToID) = parseTextPayload(data)
+        let (messageID, content, replyToID) = MessagePayloadBuilder.parseTextPayload(data)
         DebugLogger.shared.log("DM", "Parsed msgID=\(messageID) contentLen=\(content.count) replyTo=\(replyToID?.uuidString ?? "nil")")
 
         // Check for duplicate
@@ -1778,7 +1778,7 @@ final class MessageService: @unchecked Sendable {
         let context = ModelContext(modelContainer)
 
         // Parse payload: username + 0x00 + displayName
-        let (senderUsername, senderDisplayName) = parseFriendPayload(data)
+        let (senderUsername, senderDisplayName) = MessagePayloadBuilder.parseFriendPayload(data)
         DebugLogger.shared.log("DM", "FRIEND_REQ from \(senderUsername ?? "nil") display=\(senderDisplayName ?? "nil")")
 
         // Resolve sender via PeerStore -> User (try peerID then noisePublicKey fallback)
@@ -1879,7 +1879,7 @@ final class MessageService: @unchecked Sendable {
         let context = ModelContext(modelContainer)
 
         // Parse payload: username
-        let (senderUsername, _) = parseFriendPayload(data)
+        let (senderUsername, _) = MessagePayloadBuilder.parseFriendPayload(data)
         DebugLogger.shared.log("DM", "FRIEND_ACCEPT from \(senderUsername ?? "nil")")
 
         // Find the Friend record for this peer (try peerID then noisePublicKey fallback)
@@ -1996,25 +1996,6 @@ final class MessageService: @unchecked Sendable {
     }
 
     // MARK: - Private: Friend Helpers
-
-    /// Parse friend request/accept payload: username + 0x00 + displayName (optional)
-    private func parseFriendPayload(_ data: Data) -> (String?, String?) {
-        let bytes = [UInt8](data)
-        guard let sepIndex = bytes.firstIndex(of: 0x00) else {
-            // No separator — entire payload is username
-            return (String(data: data, encoding: .utf8), nil)
-        }
-        let usernameData = Data(bytes[0 ..< sepIndex])
-        let username = String(data: usernameData, encoding: .utf8)
-        let afterSep = sepIndex + 1
-        let displayName: String?
-        if afterSep < bytes.count {
-            displayName = String(data: Data(bytes[afterSep...]), encoding: .utf8)
-        } else {
-            displayName = nil
-        }
-        return (username, displayName)
-    }
 
     /// Resolve or create a User record from a PeerInfo.
     @MainActor
@@ -2172,111 +2153,6 @@ final class MessageService: @unchecked Sendable {
 
         try context.save()
         logger.info("Created DM channel with \(remoteUser.username)")
-    }
-
-    // MARK: - Private: Payload Builders
-
-    private func buildTextPayload(content: String, messageID: UUID, replyToID: UUID?) -> Data {
-        var payload = Data()
-        // Message UUID (36 bytes as UTF-8 string)
-        payload.append(messageID.uuidString.data(using: .utf8) ?? Data())
-        // Separator byte
-        payload.append(0x00)
-        // Reply-to UUID (36 bytes or empty)
-        if let replyToID {
-            payload.append(replyToID.uuidString.data(using: .utf8) ?? Data())
-        }
-        payload.append(0x00)
-        // Content (UTF-8 text)
-        payload.append(content.data(using: .utf8) ?? Data())
-        return payload
-    }
-
-    private func parseTextPayload(_ data: Data) -> (UUID, Data, UUID?) {
-        let bytes = [UInt8](data)
-
-        // Find first separator
-        let firstSep = bytes.firstIndex(of: 0x00) ?? bytes.endIndex
-        let messageIDBytes = Data(bytes[0 ..< firstSep])
-        let messageID = String(data: messageIDBytes, encoding: .utf8).flatMap(UUID.init) ?? UUID()
-
-        // Find second separator
-        let afterFirstSep = min(firstSep + 1, bytes.endIndex)
-        let secondSep = bytes[afterFirstSep...].firstIndex(of: 0x00) ?? bytes.endIndex
-        let replyToBytes = Data(bytes[afterFirstSep ..< secondSep])
-        let replyToID: UUID? = String(data: replyToBytes, encoding: .utf8).flatMap(UUID.init)
-
-        // Content
-        let contentStart = min(secondSep + 1, bytes.endIndex)
-        let content = Data(bytes[contentStart...])
-
-        return (messageID, content, replyToID)
-    }
-
-    private struct VoiceNoteMeta {
-        let duration: TimeInterval
-    }
-
-    private func buildMediaPayload(data: Data, messageID: UUID, mediaMeta: VoiceNoteMeta?) -> Data {
-        var payload = Data()
-        // Message UUID
-        payload.append(messageID.uuidString.data(using: .utf8) ?? Data())
-        payload.append(0x00)
-        // Duration for voice notes (8 bytes, Double)
-        if let meta = mediaMeta {
-            var duration = meta.duration
-            payload.append(Data(bytes: &duration, count: 8))
-        }
-        // Media data
-        payload.append(data)
-        return payload
-    }
-
-    private func prependSubType(_ subType: EncryptedSubType, to payload: Data) -> Data {
-        var tagged = Data(capacity: 1 + payload.count)
-        tagged.append(subType.rawValue)
-        tagged.append(payload)
-        return tagged
-    }
-
-    // MARK: - Private: Packet Builder
-
-    private func buildPacket(
-        type: BlipProtocol.MessageType,
-        payload: Data,
-        flags: PacketFlags,
-        senderID: PeerID,
-        recipientID: PeerID?
-    ) -> Packet {
-        var effectiveFlags = flags
-        // Strip hasSignature — no signing layer yet. PacketSerializer.encode()
-        // throws missingSignature if the flag is set but signature is nil.
-        effectiveFlags.remove(.hasSignature)
-        if recipientID != nil {
-            effectiveFlags.insert(.hasRecipient)
-        }
-
-        return Packet(
-            type: type,
-            ttl: 7,
-            timestamp: Packet.currentTimestamp(),
-            flags: effectiveFlags,
-            senderID: senderID,
-            recipientID: recipientID,
-            payload: payload,
-            signature: nil
-        )
-    }
-
-    // MARK: - Private: Packet ID for Bloom Filter
-
-    private func buildPacketID(_ packet: Packet) -> Data {
-        var idData = Data()
-        packet.senderID.appendTo(&idData)
-        var ts = packet.timestamp.bigEndian
-        idData.append(Data(bytes: &ts, count: 8))
-        idData.append(packet.type.rawValue)
-        return idData
     }
 
     // MARK: - Private: Channel Resolution
