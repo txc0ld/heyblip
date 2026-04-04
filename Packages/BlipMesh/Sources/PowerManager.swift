@@ -151,7 +151,7 @@ public final class PowerManager: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.updateBatteryState()
+            Task { @MainActor in self?.updateBatteryState() }
         }
 
         batteryStateObservation = NotificationCenter.default.addObserver(
@@ -159,11 +159,11 @@ public final class PowerManager: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.updateBatteryState()
+            Task { @MainActor in self?.updateBatteryState() }
         }
 
         // Initial check.
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             self?.updateBatteryState()
         }
         #endif
@@ -176,9 +176,7 @@ public final class PowerManager: @unchecked Sendable {
         )
         timer.setEventHandler { [weak self] in
             #if canImport(UIKit) && !os(macOS)
-            DispatchQueue.main.async {
-                self?.updateBatteryState()
-            }
+            Task { @MainActor in self?.updateBatteryState() }
             #endif
         }
         timer.resume()
