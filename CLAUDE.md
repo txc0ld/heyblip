@@ -2,7 +2,7 @@
 
 ## Project Identity
 
-Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events via BLE mesh when mobile reception is unavailable.
+Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events (festivals, sporting events, ultra marathons, concerts, any high-density gathering) via BLE mesh when mobile reception is unavailable.
 
 **Design spec:** `docs/superpowers/specs/2026-03-28-blip-design.md` — read this before any implementation work. It is the single source of truth.
 
@@ -92,9 +92,12 @@ The `server/` directory contains Cloudflare Workers deployed to John's account:
 | Worker | URL | Responsibility |
 |---|---|---|
 | `blip-auth` | `blip-auth.john-mckean.workers.dev` | User registration, login, key upload, user lookup |
-| `blip-relay` | `blip-relay.john-mckean.workers.dev` | WebSocket relay for off-mesh message delivery |
+| `blip-relay` | `blip-relay.john-mckean.workers.dev` | WebSocket relay with store-and-forward (Durable Object storage, 50 packets/peer cap, 1hr TTL), broadcast fan-out for non-addressed packets, sender PeerID verification, queue drain on connect, alarm-based cleanup |
+| `blip-cdn` | `blip-cdn.john-mckean.workers.dev` | Static event manifests and public assets. `/manifests/events.json` serves seed events. CORS enabled, 1hr cache. No DB connection. Source not in `server/` — deployed standalone. |
 
-Database: Neon Postgres (managed by Tay). Workers connect via `DATABASE_URL` environment variable in wrangler.toml.
+The `server/` directory also contains a `verify/` stub (currently unused).
+
+Database: Neon Postgres (managed by Tay). `blip-auth` and `blip-relay` connect via `DATABASE_URL` environment variable in wrangler.toml. `blip-cdn` is static (no DB).
 
 **Server URLs are centralized in `Sources/Services/ServerConfig.swift`** — never hardcode server URLs anywhere else. If you need to reference auth or relay endpoints, import and use `ServerConfig`.
 
@@ -103,7 +106,7 @@ Database: Neon Postgres (managed by Tay). Workers connect via `DATABASE_URL` env
 These files are touched by multiple features and PRs simultaneously. Before making changes, check if anyone else has an open PR touching the same file:
 
 - **`Sources/Services/AppCoordinator.swift`** — app lifecycle, service initialization, key sync. Highest conflict risk.
-- **`Sources/Services/MessageService.swift`** — message send/receive, friend requests, payload parsing
+- **`Sources/Services/MessageService.swift`** — core message send/receive, encryption routing, relay transport (~1,240 lines after decomposition). Extensions in `MessageService+FriendRequests.swift` and `MessageService+Handshake.swift`. Still a hot file but conflict risk is reduced.
 - **`Sources/Services/BLEService.swift`** — BLE peripheral/central management, connection state
 - **`Sources/Models/` shared models** — any SwiftData model changes affect multiple views
 
@@ -120,6 +123,8 @@ The app uses email + social login (no phone/SMS). The flow:
 
 **Critical:** Registration must upload keys to the server. If keys are `null` on the server, the "Add Friend" button will be disabled (by design — `noisePublicKey == nil` guard). If friend requests aren't working, check key upload first.
 
+**Security note (2026-04-04):** A plaintext fallback bug was found and fixed (PR #109) — DMs without an active Noise session were being sent unencrypted. The fix ensures all DMs require an established Noise session before sending. A broader security audit (BDEV-179) is in progress with 9 child tickets including BDEV-183 (registration has zero auth — urgent). Auth hardening is underway.
+
 ## Debug Logging
 
 Use the shared `DebugLogger` for all logging — never use `print()` in production code:
@@ -130,7 +135,7 @@ DebugLogger.shared.log("AUTH", "Key upload failed: \(error)")
 DebugLogger.shared.log("MESSAGE", "Sending DM to \(recipientUsername)")
 ```
 
-Categories in use: `BLE`, `AUTH`, `MESSAGE`, `RELAY`, `GOSSIP`, `CRYPTO`, `SYNC`, `APP`.
+Categories in use: `BLE`, `AUTH`, `MESSAGE`, `RELAY`, `GOSSIP`, `CRYPTO`, `SYNC`, `APP`, `NOISE`, `EVENT`.
 
 The debug overlay (accessible in-app) displays these logs in real time — useful for on-device testing.
 
@@ -172,7 +177,7 @@ The debug overlay (accessible in-app) displays these logs in real time — usefu
 - **Encryption:** Noise_XX_25519_ChaChaPoly_SHA256 via CryptoKit + swift-sodium for Ed25519
 - **BLE Service UUID:** `FC000001-0000-1000-8000-00805F9B34FB`
 - **BLE Characteristic UUID:** `FC000002-0000-1000-8000-00805F9B34FB`
-- **WebSocket relay:** `WebSocketTransport` in BlipMesh handles off-mesh delivery via `blip-relay` worker. Messages route through the relay when BLE peers aren't directly reachable.
+- **WebSocket relay:** `WebSocketTransport` in BlipMesh handles off-mesh delivery via `blip-relay` worker. Messages route through the relay when BLE peers aren't directly reachable. The relay uses Durable Objects for store-and-forward — queued packets drain automatically when the recipient connects. Sender PeerID is verified against the authenticated WebSocket connection (bytes 16-23 of packet header must match). Non-addressed packets are broadcast to all other connected peers via fan-out.
 
 ## Dependencies (3 only)
 
