@@ -64,7 +64,7 @@ struct ParticleField: View {
     // MARK: - Animated Field
 
     private var animatedField: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
 
             Canvas { context, size in

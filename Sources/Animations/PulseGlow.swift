@@ -57,7 +57,7 @@ struct PulseGlow: View {
     }
 
     private var animatedGlow: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
             let normalizedPhase = elapsed / cycleDuration
             // Sinusoidal oscillation: maps to 0.3 → 0.8 → 0.3
