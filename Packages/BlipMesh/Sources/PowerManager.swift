@@ -218,7 +218,7 @@ public final class PowerManager: @unchecked Sendable {
 
     // MARK: - Internals
 
-    private func updateBatteryState() {
+    @MainActor private func updateBatteryState() {
         #if canImport(UIKit) && !os(macOS)
         let level = UIDevice.current.batteryLevel
         let state = UIDevice.current.batteryState

@@ -69,40 +69,42 @@ enum SpringConstants {
 
     /// Returns the provided animation, or `.default` with zero duration if Reduce Motion is on.
     /// This ensures all animations gracefully degrade.
-    static func accessibleAnimation(_ animation: Animation) -> Animation {
+    @MainActor static func accessibleAnimation(_ animation: Animation) -> Animation {
         isReduceMotionEnabled ? .linear(duration: 0.01) : animation
     }
 
     /// Returns an accessible spring animation using the page entrance parameters.
-    static var accessiblePageEntrance: Animation {
+    @MainActor static var accessiblePageEntrance: Animation {
         accessibleAnimation(pageEntranceAnimation)
     }
 
     /// Returns an accessible spring animation using the message parameters.
-    static var accessibleMessage: Animation {
+    @MainActor static var accessibleMessage: Animation {
         accessibleAnimation(messageAnimation)
     }
 
     /// Returns an accessible reveal animation.
-    static var accessibleReveal: Animation {
+    @MainActor static var accessibleReveal: Animation {
         accessibleAnimation(revealAnimation)
     }
 
     /// Returns an accessible snappy animation for toggles.
-    static var accessibleSnappy: Animation {
+    @MainActor static var accessibleSnappy: Animation {
         accessibleAnimation(snappyAnimation)
     }
 
     /// Returns an accessible elastic animation for playful elements.
-    static var accessibleElastic: Animation {
+    @MainActor static var accessibleElastic: Animation {
         accessibleAnimation(elasticAnimation)
     }
 
     // MARK: - Reduce Motion detection
 
     /// Checks the system accessibility setting for Reduce Motion.
-    /// Safe to call from any context — UIAccessibility is thread-safe for reads.
-    nonisolated(unsafe) static var isReduceMotionEnabled: Bool {
+    /// UIAccessibility reads are safe from any thread, but the API is
+    /// MainActor-annotated in Swift 6. We use @MainActor to satisfy
+    /// the compiler while keeping the same runtime behavior.
+    @MainActor static var isReduceMotionEnabled: Bool {
         #if canImport(UIKit)
         return UIAccessibility.isReduceMotionEnabled
         #elseif canImport(AppKit)

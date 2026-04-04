@@ -163,14 +163,15 @@ final class LocationService: NSObject, @unchecked Sendable {
         return try await withCheckedThrowingContinuation { continuation in
             // Atomic flag to ensure only one resume (BDEV-96)
             let resumed = OSAllocatedUnfairLock(initialState: false)
-            var observation: NSObjectProtocol?
+            // Store observation token in a lock-protected box to avoid mutable capture
+            let observationBox = OSAllocatedUnfairLock<NSObjectProtocol?>(initialState: nil)
 
-            observation = NotificationCenter.default.addObserver(
+            let token = NotificationCenter.default.addObserver(
                 forName: .locationServiceDidGetSOSFix,
                 object: self,
                 queue: .main
             ) { notification in
-                if let obs = observation {
+                if let obs = observationBox.withLock({ $0 }) {
                     NotificationCenter.default.removeObserver(obs)
                 }
                 if let location = notification.userInfo?["location"] as? CLLocation {
@@ -187,10 +188,11 @@ final class LocationService: NSObject, @unchecked Sendable {
                     }
                 }
             }
+            observationBox.withLock { $0 = token }
 
             // Timeout after 10 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                if let obs = observation {
+                if let obs = observationBox.withLock({ $0 }) {
                     NotificationCenter.default.removeObserver(obs)
                 }
                 resumed.withLock { alreadyResumed in

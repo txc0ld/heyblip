@@ -70,9 +70,9 @@ final class BackgroundTaskService {
         scheduleNextSync()
 
         // Set expiration handler — clean up if iOS kills the task early.
-        task.expirationHandler = { [weak self] in
-            self?.logger.warning("BGTask expired before completion")
-            DebugLogger.shared.log("APP", "BGTask expired", isError: true)
+        // Uses DebugLogger.emit (nonisolated) since this closure runs off MainActor.
+        task.expirationHandler = {
+            DebugLogger.emit("APP", "BGTask expired", isError: true)
         }
 
         // Check BLE state and reconnect if needed.
@@ -123,7 +123,7 @@ final class BackgroundTaskService {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
-                DebugLogger.shared.log("APP", "Background notification failed: \(error.localizedDescription)", isError: true)
+                DebugLogger.emit("APP", "Background notification failed: \(error.localizedDescription)", isError: true)
             }
         }
     }
