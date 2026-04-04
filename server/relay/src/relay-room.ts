@@ -200,6 +200,19 @@ export class RelayRoom implements DurableObject {
       this.messageTimestamps.set(senderPeerIdHex, recentTimestamps);
     }
 
+    // Verify the sender PeerID in the packet matches the authenticated connection.
+    if (senderPeerIdHex) {
+      const packetSenderHex = bytesToHex(
+        data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH)
+      );
+      if (packetSenderHex !== senderPeerIdHex) {
+        console.warn(
+          `Sender mismatch: packet=${packetSenderHex} connection=${senderPeerIdHex} — dropping`
+        );
+        return;
+      }
+    }
+
     const recipientHex = extractRecipient(data);
 
     if (!recipientHex) {
