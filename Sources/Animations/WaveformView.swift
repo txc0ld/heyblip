@@ -87,7 +87,7 @@ struct WaveformView: View {
     // MARK: - Animated wave (full motion)
 
     private var animatedWaveView: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isActive)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
             Canvas { context, size in
                 drawWaveform(context: context, size: size, date: timeline.date)
             }

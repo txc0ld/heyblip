@@ -219,7 +219,7 @@ struct VoiceNotePlayer: View {
 
     private func startTimerAnimation(adjustedDuration: TimeInterval) {
         guard adjustedDuration > 0 else { return }
-        let interval = 0.05
+        let interval = 0.1 // 10fps — sufficient for progress bar updates
         playbackTimer?.invalidate()
         playbackTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task { @MainActor in

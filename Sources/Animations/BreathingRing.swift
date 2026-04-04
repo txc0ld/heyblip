@@ -68,7 +68,7 @@ struct BreathingRing: View {
     // MARK: - Animated Rings
 
     private var animatedRings: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
             let normalizedPhase = elapsed / cycleDuration
             // Breathing: scale oscillates between 0.85 and 1.15

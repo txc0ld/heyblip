@@ -71,7 +71,7 @@ struct LiquidProgress: View {
     // MARK: - Animated Bar
 
     private var animatedBar: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
 
             Canvas { context, size in
