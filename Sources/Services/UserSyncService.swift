@@ -333,8 +333,9 @@ final class UserSyncService: Sendable {
             throw SyncError.serverError("Invalid response body")
         }
 
+        // Server returns 200 with id: null for unknown users (anti-enumeration).
         guard let id = userDict["id"] as? String, !id.isEmpty else {
-            throw SyncError.serverError("Missing user ID in lookup response")
+            return nil
         }
         guard let username = userDict["username"] as? String, !username.isEmpty else {
             throw SyncError.serverError("Missing username in lookup response")
