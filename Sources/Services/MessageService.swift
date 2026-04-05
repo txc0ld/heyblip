@@ -115,6 +115,10 @@ final class MessageService: @unchecked Sendable {
     private var lastTypingIndicatorSent: [UUID: Date] = [:]
     private let typingIndicatorInterval: TimeInterval = 3.0
 
+    /// Debounce for broadcastPresence() — prevents announce storms from rapid CONNECTED events.
+    private var lastBroadcastTime: Date?
+    private let broadcastDebounceInterval: TimeInterval = 1.0
+
     // MARK: - Sender Binding (BDEV-86)
 
     /// Maps a delivering transport PeerID → the first claimed sender PeerID from that connection.
@@ -1252,8 +1256,17 @@ extension MessageService: TransportDelegate {
         let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
             DebugLogger.shared.log("PEER", "CONNECTED: \(shortID)")
+
+            // Debounce: skip broadcast if one was sent less than 1s ago
+            if let last = self.lastBroadcastTime,
+               Date().timeIntervalSince(last) < self.broadcastDebounceInterval {
+                DebugLogger.shared.log("PRESENCE", "Broadcast debounced for \(shortID)")
+                return
+            }
+
             do {
                 try await self.broadcastPresence()
+                self.lastBroadcastTime = Date()
             } catch {
                 DebugLogger.shared.log("PRESENCE", "Broadcast on connect failed: \(error)", isError: true)
             }

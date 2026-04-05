@@ -71,6 +71,14 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Timestamp when a peripheral's backoff period started, for expiry calculation.
     private var backoffUntil: [UUID: Date] = [:]
 
+    /// Dedup CONNECTED callbacks — prevents duplicate events when both central and peripheral
+    /// paths fire for the same logical connection.
+    private var recentlyConnectedPeers: [PeerID: Date] = [:]
+    private static let connectDedupWindow: TimeInterval = 0.5
+
+    /// Tracks when each peer's current connection was established, for backoff reset.
+    private var connectionEstablishedAt: [PeerID: Date] = [:]
+
     // MARK: - Concurrency
 
     let lock = NSLock()
@@ -571,7 +579,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         guard let peerID = lock.withLock({ peripheralToPeerID[peripheral.identifier] }) else {
             return
         }
-        delegate?.transport(self, didConnect: peerID)
+        emitDedupedConnect(peerID)
         NotificationCenter.default.post(name: .meshPeerStateChanged, object: nil)
     }
 
@@ -604,9 +612,27 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             peripheralRSSI.removeValue(forKey: uuid)
             connectingPeripherals.remove(uuid)
 
-            // Apply reconnection backoff to prevent thrashing (BDEV-121)
-            timedOutPeripherals[uuid] = Date()
-            recordConnectionFailure(for: uuid)
+            // Clear dedup entry so a genuine reconnect fires a new CONNECTED event
+            if let pid = pid {
+                recentlyConnectedPeers.removeValue(forKey: pid)
+            }
+
+            // If the peer was connected long enough, reset its backoff — it was stable.
+            if let pid = pid,
+               let connectedAt = connectionEstablishedAt[pid],
+               Date().timeIntervalSince(connectedAt) >= BLEConstants.stableConnectionThreshold {
+                failureCounts.removeValue(forKey: uuid)
+                backoffUntil.removeValue(forKey: uuid)
+                timedOutPeripherals.removeValue(forKey: uuid)
+                connectionEstablishedAt.removeValue(forKey: pid)
+            } else {
+                // Unstable connection — apply exponential backoff
+                timedOutPeripherals[uuid] = Date()
+                recordConnectionFailure(for: uuid)
+                if let pid = pid {
+                    connectionEstablishedAt.removeValue(forKey: pid)
+                }
+            }
 
             return pid
         }
@@ -631,6 +657,29 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     func temporaryPeerID(from uuid: UUID) -> PeerID {
         let data = withUnsafeBytes(of: uuid.uuid) { Data($0) }
         return PeerID(noisePublicKey: data)
+    }
+
+    /// Fire a deduplicated CONNECTED event. Suppresses duplicate callbacks when both
+    /// central and peripheral paths fire for the same peer within 500ms.
+    private func emitDedupedConnect(_ peerID: PeerID) {
+        let now = Date()
+
+        // Prune stale entries (>5s old)
+        recentlyConnectedPeers = recentlyConnectedPeers.filter { _, date in
+            now.timeIntervalSince(date) < 5.0
+        }
+
+        // Check dedup window
+        if let lastConnect = recentlyConnectedPeers[peerID],
+           now.timeIntervalSince(lastConnect) < Self.connectDedupWindow {
+            let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            transportEventHandler?("BLE", "CONNECT deduped \(shortID)")
+            return
+        }
+
+        recentlyConnectedPeers[peerID] = now
+        connectionEstablishedAt[peerID] = now
+        delegate?.transport(self, didConnect: peerID)
     }
 
     /// Clean up stale timed-out and backoff entries.
@@ -929,7 +978,7 @@ extension BLEService: CBPeripheralManagerDelegate {
             centralToPeerID[central.identifier] = tempPeerID
         }
 
-        delegate?.transport(self, didConnect: tempPeerID)
+        emitDedupedConnect(tempPeerID)
         NotificationCenter.default.post(name: .meshPeerStateChanged, object: nil)
     }
 
@@ -943,7 +992,12 @@ extension BLEService: CBPeripheralManagerDelegate {
 
         let peerID: PeerID? = lock.withLock {
             subscribedCentrals.removeAll { $0.identifier == central.identifier }
-            return centralToPeerID.removeValue(forKey: central.identifier)
+            let pid = centralToPeerID.removeValue(forKey: central.identifier)
+            if let pid = pid {
+                recentlyConnectedPeers.removeValue(forKey: pid)
+                connectionEstablishedAt.removeValue(forKey: pid)
+            }
+            return pid
         }
 
         if let peerID = peerID {

@@ -32,10 +32,13 @@ public enum BLEConstants: Sendable {
     public static let connectionTimeout: TimeInterval = 10.0
 
     /// Minimum backoff before reconnecting to a disconnected peripheral.
-    public static let reconnectBackoff: TimeInterval = 5.0
+    public static let reconnectBackoff: TimeInterval = 0.2
 
     /// Maximum backoff ceiling for exponential reconnect delay.
-    public static let reconnectBackoffMax: TimeInterval = 60.0
+    public static let reconnectBackoffMax: TimeInterval = 5.0
+
+    /// Duration a peer must stay connected before its reconnect backoff resets.
+    public static let stableConnectionThreshold: TimeInterval = 5.0
 
     /// Peer stale threshold: a peer not heard from in this interval is considered gone.
     public static let peerStaleTimeout: TimeInterval = 60.0
