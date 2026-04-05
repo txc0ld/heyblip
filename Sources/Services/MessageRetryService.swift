@@ -180,10 +180,8 @@ final class MessageRetryService: @unchecked Sendable {
 
         do {
             // Fetch all queue entries sorted by next retry time
-            let descriptor = FetchDescriptor<MessageQueue>(
-                sortBy: [SortDescriptor(\.nextRetryAt, order: .forward)]
-            )
-            let allEntries = try context.fetch(descriptor)
+            let allEntries = try context.fetch(FetchDescriptor<MessageQueue>())
+                .sorted { $0.nextRetryAt < $1.nextRetryAt }
 
             // Phase 1: Expire old entries
             for entry in allEntries {
@@ -360,10 +358,8 @@ final class MessageRetryService: @unchecked Sendable {
     /// Enforce the 500-message queue cap by evicting the oldest expired/failed entries first,
     /// then the oldest queued entries if still over cap.
     private func enforceQueueCap(context: ModelContext) throws {
-        let descriptor = FetchDescriptor<MessageQueue>(
-            sortBy: [SortDescriptor(\.nextRetryAt, order: .forward)]
-        )
-        let allEntries = try context.fetch(descriptor)
+        let allEntries = try context.fetch(FetchDescriptor<MessageQueue>())
+            .sorted { $0.nextRetryAt < $1.nextRetryAt }
 
         guard allEntries.count > RetryConfig.maxQueueSize else { return }
 

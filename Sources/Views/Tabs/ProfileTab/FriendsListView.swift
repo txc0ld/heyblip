@@ -272,9 +272,8 @@ struct FriendsListView: View {
     private func acceptFriendRequest(_ item: FriendListItem) {
         guard let messageService = coordinator.messageService else { return }
         let context = ModelContext(modelContext.container)
-        let friendID = item.id
-        let desc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        guard let friend = try? context.fetch(desc).first else { return }
+        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
+            .first(where: { $0.id == item.id }) else { return }
         Task {
             try? await messageService.acceptFriendRequest(from: friend)
             loadFriends()
@@ -283,9 +282,8 @@ struct FriendsListView: View {
 
     private func removeFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        let friendID = item.id
-        let desc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        guard let friend = try? context.fetch(desc).first else { return }
+        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
+            .first(where: { $0.id == item.id }) else { return }
         context.delete(friend)
         try? context.save()
         loadFriends()
@@ -294,9 +292,8 @@ struct FriendsListView: View {
 
     private func blockFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        let friendID = item.id
-        let desc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        guard let friend = try? context.fetch(desc).first else { return }
+        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
+            .first(where: { $0.id == item.id }) else { return }
         friend.statusRaw = FriendStatus.blocked.rawValue
         try? context.save()
         loadFriends()
@@ -305,9 +302,8 @@ struct FriendsListView: View {
 
     private func unblockFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        let friendID = item.id
-        let desc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        guard let friend = try? context.fetch(desc).first else { return }
+        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
+            .first(where: { $0.id == item.id }) else { return }
         friend.statusRaw = FriendStatus.accepted.rawValue
         try? context.save()
         loadFriends()
@@ -316,9 +312,8 @@ struct FriendsListView: View {
 
     private func declineFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        let friendID = item.id
-        let desc = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
-        guard let friend = try? context.fetch(desc).first else { return }
+        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
+            .first(where: { $0.id == item.id }) else { return }
         context.delete(friend)
         try? context.save()
         loadFriends()
@@ -327,8 +322,8 @@ struct FriendsListView: View {
 
     private func loadFriends() {
         let context = ModelContext(modelContext.container)
-        let descriptor = FetchDescriptor<Friend>(sortBy: [SortDescriptor(\.addedAt, order: .reverse)])
-        guard let allFriends = try? context.fetch(descriptor) else { return }
+        guard let allFriends = try? context.fetch(FetchDescriptor<Friend>())
+            .sorted(by: { $0.addedAt > $1.addedAt }) else { return }
 
         // Check which friends are online via PeerStore
         let connectedKeys = Set(coordinator.peerStore.connectedPeers().map(\.noisePublicKey))

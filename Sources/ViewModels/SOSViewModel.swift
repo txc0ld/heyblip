@@ -364,12 +364,11 @@ final class SOSViewModel {
     /// Accept an SOS alert as a medical responder.
     func acceptAlert(_ alertInfo: SOSAlertInfo) async {
         let context = ModelContext(modelContainer)
-        let targetID = alertInfo.id
-        let descriptor = FetchDescriptor<SOSAlert>(predicate: #Predicate { $0.id == targetID })
 
         let alert: SOSAlert
         do {
-            guard let fetched = try context.fetch(descriptor).first else {
+            guard let fetched = try context.fetch(FetchDescriptor<SOSAlert>())
+                .first(where: { $0.id == alertInfo.id }) else {
                 errorMessage = "Alert not found"
                 return
             }
@@ -454,14 +453,12 @@ final class SOSViewModel {
     /// Refresh visible SOS alerts from SwiftData.
     func refreshVisibleAlerts() async {
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<SOSAlert>(
-            predicate: #Predicate { $0.statusRaw == "active" || $0.statusRaw == "accepted" },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
 
         let alerts: [SOSAlert]
         do {
-            alerts = try context.fetch(descriptor)
+            alerts = try context.fetch(FetchDescriptor<SOSAlert>())
+                .filter { $0.statusRaw == "active" || $0.statusRaw == "accepted" }
+                .sorted { $0.createdAt > $1.createdAt }
         } catch {
             logger.error("Failed to fetch visible SOS alerts: \(error.localizedDescription)")
             return

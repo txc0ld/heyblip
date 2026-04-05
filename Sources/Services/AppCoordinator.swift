@@ -221,8 +221,8 @@ final class AppCoordinator {
         Task {
             do {
                 let context = ModelContext(modelContainer)
-                let userDesc = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-                guard let user = try context.fetch(userDesc).first,
+                let users = try context.fetch(FetchDescriptor<User>())
+                guard let user = users.min(by: { $0.createdAt < $1.createdAt }),
                       !user.emailHash.isEmpty else {
                     DebugLogger.shared.log("AUTH", "Key re-sync skipped — no local user or empty emailHash")
                     return
@@ -450,8 +450,8 @@ final class AppCoordinator {
         let syncService = UserSyncService()
 
         do {
-            let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-            guard let localUser = try context.fetch(descriptor).first else {
+            let users = try context.fetch(FetchDescriptor<User>())
+            guard let localUser = users.min(by: { $0.createdAt < $1.createdAt }) else {
                 logger.info("SELF_CHECK — no local user, skipping")
                 DebugLogger.shared.log("SELF_CHECK", "No local user found, skipping")
                 return

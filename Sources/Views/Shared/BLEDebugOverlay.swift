@@ -479,8 +479,8 @@ struct BLEDebugOverlay: View {
     }
 
     private func fetchLocalUser() -> User? {
-        let descriptor = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
-        return try? modelContext.fetch(descriptor).first
+        let users = try? modelContext.fetch(FetchDescriptor<User>())
+        return users?.min(by: { $0.createdAt < $1.createdAt })
     }
 
     // MARK: - State Dump

@@ -206,11 +206,10 @@ final class LocationViewModel {
     /// Toggle location sharing for a specific friend.
     func toggleSharingWithFriend(friendID: UUID) async {
         let context = ModelContext(modelContainer)
-        let targetID = friendID
-        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == targetID })
 
         do {
-            guard let friend = try context.fetch(descriptor).first else { return }
+            guard let friend = try context.fetch(FetchDescriptor<Friend>())
+                .first(where: { $0.id == friendID }) else { return }
             friend.locationSharingEnabled.toggle()
             try context.save()
         } catch {
@@ -222,11 +221,10 @@ final class LocationViewModel {
     /// Update location precision for a friend.
     func setFriendPrecision(friendID: UUID, precision: LocationPrecision) async {
         let context = ModelContext(modelContainer)
-        let targetID = friendID
-        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == targetID })
 
         do {
-            guard let friend = try context.fetch(descriptor).first else { return }
+            guard let friend = try context.fetch(FetchDescriptor<Friend>())
+                .first(where: { $0.id == friendID }) else { return }
             friend.locationPrecision = precision
             try context.save()
         } catch {
@@ -336,13 +334,10 @@ final class LocationViewModel {
     private func refreshFriendLocations() async {
         let context = ModelContext(modelContainer)
 
-        let descriptor = FetchDescriptor<FriendLocation>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-
         let locations: [FriendLocation]
         do {
-            locations = try context.fetch(descriptor)
+            locations = try context.fetch(FetchDescriptor<FriendLocation>())
+                .sorted { $0.timestamp > $1.timestamp }
         } catch {
             logger.error("Failed to fetch friend locations: \(error.localizedDescription)")
             errorMessage = "Failed to load friend locations: \(error.localizedDescription)"

@@ -4,6 +4,7 @@ import SwiftUI
 
 /// Extracted card components for AddFriendByUsernameSheet.
 /// Keeps the main sheet file under 200 lines.
+@MainActor
 enum AddFriendSheetComponents {
 
     // MARK: - Error Card

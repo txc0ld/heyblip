@@ -663,22 +663,28 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// central and peripheral paths fire for the same peer within 500ms.
     private func emitDedupedConnect(_ peerID: PeerID) {
         let now = Date()
+        let shouldEmit = lock.withLock { () -> Bool in
+            // Prune stale entries (>5s old)
+            recentlyConnectedPeers = recentlyConnectedPeers.filter { _, date in
+                now.timeIntervalSince(date) < 5.0
+            }
 
-        // Prune stale entries (>5s old)
-        recentlyConnectedPeers = recentlyConnectedPeers.filter { _, date in
-            now.timeIntervalSince(date) < 5.0
+            if let lastConnect = recentlyConnectedPeers[peerID],
+               now.timeIntervalSince(lastConnect) < Self.connectDedupWindow {
+                return false
+            }
+
+            recentlyConnectedPeers[peerID] = now
+            connectionEstablishedAt[peerID] = now
+            return true
         }
 
-        // Check dedup window
-        if let lastConnect = recentlyConnectedPeers[peerID],
-           now.timeIntervalSince(lastConnect) < Self.connectDedupWindow {
+        guard shouldEmit else {
             let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
             transportEventHandler?("BLE", "CONNECT deduped \(shortID)")
             return
         }
 
-        recentlyConnectedPeers[peerID] = now
-        connectionEstablishedAt[peerID] = now
         delegate?.transport(self, didConnect: peerID)
     }
 

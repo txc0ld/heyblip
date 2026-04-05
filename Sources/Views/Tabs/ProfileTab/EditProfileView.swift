@@ -7,6 +7,7 @@ import os.log
 
 /// Edit screen for display name, username, bio, avatar, and email.
 /// Persists changes to SwiftData.
+@MainActor
 struct EditProfileView: View {
 
     @Binding var isPresented: Bool
@@ -80,7 +81,9 @@ struct EditProfileView: View {
     // MARK: - Avatar Section
 
     private var avatarSection: some View {
-        GlassCard(thickness: .regular) {
+        let secondaryFont = theme.typography.secondary
+
+        return GlassCard(thickness: .regular) {
             VStack(spacing: BlipSpacing.md) {
                 ZStack {
                     if let avatarImage {
@@ -104,14 +107,14 @@ struct EditProfileView: View {
                 HStack(spacing: BlipSpacing.md) {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         Label("Choose Photo", systemImage: "photo.on.rectangle")
-                            .font(theme.typography.secondary)
+                            .font(secondaryFont)
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .frame(minHeight: BlipSizing.minTapTarget)
 
                     Button(action: { showAvatarCrop = true }) {
                         Label("Take Photo", systemImage: "camera")
-                            .font(theme.typography.secondary)
+                            .font(secondaryFont)
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .frame(minHeight: BlipSizing.minTapTarget)

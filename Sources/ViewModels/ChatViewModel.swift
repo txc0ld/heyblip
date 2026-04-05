@@ -60,8 +60,8 @@ final class ChatViewModel {
     /// Set of channel IDs the user has read up to (last read message timestamp).
     private var lastReadTimestamps: [UUID: Date] = [:]
 
-    /// Typing indicator cleanup timers keyed by "\(channelID)_\(peerID)".
-    @ObservationIgnored private var typingTimers: [String: Timer] = [:]
+    /// Typing indicator cleanup tasks keyed by "\(channelID)_\(peerID)".
+    @ObservationIgnored private var typingResetTasks: [String: Task<Void, Never>] = [:]
 
     // MARK: - Init
 
@@ -79,10 +79,10 @@ final class ChatViewModel {
     }
 
     deinit {
-        for timer in typingTimers.values {
-            timer.invalidate()
+        for task in typingResetTasks.values {
+            task.cancel()
         }
-        typingTimers.removeAll()
+        typingResetTasks.removeAll()
     }
 
     // MARK: - Channel List
@@ -93,12 +93,10 @@ final class ChatViewModel {
         defer { isLoading = false }
 
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<Channel>(
-            sortBy: [SortDescriptor(\.lastActivityAt, order: .reverse)]
-        )
 
         do {
-            channels = try context.fetch(descriptor)
+            channels = try context.fetch(FetchDescriptor<Channel>())
+                .sorted { $0.lastActivityAt > $1.lastActivityAt }
             recalculateUnreadCounts()
         } catch {
             errorMessage = "Failed to load channels: \(error.localizedDescription)"
@@ -110,13 +108,10 @@ final class ChatViewModel {
         let context = ModelContext(modelContainer)
         let userID = user.id
 
-        let userDescriptor = FetchDescriptor<User>(predicate: #Predicate { candidate in
-            candidate.id == userID
-        })
-
         let persistedUser: User
         do {
-            guard let fetchedUser = try context.fetch(userDescriptor).first else {
+            guard let fetchedUser = try context.fetch(FetchDescriptor<User>())
+                .first(where: { $0.id == userID }) else {
                 errorMessage = "Could not find the selected user."
                 return nil
             }
@@ -209,13 +204,10 @@ final class ChatViewModel {
         let context = ModelContext(modelContainer)
         let channelID = channel.id
 
-        let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id == channelID },
-            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
-        )
-
         do {
-            activeMessages = try context.fetch(descriptor)
+            activeMessages = try context.fetch(FetchDescriptor<Message>())
+                .filter { $0.channel?.id == channelID }
+                .sorted { $0.createdAt < $1.createdAt }
             markChannelAsRead(channel)
         } catch {
             errorMessage = "Failed to load messages: \(error.localizedDescription)"
@@ -332,13 +324,20 @@ final class ChatViewModel {
 
         // Auto-clear after 4 seconds
         let timerKey = "\(channelID.uuidString)_\(peerDescription)"
-        typingTimers[timerKey]?.invalidate()
-        typingTimers[timerKey] = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+        typingResetTasks[timerKey]?.cancel()
+        typingResetTasks[timerKey] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(4))
+            } catch {
+                return
+            }
+
+            await MainActor.run {
                 self?.typingIndicators[channelID]?.remove(peerDescription)
                 if self?.typingIndicators[channelID]?.isEmpty == true {
                     self?.typingIndicators.removeValue(forKey: channelID)
                 }
+                self?.typingResetTasks.removeValue(forKey: timerKey)
             }
         }
     }
@@ -368,12 +367,9 @@ final class ChatViewModel {
 
         // Send read receipts for recent messages
         let context = ModelContext(modelContainer)
-        let channelID = channel.id
-        let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate { $0.channel?.id == channelID && $0.statusRaw == "delivered" }
-        )
         do {
-            let unread = try context.fetch(descriptor)
+            let unread = try context.fetch(FetchDescriptor<Message>())
+                .filter { $0.channel?.id == channel.id && $0.statusRaw == "delivered" }
             for message in unread {
                 if let sender = message.sender {
                     let peerID = PeerID(noisePublicKey: sender.noisePublicKey)
