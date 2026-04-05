@@ -244,12 +244,20 @@ struct BLELifecycleTests {
         // Add a connected peripheral to verify cleanup.
         let mockPeer = MockPeripheral()
         service.handleDidConnect(peripheral: mockPeer)
-        #expect(service.connectedPeers.count == 1)
+        let realPeerID = makePeerID(0x33)
+        service.updatePeerID(realPeerID, forPeripheralUUID: mockPeer.identifier)
+        service.updatePeerID(makePeerID(0x34), forCentralUUID: UUID())
+        service.peripheralRSSI[mockPeer.identifier] = -64
+        #expect(service.connectedPeers.count == 2)
 
         service.stop()
         #expect(service.state == .stopped)
         #expect(delegate.stateChanges.last == .stopped)
         #expect(service.connectedPeers.isEmpty)
+        #expect(service.peripheralToPeerID.isEmpty)
+        #expect(service.peerIDToPeripheral.isEmpty)
+        #expect(service.centralToPeerID.isEmpty)
+        #expect(service.peripheralRSSI.isEmpty)
         // Verify cancel was called for the connected peripheral.
         #expect(central.cancelConnectionCalls.contains(mockPeer.identifier))
     }

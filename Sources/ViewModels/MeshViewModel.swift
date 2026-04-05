@@ -102,6 +102,7 @@ final class MeshViewModel {
         let rssi: Int
         let lastSeen: Date
         let isDirectPeer: Bool
+        let hasSignalData: Bool
     }
 
     /// A connected mesh peer with optional friend status.
@@ -113,6 +114,7 @@ final class MeshViewModel {
         let rssi: Int
         let lastSeen: Date
         let isDirectPeer: Bool
+        let hasSignalData: Bool
         let friendStatus: FriendStatus?
     }
 
@@ -201,7 +203,7 @@ final class MeshViewModel {
 
     /// Pull the latest mesh state from PeerStore (in-memory) + SwiftData (channels/friends).
     func refreshMeshState() async {
-        let connected = peerStore.connectedPeers()
+        let connected = peerStore.connectedBLEPeers()
         let allTracked = peerStore.allPeers()
 
         connectedPeerCount = connected.count
@@ -288,7 +290,8 @@ final class MeshViewModel {
                     displayName: user.resolvedDisplayName,
                     rssi: peer.rssi,
                     lastSeen: peer.lastSeenAt,
-                    isDirectPeer: peer.hopCount == 1
+                    isDirectPeer: peer.hopCount == 1,
+                    hasSignalData: peer.hasSignalData
                 ))
             }
         }
@@ -327,6 +330,7 @@ final class MeshViewModel {
                 rssi: peer.rssi,
                 lastSeen: peer.lastSeenAt,
                 isDirectPeer: peer.hopCount == 1,
+                hasSignalData: peer.hasSignalData,
                 friendStatus: status
             ))
         }

@@ -162,19 +162,13 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             peripheralManager?.bleStopAdvertising()
         }
 
-        lock.withLock {
-            for (_, peripheral) in connectedPeripheralRefs {
-                centralManager?.bleCancelConnection(peripheral)
-            }
-            peripheralToPeerID.removeAll()
-            peerIDToPeripheral.removeAll()
-            peripheralCharacteristics.removeAll()
-            connectingPeripherals.removeAll()
-            connectedPeripheralRefs.removeAll()
-            peripheralRSSI.removeAll()
-            subscribedCentrals.removeAll()
-            centralToPeerID.removeAll()
+        let peripheralsToDisconnect: [any BLEPeripheralProxy] = lock.withLock {
+            Array(connectedPeripheralRefs.values)
         }
+        for peripheral in peripheralsToDisconnect {
+            centralManager?.bleCancelConnection(peripheral)
+        }
+        resetPeerTracking()
 
         if let service = service {
             peripheralManager?.bleRemoveService(service)
@@ -275,6 +269,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             }
             return nil
         }
+    }
+
+    /// Returns `true` when the peer is backed by a connected `CBPeripheral` that can provide RSSI.
+    public func hasConnectedPeripheral(for peerID: PeerID) -> Bool {
+        lock.withLock { peerIDToPeripheral[peerID] != nil }
     }
 
     /// Poll RSSI for all connected peripherals every 10 seconds.
@@ -674,6 +673,22 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             if state != .running {
                 state = .running
             }
+        }
+    }
+
+    private func resetPeerTracking() {
+        lock.withLock {
+            peripheralToPeerID.removeAll()
+            peerIDToPeripheral.removeAll()
+            peripheralCharacteristics.removeAll()
+            connectingPeripherals.removeAll()
+            connectedPeripheralRefs.removeAll()
+            peripheralRSSI.removeAll()
+            subscribedCentrals.removeAll()
+            centralToPeerID.removeAll()
+            timedOutPeripherals.removeAll()
+            failureCounts.removeAll()
+            backoffUntil.removeAll()
         }
     }
 }

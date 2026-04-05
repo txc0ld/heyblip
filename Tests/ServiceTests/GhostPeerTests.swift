@@ -82,4 +82,87 @@ final class GhostPeerTests: XCTestCase {
         XCTAssertEqual(peerStore.connectedPeers().count, 1)
         XCTAssertEqual(peerStore.connectedPeers().first?.username, "bob")
     }
+
+    func testConnectedBLEPeersExcludeRelayConnectedPeers() {
+        let peerStore = PeerStore()
+        let blePeer = Data([0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x00, 0x00, 0x01])
+        let relayPeer = Data([0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x00, 0x00, 0x02])
+
+        peerStore.upsert(peer: PeerInfo(
+            peerID: blePeer,
+            noisePublicKey: Data(),
+            signingPublicKey: Data(),
+            username: "ble",
+            rssi: -58,
+            isConnected: true,
+            lastSeenAt: Date(),
+            hopCount: 1,
+            transportType: .bluetooth
+        ))
+        peerStore.upsert(peer: PeerInfo(
+            peerID: relayPeer,
+            noisePublicKey: Data(),
+            signingPublicKey: Data(),
+            username: "relay",
+            rssi: PeerInfo.noSignalRSSI,
+            isConnected: true,
+            lastSeenAt: Date(),
+            hopCount: 2,
+            transportType: .relay
+        ))
+
+        let expectation = expectation(description: "upserts complete")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { expectation.fulfill() }
+        wait(for: [expectation], timeout: 1.0)
+
+        XCTAssertEqual(peerStore.connectedPeers().count, 2)
+        XCTAssertEqual(peerStore.connectedBLEPeers().count, 1)
+        XCTAssertEqual(peerStore.connectedBLEPeers().first?.username, "ble")
+    }
+
+    func testRelayUpsertDoesNotOverwriteExistingBLETransport() {
+        let peerStore = PeerStore()
+        let peerData = Data([0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00, 0x01])
+
+        peerStore.upsert(peer: PeerInfo(
+            peerID: peerData,
+            noisePublicKey: Data(),
+            signingPublicKey: Data(),
+            username: "tay",
+            rssi: -61,
+            isConnected: true,
+            lastSeenAt: Date(),
+            hopCount: 1,
+            transportType: .bluetooth
+        ))
+
+        let firstExpectation = expectation(description: "ble upsert completes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { firstExpectation.fulfill() }
+        wait(for: [firstExpectation], timeout: 1.0)
+
+        peerStore.upsert(peer: PeerInfo(
+            peerID: peerData,
+            noisePublicKey: Data(),
+            signingPublicKey: Data(),
+            username: "tay",
+            rssi: PeerInfo.noSignalRSSI,
+            isConnected: true,
+            lastSeenAt: Date(),
+            hopCount: 2,
+            transportType: .relay
+        ))
+
+        let secondExpectation = expectation(description: "relay upsert completes")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { secondExpectation.fulfill() }
+        wait(for: [secondExpectation], timeout: 1.0)
+
+        guard let peer = peerStore.peer(for: peerData) else {
+            XCTFail("Peer should still exist")
+            return
+        }
+
+        XCTAssertEqual(peer.transportType, .bluetooth)
+        XCTAssertEqual(peer.rssi, -61)
+        XCTAssertTrue(peer.hasSignalData)
+    }
 }

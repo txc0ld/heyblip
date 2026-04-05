@@ -193,8 +193,10 @@ struct BLEDebugOverlay: View {
                         }
 
                         HStack {
-                            Text("RSSI: \(peer.rssi)")
-                                .foregroundStyle(rssiColor(peer.rssi))
+                            Text(peer.hasSignalData ? "RSSI: \(peer.rssi)" : "RSSI: n/a")
+                                .foregroundStyle(rssiColor(peer.rssi, hasSignalData: peer.hasSignalData))
+                            Text("via: \(peer.transportType.rawValue)")
+                                .foregroundStyle(.gray)
                             Text("hop: \(peer.hopCount)")
                                 .foregroundStyle(.gray)
                             Text("key: \(peer.noisePublicKey.isEmpty ? "empty" : peerIDShort(peer.noisePublicKey))")
@@ -441,7 +443,8 @@ struct BLEDebugOverlay: View {
         }
     }
 
-    private func rssiColor(_ rssi: Int) -> Color {
+    private func rssiColor(_ rssi: Int, hasSignalData: Bool) -> Color {
+        guard hasSignalData else { return .gray }
         if rssi > -60 { return .green }
         if rssi > -80 { return .yellow }
         return .red

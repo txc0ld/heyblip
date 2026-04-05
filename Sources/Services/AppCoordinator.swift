@@ -411,15 +411,18 @@ final class AppCoordinator {
             if let localID, peerID == localID { continue }
 
             let peerData = peerID.bytes
+            let existingPeer = peerStore.peer(for: peerData)
+            let hasSignalData = bleService.hasConnectedPeripheral(for: peerID)
             let info = PeerInfo(
                 peerID: peerData,
-                noisePublicKey: peerStore.peer(for: peerData)?.noisePublicKey ?? peerData,
-                signingPublicKey: peerStore.peer(for: peerData)?.signingPublicKey ?? Data(),
-                username: peerStore.peer(for: peerData)?.username,
-                rssi: bleService.rssi(for: peerID) ?? -80,
+                noisePublicKey: existingPeer?.noisePublicKey ?? peerData,
+                signingPublicKey: existingPeer?.signingPublicKey ?? Data(),
+                username: existingPeer?.username,
+                rssi: hasSignalData ? (bleService.rssi(for: peerID) ?? PeerInfo.noSignalRSSI) : PeerInfo.noSignalRSSI,
                 isConnected: true,
                 lastSeenAt: Date(),
-                hopCount: 1
+                hopCount: 1,
+                transportType: .bluetooth
             )
             peerStore.upsert(peer: info)
         }
@@ -577,7 +580,7 @@ final class AppCoordinator {
 
     private func teardownRuntimeState() {
         stop()
-        peerStore.removeAll()
+        peerStore.removeAllSynchronously()
 
         if let observation = broadcastObservation {
             NotificationCenter.default.removeObserver(observation)

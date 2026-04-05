@@ -1,5 +1,31 @@
 import SwiftUI
 
+@MainActor
+private final class NearbyPeerRSSILogThrottler {
+    static let shared = NearbyPeerRSSILogThrottler()
+
+    private let lock = NSLock()
+    private var lastLogAtByPeer: [String: Date] = [:]
+    private let throttleInterval: TimeInterval = 10
+
+    func logIfNeeded(displayName: String, username: String?, rssi: Int, label: String) {
+        let key = username ?? displayName
+        let now = Date()
+        let shouldLog: Bool = lock.withLock {
+            if let lastLogAt = lastLogAtByPeer[key],
+               now.timeIntervalSince(lastLogAt) < throttleInterval {
+                return false
+            }
+
+            lastLogAtByPeer[key] = now
+            return true
+        }
+
+        guard shouldLog else { return }
+        DebugLogger.shared.log("BLE", "Peer \(displayName) RSSI: \(rssi) → \(label)")
+    }
+}
+
 // MARK: - NearbyPeerCard
 
 /// Glass card displaying a nearby mesh peer or friend.
@@ -20,6 +46,7 @@ struct NearbyPeerCard: View {
     let hopCount: Int
     let rssi: Int
     let isOnline: Bool
+    let hasSignalData: Bool
     let friendState: FriendState
 
     var onTap: (() -> Void)?
@@ -172,6 +199,7 @@ struct NearbyPeerCard: View {
 
     /// Maps RSSI to 0-4 signal bars.
     private var signalLevel: Int {
+        guard hasSignalData else { return 0 }
         switch rssi {
         case -50...0: return 4    // Excellent
         case -65...(-51): return 3 // Good
@@ -222,6 +250,8 @@ struct NearbyPeerCard: View {
     /// Estimated distance from RSSI using log-distance path loss model.
     /// Very approximate — BLE RSSI is noisy, especially in crowds.
     private var estimatedDistance: String {
+        guard hasSignalData else { return "Nearby" }
+
         let txPower: Double = -59
         let n: Double = 2.5
         let distance = pow(10.0, (txPower - Double(rssi)) / (10.0 * n))
@@ -233,7 +263,12 @@ struct NearbyPeerCard: View {
         else if distance < 50 { label = "~\(Int(round(distance / 10) * 10))m" }
         else { label = "50m+" }
 
-        DebugLogger.shared.log("BLE", "Peer \(displayName) RSSI: \(rssi) → \(label)")
+        NearbyPeerRSSILogThrottler.shared.logIfNeeded(
+            displayName: displayName,
+            username: username,
+            rssi: rssi,
+            label: label
+        )
         return label
     }
 
@@ -291,13 +326,13 @@ struct NearbyPeerCard: View {
         ScrollView {
             VStack(spacing: BlipSpacing.sm) {
                 NearbyPeerCard(displayName: "Sarah", username: "sarahc", avatarData: nil,
-                    hopCount: 0, rssi: -45, isOnline: true, friendState: .friends)
+                    hopCount: 0, rssi: -45, isOnline: true, hasSignalData: true, friendState: .friends)
                 NearbyPeerCard(displayName: "Alex", username: "alexr", avatarData: nil,
-                    hopCount: 1, rssi: -58, isOnline: true, friendState: .notFriend, onAddFriend: {})
+                    hopCount: 1, rssi: -58, isOnline: true, hasSignalData: true, friendState: .notFriend, onAddFriend: {})
                 NearbyPeerCard(displayName: "Pending", username: "pendp", avatarData: nil,
-                    hopCount: 2, rssi: -75, isOnline: true, friendState: .pending)
+                    hopCount: 2, rssi: -75, isOnline: true, hasSignalData: true, friendState: .pending)
                 NearbyPeerCard(displayName: "Far Away", username: nil, avatarData: nil,
-                    hopCount: 5, rssi: -90, isOnline: false, friendState: .notFriend)
+                    hopCount: 5, rssi: -90, isOnline: false, hasSignalData: true, friendState: .notFriend)
             }
             .padding()
         }

@@ -44,6 +44,23 @@ protocol MessageServiceDelegate: AnyObject, Sendable {
 /// - MessageQueue for retry tracking
 final class MessageService: @unchecked Sendable {
 
+    enum PeerIngressTransport: Sendable, Equatable {
+        case bluetooth
+        case relay
+        case unknown
+
+        var peerTransportType: PeerTransportType {
+            switch self {
+            case .bluetooth:
+                return .bluetooth
+            case .relay:
+                return .relay
+            case .unknown:
+                return .unknown
+            }
+        }
+    }
+
     // MARK: - Queues
 
     /// Queue for message processing (receive pipeline, packet handling).
@@ -486,7 +503,7 @@ final class MessageService: @unchecked Sendable {
     /// Process incoming raw data from the transport layer.
     ///
     /// Flow: deserialize (messageQueue) -> verify -> deduplicate -> route to handler (MainActor for DB)
-    func receive(data: Data, from peerID: PeerID) {
+    func receive(data: Data, from peerID: PeerID, via ingressTransport: PeerIngressTransport) {
         let transportData = peerID.bytes
         let peerHex = transportData.prefix(4).map { String(format: "%02x", $0) }.joined()
         DebugLogger.emit("RX", "receive(): \(data.count)B from \(peerHex)")
@@ -578,7 +595,7 @@ final class MessageService: @unchecked Sendable {
                 do {
                     switch packet.type {
                     case .announce:
-                        try await self.handleAnnounce(packet, from: peerID)
+                        try await self.handleAnnounce(packet, from: peerID, ingressTransport: ingressTransport)
                     case .noiseHandshake:
                         try await self.handleNoiseHandshake(packet, from: peerID)
                     case .noiseEncrypted:
@@ -596,7 +613,7 @@ final class MessageService: @unchecked Sendable {
                     case .leave:
                         self.handleLeave(packet)
                     case .fragment:
-                        self.handleFragment(packet, from: peerID)
+                        self.handleFragment(packet, from: peerID, ingressTransport: ingressTransport)
                     case .syncRequest:
                         self.handleSyncRequest(packet, from: peerID)
                     case .fileTransfer:
@@ -770,7 +787,11 @@ final class MessageService: @unchecked Sendable {
     /// Handle an incoming announce packet — update the peer's username in PeerStore so
     /// they appear in the "People Nearby" list.
     @MainActor
-    private func handleAnnounce(_ packet: Packet, from peerID: PeerID) async throws {
+    private func handleAnnounce(
+        _ packet: Packet,
+        from peerID: PeerID,
+        ingressTransport: PeerIngressTransport
+    ) async throws {
         // BDEV-87: Reject stale or future-dated announces
         let announceAge = Date().timeIntervalSince(packet.date)
         if announceAge > 900 {
@@ -820,6 +841,8 @@ final class MessageService: @unchecked Sendable {
 
         let senderData = peerID.bytes
         let peerHex = senderData.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let peerTransportType = ingressTransport.peerTransportType
+        let hopCount = ingressTransport == .bluetooth ? 1 : max(2, 8 - Int(packet.ttl))
 
         // BDEV-86: Bind transport PeerID → claimed sender on first DIRECT announce.
         // Direct = TTL still at max (7), meaning not decremented by a relay hop.
@@ -848,11 +871,14 @@ final class MessageService: @unchecked Sendable {
             noisePublicKey: noiseKeyToStore,
             signingPublicKey: realSigningKey,
             username: username,
-            rssi: peerStore.peer(for: senderData)?.rssi ?? -60,
+            rssi: peerTransportType == .bluetooth
+                ? (peerStore.peer(for: senderData)?.rssi ?? PeerInfo.noSignalRSSI)
+                : PeerInfo.noSignalRSSI,
             isConnected: true,
             lastSeenAt: Date(),
-            hopCount: 1,
-            lastAnnounceTimestamp: packet.timestamp
+            hopCount: hopCount,
+            lastAnnounceTimestamp: packet.timestamp,
+            transportType: peerTransportType
         )
         peerStore.upsert(peer: info)
 
@@ -907,7 +933,11 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Fragment Reassembly
 
-    private func handleFragment(_ packet: Packet, from peerID: PeerID) {
+    private func handleFragment(
+        _ packet: Packet,
+        from peerID: PeerID,
+        ingressTransport: PeerIngressTransport
+    ) {
         let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
 
         guard let fragment = Fragment.parse(packet.payload) else {
@@ -926,7 +956,7 @@ final class MessageService: @unchecked Sendable {
             case .complete(let reassembled):
                 DebugLogger.emit("RX", "FRAGMENT assembly \(fragIDHex): COMPLETE (\(reassembled.count) bytes) — re-dispatching")
                 // Re-dispatch the reassembled data through the normal receive pipeline
-                receive(data: reassembled, from: peerID)
+                receive(data: reassembled, from: peerID, via: ingressTransport)
             }
         } catch {
             DebugLogger.emit("RX", "FRAGMENT assembly error: \(error)", isError: true)
@@ -1173,7 +1203,7 @@ final class MessageService: @unchecked Sendable {
 extension MessageService: TransportDelegate {
 
     func transport(_ transport: any Transport, didReceiveData data: Data, from peerID: PeerID) {
-        receive(data: data, from: peerID)
+        receive(data: data, from: peerID, via: ingressTransport(for: transport))
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
@@ -1207,6 +1237,16 @@ extension MessageService: TransportDelegate {
 
     func transport(_ transport: any Transport, didChangeState state: TransportState) {
         // State changes handled by TransportCoordinator; no MessageService action needed.
+    }
+
+    private func ingressTransport(for transport: any Transport) -> PeerIngressTransport {
+        if transport is BLEService {
+            return .bluetooth
+        }
+        if transport is WebSocketTransport {
+            return .relay
+        }
+        return .unknown
     }
 }
 

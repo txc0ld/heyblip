@@ -1,12 +1,20 @@
 import Foundation
 import os.log
 
+enum PeerTransportType: String, Sendable {
+    case bluetooth
+    case relay
+    case unknown
+}
+
 // MARK: - PeerInfo
 
 /// Ephemeral transport-level peer state. Not persisted — rebuilt on every app launch
 /// from BLE discovery and announce packets. Matches the BitChat production pattern
 /// where peers are pure transport state, not database records.
 struct PeerInfo: Sendable {
+    static let noSignalRSSI = Int.min
+
     let peerID: Data
     var noisePublicKey: Data
     var signingPublicKey: Data
@@ -17,6 +25,11 @@ struct PeerInfo: Sendable {
     var hopCount: Int
     /// Packet timestamp (ms since epoch) from the most recent announce.
     var lastAnnounceTimestamp: UInt64 = 0
+    var transportType: PeerTransportType = .unknown
+
+    var hasSignalData: Bool {
+        transportType == .bluetooth && rssi != Self.noSignalRSSI
+    }
 }
 
 // MARK: - PeerStore
@@ -45,6 +58,13 @@ final class PeerStore: @unchecked Sendable {
     /// Only peers with `isConnected == true`.
     func connectedPeers() -> [PeerInfo] {
         queue.sync { peers.values.filter(\.isConnected) }
+    }
+
+    /// Only currently connected peers that are local BLE peers.
+    func connectedBLEPeers() -> [PeerInfo] {
+        queue.sync {
+            peers.values.filter { $0.isConnected && $0.transportType == .bluetooth }
+        }
     }
 
     /// Look up a single peer by its transport peerID bytes.
@@ -97,12 +117,27 @@ final class PeerStore: @unchecked Sendable {
                 if let name = info.username {
                     existing.username = name
                 }
-                existing.rssi = info.rssi
+                switch info.transportType {
+                case .bluetooth:
+                    existing.rssi = info.rssi
+                case .relay, .unknown:
+                    if existing.transportType != .bluetooth {
+                        existing.rssi = info.rssi
+                    }
+                }
                 existing.isConnected = info.isConnected
                 existing.lastSeenAt = info.lastSeenAt
                 existing.hopCount = info.hopCount
                 if info.lastAnnounceTimestamp > 0 {
                     existing.lastAnnounceTimestamp = info.lastAnnounceTimestamp
+                }
+                switch (existing.transportType, info.transportType) {
+                case (.bluetooth, .relay):
+                    break
+                case (_, .unknown):
+                    break
+                default:
+                    existing.transportType = info.transportType
                 }
                 peers[info.peerID] = existing
             } else {
@@ -165,6 +200,14 @@ final class PeerStore: @unchecked Sendable {
             peers.removeAll()
             postDidChange()
         }
+    }
+
+    /// Remove all peers synchronously for teardown paths that must not leave stale state behind.
+    func removeAllSynchronously() {
+        queue.sync(flags: .barrier) {
+            peers.removeAll()
+        }
+        postDidChange()
     }
 
     // MARK: - Notification

@@ -139,7 +139,8 @@ struct NearbyView: View {
                 username: friend.username,
                 hopCount: friend.isDirectPeer ? 0 : 1,
                 rssi: friend.rssi,
-                isOnline: true
+                isOnline: true,
+                hasSignalData: friend.hasSignalData
             )
         }
     }
@@ -305,6 +306,7 @@ struct NearbyView: View {
                         hopCount: peer.isDirectPeer ? 0 : 1,
                         rssi: peer.rssi,
                         isOnline: true,
+                        hasSignalData: peer.hasSignalData,
                         friendState: isPending ? .pending : .notFriend,
                         onTap: { selectedPeer = peer },
                         onAddFriend: isPending ? nil : { sendFriendRequest(to: peer) }
@@ -409,6 +411,7 @@ struct NearbyView: View {
                         hopCount: friend.hopCount,
                         rssi: friend.rssi,
                         isOnline: friend.isOnline,
+                        hasSignalData: friend.hasSignalData,
                         friendState: .friends
                     )
                     .padding(.horizontal, BlipSpacing.md)
@@ -660,6 +663,7 @@ struct NearbyPeerCard_Data: Identifiable {
     let hopCount: Int
     let rssi: Int
     let isOnline: Bool
+    let hasSignalData: Bool
 }
 
 // MARK: - Sample Data
@@ -667,14 +671,14 @@ struct NearbyPeerCard_Data: Identifiable {
 extension NearbyView {
 
     static let sampleFriends: [NearbyPeerCard_Data] = [
-        NearbyPeerCard_Data(id: UUID(), displayName: "Sarah Chen", username: "sarahc", hopCount: 0, rssi: -45, isOnline: true),
-        NearbyPeerCard_Data(id: UUID(), displayName: "Jake Morrison", username: "jakem", hopCount: 1, rssi: -62, isOnline: true),
-        NearbyPeerCard_Data(id: UUID(), displayName: "Priya Patel", username: "priyap", hopCount: 3, rssi: -78, isOnline: true),
+        NearbyPeerCard_Data(id: UUID(), displayName: "Sarah Chen", username: "sarahc", hopCount: 0, rssi: -45, isOnline: true, hasSignalData: true),
+        NearbyPeerCard_Data(id: UUID(), displayName: "Jake Morrison", username: "jakem", hopCount: 1, rssi: -62, isOnline: true, hasSignalData: true),
+        NearbyPeerCard_Data(id: UUID(), displayName: "Priya Patel", username: "priyap", hopCount: 3, rssi: -78, isOnline: true, hasSignalData: true),
     ]
 
     static let samplePeers: [NearbyPeerCard_Data] = [
-        NearbyPeerCard_Data(id: UUID(), displayName: "Alex", username: nil, hopCount: 2, rssi: -70, isOnline: true),
-        NearbyPeerCard_Data(id: UUID(), displayName: "MeshUser_7f3a", username: nil, hopCount: 4, rssi: -85, isOnline: false),
+        NearbyPeerCard_Data(id: UUID(), displayName: "Alex", username: nil, hopCount: 2, rssi: -70, isOnline: true, hasSignalData: true),
+        NearbyPeerCard_Data(id: UUID(), displayName: "MeshUser_7f3a", username: nil, hopCount: 4, rssi: -85, isOnline: false, hasSignalData: true),
     ]
 
     static let sampleChannels: [LocationChannelItem] = [
