@@ -1,4 +1,6 @@
 import Foundation
+import BlipCrypto
+@preconcurrency import Sodium
 import os.log
 
 /// Handles user registration, profile sync, and receipt verification
@@ -115,6 +117,38 @@ final class UserSyncService: Sendable {
             body["signingPublicKey"] = key.map { String(format: "%02x", $0) }.joined()
         }
 
+        if noisePublicKey != nil, signingPublicKey != nil {
+            let challenge = try await requestChallenge()
+
+            let identity: Identity
+            do {
+                guard let loadedIdentity = try KeyManager.shared.loadIdentity() else {
+                    DebugLogger.emit("AUTH", "Registration signing failed for \(username) — missing local identity", isError: true)
+                    throw SyncError.serverError("Missing signing identity")
+                }
+                identity = loadedIdentity
+            } catch let error as SyncError {
+                throw error
+            } catch {
+                DebugLogger.emit("AUTH", "Failed to load signing identity for \(username): \(error.localizedDescription)", isError: true)
+                throw SyncError.serverError("Failed to load signing identity")
+            }
+
+            let signature: String
+            do {
+                signature = try signChallenge(challenge, secretKey: identity.signingSecretKey)
+            } catch let error as SyncError {
+                DebugLogger.emit("AUTH", "Failed to sign registration challenge for \(username): \(error.localizedDescription)", isError: true)
+                throw error
+            } catch {
+                DebugLogger.emit("AUTH", "Failed to sign registration challenge for \(username): \(error.localizedDescription)", isError: true)
+                throw SyncError.serverError("Ed25519 signing failed")
+            }
+
+            body["challenge"] = challenge
+            body["signature"] = signature
+        }
+
         let (data, response) = try await post(path: "/users/register", body: body)
 
         guard let http = response as? HTTPURLResponse else {
@@ -174,7 +208,12 @@ final class UserSyncService: Sendable {
 
                 if attempt < maxAttempts {
                     let delay = baseDelay * UInt64(1 << (attempt - 1)) // 2s, 4s, 8s
-                    try? await Task.sleep(nanoseconds: delay)
+                    do {
+                        try await Task.sleep(nanoseconds: delay)
+                    } catch {
+                        DebugLogger.emit("REGISTER", "Retry sleep cancelled after attempt \(attempt): \(error.localizedDescription)", isError: true)
+                        return
+                    }
                 }
             }
         }
@@ -389,6 +428,74 @@ final class UserSyncService: Sendable {
     }
 
     // MARK: - Private
+
+    private func requestChallenge() async throws -> String {
+        let (data, response) = try await post(path: "/auth/challenge", body: [:])
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SyncError.networkError("Invalid response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw SyncError.serverError("Failed to get challenge")
+        }
+
+        let json: [String: Any]
+        do {
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                DebugLogger.emit("AUTH", "Challenge response was not a JSON object", isError: true)
+                throw SyncError.badRequest("Invalid challenge response")
+            }
+            json = parsed
+        } catch let error as SyncError {
+            throw error
+        } catch {
+            DebugLogger.emit("AUTH", "Failed to decode challenge response: \(error.localizedDescription)", isError: true)
+            throw SyncError.badRequest("Invalid challenge response")
+        }
+
+        guard let challenge = json["challenge"] as? String, !challenge.isEmpty else {
+            DebugLogger.emit("AUTH", "Challenge response missing challenge field", isError: true)
+            throw SyncError.badRequest("Invalid challenge response")
+        }
+
+        return challenge
+    }
+
+    private func signChallenge(_ challenge: String, secretKey: Data) throws -> String {
+        let challengeBytes = try hexToBytes(challenge)
+        let sodium = Sodium()
+
+        guard let signature = sodium.sign.signature(
+            message: Array(challengeBytes),
+            secretKey: Array(secretKey)
+        ) else {
+            throw SyncError.serverError("Ed25519 signing failed")
+        }
+
+        return Data(signature).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func hexToBytes(_ hex: String) throws -> Data {
+        guard hex.count.isMultiple(of: 2) else {
+            throw SyncError.badRequest("Invalid challenge response")
+        }
+
+        var data = Data(capacity: hex.count / 2)
+        var index = hex.startIndex
+
+        while index < hex.endIndex {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            let byteString = hex[index..<nextIndex]
+            guard let byte = UInt8(byteString, radix: 16) else {
+                throw SyncError.badRequest("Invalid challenge response")
+            }
+            data.append(byte)
+            index = nextIndex
+        }
+
+        return data
+    }
 
     private func post(path: String, body: [String: Any]) async throws -> (Data, URLResponse) {
         guard let url = URL(string: Self.baseURL + path) else {

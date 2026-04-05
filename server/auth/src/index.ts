@@ -1,6 +1,7 @@
 /**
  * Blip email verification worker.
  *
+ * POST /v1/auth/challenge   — generate one-time Ed25519 registration nonce
  * POST /v1/auth/send-code   — generate 6-digit code, send via Resend, store in KV
  * POST /v1/auth/verify-code — validate code against KV
  * GET  /v1/auth/health      — liveness check
@@ -42,6 +43,8 @@ interface RegisterBody {
   isVerified?: boolean;
   noisePublicKey?: string;
   signingPublicKey?: string;
+  challenge?: string;
+  signature?: string;
 }
 
 interface SyncBody {
@@ -95,6 +98,8 @@ export default {
     }
 
     switch (url.pathname) {
+      case "/v1/auth/challenge":
+        return handleChallenge(env);
       case "/v1/auth/send-code":
         return handleSendCode(request, env);
       case "/v1/auth/verify-code":
@@ -119,6 +124,19 @@ export default {
     }
   },
 };
+
+// ─── Send Code ───────────────────────────────────────────────
+
+async function handleChallenge(env: Env): Promise<Response> {
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+  const challenge = bufferToHex(nonce);
+
+  await env.CODES.put(challengeKey(challenge), "1", {
+    expirationTtl: 120,
+  });
+
+  return json({ challenge }, 200, env);
+}
 
 // ─── Send Code ───────────────────────────────────────────────
 
@@ -273,14 +291,49 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   if (!body) {
     return json({ error: "Missing emailHash or username" }, 400, env);
   }
+  const noiseKey = body.noisePublicKey ? hexToBytes(body.noisePublicKey) : null;
+  const signingKey = body.signingPublicKey ? hexToBytes(body.signingPublicKey) : null;
+
+  if (body.noisePublicKey && body.signingPublicKey) {
+    if (!body.challenge || !body.signature) {
+      return json({ error: "Missing challenge or signature" }, 400, env);
+    }
+
+    const storedChallenge = await env.CODES.get(challengeKey(body.challenge));
+    if (!storedChallenge) {
+      return json({ error: "Challenge expired or invalid" }, 401, env);
+    }
+
+    await env.CODES.delete(challengeKey(body.challenge));
+
+    let signatureValid = false;
+    try {
+      const publicKey = await crypto.subtle.importKey(
+        "raw",
+        hexToBytes(body.signingPublicKey),
+        { name: "Ed25519" },
+        false,
+        ["verify"]
+      );
+      signatureValid = await crypto.subtle.verify(
+        "Ed25519",
+        publicKey,
+        hexToBytes(body.signature),
+        hexToBytes(body.challenge)
+      );
+    } catch {
+      signatureValid = false;
+    }
+
+    if (!signatureValid) {
+      return json({ error: "Signature verification failed" }, 401, env);
+    }
+  }
 
   const sql = await getDb(env);
   if (!sql) {
     return json({ error: "Database not configured" }, 503, env);
   }
-
-  const noiseKey = body.noisePublicKey ? hexToBuffer(body.noisePublicKey) : null;
-  const signingKey = body.signingPublicKey ? hexToBuffer(body.signingPublicKey) : null;
 
   // Registration upsert handles two re-registration scenarios:
   //
@@ -474,7 +527,7 @@ async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
   }
 }
 
-function hexToBuffer(hex: string): Uint8Array {
+function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
     bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
@@ -504,6 +557,10 @@ function rateKey(email: string): string {
   return `rate:${email}`;
 }
 
+function challengeKey(challenge: string): string {
+  return `challenge:${challenge}`;
+}
+
 function generateCode(): string {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
@@ -520,7 +577,15 @@ export function isValidEmailHash(emailHash: string): boolean {
 
 export function sanitizeRegisterBody(
   body: RegisterBody | null
-): { emailHash: string; username: string; createdAt: string; noisePublicKey?: string; signingPublicKey?: string } | null {
+): {
+  emailHash: string;
+  username: string;
+  createdAt: string;
+  noisePublicKey?: string;
+  signingPublicKey?: string;
+  challenge?: string;
+  signature?: string;
+} | null {
   if (!body?.emailHash || !body.username) {
     return null;
   }
@@ -538,6 +603,8 @@ export function sanitizeRegisterBody(
     createdAt: body.createdAt ?? new Date().toISOString(),
     noisePublicKey: isValidHexKey(body.noisePublicKey) ? body.noisePublicKey : undefined,
     signingPublicKey: isValidHexKey(body.signingPublicKey) ? body.signingPublicKey : undefined,
+    challenge: isValidChallenge(body.challenge) ? body.challenge : undefined,
+    signature: isValidSignature(body.signature) ? body.signature : undefined,
   };
 }
 
@@ -586,4 +653,12 @@ function emailTemplate(code: string): string {
       <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
     </div>
   `;
+}
+
+function isValidChallenge(challenge: string | undefined): challenge is string {
+  return typeof challenge === "string" && /^[a-f0-9]{64}$/i.test(challenge);
+}
+
+function isValidSignature(signature: string | undefined): signature is string {
+  return typeof signature === "string" && /^[a-f0-9]{128}$/i.test(signature);
 }

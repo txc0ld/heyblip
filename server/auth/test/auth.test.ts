@@ -34,6 +34,21 @@ async function json(res: Response): Promise<Record<string, unknown>> {
   return (await res.json()) as Record<string, unknown>;
 }
 
+function bytesToHex(data: BufferSource): string {
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
 // ─── Test helpers ────────────────────────────────────────────
 
 /**
@@ -112,6 +127,21 @@ describe("POST /v1/auth/send-code", () => {
 
     const res = await request("POST", "/v1/auth/send-code", { email });
     expect(res.status).toBe(429);
+  });
+});
+
+describe("POST /v1/auth/challenge", () => {
+  it("returns a one-time 32-byte challenge and stores it in KV", async () => {
+    const res = await request("POST", "/v1/auth/challenge", {});
+    expect(res.status).toBe(200);
+
+    const body = await json(res);
+    const challenge = body.challenge;
+    expect(typeof challenge).toBe("string");
+    expect(challenge).toMatch(/^[a-f0-9]{64}$/i);
+
+    const stored = await env.CODES.get(`challenge:${challenge as string}`);
+    expect(stored).toBe("1");
   });
 });
 
@@ -203,6 +233,59 @@ describe("POST /v1/auth/verify-code", () => {
   });
 });
 
+describe("POST /v1/users/register challenge verification", () => {
+  it("rejects key registration without challenge and signature", async () => {
+    const res = await request("POST", "/v1/users/register", {
+      emailHash: "a".repeat(64),
+      username: "alice",
+      noisePublicKey: "1".repeat(64),
+      signingPublicKey: "2".repeat(64),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await json(res)).error).toContain("Missing challenge or signature");
+  });
+
+  it("rejects key registration with an invalid or expired challenge", async () => {
+    const res = await request("POST", "/v1/users/register", {
+      emailHash: "a".repeat(64),
+      username: "alice",
+      noisePublicKey: "1".repeat(64),
+      signingPublicKey: "2".repeat(64),
+      challenge: "3".repeat(64),
+      signature: "4".repeat(128),
+    });
+
+    expect(res.status).toBe(401);
+    expect((await json(res)).error).toContain("Challenge expired or invalid");
+  });
+
+  it("verifies a valid signature before touching the database", async () => {
+    const challengeResponse = await request("POST", "/v1/auth/challenge", {});
+    const challengeBody = await json(challengeResponse);
+    const challenge = challengeBody.challenge as string;
+
+    const keyPair = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
+    const publicKey = await crypto.subtle.exportKey("raw", keyPair.publicKey);
+    const signature = await crypto.subtle.sign("Ed25519", keyPair.privateKey, hexToBytes(challenge));
+
+    const res = await request("POST", "/v1/users/register", {
+      emailHash: "a".repeat(64),
+      username: "alice",
+      noisePublicKey: "1".repeat(64),
+      signingPublicKey: bytesToHex(publicKey),
+      challenge,
+      signature: bytesToHex(signature),
+    });
+
+    expect(res.status).toBe(503);
+    expect((await json(res)).error).toContain("Database not configured");
+
+    const storedChallenge = await env.CODES.get(`challenge:${challenge}`);
+    expect(storedChallenge).toBeNull();
+  });
+});
+
 // ─── Edge Cases ──────────────────────────────────────────────
 
 describe("edge cases", () => {
@@ -245,11 +328,15 @@ describe("input hardening", () => {
         emailHash: "A".repeat(64),
         username: "  alice  ",
         isVerified: true,
+        challenge: "c".repeat(64),
+        signature: "d".repeat(128),
       })
     ).toEqual({
       emailHash: "a".repeat(64),
       username: "alice",
       createdAt: expect.any(String),
+      challenge: "c".repeat(64),
+      signature: "d".repeat(128),
     });
   });
 
