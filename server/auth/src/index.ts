@@ -35,6 +35,8 @@ interface RateEntry {
 }
 
 const MAX_VERIFY_ATTEMPTS = 5;
+const MAX_CHALLENGES_PER_MINUTE = 5;
+const CHALLENGE_RATE_LIMIT_WINDOW_SECONDS = 60;
 
 interface RegisterBody {
   emailHash?: string;
@@ -99,7 +101,7 @@ export default {
 
     switch (url.pathname) {
       case "/v1/auth/challenge":
-        return handleChallenge(env);
+        return handleChallenge(request, env);
       case "/v1/auth/send-code":
         return handleSendCode(request, env);
       case "/v1/auth/verify-code":
@@ -127,7 +129,13 @@ export default {
 
 // ─── Send Code ───────────────────────────────────────────────
 
-async function handleChallenge(env: Env): Promise<Response> {
+async function handleChallenge(request: Request, env: Env): Promise<Response> {
+  const ipAddress = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const rateLimited = await checkChallengeRateLimit(env, ipAddress);
+  if (rateLimited) {
+    return json({ error: "Too many requests. Try again later." }, 429, env);
+  }
+
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const challenge = bufferToHex(nonce);
 
@@ -271,6 +279,21 @@ async function recordSend(env: Env, email: string): Promise<void> {
   await env.CODES.put(rateKey(email), JSON.stringify(entry), {
     expirationTtl: 3600,
   });
+}
+
+async function checkChallengeRateLimit(env: Env, ipAddress: string): Promise<boolean> {
+  const key = challengeRateKey(ipAddress);
+  const raw = await env.CODES.get(key);
+  const currentCount = raw ? parseInt(raw, 10) || 0 : 0;
+
+  if (currentCount >= MAX_CHALLENGES_PER_MINUTE) {
+    return true;
+  }
+
+  await env.CODES.put(key, String(currentCount + 1), {
+    expirationTtl: CHALLENGE_RATE_LIMIT_WINDOW_SECONDS,
+  });
+  return false;
 }
 
 // ─── Neon Database ──────────────────────────────────────────
@@ -559,6 +582,10 @@ function rateKey(email: string): string {
 
 function challengeKey(challenge: string): string {
   return `challenge:${challenge}`;
+}
+
+function challengeRateKey(ipAddress: string): string {
+  return `ratelimit:${ipAddress}`;
 }
 
 function generateCode(): string {

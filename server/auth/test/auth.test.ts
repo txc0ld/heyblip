@@ -15,11 +15,12 @@ type WorkerEnv = typeof env;
 async function request(
   method: string,
   path: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  headers: Record<string, string> = {}
 ): Promise<Response> {
   const init: RequestInit = {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   };
   if (body) init.body = JSON.stringify(body);
 
@@ -142,6 +143,72 @@ describe("POST /v1/auth/challenge", () => {
 
     const stored = await env.CODES.get(`challenge:${challenge as string}`);
     expect(stored).toBe("1");
+  });
+
+  it("allows requests under the per-IP limit", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await request(
+        "POST",
+        "/v1/auth/challenge",
+        {},
+        { "CF-Connecting-IP": "203.0.113.10" }
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const storedCount = await env.CODES.get("ratelimit:203.0.113.10");
+    expect(storedCount).toBe("5");
+  });
+
+  it("blocks requests once the per-IP limit is reached", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await request(
+        "POST",
+        "/v1/auth/challenge",
+        {},
+        { "CF-Connecting-IP": "203.0.113.20" }
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const blocked = await request(
+      "POST",
+      "/v1/auth/challenge",
+      {},
+      { "CF-Connecting-IP": "203.0.113.20" }
+    );
+    expect(blocked.status).toBe(429);
+    expect(await json(blocked)).toEqual({
+      error: "Too many requests. Try again later.",
+    });
+  });
+
+  it("tracks different IPs independently", async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await request(
+        "POST",
+        "/v1/auth/challenge",
+        {},
+        { "CF-Connecting-IP": "203.0.113.30" }
+      );
+      expect(res.status).toBe(200);
+    }
+
+    const blocked = await request(
+      "POST",
+      "/v1/auth/challenge",
+      {},
+      { "CF-Connecting-IP": "203.0.113.30" }
+    );
+    expect(blocked.status).toBe(429);
+
+    const otherIP = await request(
+      "POST",
+      "/v1/auth/challenge",
+      {},
+      { "CF-Connecting-IP": "203.0.113.31" }
+    );
+    expect(otherIP.status).toBe(200);
   });
 });
 
