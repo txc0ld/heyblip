@@ -382,7 +382,7 @@ final class EventsViewModel {
     }
 
     /// Join an event — persists to SwiftData.
-    func joinEvent(_ eventId: String) async {
+    func joinEvent(_ eventId: String) {
         let context = ModelContext(modelContainer)
         let joinedEvent = JoinedEvent(eventId: eventId)
         context.insert(joinedEvent)

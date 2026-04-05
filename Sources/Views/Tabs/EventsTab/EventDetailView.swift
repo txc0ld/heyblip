@@ -128,9 +128,7 @@ struct EventDetailView: View {
             if event.isJoined {
                 eventsViewModel.leaveEvent(eventID)
             } else {
-                Task {
-                    await eventsViewModel.joinEvent(eventID)
-                }
+                eventsViewModel.joinEvent(eventID)
             }
         }) {
             HStack {

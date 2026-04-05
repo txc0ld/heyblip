@@ -217,10 +217,13 @@ struct MessageSearchView: View {
         isSearching = true
 
         do {
-            let messages = try modelContext.fetch(FetchDescriptor<Message>())
-                .filter { $0.typeRaw == "text" }
+            var descriptor = FetchDescriptor<Message>(
+                predicate: #Predicate<Message> { $0.typeRaw == "text" }
+            )
+            descriptor.fetchLimit = 100
+
+            let messages = try modelContext.fetch(descriptor)
                 .sorted { $0.createdAt > $1.createdAt }
-                .prefix(100)
             searchResults = messages.compactMap { message in
                 guard let text = String(data: message.encryptedPayload, encoding: .utf8),
                       text.localizedCaseInsensitiveContains(query) else { return nil }

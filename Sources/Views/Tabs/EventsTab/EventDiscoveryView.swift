@@ -172,9 +172,7 @@ struct EventDiscoveryView: View {
         if event.isJoined {
             eventsViewModel?.leaveEvent(event.id)
         } else {
-            Task {
-                await eventsViewModel?.joinEvent(event.id)
-            }
+            eventsViewModel?.joinEvent(event.id)
         }
     }
 }
