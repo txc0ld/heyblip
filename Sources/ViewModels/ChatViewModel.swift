@@ -126,34 +126,8 @@ final class ChatViewModel {
             return nil
         }
 
-        // Check if DM already exists
-        let username = persistedUser.username
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate {
-            $0.typeRaw == "dm"
-        })
         do {
-            let existing = try context.fetch(descriptor)
-            for channel in existing {
-                for membership in channel.memberships {
-                    if membership.user?.username == username {
-                        return channel
-                    }
-                }
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-            return nil
-        }
-
-        // Create new DM channel
-        let channel = Channel(type: .dm, name: persistedUser.resolvedDisplayName)
-        context.insert(channel)
-
-        let membership = GroupMembership(user: persistedUser, channel: channel, role: .member)
-        context.insert(membership)
-
-        do {
-            try context.save()
+            let channel = try messageService.findOrCreateDMChannel(with: persistedUser, context: context)
             await loadChannels()
             return channel
         } catch {

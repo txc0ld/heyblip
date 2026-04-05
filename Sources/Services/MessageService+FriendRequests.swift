@@ -579,47 +579,65 @@ extension MessageService {
         }
     }
 
-    /// Create a DM channel with the given user if one doesn't already exist.
+    /// Find an existing DM channel for the given user, or create one.
+    ///
+    /// Resolution order:
+    /// 1. Match by user ID in memberships
+    /// 2. Match by username in memberships (handles ID drift across re-registrations)
+    /// 3. Repair orphan channels (matching name, zero memberships)
+    /// 4. Create a new channel + membership as last resort
+    ///
+    /// Always ensures the returned channel has a valid `GroupMembership` for the user.
     @MainActor
-    func createDMChannel(with remoteUser: User, context: ModelContext) throws {
-        // Check for existing DM
+    @discardableResult
+    func findOrCreateDMChannel(with user: User, context: ModelContext) throws -> Channel {
         let dmDescriptor = FetchDescriptor<Channel>(predicate: #Predicate {
             $0.typeRaw == "dm"
         })
-        let existingChannels = try context.fetch(dmDescriptor)
-        for channel in existingChannels {
-            let hasMatch = channel.memberships.contains { $0.user?.id == remoteUser.id }
-            if hasMatch {
-                return // DM already exists with proper membership
-            }
-            // Repair: channel created before keys were fetched may have 0 memberships
-            if channel.memberships.isEmpty && channel.name == remoteUser.resolvedDisplayName {
-                let repairMembership = GroupMembership(
-                    user: remoteUser,
-                    channel: channel,
-                    role: .member
-                )
-                context.insert(repairMembership)
-                try context.save()
-                logger.info("Repaired DM channel membership for \(remoteUser.username)")
-                return
+        let channels = try context.fetch(dmDescriptor)
+
+        // 1. Match by user ID
+        for channel in channels {
+            if channel.memberships.contains(where: { $0.user?.id == user.id }) {
+                return channel
             }
         }
 
-        // Create new DM channel
-        let channel = Channel(type: .dm, name: remoteUser.resolvedDisplayName)
+        // 2. Match by username
+        let username = user.username
+        for channel in channels {
+            if channel.memberships.contains(where: { $0.user?.username == username }) {
+                return channel
+            }
+        }
+
+        // 3. Repair orphan channel (name matches OR anonymous, no memberships)
+        let displayName = user.resolvedDisplayName
+        for channel in channels {
+            if channel.memberships.isEmpty && (channel.name == displayName || channel.name == nil) {
+                channel.name = displayName
+                let membership = GroupMembership(user: user, channel: channel, role: .member)
+                context.insert(membership)
+                try context.save()
+                DebugLogger.shared.log("DM", "Repaired orphan DM channel for \(username)")
+                return channel
+            }
+        }
+
+        // 4. Create new channel
+        let channel = Channel(type: .dm, name: displayName)
         context.insert(channel)
-
-        // Add membership for the remote user
-        let membership = GroupMembership(
-            user: remoteUser,
-            channel: channel,
-            role: .member
-        )
+        let membership = GroupMembership(user: user, channel: channel, role: .member)
         context.insert(membership)
-
         try context.save()
-        logger.info("Created DM channel with \(remoteUser.username)")
+        DebugLogger.shared.log("DM", "Created DM channel with \(username)")
+        return channel
+    }
+
+    /// Create a DM channel with the given user if one doesn't already exist.
+    @MainActor
+    func createDMChannel(with remoteUser: User, context: ModelContext) throws {
+        try findOrCreateDMChannel(with: remoteUser, context: context)
     }
 
 
