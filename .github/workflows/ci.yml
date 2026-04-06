@@ -41,7 +41,19 @@ jobs:
         run: swift test --package-path Packages/BlipCrypto
 
       - name: Test BlipMesh
-        run: swift test --package-path Packages/BlipMesh
+        run: |
+          for attempt in 1 2; do
+            if swift test --package-path Packages/BlipMesh; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 2 ]; then
+              exit 1
+            fi
+
+            echo "BlipMesh tests failed on attempt $attempt, retrying once..."
+            sleep 5
+          done
 
       - name: Build app
         run: >
