@@ -15,10 +15,17 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-15
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer
 
     steps:
+      - name: Select Xcode & install iOS platform
+        run: |
+          # Use the latest Xcode 16.x on the runner
+          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          # Install iOS platform if not already present
+          xcodebuild -downloadPlatform iOS || true
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
