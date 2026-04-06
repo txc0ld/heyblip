@@ -79,6 +79,16 @@ public enum PowerTier: String, Sendable, CaseIterable {
         case .ultraLow:    return false
         }
     }
+
+    /// RSSI poll interval, or `nil` to disable polling entirely (ultra-low).
+    public var rssiPollInterval: TimeInterval? {
+        switch self {
+        case .performance: return 10.0
+        case .balanced:    return 15.0
+        case .powerSaver:  return 30.0
+        case .ultraLow:    return nil
+        }
+    }
 }
 
 // MARK: - PowerManager

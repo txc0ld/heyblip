@@ -101,6 +101,7 @@ struct NearbyView: View {
             }
             localMeshViewModel?.startMonitoring()
             localLocationViewModel?.startMonitoring()
+            coordinator.bleService?.enableRSSIPolling()
             await resolvedMeshViewModel?.refreshMeshState()
             await resolvedLocationViewModel?.refreshFriendLocationsForDisplay()
             loadVisibilityPreference()
@@ -108,7 +109,7 @@ struct NearbyView: View {
         .onDisappear {
             localMeshViewModel?.stopMonitoring()
             localLocationViewModel?.stopMonitoring()
-            // Presence stops naturally via AppCoordinator when app backgrounds
+            coordinator.bleService?.disableRSSIPolling()
         }
     }
 

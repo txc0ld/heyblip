@@ -4,6 +4,7 @@ import SwiftData
 import BlipProtocol
 import BlipMesh
 import BlipCrypto
+import Combine
 import os.log
 #if canImport(UIKit)
 import UIKit
@@ -71,7 +72,9 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
+    private(set) var powerManager: PowerManager?
     private(set) var messageCleanupService: MessageCleanupService?
+    @ObservationIgnored nonisolated(unsafe) private var powerTierCancellable: AnyCancellable?
     private var currentPeerSyncInterval: TimeInterval?
     private var lastSyncedPeerIDs = Set<Data>()
     private var lastPostedTransportState: TransportStateSnapshot?
@@ -160,6 +163,16 @@ final class AppCoordinator {
                 DebugLogger.shared.log(category, message)
             }
         }
+
+        // Create PowerManager and wire tier changes to BLEService
+        let power = PowerManager()
+        power.startMonitoring()
+        self.powerManager = power
+        powerTierCancellable = power.tierPublisher
+            .removeDuplicates()
+            .sink { [weak ble] tier in
+                ble?.updatePowerTier(tier)
+            }
 
         self.bleService = ble
         self.webSocketTransport = ws
@@ -616,6 +629,10 @@ final class AppCoordinator {
             foregroundObservation = nil
         }
 
+        powerTierCancellable?.cancel()
+        powerTierCancellable = nil
+        powerManager?.stopMonitoring()
+        powerManager = nil
         messageService?.delegate = nil
         messageRetryService?.stop()
         meshViewModel?.stopMonitoring()
