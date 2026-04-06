@@ -44,6 +44,11 @@ protocol MessageServiceDelegate: AnyObject, Sendable {
 /// - MessageQueue for retry tracking
 final class MessageService: @unchecked Sendable {
 
+    enum SendOutcome: Sendable, Equatable {
+        case sent
+        case deferred(MessageStatus)
+    }
+
     enum PeerIngressTransport: Sendable, Equatable {
         case bluetooth
         case relay
@@ -226,8 +231,9 @@ final class MessageService: @unchecked Sendable {
 
         // Encrypt and send
         let payload = MessagePayloadBuilder.buildTextPayload(content: content, messageID: message.id, replyToID: replyTo?.id)
+        let sendOutcome: SendOutcome
         do {
-            try await encryptAndSend(
+            sendOutcome = try await encryptAndSend(
                 payload: payload,
                 subType: channel.isGroup ? .groupMessage : .privateMessage,
                 channel: channel,
@@ -239,8 +245,12 @@ final class MessageService: @unchecked Sendable {
             throw error
         }
 
-        // Update status
-        message.status = .sent
+        switch sendOutcome {
+        case .sent:
+            message.status = .sent
+        case .deferred(let status):
+            message.status = status
+        }
         try context.save()
 
         DebugLogger.shared.log("DM", "sendTextMessage: COMPLETE msgID=\(message.id)")
@@ -288,7 +298,7 @@ final class MessageService: @unchecked Sendable {
         try context.save()
 
         let payload = MessagePayloadBuilder.buildMediaPayload(data: audioData, messageID: message.id, duration: duration)
-        try await encryptAndSend(
+        let sendOutcome = try await encryptAndSend(
             payload: payload,
             subType: .voiceNote,
             channel: channel,
@@ -296,7 +306,12 @@ final class MessageService: @unchecked Sendable {
             messageID: message.id
         )
 
-        message.status = .sent
+        switch sendOutcome {
+        case .sent:
+            message.status = .sent
+        case .deferred(let status):
+            message.status = status
+        }
         try context.save()
 
         return message
@@ -347,7 +362,7 @@ final class MessageService: @unchecked Sendable {
         try context.save()
 
         let payload = MessagePayloadBuilder.buildMediaPayload(data: imageData, messageID: message.id, duration: nil)
-        try await encryptAndSend(
+        let sendOutcome = try await encryptAndSend(
             payload: payload,
             subType: .imageMessage,
             channel: channel,
@@ -355,13 +370,19 @@ final class MessageService: @unchecked Sendable {
             messageID: message.id
         )
 
-        message.status = .sent
+        switch sendOutcome {
+        case .sent:
+            message.status = .sent
+        case .deferred(let status):
+            message.status = status
+        }
         try context.save()
 
         return message
     }
 
     /// Send a typing indicator to a channel.
+    @MainActor
     func sendTypingIndicator(to channel: Channel) async throws {
         guard let identity = getIdentity() else { return }
 
@@ -380,7 +401,7 @@ final class MessageService: @unchecked Sendable {
         var payload = Data()
         payload.append(channel.id.uuidString.data(using: .utf8) ?? Data())
 
-        try await encryptAndSend(
+        _ = try await encryptAndSend(
             payload: payload,
             subType: .typingIndicator,
             channel: channel,
@@ -635,13 +656,15 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Private: Encrypt and Send
 
+    @MainActor
     func encryptAndSend(
         payload: Data,
         subType: EncryptedSubType,
         channel: Channel,
         identity: Identity,
-        messageID: UUID?
-    ) async throws {
+        messageID: UUID?,
+        shouldEnqueueForRetry: Bool = true
+    ) async throws -> SendOutcome {
         DebugLogger.emit("DM", "encryptAndSend: subType=\(subType) payloadSize=\(payload.count)", level: .verbose)
         let taggedPayload = MessagePayloadBuilder.prependSubType(subType, to: payload)
 
@@ -683,6 +706,7 @@ final class MessageService: @unchecked Sendable {
                     recipientID: recipientPeerID
                 )
                 try await sendPacket(packet)
+                return .sent
             } else if try await initiateHandshakeIfNeeded(with: recipientPeerID) {
                 // Handshake initiated — queue this message
                 DebugLogger.emit("DM", "encryptAndSend: queuing message for \(recipientHex) pending handshake", level: .debug)
@@ -701,7 +725,7 @@ final class MessageService: @unchecked Sendable {
                 if let messageID {
                     updateMessageStatus(messageID: messageID, to: .encrypting)
                 }
-                return // Don't enqueue for retry — the handshake callback will handle it
+                return .deferred(.encrypting) // Don't enqueue for retry — the handshake callback will handle it
             } else {
                 // No session and handshake could not be initiated — refuse to send plaintext.
                 // Messages will be retried by MessageRetryService when a session is established.
@@ -721,12 +745,15 @@ final class MessageService: @unchecked Sendable {
                 recipientID: nil
             )
             try await sendPacket(packet)
+            return .sent
         }
 
         // Enqueue for retry if needed
-        if let messageID {
+        if shouldEnqueueForRetry, let messageID {
             try await enqueueForRetry(messageID: messageID)
         }
+
+        return .deferred(.queued)
     }
 
     /// Sign, encode, and transmit a packet. Dispatches signing + encoding to
@@ -1218,6 +1245,11 @@ final class MessageService: @unchecked Sendable {
         let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         guard let message = try context.fetch(descriptor).first else { return }
 
+        let existingEntries = message.queueEntries.filter { $0.status == .queued || $0.status == .sending }
+        if !existingEntries.isEmpty {
+            return
+        }
+
         let queueEntry = MessageQueue(
             message: message,
             maxAttempts: 50,
@@ -1226,6 +1258,75 @@ final class MessageService: @unchecked Sendable {
         )
         context.insert(queueEntry)
         try context.save()
+    }
+
+    @MainActor
+    func retryQueuedMessage(messageID: UUID) async throws -> SendOutcome {
+        guard let identity = getIdentity() else {
+            throw MessageServiceError.senderNotFound
+        }
+
+        let context = ModelContext(modelContainer)
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
+        guard let message = try context.fetch(descriptor).first else {
+            throw MessageServiceError.serializationFailed("Queued message not found")
+        }
+        guard let channel = message.channel else {
+            throw MessageServiceError.channelNotFound
+        }
+
+        let payload: Data
+        let subType: EncryptedSubType
+
+        switch message.type {
+        case .text:
+            guard let content = String(data: message.encryptedPayload, encoding: .utf8) else {
+                throw MessageServiceError.serializationFailed("Queued text payload could not be decoded")
+            }
+            payload = MessagePayloadBuilder.buildTextPayload(
+                content: content,
+                messageID: message.id,
+                replyToID: message.replyTo?.id
+            )
+            subType = channel.isGroup ? .groupMessage : .privateMessage
+
+        case .voiceNote:
+            guard let attachment = message.attachments.first(where: { $0.type == .voiceNote }),
+                  let audioData = attachment.fullData else {
+                throw MessageServiceError.serializationFailed("Queued voice note attachment missing")
+            }
+            payload = MessagePayloadBuilder.buildMediaPayload(
+                data: audioData,
+                messageID: message.id,
+                duration: attachment.duration
+            )
+            subType = .voiceNote
+
+        case .image:
+            guard let attachment = message.attachments.first(where: { $0.type == .image }),
+                  let imageData = attachment.fullData else {
+                throw MessageServiceError.serializationFailed("Queued image attachment missing")
+            }
+            payload = MessagePayloadBuilder.buildMediaPayload(
+                data: imageData,
+                messageID: message.id,
+                duration: nil
+            )
+            subType = .imageMessage
+
+        case .pttAudio:
+            throw MessageServiceError.serializationFailed("PTT retry is not supported by MessageService")
+        }
+
+        return try await encryptAndSend(
+            payload: payload,
+            subType: subType,
+            channel: channel,
+            identity: identity,
+            messageID: message.id,
+            shouldEnqueueForRetry: false
+        )
     }
 
     // MARK: - Private: Helpers

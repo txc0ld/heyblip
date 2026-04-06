@@ -234,15 +234,21 @@ extension MessageService {
         Task { @MainActor in
             for msg in pending {
                 do {
-                    try await self.encryptAndSend(
+                    let outcome = try await self.encryptAndSend(
                         payload: msg.payload,
                         subType: msg.subType,
                         channel: msg.channel,
                         identity: msg.identity,
-                        messageID: msg.messageID
+                        messageID: msg.messageID,
+                        shouldEnqueueForRetry: false
                     )
                     if let messageID = msg.messageID {
-                        self.updateMessageStatus(messageID: messageID, to: .sent)
+                        switch outcome {
+                        case .sent:
+                            self.updateMessageStatus(messageID: messageID, to: .sent)
+                        case .deferred(let status):
+                            self.updateMessageStatus(messageID: messageID, to: status)
+                        }
                     }
                 } catch {
                     DebugLogger.shared.log("NOISE", "Failed to send queued message: \(error)", isError: true)

@@ -591,6 +591,29 @@ extension MessageService {
     @MainActor
     @discardableResult
     func findOrCreateDMChannel(with user: User, context: ModelContext) throws -> Channel {
+        let localUser: User
+        let userID = user.id
+        let userIDDescriptor = FetchDescriptor<User>(predicate: #Predicate { $0.id == userID })
+        if let existingUser = try context.fetch(userIDDescriptor).first {
+            localUser = existingUser
+        } else {
+            let username = user.username
+            let usernameDescriptor = FetchDescriptor<User>(predicate: #Predicate { $0.username == username })
+            if let existingUser = try context.fetch(usernameDescriptor).first {
+                localUser = existingUser
+            } else {
+                let createdUser = User(
+                    username: user.username,
+                    displayName: user.displayName,
+                    emailHash: user.emailHash,
+                    noisePublicKey: user.noisePublicKey,
+                    signingPublicKey: user.signingPublicKey
+                )
+                context.insert(createdUser)
+                localUser = createdUser
+            }
+        }
+
         let dmDescriptor = FetchDescriptor<Channel>(predicate: #Predicate {
             $0.typeRaw == "dm"
         })
@@ -598,13 +621,13 @@ extension MessageService {
 
         // 1. Match by user ID
         for channel in channels {
-            if channel.memberships.contains(where: { $0.user?.id == user.id }) {
+            if channel.memberships.contains(where: { $0.user?.id == localUser.id }) {
                 return channel
             }
         }
 
         // 2. Match by username
-        let username = user.username
+        let username = localUser.username
         for channel in channels {
             if channel.memberships.contains(where: { $0.user?.username == username }) {
                 return channel
@@ -612,11 +635,11 @@ extension MessageService {
         }
 
         // 3. Repair orphan channel (name matches OR anonymous, no memberships)
-        let displayName = user.resolvedDisplayName
+        let displayName = localUser.resolvedDisplayName
         for channel in channels {
             if channel.memberships.isEmpty && (channel.name == displayName || channel.name == nil) {
                 channel.name = displayName
-                let membership = GroupMembership(user: user, channel: channel, role: .member)
+                let membership = GroupMembership(user: localUser, channel: channel, role: .member)
                 context.insert(membership)
                 try context.save()
                 DebugLogger.shared.log("DM", "Repaired orphan DM channel for \(username)")
@@ -627,7 +650,7 @@ extension MessageService {
         // 4. Create new channel
         let channel = Channel(type: .dm, name: displayName)
         context.insert(channel)
-        let membership = GroupMembership(user: user, channel: channel, role: .member)
+        let membership = GroupMembership(user: localUser, channel: channel, role: .member)
         context.insert(membership)
         try context.save()
         DebugLogger.shared.log("DM", "Created DM channel with \(username)")

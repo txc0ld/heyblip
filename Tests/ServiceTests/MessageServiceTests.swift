@@ -208,6 +208,29 @@ final class MessageServiceTests: XCTestCase {
         }
     }
 
+    func testSendTextMessage_withoutSession_staysEncryptingUntilDelivered() async throws {
+        let _ = makeLocalUser()
+        let remoteUser = makeUser(username: "bob", displayName: "Bob")
+        let channel = makeChannel(type: .dm, name: "Bob")
+
+        let context = ModelContext(container)
+        context.insert(GroupMembership(user: remoteUser, channel: channel, role: .member))
+        try context.save()
+
+        let message = try await messageService.sendTextMessage(
+            content: "Hello, Bob!",
+            to: channel
+        )
+
+        XCTAssertEqual(message.status, .encrypting)
+
+        let verifyContext = ModelContext(container)
+        let messageID = message.id
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        let persistedMessage = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(persistedMessage.status, .encrypting)
+    }
+
     func testSendTextMessage_withoutIdentity_throws() async {
         let channel = makeChannel(type: .dm, name: "Nobody")
 

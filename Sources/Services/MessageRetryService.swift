@@ -261,62 +261,18 @@ final class MessageRetryService: @unchecked Sendable {
         guard let message = entry.message else { return false }
 
         do {
-            // Re-read the message payload and attempt re-send via transport
-            let data = message.encryptedPayload
+            let outcome = try await messageService.retryQueuedMessage(messageID: message.id)
 
-            // Reconstruct and resend the packet
-            let identity: Identity
-            do {
-                guard let loaded = try KeyManager.shared.loadIdentity() else { return false }
-                identity = loaded
-            } catch {
-                logger.error("Failed to load identity for retry: \(error.localizedDescription)")
+            switch outcome {
+            case .sent:
+                return true
+            case .deferred(let status):
+                message.status = status
+                try context.save()
                 return false
             }
-
-            let senderID = identity.peerID
-
-            var flags: PacketFlags = [.hasSignature, .isReliable]
-            let packetType: BlipProtocol.MessageType
-
-            switch message.type {
-            case .text:
-                packetType = .noiseEncrypted
-            case .voiceNote:
-                packetType = .noiseEncrypted
-            case .image:
-                packetType = .noiseEncrypted
-            case .pttAudio:
-                packetType = .pttAudio
-            }
-
-            // Determine if addressed
-            if let channel = message.channel, channel.type == .dm {
-                flags.insert(.hasRecipient)
-            }
-
-            let packet = Packet(
-                type: packetType,
-                ttl: 7,
-                timestamp: Packet.currentTimestamp(),
-                flags: flags,
-                senderID: senderID,
-                recipientID: nil, // Resolved by transport coordinator
-                payload: data
-            )
-
-            _ = try PacketSerializer.encode(packet)
-
-            // Use the appropriate transport from entry preference
-            // For now, broadcast to all available transports
-            messageService.delegate?.messageService(
-                messageService,
-                didUpdateStatus: .sent,
-                for: message.id
-            )
-
-            return true
         } catch {
+            logger.error("Retry send failed for \(message.id.uuidString, privacy: .public): \(error.localizedDescription)")
             return false
         }
     }
