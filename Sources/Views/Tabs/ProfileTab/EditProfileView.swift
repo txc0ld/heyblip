@@ -129,12 +129,15 @@ struct EditProfileView: View {
                        let uiImage = UIImage(data: data) {
                         avatarImage = Image(uiImage: uiImage)
                         avatarData = uiImage.jpegData(compressionQuality: 0.8)
-                        showAvatarCrop = true
                     }
                 } catch {
-                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "Blip", category: "EditProfileView")
-                        .warning("Failed to load photo: \(error.localizedDescription)")
+                    DebugLogger.shared.log("PROFILE", "Failed to load photo: \(error.localizedDescription)", isError: true)
                 }
+            }
+        }
+        .onAppear {
+            if avatarImage == nil, let data = user?.avatarThumbnail, let uiImage = UIImage(data: data) {
+                avatarImage = Image(uiImage: uiImage)
             }
         }
     }
