@@ -34,10 +34,10 @@
 ## BDEV-187 Session Tokens
 
 - [x] Node A: Read current auth flow in auth worker, relay worker, WebSocket transport, state sync, and user sync.
-- [ ] Nodes B-F: Add JWT issuance, refresh, validation middleware, and protect existing auth-backed endpoints.
-- [ ] Node G: Extend auth worker tests for token issuance, refresh, and protected endpoint behavior.
-- [ ] Nodes H-I: Add `AuthTokenManager`, wire it through `AppCoordinator`, and persist tokens safely in Keychain.
-- [ ] Nodes J-L: Replace raw-key bearer auth in HTTP services and relay transport with a token-provider flow.
-- [ ] Nodes N-P: Update relay auth to accept JWTs first, preserve raw-key fallback, and signal expired tokens with close code `4001`.
-- [ ] Node M: Run server tests, Swift package tests, `xcodegen generate`, and the simulator build.
-- [ ] Node Q: Push `feat/BDEV-187-session-tokens-BRAID`, open a PR linked to `BDEV-187`, and post the update in `#blip-dev`.
+- [x] Nodes B-F: Add JWT issuance, refresh, validation middleware, and protect existing auth-backed endpoints.
+- [x] Node G: Extend auth worker tests for token issuance, refresh, and protected endpoint behavior.
+- [x] Nodes H-I: Add `AuthTokenManager`, wire it through `AppCoordinator`, and persist tokens safely in Keychain.
+- [x] Nodes J-L: Replace raw-key bearer auth in HTTP services and relay transport with a token-provider flow.
+- [x] Nodes N-P: Update relay auth to accept JWTs first, preserve raw-key fallback, and signal expired tokens with close code `4001`.
+- [x] Node M: Run server tests, Swift package tests, `xcodegen generate`, and the simulator build.
+- [x] Node Q: Push `feat/BDEV-187-session-tokens-ORIGINAL`, open a PR linked to `BDEV-187`, and post the update in `#blip-dev`.
