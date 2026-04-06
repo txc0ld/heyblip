@@ -18,8 +18,10 @@ Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app 
 
 **Build command:**
 ```bash
-xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO -quiet
 ```
+
+> **Why the signing flags?** `project.yml` sets `DEVELOPMENT_TEAM` for distribution builds. Without these overrides, `xcodebuild` prompts for an Apple ID — breaking CI and anyone without the team's developer account. Simulator builds don't need signing.
 
 **Test commands (per package — NOT xcodebuild test):**
 ```bash
