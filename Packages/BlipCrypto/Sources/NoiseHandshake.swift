@@ -1,5 +1,5 @@
 import Foundation
-import CryptoKit
+@preconcurrency import CryptoKit
 
 // MARK: - Noise Protocol Constants
 

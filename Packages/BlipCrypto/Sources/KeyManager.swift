@@ -1,5 +1,5 @@
 import Foundation
-import CryptoKit
+@preconcurrency import CryptoKit
 import os.log
 @preconcurrency import Sodium
 import BlipProtocol

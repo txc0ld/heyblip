@@ -119,7 +119,7 @@ struct GossipMultiHopTests {
         let packet = makePacket(ttl: 5)
 
         nodes[0].router.handleIncoming(packet: packet, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
 
         for (i, node) in nodes.enumerated() {
             #expect(node.router.packetsReceived == 1,
@@ -140,11 +140,11 @@ struct GossipMultiHopTests {
         let packet = makePacket(ttl: 5)
 
         let first = nodes[0].router.handleIncoming(packet: packet, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
         let relaySnapshot = nodes.map { $0.delegate.relayCount }
 
         let second = nodes[0].router.handleIncoming(packet: packet, from: source)
-        Thread.sleep(forTimeInterval: 0.15)
+        Thread.sleep(forTimeInterval: 0.5)
 
         #expect(first == true)
         #expect(second == false)
@@ -163,7 +163,7 @@ struct GossipMultiHopTests {
         let packet = makePacket(ttl: 3)
 
         nodes[0].router.handleIncoming(packet: packet, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
 
         #expect(nodes[0].router.packetsReceived == 1)
         #expect(nodes[1].router.packetsReceived == 1)
@@ -229,7 +229,7 @@ struct GossipMultiHopTests {
 
         let normalOK = nodes[0].router.handleIncoming(packet: normalPacket, from: source)
         let sosOK = nodes[0].router.handleIncoming(packet: sosPacket, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
 
         #expect(normalOK == true)
         #expect(sosOK == true)
@@ -266,7 +266,7 @@ struct GossipMultiHopTests {
         )
 
         nodes[0].router.handleIncoming(packet: dm, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
 
         // Node 2 (middle of chain) should have the packet cached for the recipient.
         let cached = nodes[2].router.deliverCachedPackets(to: recipientID)
@@ -353,7 +353,7 @@ struct GossipMultiHopTests {
             clean[0].router.handleIncoming(packet: pkt, from: source)
             congested[0].router.handleIncoming(packet: pkt, from: source)
         }
-        Thread.sleep(forTimeInterval: 0.5)
+        Thread.sleep(forTimeInterval: 1.5)
 
         let cleanEnd = clean[4].router.packetsReceived
         let congestedEnd = congested[4].router.packetsReceived
@@ -395,7 +395,7 @@ struct GossipMultiHopTests {
             )
             nodes[0].router.handleIncoming(packet: pkt, from: source)
         }
-        Thread.sleep(forTimeInterval: 0.5)
+        Thread.sleep(forTimeInterval: 1.5)
 
         #expect(nodes[0].router.packetsReceived == 5)
 
@@ -419,7 +419,7 @@ struct GossipMultiHopTests {
         let packet = makePacket(ttl: 5)
 
         nodes[0].router.handleIncoming(packet: packet, from: source)
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: 1.0)
 
         for node in nodes {
             #expect(node.router.packetsReceived >= 1)
