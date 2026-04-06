@@ -24,12 +24,22 @@ struct ChatListView: View {
     @State private var selectedConversation: ConversationPreview? = nil
     @State private var listMode: ChatListMode = .chats
     @Environment(\.theme) private var theme
+    @Environment(AppCoordinator.self) private var coordinator
+
+    private var isBluetoothDenied: Bool {
+        coordinator.bleService?.isBluetoothDenied ?? false
+    }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 // Main content
                 VStack(spacing: 0) {
+                    if isBluetoothDenied {
+                        BluetoothPermissionBanner()
+                            .padding(.horizontal, BlipSpacing.md)
+                            .padding(.top, BlipSpacing.sm)
+                    }
                     modeToggle
                     if listMode == .chats {
                         scrollContent

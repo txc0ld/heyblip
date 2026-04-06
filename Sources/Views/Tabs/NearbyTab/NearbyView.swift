@@ -40,6 +40,11 @@ struct NearbyView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: BlipSpacing.lg) {
+                        if coordinator.bleService?.isBluetoothDenied == true {
+                            BluetoothPermissionBanner()
+                                .padding(.horizontal, BlipSpacing.sm)
+                        }
+
                         headerSection
                             .staggeredReveal(index: 0)
 

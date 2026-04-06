@@ -5,6 +5,9 @@ import BlipProtocol
 import BlipMesh
 import BlipCrypto
 import os.log
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Wires BLE mesh, WebSocket relay, identity, and MessageService together on launch.
 ///
@@ -64,6 +67,7 @@ final class AppCoordinator {
     private var modelContainer: ModelContainer?
     @ObservationIgnored nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var foregroundObservation: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
@@ -215,6 +219,9 @@ final class AppCoordinator {
         self.modelContainer = modelContainer
         setupPeerPersistence(bleService: ble)
 
+        // Re-check Bluetooth permission when app returns from Settings.
+        setupForegroundObserver(bleService: ble)
+
         // Re-sync encryption keys to server for existing users (idempotent upsert).
         // Ensures users who registered before key upload was added get their keys uploaded.
         let keyMgr = keyManager
@@ -262,6 +269,18 @@ final class AppCoordinator {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.verifyServerRegistration(modelContainer: modelContainer)
+        }
+    }
+
+    /// Re-check Bluetooth authorization when the app returns to foreground.
+    /// If the user enabled Bluetooth in Settings, BLE starts automatically.
+    private func setupForegroundObserver(bleService: BLEService) {
+        foregroundObservation = NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak bleService] _ in
+            bleService?.recheckAuthorization()
         }
     }
 
@@ -590,6 +609,11 @@ final class AppCoordinator {
         if let observation = peerStateObservation {
             NotificationCenter.default.removeObserver(observation)
             peerStateObservation = nil
+        }
+
+        if let observation = foregroundObservation {
+            NotificationCenter.default.removeObserver(observation)
+            foregroundObservation = nil
         }
 
         messageService?.delegate = nil
