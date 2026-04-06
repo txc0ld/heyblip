@@ -243,6 +243,7 @@ extension MessageService {
                         subType: pendingControl.subType,
                         to: peerID,
                         identity: pendingControl.identity,
+                        flags: pendingControl.flags,
                         shouldQueueIfHandshakeMissing: false
                     )
                 } catch {

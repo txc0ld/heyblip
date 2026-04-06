@@ -678,6 +678,7 @@ extension MessageService {
         subType: EncryptedSubType,
         to peerID: PeerID,
         identity: Identity,
+        flags: PacketFlags = [.hasRecipient, .hasSignature, .isReliable],
         shouldQueueIfHandshakeMissing: Bool = true
     ) async throws {
         let taggedPayload = MessagePayloadBuilder.prependSubType(subType, to: payload)
@@ -690,7 +691,7 @@ extension MessageService {
             let packet = MessagePayloadBuilder.buildPacket(
                 type: .noiseEncrypted,
                 payload: ciphertext,
-                flags: [.hasRecipient, .hasSignature, .isReliable],
+                flags: flags,
                 senderID: identity.peerID,
                 recipientID: peerID
             )
@@ -706,7 +707,8 @@ extension MessageService {
             let pendingControl = PendingEncryptedControlMessage(
                 payload: payload,
                 subType: subType,
-                identity: identity
+                identity: identity,
+                flags: flags
             )
             lock.withLock {
                 pendingHandshakeControlMessages[peerID.bytes, default: []].append(pendingControl)
