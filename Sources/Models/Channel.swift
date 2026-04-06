@@ -42,6 +42,7 @@ final class Channel {
     var maxRetention: TimeInterval
     var isPinned: Bool
     var isAutoJoined: Bool
+    var unreadCount: Int
     var createdAt: Date
     var lastActivityAt: Date
 
@@ -97,6 +98,7 @@ final class Channel {
         maxRetention: TimeInterval = .infinity,
         isPinned: Bool = false,
         isAutoJoined: Bool = false,
+        unreadCount: Int = 0,
         createdAt: Date = Date(),
         lastActivityAt: Date = Date()
     ) {
@@ -109,6 +111,7 @@ final class Channel {
         self.maxRetention = maxRetention
         self.isPinned = isPinned
         self.isAutoJoined = isAutoJoined
+        self.unreadCount = unreadCount
         self.createdAt = createdAt
         self.lastActivityAt = lastActivityAt
     }

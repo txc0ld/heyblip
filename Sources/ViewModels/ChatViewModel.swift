@@ -57,9 +57,6 @@ final class ChatViewModel {
     private let imageService: ImageService
     private let logger = Logger(subsystem: "com.blip", category: "ChatViewModel")
 
-    /// Set of channel IDs the user has read up to (last read message timestamp).
-    private var lastReadTimestamps: [UUID: Date] = [:]
-
     /// Typing indicator cleanup tasks keyed by "\(channelID)_\(peerID)".
     @ObservationIgnored private var typingResetTasks: [String: Task<Void, Never>] = [:]
 
@@ -88,6 +85,7 @@ final class ChatViewModel {
     // MARK: - Channel List
 
     /// Load all channels from SwiftData, sorted by last activity.
+    /// Used for initial load and pull-to-refresh only.
     func loadChannels() async {
         isLoading = true
         defer { isLoading = false }
@@ -96,11 +94,39 @@ final class ChatViewModel {
 
         do {
             channels = try context.fetch(FetchDescriptor<Channel>())
-                .sorted { $0.lastActivityAt > $1.lastActivityAt }
-            recalculateUnreadCounts()
+            sortChannels()
+            syncUnreadCounts()
         } catch {
             errorMessage = "Failed to load channels: \(error.localizedDescription)"
         }
+    }
+
+    /// Sort channels: pinned first, then by lastActivityAt descending.
+    private func sortChannels() {
+        channels.sort { a, b in
+            if a.isPinned != b.isPinned { return a.isPinned }
+            return a.lastActivityAt > b.lastActivityAt
+        }
+    }
+
+    /// Move a channel to its correct sorted position after an update.
+    private func moveChannelToSortedPosition(_ channel: Channel) {
+        channels.removeAll { $0.id == channel.id }
+        let insertIndex = channels.firstIndex { existing in
+            if channel.isPinned != existing.isPinned { return channel.isPinned }
+            return channel.lastActivityAt > existing.lastActivityAt
+        } ?? channels.endIndex
+        channels.insert(channel, at: insertIndex)
+    }
+
+    /// Sync the in-memory unreadCounts from stored Channel.unreadCount values.
+    private func syncUnreadCounts() {
+        var total = 0
+        for channel in channels {
+            unreadCounts[channel.id] = channel.unreadCount
+            total += channel.unreadCount
+        }
+        totalUnreadCount = total
     }
 
     /// Create a new DM channel with a user.
@@ -156,14 +182,17 @@ final class ChatViewModel {
     /// Delete a channel and all its messages.
     func deleteChannel(_ channel: Channel) async {
         let context = ModelContext(modelContainer)
+        let channelID = channel.id
         context.delete(channel)
         do {
             try context.save()
-            if activeChannel?.id == channel.id {
+            if activeChannel?.id == channelID {
                 activeChannel = nil
                 activeMessages = []
             }
-            await loadChannels()
+            let removedUnread = unreadCounts.removeValue(forKey: channelID) ?? 0
+            totalUnreadCount = max(0, totalUnreadCount - removedUnread)
+            channels.removeAll { $0.id == channelID }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -175,6 +204,7 @@ final class ChatViewModel {
         channel.muteStatus = channel.isMuted ? .unmuted : .mutedForever
         do {
             try context.save()
+            // No re-sort needed — mute doesn't affect ordering
         } catch {
             logger.error("Failed to save mute status: \(error.localizedDescription)")
             errorMessage = "Failed to save mute status: \(error.localizedDescription)"
@@ -187,6 +217,7 @@ final class ChatViewModel {
         channel.isPinned.toggle()
         do {
             try context.save()
+            sortChannels()
         } catch {
             logger.error("Failed to save pin status: \(error.localizedDescription)")
             errorMessage = "Failed to save pin status: \(error.localizedDescription)"
@@ -246,7 +277,7 @@ final class ChatViewModel {
             activeMessages.append(message)
             replyTarget = nil
             channel.lastActivityAt = Date()
-            await loadChannels()
+            moveChannelToSortedPosition(channel)
         } catch {
             errorMessage = "Failed to send: \(error.localizedDescription)"
         }
@@ -269,7 +300,7 @@ final class ChatViewModel {
             )
             activeMessages.append(message)
             channel.lastActivityAt = Date()
-            await loadChannels()
+            moveChannelToSortedPosition(channel)
         } catch {
             errorMessage = "Failed to send voice note: \(error.localizedDescription)"
         }
@@ -294,7 +325,7 @@ final class ChatViewModel {
             )
             activeMessages.append(message)
             channel.lastActivityAt = Date()
-            await loadChannels()
+            moveChannelToSortedPosition(channel)
         } catch {
             errorMessage = "Failed to send image: \(error.localizedDescription)"
         }
@@ -361,50 +392,50 @@ final class ChatViewModel {
 
     /// Mark a channel as read up to the current time.
     func markChannelAsRead(_ channel: Channel) {
-        lastReadTimestamps[channel.id] = Date()
+        let previousUnread = unreadCounts[channel.id] ?? 0
         unreadCounts[channel.id] = 0
-        recalculateUnreadCounts()
+        totalUnreadCount = max(0, totalUnreadCount - previousUnread)
+        channel.unreadCount = 0
 
-        // Send read receipts for recent messages
+        // Batch read receipts: send one per sender (with their latest message ID)
+        // instead of one per unread message.
         let context = ModelContext(modelContainer)
         do {
             let unread = try context.fetch(FetchDescriptor<Message>())
                 .filter { $0.channel?.id == channel.id && $0.statusRaw == "delivered" }
+
+            // Group by sender and pick the latest message per sender for the receipt
+            var latestPerSender: [Data: Message] = [:]
             for message in unread {
-                if let sender = message.sender {
-                    let peerID = PeerID(noisePublicKey: sender.noisePublicKey)
-                    Task {
-                        do {
-                            try await messageService.sendReadReceipt(for: message.id, to: peerID)
-                        } catch {
-                            logger.warning("Failed to send read receipt: \(error.localizedDescription)")
-                        }
+                guard let sender = message.sender else { continue }
+                let key = sender.noisePublicKey
+                if let existing = latestPerSender[key] {
+                    if message.createdAt > existing.createdAt {
+                        latestPerSender[key] = message
                     }
+                } else {
+                    latestPerSender[key] = message
                 }
                 message.status = .read
             }
-            do {
-                try context.save()
-            } catch {
-                logger.error("Failed to save read status: \(error.localizedDescription)")
-                errorMessage = "Failed to save read status: \(error.localizedDescription)"
-            }
-        } catch {
-            logger.error("Failed to fetch unread messages: \(error.localizedDescription)")
-            errorMessage = "Failed to fetch unread messages: \(error.localizedDescription)"
-        }
-    }
 
-    /// Recalculate unread counts for all channels.
-    private func recalculateUnreadCounts() {
-        var total = 0
-        for channel in channels {
-            let lastRead = lastReadTimestamps[channel.id] ?? .distantPast
-            let unread = channel.messages.filter { $0.createdAt > lastRead && $0.status != .read }.count
-            unreadCounts[channel.id] = unread
-            total += unread
+            // Send one read receipt per sender (latest message)
+            for (senderKey, message) in latestPerSender {
+                let peerID = PeerID(noisePublicKey: senderKey)
+                Task {
+                    do {
+                        try await messageService.sendReadReceipt(for: message.id, to: peerID)
+                    } catch {
+                        logger.warning("Failed to send read receipt: \(error.localizedDescription)")
+                    }
+                }
+            }
+
+            try context.save()
+        } catch {
+            logger.error("Failed to process read receipts: \(error.localizedDescription)")
+            errorMessage = "Failed to process read receipts: \(error.localizedDescription)"
         }
-        totalUnreadCount = total
     }
 
     /// Handle a newly received message (called by delegate or notification).
@@ -413,19 +444,15 @@ final class ChatViewModel {
         if activeChannel?.id == channel.id {
             activeMessages.append(message)
         } else {
-            // Increment unread count
-            let current = unreadCounts[channel.id] ?? 0
-            unreadCounts[channel.id] = current + 1
+            // Increment stored and in-memory unread count
+            channel.unreadCount += 1
+            unreadCounts[channel.id] = channel.unreadCount
             totalUnreadCount += 1
         }
 
-        // Update channel list ordering
-        if let idx = channels.firstIndex(where: { $0.id == channel.id }) {
-            channels.remove(at: idx)
-            channels.insert(channel, at: 0)
-        } else {
-            channels.insert(channel, at: 0)
-        }
+        // Update channel activity and re-sort
+        channel.lastActivityAt = Date()
+        moveChannelToSortedPosition(channel)
     }
 
     /// Handle a delivery acknowledgement.
