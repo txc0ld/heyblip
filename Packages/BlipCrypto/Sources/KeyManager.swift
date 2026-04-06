@@ -79,7 +79,7 @@ private final class KeychainKeyManagerStore: @unchecked Sendable, KeyManagerStor
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: tag,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
