@@ -58,8 +58,10 @@ struct ChatListView: View {
                     }
                 }
 
-                // Floating Action Button - New Message
-                newMessageFAB
+                // Floating Action Button - New Message (hidden when inbox is empty or in Friends mode)
+                if listMode == .chats && !filteredConversations.isEmpty {
+                    newMessageFAB
+                }
             }
             .navigationTitle("Chats")
             .navigationBarTitleDisplayMode(.large)
@@ -88,6 +90,7 @@ struct ChatListView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.blipAccentPurple)
                     }
+                    .accessibilityLabel("Add friend")
                 }
             }
             .sheet(isPresented: $showAddFriend) {
@@ -207,13 +210,13 @@ struct ChatListView: View {
                     .font(theme.typography.headline)
                     .foregroundStyle(theme.colors.text)
 
-                Text("Start chatting with people nearby\nor add friends to get started.")
+                Text("Add a friend to start chatting.")
                     .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
                     .multilineTextAlignment(.center)
 
-                GlassButton("New Message", icon: "plus.bubble.fill") {
-                    showNewMessage = true
+                GlassButton("Add Friend", icon: "person.badge.plus") {
+                    showAddFriend = true
                 }
             } else {
                 Text("No results for \"\(searchText)\"")

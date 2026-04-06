@@ -11,6 +11,7 @@ struct ChatFriendsListView: View {
     var chatViewModel: ChatViewModel?
 
     @State private var searchText: String = ""
+    @State private var showAddFriend = false
 
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var modelContext
@@ -103,9 +104,16 @@ struct ChatFriendsListView: View {
                 .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
                 .multilineTextAlignment(.center)
+
+            GlassButton("Add Friend", icon: "person.badge.plus") {
+                showAddFriend = true
+            }
         }
         .frame(maxWidth: .infinity)
         .staggeredReveal(index: 0)
+        .sheet(isPresented: $showAddFriend) {
+            AddFriendByUsernameSheet()
+        }
     }
 
     // MARK: - Helpers
