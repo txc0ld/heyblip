@@ -70,7 +70,7 @@ struct FriendsListView: View {
                 bio: friend.bio,
                 isFriend: friend.status == .accepted,
                 isOnline: friend.isOnline,
-                onAddFriend: friend.status == .pending ? {
+                onAddFriend: (friend.status == .pending && friend.requestDirection == .incoming) ? {
                     acceptFriendRequest(friend)
                     selectedFriend = nil
                 } : nil
@@ -205,7 +205,11 @@ struct FriendsListView: View {
                                     Button(role: .destructive) {
                                         declineFriend(friend)
                                     } label: {
-                                        Label("Decline", systemImage: "xmark")
+                                        if friend.requestDirection == .outgoing {
+                                            Label("Cancel Request", systemImage: "xmark.circle")
+                                        } else {
+                                            Label("Decline", systemImage: "xmark")
+                                        }
                                     }
                                 }
                             }
@@ -264,83 +268,122 @@ struct FriendsListView: View {
             return
         }
         Task {
-            try? await messageService.sendFriendRequest(toPeerData: peer.peerID)
-            loadFriends()
+            do {
+                try await messageService.sendFriendRequest(toPeerData: peer.peerID)
+                loadFriends()
+            } catch {
+                DebugLogger.shared.log("DM", "Failed to send friend request to \(username): \(error.localizedDescription)", isError: true)
+            }
         }
     }
 
     private func acceptFriendRequest(_ item: FriendListItem) {
         guard let messageService = coordinator.messageService else { return }
         let context = ModelContext(modelContext.container)
-        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
-            .first(where: { $0.id == item.id }) else { return }
-        Task {
-            try? await messageService.acceptFriendRequest(from: friend)
-            loadFriends()
+        let itemID = item.id
+
+        do {
+            let friend = try resolveFriend(id: itemID, context: context)
+            Task {
+                do {
+                    try await messageService.acceptFriendRequest(from: friend)
+                    loadFriends()
+                } catch {
+                    DebugLogger.shared.log("DM", "Failed to accept friend request for \(item.username): \(error.localizedDescription)", isError: true)
+                }
+            }
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to resolve friend \(itemID) for accept: \(error.localizedDescription)", isError: true)
         }
     }
 
     private func removeFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
-            .first(where: { $0.id == item.id }) else { return }
-        context.delete(friend)
-        try? context.save()
-        loadFriends()
-        NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        do {
+            let friend = try resolveFriend(id: item.id, context: context)
+            context.delete(friend)
+            try context.save()
+            loadFriends()
+            NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to remove friend \(item.username): \(error.localizedDescription)", isError: true)
+        }
     }
 
     private func blockFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
-            .first(where: { $0.id == item.id }) else { return }
-        friend.statusRaw = FriendStatus.blocked.rawValue
-        try? context.save()
-        loadFriends()
-        NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        do {
+            let friend = try resolveFriend(id: item.id, context: context)
+            friend.statusRaw = FriendStatus.blocked.rawValue
+            try context.save()
+            loadFriends()
+            NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to block friend \(item.username): \(error.localizedDescription)", isError: true)
+        }
     }
 
     private func unblockFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
-            .first(where: { $0.id == item.id }) else { return }
-        friend.statusRaw = FriendStatus.accepted.rawValue
-        try? context.save()
-        loadFriends()
-        NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        do {
+            let friend = try resolveFriend(id: item.id, context: context)
+            friend.statusRaw = FriendStatus.accepted.rawValue
+            try context.save()
+            loadFriends()
+            NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to unblock friend \(item.username): \(error.localizedDescription)", isError: true)
+        }
     }
 
     private func declineFriend(_ item: FriendListItem) {
         let context = ModelContext(modelContext.container)
-        guard let friend = try? context.fetch(FetchDescriptor<Friend>())
-            .first(where: { $0.id == item.id }) else { return }
-        context.delete(friend)
-        try? context.save()
-        loadFriends()
-        NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        do {
+            let friend = try resolveFriend(id: item.id, context: context)
+            context.delete(friend)
+            try context.save()
+            loadFriends()
+            NotificationCenter.default.post(name: .friendListDidChange, object: nil)
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to decline/cancel friend request for \(item.username): \(error.localizedDescription)", isError: true)
+        }
     }
 
     private func loadFriends() {
         let context = ModelContext(modelContext.container)
-        guard let allFriends = try? context.fetch(FetchDescriptor<Friend>())
-            .sorted(by: { $0.addedAt > $1.addedAt }) else { return }
+        do {
+            let allFriends = try context.fetch(FetchDescriptor<Friend>())
+                .sorted(by: { $0.addedAt > $1.addedAt })
 
-        // Check which friends are online via PeerStore
-        let connectedKeys = Set(coordinator.peerStore.connectedPeers().map(\.noisePublicKey))
+            // Check which friends are online via PeerStore
+            let connectedKeys = Set(coordinator.peerStore.connectedPeers().map(\.noisePublicKey))
 
-        friends = allFriends.compactMap { friend -> FriendListItem? in
-            guard let user = friend.user else { return nil }
-            let isOnline = connectedKeys.contains(user.noisePublicKey)
-            return FriendListItem(
-                id: friend.id,
-                displayName: user.resolvedDisplayName,
-                username: user.username,
-                bio: user.bio ?? "",
-                isOnline: isOnline,
-                isPhoneVerified: user.isVerified,
-                status: friend.status
-            )
+            friends = allFriends.compactMap { friend -> FriendListItem? in
+                guard let user = friend.user else { return nil }
+                let isOnline = connectedKeys.contains(user.noisePublicKey)
+                return FriendListItem(
+                    id: friend.id,
+                    displayName: user.resolvedDisplayName,
+                    username: user.username,
+                    bio: user.bio ?? "",
+                    isOnline: isOnline,
+                    isPhoneVerified: user.isVerified,
+                    status: friend.status,
+                    requestDirection: friend.requestDirection
+                )
+            }
+        } catch {
+            DebugLogger.shared.log("DB", "Failed to load friends: \(error.localizedDescription)", isError: true)
         }
+    }
+
+    private func resolveFriend(id: UUID, context: ModelContext) throws -> Friend {
+        let friendID = id
+        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == friendID })
+        guard let friend = try context.fetch(descriptor).first else {
+            throw NSError(domain: "FriendsListView", code: 404, userInfo: [NSLocalizedDescriptionKey: "Friend not found"])
+        }
+        return friend
     }
 }
 
@@ -398,12 +441,7 @@ private struct FriendRow: View {
 
                 // Status indicator
                 if friend.status == .pending {
-                    Text("Pending")
-                        .font(theme.typography.caption)
-                        .foregroundStyle(BlipColors.darkColors.statusAmber)
-                        .padding(.horizontal, BlipSpacing.sm)
-                        .padding(.vertical, BlipSpacing.xs)
-                        .background(Capsule().fill(BlipColors.darkColors.statusAmber.opacity(0.12)))
+                    pendingStatusBadge
                 } else if friend.status == .blocked {
                     Text("Blocked")
                         .font(theme.typography.caption)
@@ -422,7 +460,39 @@ private struct FriendRow: View {
         .frame(minHeight: BlipSizing.minTapTarget)
         .glassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.lg, borderOpacity: 0.1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(friend.displayName), @\(friend.username)\(friend.isOnline ? ", online" : "")\(friend.status == .pending ? ", pending" : "")")
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var pendingStatusBadge: some View {
+        if friend.requestDirection == .outgoing {
+            Text("Requested")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.mutedText)
+                .padding(.horizontal, BlipSpacing.sm)
+                .padding(.vertical, BlipSpacing.xs)
+                .background(Capsule().fill(theme.colors.hover))
+        } else {
+            Text("Accept")
+                .font(theme.typography.caption)
+                .foregroundStyle(BlipColors.darkColors.statusAmber)
+                .padding(.horizontal, BlipSpacing.sm)
+                .padding(.vertical, BlipSpacing.xs)
+                .background(Capsule().fill(BlipColors.darkColors.statusAmber.opacity(0.12)))
+        }
+    }
+
+    private var accessibilityLabel: String {
+        let onlineLabel = friend.isOnline ? ", online" : ""
+        let pendingLabel: String
+        if friend.status == .pending {
+            pendingLabel = friend.requestDirection == .outgoing ? ", requested" : ", incoming friend request"
+        } else if friend.status == .blocked {
+            pendingLabel = ", blocked"
+        } else {
+            pendingLabel = ""
+        }
+        return "\(friend.displayName), @\(friend.username)\(onlineLabel)\(pendingLabel)"
     }
 }
 
@@ -467,17 +537,18 @@ struct FriendListItem: Identifiable {
     let isOnline: Bool
     let isPhoneVerified: Bool
     let status: FriendStatus
+    let requestDirection: FriendRequestDirection?
 }
 
 // MARK: - Sample Data
 
 extension FriendsListView {
     static let sampleFriends: [FriendListItem] = [
-        FriendListItem(id: UUID(), displayName: "Sarah Chen", username: "sarahc", bio: "Music and mountains", isOnline: true, isPhoneVerified: true, status: .accepted),
-        FriendListItem(id: UUID(), displayName: "Jake Morrison", username: "jakem", bio: "Always at the front", isOnline: true, isPhoneVerified: false, status: .accepted),
-        FriendListItem(id: UUID(), displayName: "Priya Patel", username: "priyap", bio: "Event photographer", isOnline: false, isPhoneVerified: true, status: .accepted),
-        FriendListItem(id: UUID(), displayName: "Tom Wilson", username: "tomw", bio: "", isOnline: false, isPhoneVerified: false, status: .pending),
-        FriendListItem(id: UUID(), displayName: "Blocked User", username: "spam123", bio: "", isOnline: false, isPhoneVerified: false, status: .blocked),
+        FriendListItem(id: UUID(), displayName: "Sarah Chen", username: "sarahc", bio: "Music and mountains", isOnline: true, isPhoneVerified: true, status: .accepted, requestDirection: nil),
+        FriendListItem(id: UUID(), displayName: "Jake Morrison", username: "jakem", bio: "Always at the front", isOnline: true, isPhoneVerified: false, status: .accepted, requestDirection: nil),
+        FriendListItem(id: UUID(), displayName: "Priya Patel", username: "priyap", bio: "Event photographer", isOnline: false, isPhoneVerified: true, status: .accepted, requestDirection: nil),
+        FriendListItem(id: UUID(), displayName: "Tom Wilson", username: "tomw", bio: "", isOnline: false, isPhoneVerified: false, status: .pending, requestDirection: .incoming),
+        FriendListItem(id: UUID(), displayName: "Blocked User", username: "spam123", bio: "", isOnline: false, isPhoneVerified: false, status: .blocked, requestDirection: nil),
     ]
 }
 
