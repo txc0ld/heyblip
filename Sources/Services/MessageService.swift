@@ -119,6 +119,7 @@ final class MessageService: @unchecked Sendable {
         let payload: Data
         let subType: EncryptedSubType
         let identity: Identity
+        let flags: PacketFlags
     }
 
     // MARK: - State
@@ -422,73 +423,46 @@ final class MessageService: @unchecked Sendable {
 
     /// Send a delivery acknowledgement for a received message.
     ///
-    /// Encrypts through the Noise session (if active) to keep nonce counters
-    /// in sync with regular messages. Previously sent as plaintext, which caused
-    /// nonce desync when acks interleaved with encrypted messages over BLE.
+    /// Encrypts through the active Noise session or queues behind handshake
+    /// establishment. This avoids sending plaintext tagged as `.noiseEncrypted`,
+    /// which would desynchronize session nonces.
     @MainActor
     func sendDeliveryAck(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
-
-        let taggedPayload = MessagePayloadBuilder.prependSubType(.deliveryAck, to: messageID.uuidString.data(using: .utf8) ?? Data())
-
-        let finalPayload: Data
-        if let session = noiseSessionManager?.getSession(for: peerID) {
-            do {
-                finalPayload = try session.encrypt(plaintext: taggedPayload)
-                let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.shared.log("CRYPTO", "deliveryAck encrypted for \(peerHex) nonce=\(session.sendCipher.currentNonce)")
-            } catch {
-                DebugLogger.shared.log("CRYPTO", "deliveryAck encrypt failed, sending plaintext: \(error)", isError: true)
-                finalPayload = taggedPayload
-            }
-        } else {
-            finalPayload = taggedPayload
+        guard let payload = messageID.uuidString.data(using: .utf8) else {
+            DebugLogger.shared.log("CRYPTO", "deliveryAck payload encoding failed for \(messageID)", isError: true)
+            throw MessageServiceError.encryptionFailed("Failed to encode delivery acknowledgement payload")
         }
 
-        let packet = MessagePayloadBuilder.buildPacket(
-            type: .noiseEncrypted,
-            payload: finalPayload,
-            flags: [.hasRecipient, .hasSignature, .isReliable],
-            senderID: identity.peerID,
-            recipientID: peerID
+        try await sendEncryptedControl(
+            payload: payload,
+            subType: .deliveryAck,
+            to: peerID,
+            identity: identity,
+            flags: [.hasRecipient, .hasSignature, .isReliable]
         )
-
-        try await sendPacket(packet)
     }
 
     /// Send a read receipt for a message.
     ///
-    /// Encrypts through the Noise session (if active) to keep nonce counters
-    /// in sync with regular messages.
+    /// Encrypts through the active Noise session or queues behind handshake
+    /// establishment. This avoids sending plaintext tagged as `.noiseEncrypted`,
+    /// which would desynchronize session nonces.
     @MainActor
     func sendReadReceipt(for messageID: UUID, to peerID: PeerID) async throws {
         guard let identity = getIdentity() else { return }
-
-        let taggedPayload = MessagePayloadBuilder.prependSubType(.readReceipt, to: messageID.uuidString.data(using: .utf8) ?? Data())
-
-        let finalPayload: Data
-        if let session = noiseSessionManager?.getSession(for: peerID) {
-            do {
-                finalPayload = try session.encrypt(plaintext: taggedPayload)
-                let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.shared.log("CRYPTO", "readReceipt encrypted for \(peerHex) nonce=\(session.sendCipher.currentNonce)")
-            } catch {
-                DebugLogger.shared.log("CRYPTO", "readReceipt encrypt failed, sending plaintext: \(error)", isError: true)
-                finalPayload = taggedPayload
-            }
-        } else {
-            finalPayload = taggedPayload
+        guard let payload = messageID.uuidString.data(using: .utf8) else {
+            DebugLogger.shared.log("CRYPTO", "readReceipt payload encoding failed for \(messageID)", isError: true)
+            throw MessageServiceError.encryptionFailed("Failed to encode read receipt payload")
         }
 
-        let packet = MessagePayloadBuilder.buildPacket(
-            type: .noiseEncrypted,
-            payload: finalPayload,
-            flags: [.hasRecipient, .hasSignature],
-            senderID: identity.peerID,
-            recipientID: peerID
+        try await sendEncryptedControl(
+            payload: payload,
+            subType: .readReceipt,
+            to: peerID,
+            identity: identity,
+            flags: [.hasRecipient, .hasSignature]
         )
-
-        try await sendPacket(packet)
     }
 
     // See MessageService+FriendRequests.swift and MessageService+Handshake.swift

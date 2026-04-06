@@ -518,4 +518,64 @@ final class MessageServiceTests: XCTestCase {
         XCTAssertEqual(plaintext.first, EncryptedSubType.friendAccept.rawValue)
         XCTAssertEqual(String(data: Data(plaintext.dropFirst()), encoding: .utf8), "localuser")
     }
+
+    func testSendDeliveryAck_withSession_sendsReliableEncryptedAck() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let (remotePeerID, remoteSessionManager) = try establishNoiseSession(with: remoteIdentity)
+        mockTransport.reset()
+
+        let messageID = UUID()
+        try await messageService.sendDeliveryAck(for: messageID, to: remotePeerID)
+
+        let sentPacket = try XCTUnwrap(mockTransport.sentPackets.first)
+        let packet = try PacketSerializer.decode(sentPacket.data)
+        XCTAssertEqual(packet.type, .noiseEncrypted)
+        XCTAssertTrue(packet.flags.contains(.isReliable))
+
+        let remoteSession = try XCTUnwrap(remoteSessionManager.getSession(for: identity.peerID))
+        let plaintext = try remoteSession.decrypt(ciphertext: packet.payload)
+        XCTAssertEqual(plaintext.first, EncryptedSubType.deliveryAck.rawValue)
+        XCTAssertEqual(String(data: Data(plaintext.dropFirst()), encoding: .utf8), messageID.uuidString)
+    }
+
+    func testSendReadReceipt_withSession_sendsEncryptedReceiptWithoutReliableFlag() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let (remotePeerID, remoteSessionManager) = try establishNoiseSession(with: remoteIdentity)
+        mockTransport.reset()
+
+        let messageID = UUID()
+        try await messageService.sendReadReceipt(for: messageID, to: remotePeerID)
+
+        let sentPacket = try XCTUnwrap(mockTransport.sentPackets.first)
+        let packet = try PacketSerializer.decode(sentPacket.data)
+        XCTAssertEqual(packet.type, .noiseEncrypted)
+        XCTAssertFalse(packet.flags.contains(.isReliable))
+
+        let remoteSession = try XCTUnwrap(remoteSessionManager.getSession(for: identity.peerID))
+        let plaintext = try remoteSession.decrypt(ciphertext: packet.payload)
+        XCTAssertEqual(plaintext.first, EncryptedSubType.readReceipt.rawValue)
+        XCTAssertEqual(String(data: Data(plaintext.dropFirst()), encoding: .utf8), messageID.uuidString)
+    }
+
+    func testSendReadReceipt_withoutSession_queuesControlAndStartsHandshake() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let remotePeerID = PeerID(noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation)
+        mockTransport.reset()
+
+        let messageID = UUID()
+        try await messageService.sendReadReceipt(for: messageID, to: remotePeerID)
+
+        XCTAssertEqual(mockTransport.sentPackets.count, 1, "Only the handshake packet should be sent immediately")
+        let sentPacket = try XCTUnwrap(mockTransport.sentPackets.first)
+        let packet = try PacketSerializer.decode(sentPacket.data)
+        XCTAssertEqual(packet.type, .noiseHandshake)
+
+        let pendingControl = try XCTUnwrap(messageService.pendingHandshakeControlMessages[remotePeerID.bytes]?.first)
+        XCTAssertEqual(pendingControl.subType, .readReceipt)
+        XCTAssertFalse(pendingControl.flags.contains(.isReliable))
+        XCTAssertEqual(String(data: pendingControl.payload, encoding: .utf8), messageID.uuidString)
+    }
 }
