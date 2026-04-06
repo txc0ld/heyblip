@@ -3,14 +3,90 @@ import {
   createExecutionContext,
   waitOnExecutionContext,
 } from "cloudflare:test";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+vi.mock("@neondatabase/serverless", () => ({
+  neon: () => async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const users = ((globalThis as any).__blipAuthMockUsers ??= []) as MockUser[];
+    const normalized = strings.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+
+    if (normalized.includes("select id, noise_public_key, signing_public_key from users where noise_public_key =")) {
+      const requestedKey = values[0] as Uint8Array;
+      return users
+        .filter((user) => user.noise_public_key && bytesEqual(user.noise_public_key, requestedKey))
+        .map((user) => ({
+          id: user.id,
+          noise_public_key: user.noise_public_key,
+          signing_public_key: user.signing_public_key,
+        }));
+    }
+
+    if (normalized.includes("update users set") && normalized.includes("where email_hash =")) {
+      const lastActiveAt = values[0] as string | null;
+      const emailHash = values[1] as string;
+      const user = users.find((candidate) => candidate.email_hash === emailHash);
+      if (!user) {
+        return [];
+      }
+      user.last_active_at = lastActiveAt;
+      user.updated_at = new Date().toISOString();
+      return [{
+        id: user.id,
+        is_verified: user.is_verified,
+        message_balance: user.message_balance,
+      }];
+    }
+
+    if (normalized.includes("select id, username, is_verified, message_balance, last_active_at, created_at from users where email_hash =")) {
+      const emailHash = values[0] as string;
+      const user = users.find((candidate) => candidate.email_hash === emailHash);
+      return user ? [{
+        id: user.id,
+        username: user.username,
+        is_verified: user.is_verified,
+        message_balance: user.message_balance,
+        last_active_at: user.last_active_at,
+        created_at: user.created_at,
+      }] : [];
+    }
+
+    if (normalized.includes("select id, username, is_verified, noise_public_key, signing_public_key, last_active_at from users where lower(username) = lower(")) {
+      const username = String(values[0]).toLowerCase();
+      const user = users.find((candidate) => candidate.username.toLowerCase() === username);
+      return user ? [{
+        id: user.id,
+        username: user.username,
+        is_verified: user.is_verified,
+        noise_public_key: user.noise_public_key,
+        signing_public_key: user.signing_public_key,
+        last_active_at: user.last_active_at,
+      }] : [];
+    }
+
+    throw new Error(`Unhandled mock SQL query: ${normalized}`);
+  },
+}));
 import worker, {
   isValidEmailHash,
+  signJWT,
   sanitizeRegisterBody,
   sanitizeSyncBody,
+  verifyJWT,
 } from "../src/index";
 
 type WorkerEnv = typeof env;
+
+interface MockUser {
+  id: string;
+  email_hash: string;
+  username: string;
+  is_verified: boolean;
+  message_balance: number;
+  last_active_at: string | null;
+  created_at: string;
+  updated_at: string;
+  noise_public_key: Uint8Array | null;
+  signing_public_key: Uint8Array | null;
+}
 
 async function request(
   method: string,
@@ -50,6 +126,68 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function base64Encode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+function mockUsers(): MockUser[] {
+  return (((globalThis as any).__blipAuthMockUsers ??= []) as MockUser[]);
+}
+
+function resetMockUsers(): void {
+  mockUsers().length = 0;
+}
+
+async function seedAuthUser(username = "alice"): Promise<{
+  user: MockUser;
+  noisePublicKey: Uint8Array;
+  signingPrivateKey: CryptoKey;
+}> {
+  const noisePublicKey = crypto.getRandomValues(new Uint8Array(32));
+  const signingKeyPair = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
+  const signingPublicKey = new Uint8Array(await crypto.subtle.exportKey("raw", signingKeyPair.publicKey));
+  const now = new Date().toISOString();
+
+  const user: MockUser = {
+    id: crypto.randomUUID(),
+    email_hash: "a".repeat(64),
+    username,
+    is_verified: true,
+    message_balance: 5,
+    last_active_at: now,
+    created_at: now,
+    updated_at: now,
+    noise_public_key: noisePublicKey,
+    signing_public_key: signingPublicKey,
+  };
+
+  mockUsers().push(user);
+  return { user, noisePublicKey, signingPrivateKey: signingKeyPair.privateKey };
+}
+
+async function issueTimestampSignature(privateKey: CryptoKey, timestamp: string): Promise<string> {
+  const signature = await crypto.subtle.sign("Ed25519", privateKey, new TextEncoder().encode(timestamp));
+  return base64Encode(new Uint8Array(signature));
+}
+
 // ─── Test helpers ────────────────────────────────────────────
 
 /**
@@ -77,6 +215,11 @@ beforeEach(async () => {
     await env.CODES.delete(key.name);
   }
   (env as Record<string, unknown>).DEV_BYPASS = "false";
+  (env as Record<string, unknown>).JWT_SECRET = "test-jwt-secret";
+  (env as Record<string, unknown>).JWT_EXPIRY_SECONDS = "3600";
+  (env as Record<string, unknown>).JWT_REFRESH_GRACE_SECONDS = "300";
+  delete (env as Record<string, unknown>).DATABASE_URL;
+  resetMockUsers();
 });
 
 // ─── Health ──────────────────────────────────────────────────
@@ -350,6 +493,159 @@ describe("POST /v1/users/register challenge verification", () => {
 
     const storedChallenge = await env.CODES.get(`challenge:${challenge}`);
     expect(storedChallenge).toBeNull();
+  });
+});
+
+describe("JWT session tokens", () => {
+  it("issues a token for a valid signed timestamp", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { noisePublicKey, signingPrivateKey } = await seedAuthUser();
+    const timestamp = new Date().toISOString();
+    const signature = await issueTimestampSignature(signingPrivateKey, timestamp);
+
+    const res = await request("POST", "/v1/auth/token", {
+      noisePublicKey: base64Encode(noisePublicKey),
+      timestamp,
+      signature,
+    });
+
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(typeof body.token).toBe("string");
+    expect(typeof body.expiresAt).toBe("string");
+
+    const claims = await verifyJWT(body.token as string, "test-jwt-secret");
+    expect(claims?.npk).toBe(base64Encode(noisePublicKey));
+    expect(typeof claims?.sub).toBe("string");
+  });
+
+  it("rejects token issuance with an invalid signature", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { noisePublicKey } = await seedAuthUser();
+
+    const res = await request("POST", "/v1/auth/token", {
+      noisePublicKey: base64Encode(noisePublicKey),
+      timestamp: new Date().toISOString(),
+      signature: base64Encode(crypto.getRandomValues(new Uint8Array(64))),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects token issuance with an expired timestamp", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { noisePublicKey, signingPrivateKey } = await seedAuthUser();
+    const timestamp = new Date(Date.now() - 120_000).toISOString();
+    const signature = await issueTimestampSignature(signingPrivateKey, timestamp);
+
+    const res = await request("POST", "/v1/auth/token", {
+      noisePublicKey: base64Encode(noisePublicKey),
+      timestamp,
+      signature,
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("refreshes a valid token", async () => {
+    const noisePublicKey = crypto.getRandomValues(new Uint8Array(32));
+    const claims = {
+      sub: "1122334455667788",
+      npk: base64Encode(noisePublicKey),
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 1200,
+    };
+    const token = await signJWT(claims, "test-jwt-secret");
+
+    const res = await request("POST", "/v1/auth/refresh", undefined, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    const refreshed = await verifyJWT(body.token as string, "test-jwt-secret");
+    expect(refreshed?.npk).toBe(claims.npk);
+    expect((refreshed?.exp ?? 0)).toBeGreaterThan(claims.exp);
+  });
+
+  it("refreshes an expired token within the grace window", async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+      sub: "1122334455667788",
+      npk: base64Encode(crypto.getRandomValues(new Uint8Array(32))),
+      iat: nowSeconds - 4000,
+      exp: nowSeconds - 60,
+    }, "test-jwt-secret");
+
+    const res = await request("POST", "/v1/auth/refresh", undefined, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects refresh when the token is past the grace window", async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+      sub: "1122334455667788",
+      npk: base64Encode(crypto.getRandomValues(new Uint8Array(32))),
+      iat: nowSeconds - 5000,
+      exp: nowSeconds - 400,
+    }, "test-jwt-secret");
+
+    const res = await request("POST", "/v1/auth/refresh", undefined, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("protected endpoints", () => {
+  it("allows a protected endpoint with a valid JWT", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { user, noisePublicKey, signingPrivateKey } = await seedAuthUser();
+    const timestamp = new Date().toISOString();
+    const signature = await issueTimestampSignature(signingPrivateKey, timestamp);
+    const tokenResponse = await request("POST", "/v1/auth/token", {
+      noisePublicKey: base64Encode(noisePublicKey),
+      timestamp,
+      signature,
+    });
+    const tokenBody = await json(tokenResponse);
+    const token = tokenBody.token as string;
+
+    const res = await request("GET", `/v1/users/${user.email_hash}`, undefined, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a protected endpoint with no JWT", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    await seedAuthUser();
+
+    const res = await request("GET", "/v1/users/lookup/alice");
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a protected endpoint with an expired JWT", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    await seedAuthUser();
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+      sub: "1122334455667788",
+      npk: base64Encode(crypto.getRandomValues(new Uint8Array(32))),
+      iat: nowSeconds - 3600,
+      exp: nowSeconds - 1,
+    }, "test-jwt-secret");
+
+    const res = await request("GET", "/v1/users/lookup/alice", undefined, {
+      Authorization: `Bearer ${token}`,
+    });
+
+    expect(res.status).toBe(401);
   });
 });
 

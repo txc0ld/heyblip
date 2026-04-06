@@ -25,6 +25,9 @@ packages:
     path: Packages/BlipMesh
   BlipCrypto:
     path: Packages/BlipCrypto
+  swift-opus:
+    url: https://github.com/alta/swift-opus
+    revision: 6f3cb6bd3ffed1fe5f06d00a962d5c191a50daf8
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
     from: "8.0.0"
@@ -81,6 +84,8 @@ targets:
       - package: BlipProtocol
       - package: BlipMesh
       - package: BlipCrypto
+      - package: swift-opus
+        product: Opus
       - package: Sentry
     entitlements:
       path: App/Entitlements/Blip.entitlements

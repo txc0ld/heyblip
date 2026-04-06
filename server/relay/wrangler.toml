@@ -2,6 +2,8 @@ name = "blip-relay"
 main = "src/index.ts"
 compatibility_date = "2025-03-01"
 
+# Set JWT_SECRET via `wrangler secret put JWT_SECRET`
+
 [durable_objects]
 bindings = [
   { name = "RELAY_ROOM", class_name = "RelayRoom" }

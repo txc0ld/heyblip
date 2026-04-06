@@ -15,6 +15,7 @@ final class UserSyncService: Sendable {
     private static let baseURL = ServerConfig.authBaseURL
 
     private let logger = Logger(subsystem: "com.blip", category: "UserSync")
+    private let authTokenProvider: @Sendable () async throws -> String
 
     // MARK: - Errors
 
@@ -25,6 +26,7 @@ final class UserSyncService: Sendable {
         case usernameTaken
         case userNotFound
         case databaseNotConfigured
+        case unauthorized
 
         var errorDescription: String? {
             switch self {
@@ -40,8 +42,18 @@ final class UserSyncService: Sendable {
                 return "User not found on server."
             case .databaseNotConfigured:
                 return "Backend database is not yet configured."
+            case .unauthorized:
+                return "Authentication required."
             }
         }
+    }
+
+    init(
+        authTokenProvider: @escaping @Sendable () async throws -> String = {
+            try await AuthTokenManager.shared.validToken()
+        }
+    ) {
+        self.authTokenProvider = authTokenProvider
     }
 
     // MARK: - Registration Gate
@@ -235,7 +247,7 @@ final class UserSyncService: Sendable {
             "lastActiveAt": ISO8601DateFormatter().string(from: Date())
         ]
 
-        let (data, response) = try await post(path: "/users/sync", body: body)
+        let (data, response) = try await post(path: "/users/sync", body: body, requiresAuth: true)
 
         guard let http = response as? HTTPURLResponse else {
             throw SyncError.networkError("Invalid response")
@@ -246,6 +258,8 @@ final class UserSyncService: Sendable {
             logger.info("Profile synced for \(emailHash.prefix(8), privacy: .private)...")
         case 404:
             throw SyncError.userNotFound
+        case 401:
+            throw SyncError.unauthorized
         case 503:
             throw SyncError.databaseNotConfigured
         default:
@@ -311,7 +325,7 @@ final class UserSyncService: Sendable {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
+        let (data, response) = try await performAuthenticatedRequest(request)
 
         guard let http = response as? HTTPURLResponse else {
             throw SyncError.networkError("Invalid response")
@@ -333,6 +347,8 @@ final class UserSyncService: Sendable {
             )
         case 404:
             throw SyncError.userNotFound
+        case 401:
+            throw SyncError.unauthorized
         case 503:
             throw SyncError.databaseNotConfigured
         default:
@@ -354,13 +370,14 @@ final class UserSyncService: Sendable {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
+        let (data, response) = try await performAuthenticatedRequest(request)
 
         guard let http = response as? HTTPURLResponse else {
             throw SyncError.networkError("Invalid response")
         }
 
         if http.statusCode == 404 { return nil }
+        if http.statusCode == 401 { throw SyncError.unauthorized }
 
         guard http.statusCode == 200 else {
             let message = parseError(data) ?? "Status \(http.statusCode)"
@@ -497,7 +514,7 @@ final class UserSyncService: Sendable {
         return data
     }
 
-    private func post(path: String, body: [String: Any]) async throws -> (Data, URLResponse) {
+    private func post(path: String, body: [String: Any], requiresAuth: Bool = false) async throws -> (Data, URLResponse) {
         guard let url = URL(string: Self.baseURL + path) else {
             throw SyncError.networkError("Invalid URL")
         }
@@ -511,6 +528,10 @@ final class UserSyncService: Sendable {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {
             throw SyncError.networkError("Failed to encode request")
+        }
+
+        if requiresAuth {
+            return try await performAuthenticatedRequest(request)
         }
 
         do {
@@ -541,5 +562,36 @@ final class UserSyncService: Sendable {
             return nil
         }
         return json["error"] as? String
+    }
+
+    private func performAuthenticatedRequest(_ request: URLRequest, allowRetry: Bool = true) async throws -> (Data, URLResponse) {
+        var authorizedRequest = request
+        authorizedRequest.setValue(try await authorizationHeaderValue(), forHTTPHeaderField: "Authorization")
+
+        do {
+            let result = try await ServerConfig.pinnedSession.data(for: authorizedRequest)
+            if allowRetry,
+               let http = result.1 as? HTTPURLResponse,
+               http.statusCode == 401 {
+                try? await AuthTokenManager.shared.refreshIfNeeded(force: true)
+                return try await performAuthenticatedRequest(request, allowRetry: false)
+            }
+            return result
+        } catch {
+            throw SyncError.networkError(error.localizedDescription)
+        }
+    }
+
+    private func authorizationHeaderValue() async throws -> String {
+        guard let identity = try KeyManager.shared.loadIdentity() else {
+            throw SyncError.unauthorized
+        }
+
+        do {
+            return "Bearer \(try await authTokenProvider())"
+        } catch {
+            await DebugLogger.shared.log("AUTH", "Using legacy auth fallback for UserSyncService: \(error.localizedDescription)", isError: true)
+            return "Bearer \(identity.noisePublicKey.rawRepresentation.base64EncodedString())"
+        }
     }
 }

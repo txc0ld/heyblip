@@ -14,6 +14,10 @@ export interface Env {
   FROM_EMAIL: string;
   CODE_TTL_SECONDS: string;
   MAX_SENDS_PER_HOUR: string;
+  JWT_SECRET?: string;
+  JWT_TTL_SECONDS?: string;
+  JWT_EXPIRY_SECONDS?: string;
+  JWT_REFRESH_GRACE_SECONDS?: string;
   /** Set to e.g. "https://heyblip.au" in production. Defaults to "*" for dev. */
   CORS_ORIGIN?: string;
   /** Set to "true" to skip Resend and use a fixed test code (000000). */
@@ -65,11 +69,52 @@ interface ReceiptVerifyBody {
   environment?: string;
 }
 
+interface TokenRequestBody {
+  noisePublicKey?: string;
+  timestamp?: string;
+  signature?: string;
+}
+
+interface KeyUpdateBody {
+  noisePublicKey?: string;
+  signingPublicKey?: string;
+}
+
+export interface JWTPayload {
+  sub: string;
+  npk: string;
+  iat: number;
+  exp: number;
+}
+
+interface AuthContext {
+  peerIdHex: string;
+  noisePublicKey: Uint8Array;
+  noisePublicKeyBase64: string;
+  claims?: JWTPayload;
+  source: "jwt" | "legacy";
+}
+
+class HTTPError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+const DEFAULT_JWT_EXPIRY_SECONDS = 3600;
+const DEFAULT_REFRESH_GRACE_SECONDS = 300;
+const TOKEN_TIMESTAMP_TOLERANCE_MS = 60_000;
+const NOISE_PUBLIC_KEY_LENGTH = 32;
+const ED25519_SIGNATURE_LENGTH = 64;
+
 function corsHeaders(env: Env): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": env.CORS_ORIGIN ?? "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
   };
@@ -83,37 +128,50 @@ export default {
 
     const url = new URL(request.url);
 
-    if (url.pathname === "/v1/auth/health") {
-      return json({ status: "ok" }, 200, env);
-    }
+    try {
+      if (url.pathname === "/v1/auth/health") {
+        return json({ status: "ok" }, 200, env);
+      }
 
-    // GET routes (besides health)
-    if (request.method === "GET" && url.pathname.startsWith("/v1/users/lookup/")) {
-        return handleLookupByUsername(url, env);
-    }
-    if (request.method === "GET" && url.pathname.startsWith("/v1/users/")) {
-        return handleGetUser(url, env);
-    }
+      // GET routes (besides health)
+      if (request.method === "GET" && url.pathname.startsWith("/v1/users/lookup/")) {
+          return handleLookupByUsername(request, url, env);
+      }
+      if (request.method === "GET" && url.pathname.startsWith("/v1/users/")) {
+          return handleGetUser(request, url, env);
+      }
 
-    if (request.method !== "POST") {
-      return json({ error: "Method not allowed" }, 405, env);
-    }
+      if (request.method !== "POST") {
+        return json({ error: "Method not allowed" }, 405, env);
+      }
 
-    switch (url.pathname) {
-      case "/v1/auth/challenge":
-        return handleChallenge(request, env);
-      case "/v1/auth/send-code":
-        return handleSendCode(request, env);
-      case "/v1/auth/verify-code":
-        return handleVerifyCode(request, env);
+      switch (url.pathname) {
+        case "/v1/auth/challenge":
+          return handleChallenge(request, env);
+        case "/v1/auth/send-code":
+          return handleSendCode(request, env);
+        case "/v1/auth/verify-code":
+          return handleVerifyCode(request, env);
+        case "/v1/auth/token":
+          return handleIssueToken(request, env);
+        case "/v1/auth/refresh":
+          return handleRefreshToken(request, env);
       case "/v1/users/register":
         return handleRegister(request, env);
       case "/v1/users/sync":
         return handleSync(request, env);
+      case "/v1/users/keys":
+        return handleKeys(request, env);
       case "/v1/receipts/verify":
         return handleReceiptVerify(request, env);
-      default:
-        return json({ error: "Not found" }, 404, env);
+        default:
+          return json({ error: "Not found" }, 404, env);
+      }
+    } catch (error) {
+      if (error instanceof Response) {
+        return error;
+      }
+      throw error;
     }
   },
 
@@ -306,6 +364,267 @@ async function getDb(env: Env) {
   return neon(env.DATABASE_URL);
 }
 
+function getJWTSecret(env: Env): string | null {
+  return env.JWT_SECRET && env.JWT_SECRET.length > 0 ? env.JWT_SECRET : null;
+}
+
+function getJWTExpirySeconds(env: Env): number {
+  const parsed = Number.parseInt(env.JWT_TTL_SECONDS ?? env.JWT_EXPIRY_SECONDS ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_JWT_EXPIRY_SECONDS;
+}
+
+function getJWTRefreshGraceSeconds(env: Env): number {
+  const parsed = Number.parseInt(env.JWT_REFRESH_GRACE_SECONDS ?? "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_REFRESH_GRACE_SECONDS;
+}
+
+function getBearerToken(header: string | null): string | null {
+  if (!header || !header.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = header.slice("Bearer ".length).trim();
+  return token.length === 0 ? null : token;
+}
+
+function base64Decode(encoded: string): Uint8Array {
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function base64Encode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  return base64Encode(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlDecode(input: string): Uint8Array {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+  return base64Decode(normalized + padding);
+}
+
+function bytesToUtf8(bytes: Uint8Array): string {
+  return new TextDecoder().decode(bytes);
+}
+
+function utf8ToBytes(value: string): Uint8Array {
+  return new TextEncoder().encode(value);
+}
+
+async function importHMACKey(secret: string, usages: KeyUsage[]): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    utf8ToBytes(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    usages
+  );
+}
+
+export async function signJWT(payload: object, secret: string): Promise<string> {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = base64UrlEncode(utf8ToBytes(JSON.stringify(header)));
+  const encodedPayload = base64UrlEncode(utf8ToBytes(JSON.stringify(payload)));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const key = await importHMACKey(secret, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, utf8ToBytes(signingInput));
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+async function verifyJWTWithGrace(token: string, secret: string, graceSeconds = 0): Promise<JWTPayload | null> {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  let header: { alg?: string; typ?: string };
+  let payload: Partial<JWTPayload>;
+  let signatureBytes: Uint8Array;
+
+  try {
+    header = JSON.parse(bytesToUtf8(base64UrlDecode(encodedHeader)));
+    payload = JSON.parse(bytesToUtf8(base64UrlDecode(encodedPayload)));
+    signatureBytes = base64UrlDecode(encodedSignature);
+  } catch {
+    return null;
+  }
+
+  if (header.alg !== "HS256" || header.typ !== "JWT") {
+    return null;
+  }
+
+  const key = await importHMACKey(secret, ["verify"]);
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const isValid = await crypto.subtle.verify("HMAC", key, signatureBytes, utf8ToBytes(signingInput));
+  if (!isValid) {
+    return null;
+  }
+
+  if (
+    typeof payload.sub !== "string" ||
+    typeof payload.npk !== "string" ||
+    typeof payload.iat !== "number" ||
+    typeof payload.exp !== "number"
+  ) {
+    return null;
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (payload.exp + graceSeconds <= nowSeconds) {
+    return null;
+  }
+
+  return {
+    sub: payload.sub,
+    npk: payload.npk,
+    iat: payload.iat,
+    exp: payload.exp,
+  };
+}
+
+export async function verifyJWT(token: string, secret: string): Promise<JWTPayload | null> {
+  return verifyJWTWithGrace(token, secret, 0);
+}
+
+export async function validateJWT(request: Request, env: Env): Promise<JWTPayload> {
+  const secret = getJWTSecret(env);
+  if (!secret) {
+    throw new HTTPError(503, "JWT secret not configured");
+  }
+
+  const token = getBearerToken(request.headers.get("Authorization"));
+  if (!token) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  const claims = await verifyJWT(token, secret);
+  if (!claims) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  return claims;
+}
+
+async function derivePeerIdHex(noisePublicKey: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", noisePublicKey);
+  return bufferToHex(new Uint8Array(hash).slice(0, 8));
+}
+
+function parseTimestamp(timestamp: string | undefined): Date | null {
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function bufferToUint8Array(buf: any): Uint8Array {
+  if (buf instanceof Uint8Array) {
+    return buf;
+  }
+  if (buf instanceof ArrayBuffer) {
+    return new Uint8Array(buf);
+  }
+  if (ArrayBuffer.isView(buf)) {
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  if (typeof buf === "string") {
+    return utf8ToBytes(buf);
+  }
+  return new Uint8Array();
+}
+
+async function issueJWTForUser(noisePublicKey: Uint8Array, env: Env): Promise<{ token: string; expiresAt: string; claims: JWTPayload }> {
+  const secret = getJWTSecret(env);
+  if (!secret) {
+    throw json({ error: "JWT secret not configured" }, 503, env);
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expirySeconds = getJWTExpirySeconds(env);
+  const claims: JWTPayload = {
+    sub: await derivePeerIdHex(noisePublicKey),
+    npk: base64Encode(noisePublicKey),
+    iat: nowSeconds,
+    exp: nowSeconds + expirySeconds,
+  };
+  const token = await signJWT(claims, secret);
+  return {
+    token,
+    expiresAt: new Date(claims.exp * 1000).toISOString(),
+    claims,
+  };
+}
+
+async function authContextFromJWTClaims(claims: JWTPayload): Promise<AuthContext> {
+  let noisePublicKey: Uint8Array;
+  try {
+    noisePublicKey = base64Decode(claims.npk);
+  } catch {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  if (noisePublicKey.length !== NOISE_PUBLIC_KEY_LENGTH) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  const derivedPeerIdHex = await derivePeerIdHex(noisePublicKey);
+  if (claims.sub !== derivedPeerIdHex) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  return {
+    peerIdHex: derivedPeerIdHex,
+    noisePublicKey,
+    noisePublicKeyBase64: claims.npk,
+    claims,
+    source: "jwt",
+  };
+}
+
+async function authenticateRequest(request: Request, env: Env): Promise<AuthContext> {
+  const token = getBearerToken(request.headers.get("Authorization"));
+  if (!token) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  if (token.includes(".")) {
+    const claims = await validateJWT(request, env);
+    return authContextFromJWTClaims(claims);
+  }
+
+  let noisePublicKey: Uint8Array;
+  try {
+    noisePublicKey = base64Decode(token);
+  } catch {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  if (noisePublicKey.length !== NOISE_PUBLIC_KEY_LENGTH) {
+    throw new HTTPError(401, "Unauthorized");
+  }
+
+  return {
+    peerIdHex: await derivePeerIdHex(noisePublicKey),
+    noisePublicKey,
+    noisePublicKeyBase64: base64Encode(noisePublicKey),
+    source: "legacy",
+  };
+}
+
 // ─── Register User ──────────────────────────────────────────
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
@@ -413,6 +732,114 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   }
 }
 
+// ─── Session Tokens ─────────────────────────────────────────
+
+async function handleIssueToken(request: Request, env: Env): Promise<Response> {
+  const body = await parseBody<TokenRequestBody>(request);
+  if (!body?.noisePublicKey || !body.timestamp || !body.signature) {
+    return json({ error: "Missing noisePublicKey, timestamp, or signature" }, 400, env);
+  }
+
+  const timestamp = parseTimestamp(body.timestamp);
+  if (!timestamp || Math.abs(Date.now() - timestamp.getTime()) > TOKEN_TIMESTAMP_TOLERANCE_MS) {
+    return json({ error: "Timestamp outside allowed window" }, 400, env);
+  }
+
+  let noisePublicKey: Uint8Array;
+  let signature: Uint8Array;
+  try {
+    noisePublicKey = base64Decode(body.noisePublicKey);
+    signature = base64Decode(body.signature);
+  } catch {
+    return json({ error: "Invalid base64 in request" }, 400, env);
+  }
+
+  if (noisePublicKey.length !== NOISE_PUBLIC_KEY_LENGTH || signature.length !== ED25519_SIGNATURE_LENGTH) {
+    return json({ error: "Invalid key or signature length" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const result = await sql`
+      SELECT id, noise_public_key, signing_public_key
+      FROM users
+      WHERE noise_public_key = ${noisePublicKey}
+    `;
+
+    if (result.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+
+    const user = result[0];
+    const signingPublicKey = bufferToUint8Array(user.signing_public_key);
+    if (signingPublicKey.length === 0) {
+      return json({ error: "User signing key not found" }, 404, env);
+    }
+
+    const key = await crypto.subtle.importKey(
+      "raw",
+      signingPublicKey,
+      { name: "Ed25519" },
+      false,
+      ["verify"]
+    );
+    const isValid = await crypto.subtle.verify("Ed25519", key, signature, utf8ToBytes(body.timestamp));
+    if (!isValid) {
+      return json({ error: "Invalid signature" }, 401, env);
+    }
+
+    const session = await issueJWTForUser(noisePublicKey, env);
+    return json({ token: session.token, expiresAt: session.expiresAt }, 200, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Token issuance failed", detail: error?.message ?? String(error) }, 500, env);
+  }
+}
+
+async function handleRefreshToken(request: Request, env: Env): Promise<Response> {
+  const secret = getJWTSecret(env);
+  if (!secret) {
+    return json({ error: "JWT secret not configured" }, 503, env);
+  }
+
+  const token = getBearerToken(request.headers.get("Authorization"));
+  if (!token) {
+    return json({ error: "Unauthorized" }, 401, env);
+  }
+
+  const claims = await verifyJWTWithGrace(token, secret, getJWTRefreshGraceSeconds(env));
+  if (!claims) {
+    return json({ error: "Unauthorized" }, 401, env);
+  }
+
+  let noisePublicKey: Uint8Array;
+  try {
+    noisePublicKey = base64Decode(claims.npk);
+  } catch {
+    return json({ error: "Unauthorized" }, 401, env);
+  }
+
+  if (noisePublicKey.length !== NOISE_PUBLIC_KEY_LENGTH) {
+    return json({ error: "Unauthorized" }, 401, env);
+  }
+
+  try {
+    const session = await issueJWTForUser(noisePublicKey, env);
+    return json({ token: session.token, expiresAt: session.expiresAt }, 200, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Token refresh failed", detail: error?.message ?? String(error) }, 500, env);
+  }
+}
+
 // ─── Sync User ──────────────────────────────────────────────
 
 async function handleSync(request: Request, env: Env): Promise<Response> {
@@ -428,11 +855,13 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
   }
 
   try {
+    const auth = await authenticateRequest(request, env);
     const result = await sql`
       UPDATE users SET
         last_active_at = COALESCE(${body.lastActiveAt ?? null}, last_active_at),
         updated_at = NOW()
       WHERE email_hash = ${body.emailHash}
+        AND noise_public_key = ${auth.noisePublicKey}
       RETURNING id, is_verified, message_balance
     `;
 
@@ -441,14 +870,17 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
     }
 
     return json({ synced: true, user: result[0] }, 200, env);
-  } catch {
-    return json({ error: "Sync failed" }, 500, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Sync failed", detail: error?.message ?? String(error) }, 500, env);
   }
 }
 
 // ─── Get User ───────────────────────────────────────────────
 
-async function handleGetUser(url: URL, env: Env): Promise<Response> {
+async function handleGetUser(request: Request, url: URL, env: Env): Promise<Response> {
   const parts = url.pathname.split("/");
   const emailHash = parts[parts.length - 1];
 
@@ -462,9 +894,12 @@ async function handleGetUser(url: URL, env: Env): Promise<Response> {
   }
 
   try {
+    const auth = await authenticateRequest(request, env);
     const result = await sql`
       SELECT id, username, is_verified, message_balance, last_active_at, created_at
-      FROM users WHERE email_hash = ${emailHash}
+      FROM users
+      WHERE email_hash = ${emailHash}
+        AND noise_public_key = ${auth.noisePublicKey}
     `;
 
     if (result.length === 0) {
@@ -472,8 +907,11 @@ async function handleGetUser(url: URL, env: Env): Promise<Response> {
     }
 
     return json({ user: result[0] }, 200, env);
-  } catch {
-    return json({ error: "Lookup failed" }, 500, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Lookup failed", detail: error?.message ?? String(error) }, 500, env);
   }
 }
 
@@ -502,7 +940,7 @@ function getMessageCredits(productID: string): number {
 
 // ─── Lookup by Username ─────────────────────────────────────
 
-async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
+async function handleLookupByUsername(request: Request, url: URL, env: Env): Promise<Response> {
   const parts = url.pathname.split("/");
   const username = parts[parts.length - 1];
 
@@ -516,6 +954,7 @@ async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
   }
 
   try {
+    await authenticateRequest(request, env);
     const result = await sql`
       SELECT id, username, is_verified, noise_public_key, signing_public_key, last_active_at
       FROM users WHERE LOWER(username) = LOWER(${username})
@@ -545,8 +984,49 @@ async function handleLookupByUsername(url: URL, env: Env): Promise<Response> {
         lastActiveAt: row.last_active_at,
       },
     }, 200, env);
-  } catch {
-    return json({ error: "Lookup failed" }, 500, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Lookup failed", detail: error?.message ?? String(error) }, 500, env);
+  }
+}
+
+async function handleKeys(request: Request, env: Env): Promise<Response> {
+  const body = await parseBody<KeyUpdateBody>(request);
+  const noisePublicKey = isValidHexKey(body?.noisePublicKey) ? hexToBytes(body.noisePublicKey) : null;
+  const signingPublicKey = isValidHexKey(body?.signingPublicKey) ? hexToBytes(body.signingPublicKey) : null;
+
+  if (!noisePublicKey || !signingPublicKey) {
+    return json({ error: "Missing noisePublicKey or signingPublicKey" }, 400, env);
+  }
+
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const auth = await authenticateRequest(request, env);
+    const result = await sql`
+      UPDATE users SET
+        noise_public_key = ${noisePublicKey},
+        signing_public_key = ${signingPublicKey},
+        updated_at = NOW()
+      WHERE noise_public_key = ${auth.noisePublicKey}
+      RETURNING id
+    `;
+
+    if (result.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+
+    return json({ updated: true, userId: result[0]?.id }, 200, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    return json({ error: "Key update failed", detail: error?.message ?? String(error) }, 500, env);
   }
 }
 

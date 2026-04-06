@@ -10,7 +10,7 @@ import Security
 /// binary protocol packets used on BLE. The relay server is zero-knowledge:
 /// it forwards packets without decrypting them.
 ///
-/// Authentication: Noise static public key sent as bearer token.
+/// Authentication: caller-provided bearer token, typically a short-lived JWT.
 /// Reconnection: exponential backoff from 1s to 60s, max 10 attempts.
 public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable {
 
@@ -68,8 +68,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// The relay URL for this instance.
     private let relayURL: URL
 
-    /// The Noise public key used for authentication.
-    private let noisePublicKey: Data
+    /// Produces the bearer token used for relay authentication.
+    private let tokenProvider: @Sendable () async throws -> String
+
+    /// Refreshes the bearer token after an auth failure.
+    private let tokenRefreshHandler: (@Sendable () async throws -> Void)?
 
     /// The local peer ID.
     public let localPeerID: PeerID
@@ -105,11 +108,18 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     ///
     /// - Parameters:
     ///   - localPeerID: This device's PeerID.
-    ///   - noisePublicKey: The Noise static public key for authentication.
+    ///   - tokenProvider: Produces the bearer token used for authentication.
+    ///   - tokenRefreshHandler: Refreshes the token after an auth failure.
     ///   - relayURL: WebSocket relay endpoint. Defaults to `defaultRelayURL`.
-    public init(localPeerID: PeerID, noisePublicKey: Data, relayURL: URL? = nil) {
+    public init(
+        localPeerID: PeerID,
+        tokenProvider: @escaping @Sendable () async throws -> String,
+        tokenRefreshHandler: (@Sendable () async throws -> Void)? = nil,
+        relayURL: URL? = nil
+    ) {
         self.localPeerID = localPeerID
-        self.noisePublicKey = noisePublicKey
+        self.tokenProvider = tokenProvider
+        self.tokenRefreshHandler = tokenRefreshHandler
         self.relayURL = relayURL ?? Self.defaultRelayURL
         self.serverPeerID = PeerID(noisePublicKey: Data("relay.blip.app".utf8))
 
@@ -171,10 +181,27 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     private func connect() {
         state = .starting
+        Task { [weak self] in
+            guard let self else { return }
 
-        // Build the request with authentication header.
+            do {
+                let token = try await self.tokenProvider()
+                self.openWebSocket(using: token)
+            } catch {
+                self.logger.error("WebSocket auth token unavailable: \(error.localizedDescription)")
+                if self.autoReconnect {
+                    self.scheduleReconnect()
+                } else {
+                    self.state = .failed("Authentication failed")
+                }
+            }
+        }
+    }
+
+    private func openWebSocket(using token: String) {
+        guard autoReconnect || state == .starting else { return }
+
         var request = URLRequest(url: self.relayURL)
-        let token = noisePublicKey.base64EncodedString()
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(localPeerID.description, forHTTPHeaderField: "X-Peer-ID")
 
@@ -182,9 +209,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         webSocketTask = task
         task.resume()
 
-        // Start receiving messages.
         receiveNextMessage()
-
         logger.info("WebSocket connecting to \(self.relayURL)")
     }
 
@@ -229,6 +254,36 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             scheduleReconnect()
         } else {
             state = .stopped
+        }
+    }
+
+    private func handleExpiredToken() {
+        logger.info("WebSocket token expired, requesting refresh")
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await self.tokenRefreshHandler?()
+            } catch {
+                self.logger.error("WebSocket token refresh failed: \(error.localizedDescription)")
+            }
+
+            self.lock.withLock {
+                self.reconnectAttempts = 0
+                self.currentReconnectDelay = Self.minReconnectDelay
+                self.isConnected = false
+            }
+
+            guard self.autoReconnect else {
+                self.state = .stopped
+                return
+            }
+
+            self.queue.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self, self.autoReconnect else { return }
+                self.connect()
+            }
         }
     }
 
@@ -471,6 +526,10 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
     ) {
         let reasonString = reason.flatMap { String(data: $0, encoding: .utf8) }
         logger.info("WebSocket closed: \(closeCode.rawValue) reason: \(reasonString ?? "none")")
+        if closeCode.rawValue == 4001 {
+            handleExpiredToken()
+            return
+        }
         handleConnectionLost(error: nil)
     }
 
@@ -479,6 +538,11 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        if let response = task.response as? HTTPURLResponse, response.statusCode == 401 {
+            handleExpiredToken()
+            return
+        }
+
         if let error = error {
             handleConnectionLost(error: error)
         }

@@ -1,6 +1,6 @@
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { describe, it, expect, afterEach } from "vitest";
-import worker, { parseAuthHeader, derivePeerIdHex } from "../src/index";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import worker, { parseAuthHeader, derivePeerIdHex, validateAuthorizationHeader } from "../src/index";
 import { extractRecipient } from "../src/relay-room";
 import {
   HEADER_SIZE,
@@ -26,6 +26,26 @@ function toBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  return toBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function signJWT(payload: Record<string, unknown>, secret: string): Promise<string> {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = toBase64Url(new TextEncoder().encode(JSON.stringify(header)));
+  const encodedPayload = toBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 async function derivePeerIdBytes(publicKey: Uint8Array): Promise<Uint8Array> {
@@ -87,6 +107,10 @@ afterEach(() => {
   openSockets.length = 0;
 });
 
+beforeEach(() => {
+  (env as Record<string, unknown>).JWT_SECRET = "relay-test-secret";
+});
+
 async function connectPeer(key: Uint8Array): Promise<WebSocket> {
   const req = makeUpgradeRequest(key);
   const ctx = createExecutionContext();
@@ -136,6 +160,24 @@ describe("parseAuthHeader", () => {
     expect(result).not.toBeNull();
     expect(result!.length).toBe(32);
     expect(new Uint8Array(result!)).toEqual(key);
+  });
+});
+
+describe("validateAuthorizationHeader", () => {
+  it("accepts a valid JWT", async () => {
+    const publicKey = randomPublicKey();
+    const peerIdHex = await derivePeerIdHex(publicKey);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+        sub: peerIdHex,
+        npk: toBase64(publicKey),
+        iat: nowSeconds,
+        exp: nowSeconds + 3600,
+    }, "relay-test-secret");
+
+    const auth = await validateAuthorizationHeader(`Bearer ${token}`, env);
+    expect(auth.peerIdHex).toBe(peerIdHex);
+    expect(auth.source).toBe("jwt");
   });
 });
 
@@ -298,7 +340,7 @@ describe("Packet routing", () => {
     expect(errors.length).toBe(0);
   });
 
-  it("does not route broadcast packets", async () => {
+  it("broadcasts non-addressed packets to other peers", async () => {
     const keyA = randomPublicKey();
     const keyB = randomPublicKey();
     const peerIdA = await derivePeerIdBytes(keyA);
@@ -313,7 +355,8 @@ describe("Packet routing", () => {
     wsA.send(packet.buffer);
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(messagesB.length).toBe(0);
+    expect(messagesB.length).toBe(1);
+    expect(new Uint8Array(messagesB[0])).toEqual(packet);
   });
 
   it("preserves binary packet integrity exactly", async () => {

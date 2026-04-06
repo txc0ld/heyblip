@@ -44,6 +44,7 @@ final class AppCoordinator {
     private(set) var locationService = LocationService()
     private(set) var notificationService = NotificationService()
     private(set) var backgroundTaskService: BackgroundTaskService?
+    private(set) var authTokenManager = AuthTokenManager.shared
 
     // MARK: - Feature View Models
 
@@ -72,6 +73,7 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var authRefreshTimer: Timer?
     private(set) var powerManager: PowerManager?
     private(set) var messageCleanupService: MessageCleanupService?
     @ObservationIgnored nonisolated(unsafe) private var powerTierCancellable: AnyCancellable?
@@ -149,7 +151,12 @@ final class AppCoordinator {
         let ble = BLEService(localPeerID: peerID)
         let ws = WebSocketTransport(
             localPeerID: peerID,
-            noisePublicKey: identity.noisePublicKey.rawRepresentation,
+            tokenProvider: { @Sendable in
+                try await AuthTokenManager.shared.validToken()
+            },
+            tokenRefreshHandler: { @Sendable in
+                try await AuthTokenManager.shared.refreshIfNeeded(force: true)
+            },
             relayURL: ServerConfig.relayWebSocketURL
         )
         let coordinator = TransportCoordinator(
@@ -234,6 +241,10 @@ final class AppCoordinator {
 
         // Re-check Bluetooth permission when app returns from Settings.
         setupForegroundObserver(bleService: ble)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.establishAuthSession()
+        }
 
         // Re-sync encryption keys to server for existing users (idempotent upsert).
         // Ensures users who registered before key upload was added get their keys uploaded.
@@ -264,6 +275,9 @@ final class AppCoordinator {
                 )
 
                 DebugLogger.shared.log("AUTH", "Key upload succeeded for \(user.username)")
+                Task { @MainActor [weak self] in
+                    await self?.establishAuthSession(forceRefresh: true)
+                }
             } catch {
                 DebugLogger.shared.log("AUTH", "Key upload failed: \(error.localizedDescription)", isError: true)
             }
@@ -332,6 +346,7 @@ final class AppCoordinator {
     /// Reset to onboarding state (e.g. after a failed setup, user wants to restart).
     func resetToOnboarding() {
         teardownRuntimeState()
+        authTokenManager.clearToken()
         isReady = false
         identity = nil
         localPeerID = nil
@@ -349,6 +364,7 @@ final class AppCoordinator {
 
         do {
             try keyManager.deleteIdentity()
+            try authTokenManager.clear()
         } catch {
             logger.error("Failed to delete identity during sign out: \(error.localizedDescription)")
             initError = "Failed to clear your local identity: \(error.localizedDescription)"
@@ -505,6 +521,8 @@ final class AppCoordinator {
                     signingPublicKey: localUser.signingPublicKey
                 )
             }
+
+            await establishAuthSession(forceRefresh: true)
         } catch {
             logger.error("SELF_CHECK error: \(error.localizedDescription)")
             DebugLogger.shared.log("SELF_CHECK", "Error: \(error.localizedDescription)", isError: true)
@@ -597,6 +615,8 @@ final class AppCoordinator {
     /// Stop all transports and clean up.
     func stop() {
         transportCoordinator?.stop()
+        authRefreshTimer?.invalidate()
+        authRefreshTimer = nil
         peerSyncTimer?.invalidate()
         peerSyncTimer = nil
         currentPeerSyncInterval = nil
@@ -654,6 +674,41 @@ final class AppCoordinator {
         locationService.stopUpdating()
         locationService.stopMonitoringAllEvents()
         locationService.delegate = nil
+    }
+
+    private func establishAuthSession(forceRefresh: Bool = false) async {
+        do {
+            if forceRefresh {
+                if authTokenManager.currentToken == nil {
+                    _ = try await authTokenManager.validToken()
+                } else {
+                    try await authTokenManager.refreshIfNeeded(force: true)
+                }
+            } else {
+                _ = try await authTokenManager.validToken()
+            }
+
+            DebugLogger.shared.log("AUTH", "JWT session ready")
+            scheduleAuthRefreshTimer()
+        } catch {
+            DebugLogger.shared.log("AUTH", "JWT session bootstrap failed: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    private func scheduleAuthRefreshTimer() {
+        authRefreshTimer?.invalidate()
+        let timer = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                do {
+                    try await self.authTokenManager.refreshIfNeeded()
+                } catch {
+                    DebugLogger.shared.log("AUTH", "Scheduled JWT refresh failed: \(error.localizedDescription)", isError: true)
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        authRefreshTimer = timer
     }
 
     private func ensureUserPreferencesExists(in modelContainer: ModelContainer) {

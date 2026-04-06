@@ -1,5 +1,7 @@
 import Foundation
 import AVFoundation
+import Darwin
+import Opus
 import os.log
 #if os(iOS)
 import UIKit
@@ -69,14 +71,50 @@ final class AudioService: NSObject, @unchecked Sendable {
     /// Opus encoding sample rate (Hz).
     static let sampleRate = 16_000
 
+    /// Opus encoding channels.
+    static let channelCount = 1
+
     /// Opus frame duration (ms).
     static let opusFrameDuration = 20
+
+    /// Samples per Opus frame (20 ms).
+    static let opusFrameSampleCount = sampleRate * opusFrameDuration / 1000
+
+    /// Bytes per PCM sample.
+    static let pcmBytesPerSample = MemoryLayout<Int16>.size
+
+    /// Bytes per PCM Opus frame.
+    static let pcmBytesPerFrame = opusFrameSampleCount * channelCount * pcmBytesPerSample
+
+    /// Maximum packet size for a single Opus frame.
+    static let maximumOpusPacketSize = 1275
+
+    /// Custom container magic for versioned Opus payloads.
+    static let opusContainerMagic: [UInt8] = [0x4F, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64] // "OpusHead"
+
+    /// Legacy custom container magic for raw PCM frame payloads.
+    static let legacyOpusContainerMagic: [UInt8] = [0x4F, 0x70, 0x75, 0x73] // "Opus"
+
+    /// Current version of the custom Opus container.
+    static let opusContainerVersion: UInt8 = 1
+
+    /// Swift cannot call the variadic `opus_encoder_ctl` API directly, so resolve a fixed-signature thunk.
+    private typealias OpusEncoderControlFunction = @convention(c) (OpaquePointer?, Int32, Int32) -> Int32
+
+    private static let opusEncoderControl: OpusEncoderControlFunction? = {
+        let handle = dlopen(nil, RTLD_NOW)
+        guard let symbol = dlsym(handle, "opus_encoder_ctl") else {
+            return nil
+        }
+
+        return unsafeBitCast(symbol, to: OpusEncoderControlFunction.self)
+    }()
 
     /// Recording format settings for AVAudioRecorder.
     nonisolated(unsafe) private static let recordingSettings: [String: Any] = [
         AVFormatIDKey: Int(kAudioFormatLinearPCM),
         AVSampleRateKey: sampleRate,
-        AVNumberOfChannelsKey: 1,
+        AVNumberOfChannelsKey: channelCount,
         AVLinearPCMBitDepthKey: 16,
         AVLinearPCMIsFloatKey: false,
         AVLinearPCMIsBigEndianKey: false
@@ -113,6 +151,7 @@ final class AudioService: NSObject, @unchecked Sendable {
     private var recordingURL: URL?
     private var isPTTMode = false
     private var accumulatedPCMData = Data()
+    private var pendingPTTPCMData = Data()
     private let lock = NSLock()
 
     // MARK: - Audio Session
@@ -173,6 +212,7 @@ final class AudioService: NSObject, @unchecked Sendable {
         self.maxDuration = maxDuration
         self.isPTTMode = false
         self.accumulatedPCMData = Data()
+        self.pendingPTTPCMData = Data()
 
         // Create temporary file for recording
         let tempDir = FileManager.default.temporaryDirectory
@@ -242,8 +282,8 @@ final class AudioService: NSObject, @unchecked Sendable {
         }
         recordingURL = nil
 
-        // Encode to Opus-like format
-        let encoded = encodeToOpus(pcmData: data, bitrate: Self.voiceNoteBitrate)
+        let pcmData = extractPCMData(fromRecordedFileData: data)
+        let encoded = try encodeToOpus(pcmData: pcmData, bitrate: Self.voiceNoteBitrate)
 
         delegate?.audioService(self, didFinishRecording: encoded, duration: duration)
 
@@ -263,6 +303,8 @@ final class AudioService: NSObject, @unchecked Sendable {
         isRecording = false
         recordingDuration = 0
         audioRecorder = nil
+        accumulatedPCMData = Data()
+        pendingPTTPCMData = Data()
 
         if let url = recordingURL {
             do {
@@ -288,6 +330,7 @@ final class AudioService: NSObject, @unchecked Sendable {
         self.maxDuration = maxDuration
         self.isPTTMode = true
         self.accumulatedPCMData = Data()
+        self.pendingPTTPCMData = Data()
 
         let tempDir = FileManager.default.temporaryDirectory
         let filename = "ptt_\(UUID().uuidString).wav"
@@ -331,6 +374,7 @@ final class AudioService: NSObject, @unchecked Sendable {
 
     /// Stop PTT recording and return the final encoded audio.
     func stopPTTRecording() throws -> (data: Data, duration: TimeInterval) {
+        emitPTTChunk(flushFinalChunk: true)
         pttChunkTimer?.invalidate()
         pttChunkTimer = nil
         isPTTMode = false
@@ -345,8 +389,7 @@ final class AudioService: NSObject, @unchecked Sendable {
 
         try configureAudioSession()
 
-        // Decode from Opus-like format to PCM
-        let pcmData = decodeFromOpus(opusData: data)
+        let pcmData = try decodeFromOpus(opusData: data)
 
         // Write to temporary file for AVAudioPlayer
         let tempDir = FileManager.default.temporaryDirectory
@@ -398,68 +441,379 @@ final class AudioService: NSObject, @unchecked Sendable {
 
     // MARK: - Opus Encoding/Decoding
 
-    /// Encode raw PCM data to Opus-compatible format.
-    ///
-    /// In production, this would use swift-opus for actual Opus encoding.
-    /// This implementation provides the framing and metadata wrapper.
-    func encodeToOpus(pcmData: Data, bitrate: Int) -> Data {
-        var encoded = Data()
+    /// Encode raw PCM data to Opus using 20 ms frames inside Blip's custom container.
+    private func encodeToOpus(pcmData: Data, bitrate: Int) throws -> Data {
+        let normalizedPCMData = normalizePCMByteAlignment(pcmData)
+        let (encoded, _) = try encodePCMFramesAsOpus(
+            normalizedPCMData,
+            bitrate: bitrate,
+            padFinalFrame: true
+        )
 
-        // Header: magic bytes + sample rate + bitrate + channel count
-        let magic: [UInt8] = [0x4F, 0x70, 0x75, 0x73] // "Opus"
-        encoded.append(contentsOf: magic)
-
-        var sampleRate = UInt32(Self.sampleRate).bigEndian
-        encoded.append(Data(bytes: &sampleRate, count: 4))
-
-        var bitrateValue = UInt32(bitrate).bigEndian
-        encoded.append(Data(bytes: &bitrateValue, count: 4))
-
-        encoded.append(UInt8(1)) // mono
-
-        // Frame the PCM data into Opus-sized frames (20ms each)
-        let bytesPerFrame = Self.sampleRate * Self.opusFrameDuration / 1000 * 2 // 16-bit mono
-        var offset = 0
-        while offset < pcmData.count {
-            let end = min(offset + bytesPerFrame, pcmData.count)
-            let frame = pcmData[offset ..< end]
-
-            // Write frame length (UInt16 big-endian) + frame data
-            var frameLen = UInt16(frame.count).bigEndian
-            encoded.append(Data(bytes: &frameLen, count: 2))
-            encoded.append(frame)
-
-            offset = end
+        guard !encoded.isEmpty else {
+            throw AudioServiceError.encodingFailed("No PCM frames were available for Opus encoding")
         }
 
         return encoded
     }
 
-    /// Decode Opus-encoded data back to PCM.
-    func decodeFromOpus(opusData: Data) -> Data {
-        guard opusData.count > 13 else { return opusData }
+    /// Decode Blip Opus payloads back to raw PCM, preserving support for legacy PCM-framed notes.
+    private func decodeFromOpus(opusData: Data) throws -> Data {
+        if starts(with: Self.opusContainerMagic, in: opusData) {
+            guard opusData.count >= 18 else {
+                throw AudioServiceError.decodingFailed("Opus payload header is truncated")
+            }
 
-        // Verify magic header
-        let magic: [UInt8] = [0x4F, 0x70, 0x75, 0x73]
-        let header = [UInt8](opusData.prefix(4))
-        guard header == magic else { return opusData }
+            let version = opusData[Self.opusContainerMagic.count]
+            guard version == Self.opusContainerVersion else {
+                throw AudioServiceError.decodingFailed("Unsupported Opus payload version: \(version)")
+            }
 
-        // Skip header (4 magic + 4 sampleRate + 4 bitrate + 1 channels = 13 bytes)
-        var offset = 13
+            guard
+                let sampleRate = readUInt32BigEndian(from: opusData, at: 9),
+                let channels = opusData[safe: 17]
+            else {
+                throw AudioServiceError.decodingFailed("Opus payload header is invalid")
+            }
+
+            return try decodeOpusFrames(
+                from: opusData,
+                headerLength: 18,
+                sampleRate: Int(sampleRate),
+                channels: Int(channels)
+            )
+        }
+
+        if starts(with: Self.legacyOpusContainerMagic, in: opusData) {
+            return decodeLegacyPCMFrames(from: opusData, headerLength: 13)
+        }
+
+        return opusData
+    }
+
+    // MARK: - Private: Opus Helpers
+
+    private func encodePCMFramesAsOpus(
+        _ pcmData: Data,
+        bitrate: Int,
+        padFinalFrame: Bool
+    ) throws -> (encoded: Data, remainder: Data) {
+        let completeFrameByteCount = (pcmData.count / Self.pcmBytesPerFrame) * Self.pcmBytesPerFrame
+        var remainder = Data(pcmData.dropFirst(completeFrameByteCount))
+        var framesToEncode = [Data]()
+
+        if completeFrameByteCount > 0 {
+            var offset = 0
+            while offset < completeFrameByteCount {
+                let end = offset + Self.pcmBytesPerFrame
+                framesToEncode.append(Data(pcmData[offset..<end]))
+                offset = end
+            }
+        }
+
+        if padFinalFrame, !remainder.isEmpty {
+            var paddedFrame = normalizePCMByteAlignment(remainder)
+            guard paddedFrame.count <= Self.pcmBytesPerFrame else {
+                throw AudioServiceError.encodingFailed("PCM remainder exceeded single Opus frame size")
+            }
+            paddedFrame.append(Data(repeating: 0, count: Self.pcmBytesPerFrame - paddedFrame.count))
+            framesToEncode.append(paddedFrame)
+            remainder = Data()
+        }
+
+        guard !framesToEncode.isEmpty else {
+            return (Data(), remainder)
+        }
+
+        let encoder = try createOpusEncoder(bitrate: bitrate)
+        defer { opus_encoder_destroy(encoder) }
+
+        var encoded = makeOpusContainerHeader(bitrate: bitrate)
+        for frame in framesToEncode {
+            let packet = try encodePCMFrame(frame, with: encoder)
+            guard packet.count <= Int(UInt16.max) else {
+                throw AudioServiceError.encodingFailed("Opus packet exceeded container frame limit")
+            }
+
+            var frameLength = UInt16(packet.count).bigEndian
+            encoded.append(withUnsafeBytes(of: &frameLength) { Data($0) })
+            encoded.append(packet)
+        }
+
+        return (encoded, remainder)
+    }
+
+    private func encodePCMFrame(_ frame: Data, with encoder: OpaquePointer) throws -> Data {
+        guard frame.count == Self.pcmBytesPerFrame else {
+            throw AudioServiceError.encodingFailed("PCM frame size \(frame.count) does not match expected \(Self.pcmBytesPerFrame)")
+        }
+
+        var output = [UInt8](repeating: 0, count: Self.maximumOpusPacketSize)
+        let encodedLength = try frame.withUnsafeBytes { rawBuffer -> Int in
+            guard let baseAddress = rawBuffer.baseAddress else {
+                throw AudioServiceError.encodingFailed("PCM frame buffer is empty")
+            }
+
+            let samples = baseAddress.assumingMemoryBound(to: Int16.self)
+            return try output.withUnsafeMutableBufferPointer { outputBuffer -> Int in
+                guard let outputBaseAddress = outputBuffer.baseAddress else {
+                    throw AudioServiceError.encodingFailed("Opus output buffer is empty")
+                }
+
+                let encodedBytes = opus_encode(
+                    encoder,
+                    samples,
+                    Int32(Self.opusFrameSampleCount),
+                    outputBaseAddress,
+                    Int32(outputBuffer.count)
+                )
+                guard encodedBytes >= 0 else {
+                    throw AudioServiceError.encodingFailed("Opus encode failed: \(encodedBytes)")
+                }
+
+                return Int(encodedBytes)
+            }
+        }
+
+        return Data(output.prefix(encodedLength))
+    }
+
+    private func decodeOpusFrames(
+        from opusData: Data,
+        headerLength: Int,
+        sampleRate: Int,
+        channels: Int
+    ) throws -> Data {
+        let frameSampleCount = sampleRate * Self.opusFrameDuration / 1000
+        guard frameSampleCount > 0, channels == Self.channelCount else {
+            throw AudioServiceError.decodingFailed("Unsupported Opus audio format: \(sampleRate) Hz, \(channels) channel(s)")
+        }
+
+        let decoder = try createOpusDecoder(sampleRate: sampleRate, channels: channels)
+        defer { opus_decoder_destroy(decoder) }
+
+        var offset = headerLength
         var pcmData = Data()
-
         while offset + 2 <= opusData.count {
-            let frameLenBytes = opusData[offset ..< offset + 2]
-            let frameLen = frameLenBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt16.self) }
-            let actualLen = Int(UInt16(bigEndian: frameLen))
-            offset += 2
+            guard let frameLength = readUInt16BigEndian(from: opusData, at: offset) else {
+                throw AudioServiceError.decodingFailed("Opus frame length is truncated")
+            }
 
-            guard offset + actualLen <= opusData.count else { break }
-            pcmData.append(opusData[offset ..< offset + actualLen])
-            offset += actualLen
+            offset += 2
+            let frameLengthValue = Int(frameLength)
+            guard frameLengthValue > 0, offset + frameLengthValue <= opusData.count else {
+                throw AudioServiceError.decodingFailed("Opus frame payload is truncated")
+            }
+
+            let frame = Data(opusData[offset..<offset + frameLengthValue])
+            pcmData.append(try decodeOpusFrame(frame, with: decoder, frameSampleCount: frameSampleCount, channels: channels))
+            offset += frameLengthValue
         }
 
         return pcmData
+    }
+
+    private func decodeOpusFrame(
+        _ frame: Data,
+        with decoder: OpaquePointer,
+        frameSampleCount: Int,
+        channels: Int
+    ) throws -> Data {
+        var decodedSamples = [Int16](repeating: 0, count: frameSampleCount * channels)
+        let decodedFrameCount = try frame.withUnsafeBytes { rawBuffer -> Int in
+            guard let baseAddress = rawBuffer.baseAddress else {
+                throw AudioServiceError.decodingFailed("Opus frame buffer is empty")
+            }
+
+            let input = baseAddress.assumingMemoryBound(to: UInt8.self)
+            return try decodedSamples.withUnsafeMutableBufferPointer { outputBuffer -> Int in
+                guard let outputBaseAddress = outputBuffer.baseAddress else {
+                    throw AudioServiceError.decodingFailed("PCM output buffer is empty")
+                }
+
+                let decodedCount = opus_decode(
+                    decoder,
+                    input,
+                    Int32(frame.count),
+                    outputBaseAddress,
+                    Int32(frameSampleCount),
+                    0
+                )
+                guard decodedCount >= 0 else {
+                    throw AudioServiceError.decodingFailed("Opus decode failed: \(decodedCount)")
+                }
+
+                return Int(decodedCount)
+            }
+        }
+
+        let sampleCount = decodedFrameCount * channels
+        var pcmData = Data(capacity: sampleCount * MemoryLayout<Int16>.size)
+        for sample in decodedSamples.prefix(sampleCount) {
+            var littleEndianSample = sample.littleEndian
+            pcmData.append(withUnsafeBytes(of: &littleEndianSample) { Data($0) })
+        }
+        return pcmData
+    }
+
+    private func decodeLegacyPCMFrames(from opusData: Data, headerLength: Int) -> Data {
+        var offset = headerLength
+        var pcmData = Data()
+
+        while offset + 2 <= opusData.count {
+            guard let frameLength = readUInt16BigEndian(from: opusData, at: offset) else { break }
+
+            offset += 2
+            let frameLengthValue = Int(frameLength)
+            guard frameLengthValue > 0, offset + frameLengthValue <= opusData.count else { break }
+
+            pcmData.append(opusData[offset..<offset + frameLengthValue])
+            offset += frameLengthValue
+        }
+
+        return pcmData
+    }
+
+    private func createOpusEncoder(bitrate: Int) throws -> OpaquePointer {
+        var creationError: Int32 = 0
+        guard let encoder = opus_encoder_create(
+            Int32(Self.sampleRate),
+            Int32(Self.channelCount),
+            Opus.Application.voip.rawValue,
+            &creationError
+        ) else {
+            throw AudioServiceError.encodingFailed("Failed to create Opus encoder: \(creationError)")
+        }
+
+        guard creationError == Opus.Error.ok.rawValue else {
+            opus_encoder_destroy(encoder)
+            throw AudioServiceError.encodingFailed("Failed to create Opus encoder: \(creationError)")
+        }
+
+        guard let encoderControl = Self.opusEncoderControl else {
+            opus_encoder_destroy(encoder)
+            throw AudioServiceError.encodingFailed("Failed to resolve Opus bitrate control function")
+        }
+
+        let bitrateStatus = encoderControl(encoder, OPUS_SET_BITRATE_REQUEST, Int32(bitrate))
+        guard bitrateStatus == Opus.Error.ok.rawValue else {
+            opus_encoder_destroy(encoder)
+            throw AudioServiceError.encodingFailed("Failed to set Opus bitrate: \(bitrateStatus)")
+        }
+
+        return encoder
+    }
+
+    private func createOpusDecoder(sampleRate: Int, channels: Int) throws -> OpaquePointer {
+        var creationError: Int32 = 0
+        guard let decoder = opus_decoder_create(
+            Int32(sampleRate),
+            Int32(channels),
+            &creationError
+        ) else {
+            throw AudioServiceError.decodingFailed("Failed to create Opus decoder: \(creationError)")
+        }
+
+        guard creationError == Opus.Error.ok.rawValue else {
+            opus_decoder_destroy(decoder)
+            throw AudioServiceError.decodingFailed("Failed to create Opus decoder: \(creationError)")
+        }
+
+        return decoder
+    }
+
+    private func makeOpusContainerHeader(bitrate: Int) -> Data {
+        var header = Data(Self.opusContainerMagic)
+        header.append(Self.opusContainerVersion)
+
+        var sampleRate = UInt32(Self.sampleRate).bigEndian
+        header.append(withUnsafeBytes(of: &sampleRate) { Data($0) })
+
+        var bitrateValue = UInt32(bitrate).bigEndian
+        header.append(withUnsafeBytes(of: &bitrateValue) { Data($0) })
+
+        header.append(UInt8(Self.channelCount))
+        return header
+    }
+
+    private func extractPCMData(fromRecordedFileData data: Data) -> Data {
+        let riffMagic: [UInt8] = [0x52, 0x49, 0x46, 0x46] // "RIFF"
+        let waveMagic: [UInt8] = [0x57, 0x41, 0x56, 0x45] // "WAVE"
+        let dataMagic: [UInt8] = [0x64, 0x61, 0x74, 0x61] // "data"
+
+        guard starts(with: riffMagic, in: data), data.count >= 12 else {
+            return data
+        }
+
+        let waveRange = 8..<12
+        guard starts(with: waveMagic, in: Data(data[waveRange])) else {
+            return data
+        }
+
+        var offset = 12
+        while offset + 8 <= data.count {
+            let chunkID = Array(data[offset..<offset + 4])
+            guard let chunkSize = readUInt32LittleEndian(from: data, at: offset + 4) else {
+                break
+            }
+
+            offset += 8
+            let chunkSizeValue = Int(chunkSize)
+            guard offset + chunkSizeValue <= data.count else {
+                break
+            }
+
+            if chunkID == dataMagic {
+                return Data(data[offset..<offset + chunkSizeValue])
+            }
+
+            offset += chunkSizeValue
+            if chunkSizeValue % 2 == 1 {
+                offset += 1
+            }
+        }
+
+        return data
+    }
+
+    private func normalizePCMByteAlignment(_ pcmData: Data) -> Data {
+        guard !pcmData.isEmpty, !pcmData.count.isMultiple(of: Self.pcmBytesPerSample) else {
+            return pcmData
+        }
+
+        var aligned = pcmData
+        aligned.append(0)
+        return aligned
+    }
+
+    private func starts(with prefix: [UInt8], in data: Data) -> Bool {
+        guard data.count >= prefix.count else { return false }
+        return Array(data.prefix(prefix.count)) == prefix
+    }
+
+    private func readUInt16BigEndian(from data: Data, at offset: Int) -> UInt16? {
+        guard offset + 2 <= data.count else { return nil }
+        let upper = UInt16(data[offset]) << 8
+        let lower = UInt16(data[offset + 1])
+        return upper | lower
+    }
+
+    private func readUInt32BigEndian(from data: Data, at offset: Int) -> UInt32? {
+        guard offset + 4 <= data.count else { return nil }
+        let byte0 = UInt32(data[offset]) << 24
+        let byte1 = UInt32(data[offset + 1]) << 16
+        let byte2 = UInt32(data[offset + 2]) << 8
+        let byte3 = UInt32(data[offset + 3])
+        return byte0 | byte1 | byte2 | byte3
+    }
+
+    private func readUInt32LittleEndian(from data: Data, at offset: Int) -> UInt32? {
+        guard offset + 4 <= data.count else { return nil }
+        let byte0 = UInt32(data[offset])
+        let byte1 = UInt32(data[offset + 1]) << 8
+        let byte2 = UInt32(data[offset + 2]) << 16
+        let byte3 = UInt32(data[offset + 3]) << 24
+        return byte0 | byte1 | byte2 | byte3
     }
 
     // MARK: - Private: Recording Metrics
@@ -505,7 +859,7 @@ final class AudioService: NSObject, @unchecked Sendable {
 
     // MARK: - Private: PTT Chunk Emission
 
-    private func emitPTTChunk() {
+    private func emitPTTChunk(flushFinalChunk: Bool = false) {
         guard isRecording, isPTTMode else { return }
 
         // Read current recording data and emit the latest chunk
@@ -518,14 +872,29 @@ final class AudioService: NSObject, @unchecked Sendable {
             return
         }
 
+        let pcmData = extractPCMData(fromRecordedFileData: data)
         let previousLength = accumulatedPCMData.count
-        guard data.count > previousLength else { return }
 
-        let newChunk = data[previousLength...]
-        accumulatedPCMData = data
+        if pcmData.count > previousLength {
+            pendingPTTPCMData.append(pcmData[previousLength...])
+            accumulatedPCMData = pcmData
+        }
 
-        let encoded = encodeToOpus(pcmData: Data(newChunk), bitrate: Self.pttBitrate)
-        delegate?.audioService(self, didRecordChunk: encoded, duration: recordingDuration)
+        guard !pendingPTTPCMData.isEmpty else { return }
+
+        do {
+            let (encoded, remainder) = try encodePCMFramesAsOpus(
+                pendingPTTPCMData,
+                bitrate: Self.pttBitrate,
+                padFinalFrame: flushFinalChunk
+            )
+            pendingPTTPCMData = remainder
+
+            guard !encoded.isEmpty else { return }
+            delegate?.audioService(self, didRecordChunk: encoded, duration: recordingDuration)
+        } catch {
+            logger.warning("Failed to encode PTT audio chunk: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Private: Playback Progress
@@ -612,5 +981,12 @@ extension AudioService: AVAudioPlayerDelegate {
     func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
         stopPlayback()
         delegate?.audioService(self, didFailWithError: .decodingFailed(error?.localizedDescription ?? "Unknown"))
+    }
+}
+
+private extension Collection {
+    subscript(safe index: Index) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
     }
 }

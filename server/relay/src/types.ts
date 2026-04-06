@@ -42,6 +42,7 @@ export const MIN_ADDRESSED_PACKET_SIZE = HEADER_SIZE + PEER_ID_LENGTH + PEER_ID_
 /** Env bindings for the Worker. */
 export interface Env {
   RELAY_ROOM: DurableObjectNamespace;
+  JWT_SECRET?: string;
 }
 
 /** Convert raw bytes to hex-encoded PeerID. */

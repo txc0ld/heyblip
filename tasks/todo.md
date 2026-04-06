@@ -22,3 +22,31 @@
 - [x] Convert non-functional medical responder UI into honest build-state messaging.
 - [x] Run verification and add the second report set under `/reports`.
 - [x] Push the updated branch and refresh the open PR summary.
+
+## Environment Verification Pass
+
+- [x] Verify git remote and recent commit history in `/Users/johnmckean/FezChat`.
+- [x] Verify Linear connectivity and list assigned issues for team `Blip Dev`.
+- [x] Verify Slack connectivity by locating channel `#blip-dev`.
+- [x] Verify the `Blip` simulator build command succeeds.
+- [x] Summarize the verified environment state with branch, latest commit, and assigned issues.
+
+## BDEV-187 Session Tokens
+
+- [x] Node A: Read current auth flow in auth worker, relay worker, WebSocket transport, state sync, and user sync.
+- [x] Nodes B-F: Add JWT issuance, refresh, validation middleware, and protect existing auth-backed endpoints.
+- [x] Node G: Extend auth worker tests for token issuance, refresh, and protected endpoint behavior.
+- [x] Nodes H-I: Add `AuthTokenManager`, wire it through `AppCoordinator`, and persist tokens safely in Keychain.
+- [x] Nodes J-L: Replace raw-key bearer auth in HTTP services and relay transport with a token-provider flow.
+- [x] Nodes N-P: Update relay auth to accept JWTs first, preserve raw-key fallback, and signal expired tokens with close code `4001`.
+- [x] Node M: Run server tests, Swift package tests, `xcodegen generate`, and the simulator build.
+- [x] Node Q: Push `feat/BDEV-187-session-tokens-ORIGINAL`, open a PR linked to `BDEV-187`, and post the update in `#blip-dev`.
+
+## BDEV-181 Opus Codec
+
+- [x] Create the task branch and inspect the existing audio codec paths.
+- [x] Add `swift-opus` to `project.yml` and regenerate the Xcode project.
+- [x] Replace the PCM stub encoder/decoder with real Opus encode/decode and keep backward compatibility for stored voice notes.
+- [x] Update the PTT chunk path to emit real Opus frames instead of raw PCM slices.
+- [x] Run package tests, regenerate the project, and run the simulator build.
+- [x] Push `feat/BDEV-181-opus-codec`, open a PR linked to `BDEV-181`, and post the update in `#blip-dev`.

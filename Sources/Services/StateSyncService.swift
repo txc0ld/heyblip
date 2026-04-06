@@ -25,6 +25,7 @@ final class StateSyncService: @unchecked Sendable {
     // MARK: - Properties
 
     private let keyManager: KeyManager
+    private let authTokenProvider: @Sendable () async throws -> String
     private let logger = Logger(subsystem: "com.blip", category: "StateSync")
     private var syncTimer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.blip.statesync", qos: .utility)
@@ -32,8 +33,14 @@ final class StateSyncService: @unchecked Sendable {
 
     // MARK: - Init
 
-    init(keyManager: KeyManager = .shared) {
+    init(
+        keyManager: KeyManager = .shared,
+        authTokenProvider: @escaping @Sendable () async throws -> String = {
+            try await AuthTokenManager.shared.validToken()
+        }
+    ) {
         self.keyManager = keyManager
+        self.authTokenProvider = authTokenProvider
         observeLowPowerMode()
     }
 
@@ -68,24 +75,23 @@ final class StateSyncService: @unchecked Sendable {
             return nil
         }
 
-        let token = identity.noisePublicKey.rawRepresentation.base64EncodedString()
         guard var components = URLComponents(string: Self.stateEndpoint) else { return nil }
         components.queryItems = [URLQueryItem(name: "peer", value: peerIdHex)]
         guard let url = components.url else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
 
         do {
-            let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
+            let (data, response) = try await performAuthenticatedRequest(request, identity: identity)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 return nil
             }
             return data
         } catch {
             logger.warning("Failed to fetch peer state: \(error.localizedDescription)")
+            await DebugLogger.shared.log("SYNC", "State fetch auth/request failed: \(error.localizedDescription)", isError: true)
             return nil
         }
     }
@@ -115,18 +121,16 @@ final class StateSyncService: @unchecked Sendable {
         let stateData = buildStateBlob(identity: identity)
         guard !stateData.isEmpty else { return }
 
-        let token = identity.noisePublicKey.rawRepresentation.base64EncodedString()
         guard let url = URL(string: Self.stateEndpoint) else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.httpBody = stateData
         request.timeoutInterval = 10
 
         do {
-            let (_, response) = try await ServerConfig.pinnedSession.data(for: request)
+            let (_, response) = try await performAuthenticatedRequest(request, identity: identity)
             guard let http = response as? HTTPURLResponse else { return }
             if http.statusCode == 200 {
                 logger.debug("State uploaded (\(stateData.count) bytes)")
@@ -135,6 +139,7 @@ final class StateSyncService: @unchecked Sendable {
             }
         } catch {
             logger.warning("State upload failed: \(error.localizedDescription)")
+            await DebugLogger.shared.log("SYNC", "State upload auth/request failed: \(error.localizedDescription)", isError: true)
         }
     }
 
@@ -156,6 +161,35 @@ final class StateSyncService: @unchecked Sendable {
         data.append(identity.peerID.bytes)
 
         return data
+    }
+
+    private func performAuthenticatedRequest(
+        _ request: URLRequest,
+        identity: Identity,
+        allowRetry: Bool = true
+    ) async throws -> (Data, URLResponse) {
+        var authorizedRequest = request
+        authorizedRequest.setValue(await authorizationHeaderValue(identity: identity), forHTTPHeaderField: "Authorization")
+
+        let result = try await ServerConfig.pinnedSession.data(for: authorizedRequest)
+        if allowRetry,
+           let http = result.1 as? HTTPURLResponse,
+           http.statusCode == 401 {
+            try? await AuthTokenManager.shared.refreshIfNeeded(force: true)
+            return try await performAuthenticatedRequest(request, identity: identity, allowRetry: false)
+        }
+
+        return result
+    }
+
+    private func authorizationHeaderValue(identity: Identity) async -> String {
+        do {
+            let token = try await authTokenProvider()
+            return "Bearer \(token)"
+        } catch {
+            await DebugLogger.shared.log("AUTH", "JWT token unavailable for StateSyncService: \(error.localizedDescription)", isError: true)
+            return "Bearer \(identity.noisePublicKey.rawRepresentation.base64EncodedString())"
+        }
     }
 
     private func observeLowPowerMode() {
