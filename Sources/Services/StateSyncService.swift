@@ -79,7 +79,7 @@ final class StateSyncService: @unchecked Sendable {
         request.timeoutInterval = 10
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 return nil
             }
@@ -126,7 +126,7 @@ final class StateSyncService: @unchecked Sendable {
         request.timeoutInterval = 10
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await ServerConfig.pinnedSession.data(for: request)
             guard let http = response as? HTTPURLResponse else { return }
             if http.statusCode == 200 {
                 logger.debug("State uploaded (\(stateData.count) bytes)")

@@ -254,7 +254,7 @@ final class EventsViewModel {
             }
 
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let (data, response) = try await ServerConfig.pinnedSession.data(from: url)
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                     DebugLogger.shared.log("APP", "Remote manifest returned non-200 (attempt \(attempt))", isError: true)
                     continue
@@ -335,7 +335,7 @@ final class EventsViewModel {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await ServerConfig.pinnedSession.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 discoveryState = .failed("Failed to fetch events")
                 DebugLogger.shared.log("APP", "Events manifest returned non-200", isError: true)

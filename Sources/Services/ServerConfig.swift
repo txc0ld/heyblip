@@ -28,6 +28,28 @@ enum ServerConfig {
         return url
     }()
 
+    /// Current john-mckean.workers.dev leaf SPKI plus the GTS WE1 issuer backup pin.
+    /// Refresh these when the Workers certificate chain rotates.
+    static let pinnedCertHashes: Set<String> = [
+        "65322daf5b6f90003fcea47d9389234b26435ac1a519b7d7da02de3e9cf07a2f",
+        "908769e8d34477cc2cba0632c88605b22d7294c0840f78596d247c645b1afc0e"
+    ]
+
+    static let pinnedDomains: Set<String> = [
+        "blip-auth.john-mckean.workers.dev",
+        "blip-relay.john-mckean.workers.dev",
+        "blip-cdn.john-mckean.workers.dev"
+    ]
+
+    static let pinnedSession: URLSession = {
+        let delegate = CertificatePinningDelegate(
+            pinnedHashes: pinnedCertHashes,
+            pinnedDomains: pinnedDomains
+        )
+        let config = URLSessionConfiguration.default
+        return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+    }()
+
     static let eventsManifestURL: String = {
         "\(cdnBaseURL)/manifests/events.json"
     }()
