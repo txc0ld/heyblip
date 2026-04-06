@@ -348,8 +348,8 @@ struct NoiseHandshakeValidationTests {
 
     @Test("50 concurrent handshakes all complete successfully")
     func testConcurrentHandshakes() async throws {
-        let initiatorStatic = Curve25519.KeyAgreement.PrivateKey()
-        let responderStatic = Curve25519.KeyAgreement.PrivateKey()
+        let initiatorKeyData = Curve25519.KeyAgreement.PrivateKey().rawRepresentation
+        let responderKeyData = Curve25519.KeyAgreement.PrivateKey().rawRepresentation
 
         let results = try await withThrowingTaskGroup(
             of: (NoiseHandshakeResult, NoiseHandshakeResult).self,
@@ -357,9 +357,15 @@ struct NoiseHandshakeValidationTests {
         ) { group in
             for _ in 0 ..< 50 {
                 group.addTask {
-                    try performHandshake(
-                        initiatorKey: initiatorStatic,
-                        responderKey: responderStatic
+                    let initiatorKey = try Curve25519.KeyAgreement.PrivateKey(
+                        rawRepresentation: initiatorKeyData
+                    )
+                    let responderKey = try Curve25519.KeyAgreement.PrivateKey(
+                        rawRepresentation: responderKeyData
+                    )
+                    return try performHandshake(
+                        initiatorKey: initiatorKey,
+                        responderKey: responderKey
                     )
                 }
             }
