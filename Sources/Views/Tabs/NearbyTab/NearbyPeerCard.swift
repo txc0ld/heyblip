@@ -75,6 +75,14 @@ struct NearbyPeerCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
+        .onChange(of: rssi) { _, newRSSI in
+            NearbyPeerRSSILogThrottler.shared.logIfNeeded(
+                displayName: displayName,
+                username: username,
+                rssi: newRSSI,
+                label: estimatedDistance
+            )
+        }
     }
 
     // MARK: - Avatar
@@ -256,20 +264,11 @@ struct NearbyPeerCard: View {
         let n: Double = 2.5
         let distance = pow(10.0, (txPower - Double(rssi)) / (10.0 * n))
 
-        let label: String
-        if distance < 2 { label = "~1m" }
-        else if distance < 5 { label = "~\(Int(distance))m" }
-        else if distance < 15 { label = "~\(Int(round(distance / 5) * 5))m" }
-        else if distance < 50 { label = "~\(Int(round(distance / 10) * 10))m" }
-        else { label = "50m+" }
-
-        NearbyPeerRSSILogThrottler.shared.logIfNeeded(
-            displayName: displayName,
-            username: username,
-            rssi: rssi,
-            label: label
-        )
-        return label
+        if distance < 2 { return "~1m" }
+        else if distance < 5 { return "~\(Int(distance))m" }
+        else if distance < 15 { return "~\(Int(round(distance / 5) * 5))m" }
+        else if distance < 50 { return "~\(Int(round(distance / 10) * 10))m" }
+        else { return "50m+" }
     }
 
     private var initials: String {

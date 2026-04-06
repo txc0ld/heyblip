@@ -3,6 +3,20 @@ import Foundation
 import UIKit
 #endif
 
+// MARK: - LogLevel
+
+enum LogLevel: Int, Comparable, Sendable {
+    case verbose = 0  // RSSI, packet hex dumps, timer ticks
+    case debug = 1    // Connection state changes, peer discovery
+    case info = 2     // Message sent/received, handshake complete
+    case warning = 3  // Retry, timeout, fallback
+    case error = 4    // Failures
+
+    static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 /// Centralized debug logger for the BLE Debug Overlay.
 ///
 /// Stores recent log entries in-memory for real-time display. Used by
@@ -32,23 +46,38 @@ final class DebugLogger {
     private(set) var entries: [Entry] = []
     private let maxEntries = 500
 
+    /// Minimum log level — messages below this are silently dropped.
+    #if DEBUG
+    var minimumLevel: LogLevel = .debug
+    #else
+    var minimumLevel: LogLevel = .info
+    #endif
+
     /// Deduplication window — identical category+message within this interval is suppressed.
     private let dedupWindow: TimeInterval = 0.5
-    private var lastLogKey: String = ""
-    private var lastLogTime: Date = .distantPast
+    private var recentLogTimes: [String: Date] = [:]
+    private let maxDedupEntries = 20
     private let dedupLock = NSLock()
 
-    func log(_ category: String, _ message: String, isError: Bool = false) {
+    func log(_ category: String, _ message: String, isError: Bool = false, level: LogLevel? = nil) {
+        let resolvedLevel = level ?? (isError ? .error : .info)
+        guard resolvedLevel >= minimumLevel else { return }
+
         // Deduplicate: skip if same category+message was logged within the dedup window.
-        // Lock protects lastLogKey/lastLogTime from concurrent access via emit().
+        // Lock protects recentLogTimes from concurrent access via emit().
         let isDuplicate: Bool = dedupLock.withLock {
             let key = "\(category):\(message)"
             let now = Date()
-            if key == lastLogKey, now.timeIntervalSince(lastLogTime) < dedupWindow {
+
+            // Evict stale dedup entries
+            if recentLogTimes.count > maxDedupEntries {
+                recentLogTimes = recentLogTimes.filter { now.timeIntervalSince($0.value) < dedupWindow }
+            }
+
+            if let lastTime = recentLogTimes[key], now.timeIntervalSince(lastTime) < dedupWindow {
                 return true
             }
-            lastLogKey = key
-            lastLogTime = now
+            recentLogTimes[key] = now
             return false
         }
         if isDuplicate { return }
@@ -66,15 +95,25 @@ final class DebugLogger {
         )
     }
 
+    /// Convenience for verbose-level logs (RSSI, raw bytes, timer ticks).
+    func verbose(_ category: String, _ message: String) {
+        log(category, message, level: .verbose)
+    }
+
     func clear() {
         entries.removeAll()
     }
 
     /// Thread-safe logging entry point for non-MainActor contexts.
     /// Dispatches to the main actor asynchronously.
-    nonisolated static func emit(_ category: String, _ message: String, isError: Bool = false) {
+    nonisolated static func emit(
+        _ category: String,
+        _ message: String,
+        isError: Bool = false,
+        level: LogLevel? = nil
+    ) {
         Task { @MainActor in
-            shared.log(category, message, isError: isError)
+            shared.log(category, message, isError: isError, level: level)
         }
     }
 

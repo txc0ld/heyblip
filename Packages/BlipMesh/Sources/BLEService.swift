@@ -133,7 +133,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     public func start() {
         guard state == .idle || state == .stopped else {
-            print("[Blip-BLE] start() skipped — state is \(state)")
+            transportEventHandler?("BLE", "start() skipped — state is \(state)")
             return
         }
 
@@ -143,8 +143,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         case .denied, .restricted:
             isBluetoothDenied = true
             state = .failed("Bluetooth unauthorized")
-            print("[Blip-BLE] start() aborted — Bluetooth authorization: \(auth.rawValue)")
-            transportEventHandler?("BLE", "Bluetooth permission denied — BLE disabled")
+            transportEventHandler?("BLE", "start() aborted — Bluetooth authorization: \(auth.rawValue)")
             return
         case .notDetermined, .allowedAlways:
             isBluetoothDenied = false
@@ -153,7 +152,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         }
 
         state = .starting
-        print("[Blip-BLE] start() — creating BLE managers")
+        transportEventHandler?("BLE", "start() — creating BLE managers")
 
         // Only create real CB managers if not already injected (test mode).
         if centralManager == nil {
@@ -165,7 +164,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
                     CBCentralManagerOptionShowPowerAlertKey: true,
                 ]
             )
-            print("[Blip-BLE] CBCentralManager created")
+            transportEventHandler?("BLE", "CBCentralManager created")
         }
 
         if peripheralManager == nil {
@@ -176,7 +175,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
                     CBPeripheralManagerOptionRestoreIdentifierKey: BLEConstants.peripheralRestorationID,
                 ]
             )
-            print("[Blip-BLE] CBPeripheralManager created")
+            transportEventHandler?("BLE", "CBPeripheralManager created")
         }
     }
 
@@ -293,7 +292,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     private func startScanning() {
         guard centralManager?.cmState == .poweredOn else {
-            print("[Blip-BLE] startScanning() skipped — central not poweredOn")
+            transportEventHandler?("BLE", "startScanning() skipped — central not poweredOn")
             return
         }
         guard !isScanning else { return }
@@ -303,9 +302,8 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             services: [BLEConstants.serviceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
-        print("[Blip-BLE] Scanning STARTED for service \(BLEConstants.serviceUUID.uuidString)")
         logger.info("BLE scanning started")
-        transportEventHandler?("BLE", "Scan STARTED")
+        transportEventHandler?("BLE", "Scan STARTED for service \(BLEConstants.serviceUUID.uuidString)")
 
         scheduleScanCycle()
         startRSSIPolling()
@@ -391,18 +389,18 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     private func startAdvertising() {
         guard peripheralManager?.pmState == .poweredOn else {
-            print("[Blip-BLE] startAdvertising() skipped — peripheral manager not poweredOn")
+            transportEventHandler?("BLE", "startAdvertising() skipped — peripheral manager not poweredOn")
             return
         }
 
         // If service already exists (e.g. from state restoration), skip straight to advertising
         if service != nil, characteristic != nil {
-            print("[Blip-BLE] Service already exists (restored), skipping to beginAdvertising()")
+            transportEventHandler?("BLE", "Service already exists (restored), skipping to beginAdvertising()")
             beginAdvertising()
             return
         }
 
-        print("[Blip-BLE] Creating service and characteristic")
+        transportEventHandler?("BLE", "Creating service and characteristic")
         let mutableCharacteristic = CBMutableCharacteristic(
             type: BLEConstants.characteristicUUID,
             properties: [.write, .writeWithoutResponse, .notify, .read],
@@ -419,16 +417,16 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         self.service = mutableService
 
         peripheralManager?.bleAddService(mutableService)
-        print("[Blip-BLE] Called bleAddService — waiting for didAdd callback")
+        transportEventHandler?("BLE", "Called bleAddService — waiting for didAdd callback")
     }
 
     private func beginAdvertising() {
         guard peripheralManager?.pmState == .poweredOn else {
-            print("[Blip-BLE] beginAdvertising() skipped — peripheral manager not poweredOn")
+            transportEventHandler?("BLE", "beginAdvertising() skipped — peripheral manager not poweredOn")
             return
         }
         guard peripheralManager?.bleIsAdvertising == false else {
-            print("[Blip-BLE] beginAdvertising() skipped — already advertising")
+            transportEventHandler?("BLE", "beginAdvertising() skipped — already advertising")
             return
         }
 
@@ -436,8 +434,8 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             CBAdvertisementDataServiceUUIDsKey: [BLEConstants.serviceUUID],
             CBAdvertisementDataLocalNameKey: "Blip",
         ])
-        print("[Blip-BLE] Advertising STARTED for service \(BLEConstants.serviceUUID.uuidString)")
         logger.info("BLE advertising started")
+        transportEventHandler?("BLE", "Advertising STARTED for service \(BLEConstants.serviceUUID.uuidString)")
     }
 
     // MARK: - Connection management
@@ -493,8 +491,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     /// Handle central manager state change.
     func handleCentralStateChange(_ newState: CBManagerState) {
-        print("[Blip-BLE] Central state changed: \(newState.rawValue) (\(newState.debugName))")
-        transportEventHandler?("BLE", "Central state → \(newState.debugName)")
+        transportEventHandler?("BLE", "Central state → \(newState.debugName) (\(newState.rawValue))")
         switch newState {
         case .poweredOn:
             logger.info("Central powered on")
@@ -520,8 +517,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     /// Handle peripheral manager state change.
     func handlePeripheralManagerStateChange(_ newState: CBManagerState) {
-        print("[Blip-BLE] Peripheral manager state changed: \(newState.rawValue) (\(newState.debugName))")
-        transportEventHandler?("BLE", "Peripheral mgr state → \(newState.debugName)")
+        transportEventHandler?("BLE", "Peripheral mgr state → \(newState.debugName) (\(newState.rawValue))")
         switch newState {
         case .poweredOn:
             logger.info("Peripheral manager powered on")
@@ -545,11 +541,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Handle peripheral discovery.
     func handleDidDiscover(peripheral: any BLEPeripheralProxy, rssi: Int) {
         guard rssi != 127 else {
-            print("[Blip-BLE] Discovered peripheral \(peripheral.identifier) but RSSI unavailable (127), skipping")
+            transportEventHandler?("BLE", "Discovered peripheral \(peripheral.identifier) but RSSI unavailable (127), skipping")
             return
         }
 
-        print("[Blip-BLE] Discovered peripheral \(peripheral.identifier), RSSI: \(rssi)")
+        transportEventHandler?("BLE", "Discovered peripheral \(peripheral.identifier.uuidString.prefix(8)), RSSI: \(rssi)")
 
         // Always store latest RSSI for this peripheral
         lock.withLock { peripheralRSSI[peripheral.identifier] = rssi }
@@ -557,7 +553,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         pruneTimedOutPeripherals()
 
         guard shouldConnect(toUUID: peripheral.identifier, rssi: rssi) else {
-            print("[Blip-BLE] shouldConnect returned false for \(peripheral.identifier)")
+            transportEventHandler?("BLE", "shouldConnect returned false for \(peripheral.identifier.uuidString.prefix(8))")
             return
         }
 
@@ -567,7 +563,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         }
 
         logger.info("Connecting to peripheral \(peripheral.identifier), RSSI: \(rssi)")
-        print("[Blip-BLE] Connecting to peripheral \(peripheral.identifier)")
+        transportEventHandler?("BLE", "Connecting to peripheral \(peripheral.identifier.uuidString.prefix(8))")
         (peripheral as? CBPeripheral)?.delegate = self
         centralManager?.bleConnect(peripheral, options: nil)
 
@@ -597,7 +593,6 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     /// Handle successful connection.
     func handleDidConnect(peripheral: any BLEPeripheralProxy) {
-        print("[Blip-BLE] CONNECTED to peripheral \(peripheral.identifier)")
         logger.info("Connected to peripheral \(peripheral.identifier)")
         transportEventHandler?("BLE", "CONNECTED peripheral \(peripheral.identifier.uuidString.prefix(8))")
 
@@ -960,11 +955,11 @@ extension BLEService: CBPeripheralManagerDelegate {
         _ peripheral: CBPeripheralManager,
         willRestoreState dict: [String: Any]
     ) {
-        print("[Blip-BLE] Peripheral manager restoring state")
         logger.info("Peripheral manager restoring state")
+        transportEventHandler?("BLE", "Peripheral manager restoring state")
 
         if let services = dict[CBPeripheralManagerRestoredStateServicesKey] as? [CBMutableService] {
-            print("[Blip-BLE] Restored \(services.count) service(s)")
+            transportEventHandler?("BLE", "Restored \(services.count) service(s)")
             for svc in services {
                 self.service = svc
                 if let chars = svc.characteristics {
@@ -972,13 +967,13 @@ extension BLEService: CBPeripheralManagerDelegate {
                         if char.uuid == BLEConstants.characteristicUUID,
                            let mutableChar = char as? CBMutableCharacteristic {
                             self.characteristic = mutableChar
-                            print("[Blip-BLE] Restored characteristic \(char.uuid.uuidString)")
+                            transportEventHandler?("BLE", "Restored characteristic \(char.uuid.uuidString)")
                         }
                     }
                 }
             }
         } else {
-            print("[Blip-BLE] No services to restore")
+            transportEventHandler?("BLE", "No services to restore")
         }
     }
 
@@ -988,11 +983,11 @@ extension BLEService: CBPeripheralManagerDelegate {
         error: Error?
     ) {
         if let error = error {
-            print("[Blip-BLE] didAdd service FAILED: \(error.localizedDescription)")
             logger.error("Failed to add service: \(error.localizedDescription)")
+            transportEventHandler?("BLE", "didAdd service FAILED: \(error.localizedDescription)")
         } else {
-            print("[Blip-BLE] Service added successfully, calling beginAdvertising()")
             logger.info("Service added, beginning advertising")
+            transportEventHandler?("BLE", "Service added successfully, calling beginAdvertising()")
             beginAdvertising()
         }
     }
@@ -1002,10 +997,10 @@ extension BLEService: CBPeripheralManagerDelegate {
         error: Error?
     ) {
         if let error = error {
-            print("[Blip-BLE] Advertising FAILED: \(error.localizedDescription)")
             logger.error("Advertising failed: \(error.localizedDescription)")
+            transportEventHandler?("BLE", "Advertising FAILED: \(error.localizedDescription)")
         } else {
-            print("[Blip-BLE] Advertising CONFIRMED started successfully")
+            transportEventHandler?("BLE", "Advertising CONFIRMED started successfully")
         }
     }
 
@@ -1014,7 +1009,6 @@ extension BLEService: CBPeripheralManagerDelegate {
         central: CBCentral,
         didSubscribeTo characteristic: CBCharacteristic
     ) {
-        print("[Blip-BLE] Central SUBSCRIBED: \(central.identifier)")
         logger.info("Central subscribed: \(central.identifier)")
         transportEventHandler?("BLE", "Central SUBSCRIBED \(central.identifier.uuidString.prefix(8))")
 

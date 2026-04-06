@@ -510,7 +510,7 @@ final class MessageService: @unchecked Sendable {
     func receive(data: Data, from peerID: PeerID, via ingressTransport: PeerIngressTransport) {
         let transportData = peerID.bytes
         let peerHex = transportData.prefix(4).map { String(format: "%02x", $0) }.joined()
-        DebugLogger.emit("RX", "receive(): \(data.count)B from \(peerHex)")
+        DebugLogger.emit("RX", "receive(): \(data.count)B from \(peerHex)", level: .verbose)
 
         messageQueue.async { [weak self] in
             guard let self else { return }
@@ -519,7 +519,7 @@ final class MessageService: @unchecked Sendable {
             let packet: Packet
             do {
                 packet = try PacketSerializer.decode(data)
-                DebugLogger.emit("RX", "Decoded packet: type=\(packet.type) flags=\(packet.flags)")
+                DebugLogger.emit("RX", "Decoded packet: type=\(packet.type) flags=\(packet.flags)", level: .verbose)
             } catch {
                 DebugLogger.emit("RX", "DESERIALIZE FAILED: \(error)", isError: true)
                 return
@@ -556,7 +556,7 @@ final class MessageService: @unchecked Sendable {
                             DebugLogger.emit("RX", "SIG INVALID from \(senderHex) key=\(keyPrefix) — dropped", isError: true)
                             return
                         }
-                        DebugLogger.emit("RX", "SIG OK from \(senderHex) key=\(keyPrefix)")
+                        DebugLogger.emit("RX", "SIG OK from \(senderHex) key=\(keyPrefix)", level: .verbose)
                         self.lock.withLock { _ = self.unverifiedPacketCounts.removeValue(forKey: senderData) }
                     } catch {
                         DebugLogger.emit("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
@@ -577,9 +577,9 @@ final class MessageService: @unchecked Sendable {
                             DebugLogger.emit("RX", "UNVERIFIED LIMIT: \(senderHex) sent \(count) packets without announcing — DROPPED", isError: true)
                             return
                         }
-                        DebugLogger.emit("RX", "No signing key for \(senderHex) — accepting unverified (\(count)/\(Self.maxUnverifiedPackets))")
+                        DebugLogger.emit("RX", "No signing key for \(senderHex) — accepting unverified (\(count)/\(Self.maxUnverifiedPackets))", level: .debug)
                     } else {
-                        DebugLogger.emit("RX", "No signing key for \(senderHex) — exempt (handshake/friend)")
+                        DebugLogger.emit("RX", "No signing key for \(senderHex) — exempt (handshake/friend)", level: .debug)
                     }
                 }
             }
@@ -587,11 +587,11 @@ final class MessageService: @unchecked Sendable {
             // Deduplicate via Bloom filter
             let packetIDData = MessagePayloadBuilder.buildPacketID(packet)
             if self.bloomFilter.contains(packetIDData) {
-                DebugLogger.emit("RX", "DUPLICATE packet — skipping")
+                DebugLogger.emit("RX", "DUPLICATE packet — skipping", level: .verbose)
                 return
             }
             self.bloomFilter.insert(packetIDData)
-            DebugLogger.emit("RX", "Bloom: new packet, inserted")
+            DebugLogger.emit("RX", "Bloom: new packet, inserted", level: .verbose)
 
             // Dispatch handler to MainActor for SwiftData writes
             Task { @MainActor [weak self] in
@@ -642,7 +642,7 @@ final class MessageService: @unchecked Sendable {
         identity: Identity,
         messageID: UUID?
     ) async throws {
-        DebugLogger.emit("DM", "encryptAndSend: subType=\(subType) payloadSize=\(payload.count)")
+        DebugLogger.emit("DM", "encryptAndSend: subType=\(subType) payloadSize=\(payload.count)", level: .verbose)
         let taggedPayload = MessagePayloadBuilder.prependSubType(subType, to: payload)
 
         // Determine compression: skip for pre-compressed types
@@ -650,7 +650,7 @@ final class MessageService: @unchecked Sendable {
         let compressed = PayloadCompressor.compressIfNeeded(taggedPayload, isPreCompressed: isPreCompressed)
 
         let ratio = taggedPayload.count > 0 ? Double(compressed.data.count) / Double(taggedPayload.count) : 1.0
-        DebugLogger.emit("TX", "Compression: \(taggedPayload.count)B → \(compressed.data.count)B (ratio=\(String(format: "%.2f", ratio)), compressed=\(compressed.wasCompressed))")
+        DebugLogger.emit("TX", "Compression: \(taggedPayload.count)B → \(compressed.data.count)B (ratio=\(String(format: "%.2f", ratio)), compressed=\(compressed.wasCompressed))", level: .verbose)
 
         // Build flags
         var flags: PacketFlags = [.isReliable]
@@ -673,7 +673,7 @@ final class MessageService: @unchecked Sendable {
             if let session = noiseSessionManager?.getSession(for: recipientPeerID) {
                 // Encrypt with Noise session
                 let ciphertext = try session.encrypt(plaintext: compressed.data)
-                DebugLogger.emit("DM", "encryptAndSend: Noise encrypted \(compressed.data.count)B → \(ciphertext.count)B → \(recipientHex)")
+                DebugLogger.emit("DM", "encryptAndSend: Noise encrypted \(compressed.data.count)B → \(ciphertext.count)B → \(recipientHex)", level: .verbose)
 
                 let packet = MessagePayloadBuilder.buildPacket(
                     type: .noiseEncrypted,
@@ -685,7 +685,7 @@ final class MessageService: @unchecked Sendable {
                 try await sendPacket(packet)
             } else if try await initiateHandshakeIfNeeded(with: recipientPeerID) {
                 // Handshake initiated — queue this message
-                DebugLogger.emit("DM", "encryptAndSend: queuing message for \(recipientHex) pending handshake")
+                DebugLogger.emit("DM", "encryptAndSend: queuing message for \(recipientHex) pending handshake", level: .debug)
                 let pending = PendingEncryptedMessage(
                     payload: payload,
                     subType: subType,
@@ -748,7 +748,7 @@ final class MessageService: @unchecked Sendable {
                 if let identity = self.getIdentity() {
                     do {
                         signed = try Signer.sign(packet: packet, secretKey: identity.signingSecretKey)
-                        DebugLogger.emit("TX", "Ed25519 signing OK")
+                        DebugLogger.emit("TX", "Ed25519 signing OK", level: .verbose)
                     } catch {
                         DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned", isError: true)
                         CrashReportingService.shared.captureError(error, context: ["operation": "ed25519_sign"])
@@ -774,15 +774,15 @@ final class MessageService: @unchecked Sendable {
             let recipientHex = recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
             do {
                 try transport.send(data: wireData, to: recipientID)
-                DebugLogger.emit("TX", "SENT \(wireData.count)B → \(recipientHex) (peer-specific)")
+                DebugLogger.emit("TX", "SENT \(wireData.count)B → \(recipientHex) (peer-specific)", level: .verbose)
             } catch {
                 DebugLogger.emit("TX", "SEND FAILED to \(recipientHex): \(error) — fallback broadcast", isError: true)
                 transport.broadcast(data: wireData)
-                DebugLogger.emit("TX", "BROADCAST fallback \(wireData.count)B")
+                DebugLogger.emit("TX", "BROADCAST fallback \(wireData.count)B", level: .verbose)
             }
         } else {
             transport.broadcast(data: wireData)
-            DebugLogger.emit("TX", "BROADCAST \(wireData.count)B")
+            DebugLogger.emit("TX", "BROADCAST \(wireData.count)B", level: .verbose)
         }
     }
 
