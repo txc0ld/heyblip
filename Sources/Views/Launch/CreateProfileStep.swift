@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import BlipCrypto
+import PhotosUI
 
 // MARK: - CreateProfileStep
 
@@ -19,7 +20,7 @@ struct CreateProfileStep: View {
     @State private var isVerifyingCode = false
     @State private var isEmailVerified = false
     @State private var isCreatingIdentity = false
-    @State private var showAvatarPicker = false
+    @State private var selectedAvatarItem: PhotosPickerItem?
     @State private var selectedAvatarImage: UIImage? = nil
     @State private var usernameError: String? = nil
     @State private var emailError: String? = nil
@@ -116,9 +117,7 @@ struct CreateProfileStep: View {
     // MARK: - Avatar Section
 
     private var avatarSection: some View {
-        Button {
-            showAvatarPicker = true
-        } label: {
+        PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
             ZStack {
                 if let image = selectedAvatarImage {
                     Image(uiImage: image)
@@ -159,6 +158,18 @@ struct CreateProfileStep: View {
         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
         .accessibilityLabel("Choose profile photo")
         .accessibilityAddTraits(.isButton)
+        .onChange(of: selectedAvatarItem) { _, newItem in
+            Task {
+                do {
+                    if let data = try await newItem?.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        selectedAvatarImage = uiImage
+                    }
+                } catch {
+                    DebugLogger.shared.log("AUTH", "Failed to load avatar image: \(error.localizedDescription)", isError: true)
+                }
+            }
+        }
     }
 
     // MARK: - Username Field
