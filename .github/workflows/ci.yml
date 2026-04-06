@@ -15,6 +15,8 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.3.app/Contents/Developer
 
     steps:
       - name: Checkout repository
@@ -27,7 +29,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('Blip.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Packages/BlipProtocol/Package.resolved', 'Packages/BlipCrypto/Package.resolved', 'Packages/BlipMesh/Package.resolved') }}
+          key: ${{ runner.os }}-spm-${{ hashFiles('Packages/**/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-spm-
 
