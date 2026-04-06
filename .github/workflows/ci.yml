@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install xcodegen libsodium
+
+      - name: Cache Swift package dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('Blip.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Packages/BlipProtocol/Package.resolved', 'Packages/BlipCrypto/Package.resolved', 'Packages/BlipMesh/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Test BlipProtocol
+        run: swift test --package-path Packages/BlipProtocol
+
+      - name: Test BlipCrypto
+        run: swift test --package-path Packages/BlipCrypto
+
+      - name: Test BlipMesh
+        run: swift test --package-path Packages/BlipMesh
+
+      - name: Build app
+        run: >
+          xcodebuild -scheme Blip
+          -destination 'platform=iOS Simulator,OS=latest,name=iPhone 16 Pro'
+          -skipPackagePluginValidation
+          CODE_SIGN_IDENTITY=""
+          CODE_SIGNING_ALLOWED=NO
+          -quiet
+
+  server-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and test auth worker
+        working-directory: server/auth
+        run: |
+          npm ci
+          npm test
