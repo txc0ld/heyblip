@@ -311,7 +311,7 @@ final class UserSyncService: Sendable {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
 
         guard let http = response as? HTTPURLResponse else {
             throw SyncError.networkError("Invalid response")
@@ -354,7 +354,7 @@ final class UserSyncService: Sendable {
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ServerConfig.pinnedSession.data(for: request)
 
         guard let http = response as? HTTPURLResponse else {
             throw SyncError.networkError("Invalid response")
@@ -514,7 +514,7 @@ final class UserSyncService: Sendable {
         }
 
         do {
-            return try await URLSession.shared.data(for: request)
+            return try await ServerConfig.pinnedSession.data(for: request)
         } catch {
             throw SyncError.networkError(error.localizedDescription)
         }
@@ -530,7 +530,7 @@ final class UserSyncService: Sendable {
         request.timeoutInterval = 15
 
         do {
-            return try await URLSession.shared.data(for: request)
+            return try await ServerConfig.pinnedSession.data(for: request)
         } catch {
             throw SyncError.networkError(error.localizedDescription)
         }

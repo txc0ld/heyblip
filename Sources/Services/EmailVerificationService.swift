@@ -124,7 +124,7 @@ final class EmailVerificationService: Sendable {
         }
 
         do {
-            return try await URLSession.shared.data(for: request)
+            return try await ServerConfig.pinnedSession.data(for: request)
         } catch {
             throw EmailVerificationError.networkError(error.localizedDescription)
         }
