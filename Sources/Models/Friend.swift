@@ -9,6 +9,11 @@ enum FriendStatus: String, Codable, CaseIterable {
     case blocked
 }
 
+enum FriendRequestDirection: String, Codable, CaseIterable {
+    case incoming
+    case outgoing
+}
+
 enum LocationPrecision: String, Codable, CaseIterable {
     case precise
     case fuzzy
@@ -32,6 +37,7 @@ final class Friend {
     var lastSeenLongitude: Double?
     var lastSeenAt: Date?
     var nickname: String?
+    var requestDirectionRaw: String?
 
     @Relationship
     var lastMessage: Message?
@@ -51,6 +57,14 @@ final class Friend {
     var status: FriendStatus {
         get { FriendStatus(rawValue: statusRaw) ?? .pending }
         set { statusRaw = newValue.rawValue }
+    }
+
+    var requestDirection: FriendRequestDirection? {
+        get {
+            guard let raw = requestDirectionRaw else { return nil }
+            return FriendRequestDirection(rawValue: raw)
+        }
+        set { requestDirectionRaw = newValue?.rawValue }
     }
 
     var locationPrecision: LocationPrecision {
@@ -75,6 +89,7 @@ final class Friend {
         id: UUID = UUID(),
         user: User? = nil,
         status: FriendStatus = .pending,
+        requestDirection: FriendRequestDirection? = nil,
         phoneVerified: Bool = false,
         locationSharingEnabled: Bool = false,
         locationPrecision: LocationPrecision = .off,
@@ -88,6 +103,7 @@ final class Friend {
         self.id = id
         self.user = user
         self.statusRaw = status.rawValue
+        self.requestDirectionRaw = requestDirection?.rawValue
         self.phoneVerified = phoneVerified
         self.locationSharingEnabled = locationSharingEnabled
         self.locationPrecisionRaw = locationPrecision.rawValue

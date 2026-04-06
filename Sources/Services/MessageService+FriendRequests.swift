@@ -133,7 +133,12 @@ extension MessageService {
         let peerData = peerID.bytes
         if let peerInfo = peerStore.findPeer(byPeerIDBytes: peerData) {
             let remoteUser = try resolveOrCreateUser(for: peerInfo, context: context)
-            try createOrUpdateFriend(user: remoteUser, status: .pending, context: context)
+            try createOrUpdateFriend(
+                user: remoteUser,
+                status: .pending,
+                direction: .outgoing,
+                context: context
+            )
         }
 
         let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
@@ -298,7 +303,12 @@ extension MessageService {
         await fetchRemoteKeysIfNeeded(for: senderUser, context: context)
 
         // Create Friend record with pending status (or update if exists)
-        try createOrUpdateFriend(user: senderUser, status: .pending, context: context)
+        try createOrUpdateFriend(
+            user: senderUser,
+            status: .pending,
+            direction: .incoming,
+            context: context
+        )
 
         logger.info("Received friend request from \(senderUser.username)")
 
@@ -372,6 +382,13 @@ extension MessageService {
         if let friend = try context.fetch(friendDesc).first {
             friend.statusRaw = FriendStatus.accepted.rawValue
             try context.save()
+        } else {
+            try createOrUpdateFriend(
+                user: resolvedUser,
+                status: .accepted,
+                direction: .outgoing,
+                context: context
+            )
         }
 
         // Ensure user has keys before DM channel creation
@@ -540,7 +557,12 @@ extension MessageService {
 
     /// Create or update a Friend record for a given user.
     @MainActor
-    func createOrUpdateFriend(user: User, status: FriendStatus, context: ModelContext) throws {
+    func createOrUpdateFriend(
+        user: User,
+        status: FriendStatus,
+        direction: FriendRequestDirection? = nil,
+        context: ModelContext
+    ) throws {
         let userID = user.id
         let existingDesc = FetchDescriptor<Friend>(predicate: #Predicate {
             $0.user?.id == userID
@@ -550,6 +572,9 @@ extension MessageService {
             if existing.status != .accepted || status == .accepted {
                 existing.statusRaw = status.rawValue
             }
+            if let direction {
+                existing.requestDirection = direction
+            }
             try context.save()
             return
         }
@@ -558,6 +583,7 @@ extension MessageService {
             user: user,
             status: status
         )
+        friend.requestDirection = direction
         context.insert(friend)
         try context.save()
     }
