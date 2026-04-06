@@ -97,6 +97,11 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Parameters: (category: String, message: String)
     public var transportEventHandler: ((String, String) -> Void)?
 
+    // MARK: - Authorization
+
+    /// Whether Bluetooth permission has been denied or restricted by the user.
+    public private(set) var isBluetoothDenied: Bool = false
+
     // MARK: - Local peer ID
 
     /// The local device's PeerID, derived from its Noise public key.
@@ -131,6 +136,22 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             print("[Blip-BLE] start() skipped — state is \(state)")
             return
         }
+
+        // Pre-check Bluetooth authorization before creating managers.
+        let auth = CBManager.authorization
+        switch auth {
+        case .denied, .restricted:
+            isBluetoothDenied = true
+            state = .failed("Bluetooth unauthorized")
+            print("[Blip-BLE] start() aborted — Bluetooth authorization: \(auth.rawValue)")
+            transportEventHandler?("BLE", "Bluetooth permission denied — BLE disabled")
+            return
+        case .notDetermined, .allowedAlways:
+            isBluetoothDenied = false
+        @unknown default:
+            isBluetoothDenied = false
+        }
+
         state = .starting
         print("[Blip-BLE] start() — creating BLE managers")
 
@@ -156,6 +177,28 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
                 ]
             )
             print("[Blip-BLE] CBPeripheralManager created")
+        }
+    }
+
+    /// Re-evaluate Bluetooth authorization (e.g. after returning from Settings).
+    /// If authorization changed to allowed, initializes BLE managers and starts.
+    public func recheckAuthorization() {
+        let auth = CBManager.authorization
+        switch auth {
+        case .denied, .restricted:
+            isBluetoothDenied = true
+            if state != .failed("Bluetooth unauthorized") {
+                state = .failed("Bluetooth unauthorized")
+            }
+        case .allowedAlways:
+            guard isBluetoothDenied else { return }
+            isBluetoothDenied = false
+            state = .stopped
+            start()
+        case .notDetermined:
+            isBluetoothDenied = false
+        @unknown default:
+            isBluetoothDenied = false
         }
     }
 
