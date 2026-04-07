@@ -416,6 +416,81 @@ describe("RelayRoom drain retry behavior", () => {
       (room as unknown as { drainRetryCount: Map<PeerIDHex, number> }).drainRetryCount.has(peerHex)
     ).toBe(false);
   });
+
+  it("serializes concurrent drains for the same peer (BDEV-205)", async () => {
+    // Regression test for the rapid disconnect/reconnect race that caused
+    // duplicate packet delivery and double-deletes on the same storage keys.
+    // Two scheduleDrain calls back-to-back must NOT both read+send the same
+    // queued packets. The second drain should run after the first finishes,
+    // and by then the storage will be empty.
+    const peerHex = "ffeeddccbbaa9988";
+    const now = Date.now();
+    const storage = new FakeStorage();
+    storage.seed([
+      [`q:${peerHex}:0001:a`, queuedPacketEntry(now)],
+      [`q:${peerHex}:0002:b`, queuedPacketEntry(now)],
+      [`q:${peerHex}:0003:c`, queuedPacketEntry(now)],
+    ]);
+
+    const room = makeRelayRoom(storage);
+    const send = vi.fn<(payload: ArrayBuffer) => void>().mockImplementation(() => {});
+    const ws = { send } as unknown as WebSocket;
+
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+    }).peers.set(peerHex, ws);
+
+    // Fire two drains in rapid succession (simulating rapid reconnect).
+    const first = (room as unknown as {
+      scheduleDrain(peerHex: PeerIDHex, ws: WebSocket): Promise<void>;
+    }).scheduleDrain(peerHex, ws);
+    const second = (room as unknown as {
+      scheduleDrain(peerHex: PeerIDHex, ws: WebSocket): Promise<void>;
+    }).scheduleDrain(peerHex, ws);
+
+    await Promise.all([first, second]);
+
+    // Each queued packet must be sent exactly once, even though two drains
+    // were scheduled concurrently.
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(storage.keys()).toEqual([]);
+  });
+
+  it("does not deliver queued packets to a stale socket", async () => {
+    // If the active socket for a peer gets replaced before a scheduled drain
+    // runs (e.g. fast reconnect on a new socket), the original drain must
+    // NOT send queued packets to the stale socket.
+    const peerHex = "1122334455667788";
+    const now = Date.now();
+    const storage = new FakeStorage();
+    storage.seed([[`q:${peerHex}:0001:a`, queuedPacketEntry(now)]]);
+
+    const room = makeRelayRoom(storage);
+    const sendOld = vi.fn<(payload: ArrayBuffer) => void>().mockImplementation(() => {});
+    const oldWs = { send: sendOld } as unknown as WebSocket;
+    const newWs = { send: () => {} } as unknown as WebSocket;
+
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+    }).peers.set(peerHex, oldWs);
+
+    // Schedule a drain for oldWs, then swap the active socket synchronously
+    // before any microtask runs.
+    const drain = (room as unknown as {
+      scheduleDrain(peerHex: PeerIDHex, ws: WebSocket): Promise<void>;
+    }).scheduleDrain(peerHex, oldWs);
+
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+    }).peers.set(peerHex, newWs);
+
+    await drain;
+
+    // Old socket must not have received the queued packet.
+    expect(sendOld).not.toHaveBeenCalled();
+    // The packet must remain queued for the new socket's drain.
+    expect(storage.keys()).toEqual([`q:${peerHex}:0001:a`]);
+  });
 });
 
 // --- Integration Tests: HTTP Endpoints ---
