@@ -29,7 +29,10 @@ final class Message {
     var sender: User?
     var channel: Channel?
     var typeRaw: String
-    var encryptedPayload: Data
+    /// Raw payload data for retry. For text messages this is plaintext UTF-8.
+    /// For voice/image messages this is empty (retry reconstructs from attachments).
+    /// Named 'rawPayload' to prevent confusion with ciphertext.
+    var rawPayload: Data
     var statusRaw: String
 
     @Relationship(deleteRule: .nullify)
@@ -79,7 +82,7 @@ final class Message {
         sender: User? = nil,
         channel: Channel? = nil,
         type: MessageType = .text,
-        encryptedPayload: Data = Data(),
+        rawPayload: Data = Data(),
         status: MessageStatus = .queued,
         replyTo: Message? = nil,
         fragmentID: UUID? = nil,
@@ -94,7 +97,7 @@ final class Message {
         self.sender = sender
         self.channel = channel
         self.typeRaw = type.rawValue
-        self.encryptedPayload = encryptedPayload
+        self.rawPayload = rawPayload
         self.statusRaw = status.rawValue
         self.replyTo = replyTo
         self.fragmentID = fragmentID

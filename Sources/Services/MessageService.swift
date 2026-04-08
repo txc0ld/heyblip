@@ -238,7 +238,7 @@ final class MessageService: @unchecked Sendable {
             sender: nil, // Local user, resolved via identity
             channel: localChannel,
             type: .text,
-            encryptedPayload: content.data(using: .utf8) ?? Data(),
+            rawPayload: content.data(using: .utf8) ?? Data(),
             status: .queued,
             replyTo: localReplyTo,
             createdAt: Date()
@@ -317,7 +317,7 @@ final class MessageService: @unchecked Sendable {
         let message = Message(
             channel: localChannel,
             type: .voiceNote,
-            encryptedPayload: Data(),
+            rawPayload: Data(),
             status: .queued,
             createdAt: Date()
         )
@@ -381,7 +381,7 @@ final class MessageService: @unchecked Sendable {
         let message = Message(
             channel: localChannel,
             type: .image,
-            encryptedPayload: Data(),
+            rawPayload: Data(),
             status: .queued,
             createdAt: Date()
         )
@@ -1317,7 +1317,7 @@ final class MessageService: @unchecked Sendable {
 
         switch message.type {
         case .text:
-            guard let content = String(data: message.encryptedPayload, encoding: .utf8) else {
+            guard let content = String(data: message.rawPayload, encoding: .utf8) else {
                 throw MessageServiceError.serializationFailed("Queued text payload could not be decoded")
             }
             if channel.isGroup {

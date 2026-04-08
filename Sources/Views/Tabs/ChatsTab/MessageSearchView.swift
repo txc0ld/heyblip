@@ -225,7 +225,7 @@ struct MessageSearchView: View {
             let messages = try modelContext.fetch(descriptor)
                 .sorted { $0.createdAt > $1.createdAt }
             searchResults = messages.compactMap { message in
-                guard let text = String(data: message.encryptedPayload, encoding: .utf8),
+                guard let text = String(data: message.rawPayload, encoding: .utf8),
                       text.localizedCaseInsensitiveContains(query) else { return nil }
                 return MessageSearchResult(
                     id: message.id,

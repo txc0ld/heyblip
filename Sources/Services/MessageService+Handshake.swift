@@ -542,7 +542,7 @@ extension MessageService {
             sender: senderUser,
             channel: channel,
             type: .text,
-            encryptedPayload: content,
+            rawPayload: content,
             status: .delivered,
             createdAt: timestamp
         )
@@ -630,7 +630,7 @@ extension MessageService {
             sender: senderUser,
             channel: channel,
             type: type == .voiceNote ? .voiceNote : .image,
-            encryptedPayload: Data(),
+            rawPayload: Data(),
             status: .delivered,
             createdAt: timestamp
         )
@@ -688,7 +688,7 @@ extension MessageService {
         let message = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: content,
+            rawPayload: content,
             status: .delivered,
             createdAt: packet.date
         )
@@ -744,7 +744,7 @@ extension MessageService {
         let message = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: packet.payload,
+            rawPayload: packet.payload,
             status: .delivered,
             createdAt: packet.date
         )

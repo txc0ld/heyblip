@@ -284,13 +284,13 @@ struct ChatView: View {
                 senderAvatarData: message.sender?.avatarThumbnail,
                 isFromMe: message.sender == nil,
                 showSenderName: conversation.ringStyle == .none,
-                text: String(data: message.encryptedPayload, encoding: .utf8) ?? "",
+                text: String(data: message.rawPayload, encoding: .utf8) ?? "",
                 contentType: message.type,
                 deliveryStatus: Self.mapDeliveryStatus(message.status),
                 timestamp: message.createdAt,
                 isEdited: false,
                 replyPreview: message.replyTo.flatMap {
-                    String(data: $0.encryptedPayload, encoding: .utf8)
+                    String(data: $0.rawPayload, encoding: .utf8)
                 },
                 imageData: message.attachments.first?.fullData ?? message.attachments.first?.thumbnail,
                 voiceNoteDuration: message.attachments.first(where: { $0.isAudio })?.duration,

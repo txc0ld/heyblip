@@ -64,3 +64,9 @@
 - [x] Remove consecutive duplicate or redundant `DebugLogger.emit()` lines in `MessageService.resolveRecipientPeerID`.
 - [x] Switch `StateSyncService` debug logging to nonisolated `DebugLogger.emit()` while preserving redaction.
 - [x] Run the package tests and simulator build, then publish the branch, PR, and Slack update.
+
+## BDEV-210 Raw Payload Rename
+
+- [x] Rename `Message.encryptedPayload` to `rawPayload` with the requested retry semantics comment.
+- [x] Update every `encryptedPayload` read/write site in services and views, then verify there are zero remaining references.
+- [x] Run package tests, generate the project if needed, run the simulator build, and publish the branch, PR, and Slack update.

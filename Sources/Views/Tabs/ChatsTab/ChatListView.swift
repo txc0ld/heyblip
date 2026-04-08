@@ -596,7 +596,7 @@ struct ChatListView: View {
             displayName: Self.resolveDisplayName(for: channel),
             avatarData: nil,
             lastMessagePreview: lastMessage.flatMap {
-                String(data: $0.encryptedPayload, encoding: .utf8)
+                String(data: $0.rawPayload, encoding: .utf8)
             } ?? "",
             timestamp: timestamp,
             unreadCount: unread,

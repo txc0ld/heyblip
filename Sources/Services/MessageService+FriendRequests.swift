@@ -455,7 +455,7 @@ extension MessageService {
         let targetID = messageID
         let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         if let message = try context.fetch(descriptor).first {
-            message.encryptedPayload = newContent
+            message.rawPayload = newContent
             try context.save()
         }
     }
