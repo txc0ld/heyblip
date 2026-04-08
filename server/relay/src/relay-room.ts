@@ -269,7 +269,7 @@ export class RelayRoom implements DurableObject {
   private async queuePacket(recipientHex: PeerIDHex, data: Uint8Array): Promise<void> {
     const storedAt = Date.now();
     const queuePrefix = `${QUEUE_PREFIX}${recipientHex}:`;
-    const key = `${queuePrefix}${storedAt}:${Math.random().toString(36).slice(2, 8)}`;
+    const key = `${queuePrefix}${storedAt}:${crypto.randomUUID().slice(0, 12)}`;
 
     // Keep queue insertion and cap enforcement atomic so bursts do not exceed the cap.
     await this.state.storage.transaction(async (txn) => {
