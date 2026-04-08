@@ -91,7 +91,7 @@ final class StateSyncService: @unchecked Sendable {
             return data
         } catch {
             logger.warning("Failed to fetch peer state: \(error.localizedDescription)")
-            await DebugLogger.shared.log("SYNC", "State fetch auth/request failed: \(error.localizedDescription)", isError: true)
+            DebugLogger.emit("SYNC", "State fetch auth/request failed: \(DebugLogger.redact(error.localizedDescription))", isError: true)
             return nil
         }
     }
@@ -139,7 +139,7 @@ final class StateSyncService: @unchecked Sendable {
             }
         } catch {
             logger.warning("State upload failed: \(error.localizedDescription)")
-            await DebugLogger.shared.log("SYNC", "State upload auth/request failed: \(error.localizedDescription)", isError: true)
+            DebugLogger.emit("SYNC", "State upload auth/request failed: \(DebugLogger.redact(error.localizedDescription))", isError: true)
         }
     }
 
@@ -187,7 +187,7 @@ final class StateSyncService: @unchecked Sendable {
             let token = try await authTokenProvider()
             return "Bearer \(token)"
         } catch {
-            await DebugLogger.shared.log("AUTH", "JWT token unavailable for StateSyncService: \(error.localizedDescription)", isError: true)
+            DebugLogger.emit("AUTH", "JWT token unavailable for StateSyncService: \(DebugLogger.redact(error.localizedDescription))", isError: true)
             return "Bearer \(identity.noisePublicKey.rawRepresentation.base64EncodedString())"
         }
     }

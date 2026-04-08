@@ -58,3 +58,9 @@
 - [x] Add or extend relay tests for partial drain failure, retry scheduling, and retry cleanup.
 - [x] Run `cd server/relay && npm test` and `cd server/relay && npx wrangler deploy --dry-run`.
 - [x] Push `fix/BDEV-205-drain-break-bug`, update PR `#148`, and post the follow-up in `#blip-dev`.
+
+## BDEV-209 Logging Consistency
+
+- [x] Remove consecutive duplicate or redundant `DebugLogger.emit()` lines in `MessageService.resolveRecipientPeerID`.
+- [x] Switch `StateSyncService` debug logging to nonisolated `DebugLogger.emit()` while preserving redaction.
+- [x] Run the package tests and simulator build, then publish the branch, PR, and Slack update.

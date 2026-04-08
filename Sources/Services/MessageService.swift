@@ -1225,7 +1225,6 @@ final class MessageService: @unchecked Sendable {
         }
 
         let memberships = freshChannel.memberships
-        DebugLogger.emit("DM", "resolveRecipient: channel has \(memberships.count) memberships")
         DebugLogger.emit("DM", "resolveRecipient: channel \(channelID) has \(memberships.count) memberships")
 
         for membership in memberships {
@@ -1241,14 +1240,12 @@ final class MessageService: @unchecked Sendable {
             // Skip local user
             if user.noisePublicKey == localNoiseKey {
                 DebugLogger.emit("DM", "resolveRecipient: skipping local user \(DebugLogger.redact(user.username))")
-                DebugLogger.emit("DM", "resolveRecipient: skipping local user \(DebugLogger.redact(user.username))")
                 continue
             }
 
             // Skip users with empty keys
             if user.noisePublicKey.isEmpty {
                 DebugLogger.emit("DM", "resolveRecipient: \(DebugLogger.redact(user.username)) has empty noisePublicKey — skipping", isError: true)
-                DebugLogger.emit("DM", "resolveRecipient: \(DebugLogger.redact(user.username)) has EMPTY noisePublicKey — skipping", isError: true)
                 continue
             }
 
@@ -1256,25 +1253,21 @@ final class MessageService: @unchecked Sendable {
             let userKey = user.noisePublicKey
             if let recipientPeer = peerStore.peer(byNoisePublicKey: userKey) {
                 let peerHex = recipientPeer.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.emit("DM", "resolveRecipient: resolved \(DebugLogger.redact(user.username)) → peerID \(peerHex)")
-                DebugLogger.emit("DM", "resolveRecipientPeerID: found=\(peerHex) via=ble (\(DebugLogger.redact(user.username)))")
+                DebugLogger.emit("DM", "resolveRecipient: found=\(peerHex) via=ble (\(DebugLogger.redact(user.username)))")
                 return PeerID(bytes: recipientPeer.peerID)
             }
 
             // Fallback: construct PeerID from stored key
             if user.noisePublicKey.count == PeerID.length {
-                DebugLogger.emit("DM", "resolveRecipient: using raw key as PeerID for \(DebugLogger.redact(user.username))")
                 let keyHex = user.noisePublicKey.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.emit("DM", "resolveRecipientPeerID: found=\(keyHex) via=cache (raw key, \(DebugLogger.redact(user.username)))")
+                DebugLogger.emit("DM", "resolveRecipient: found=\(keyHex) via=cache (raw key, \(DebugLogger.redact(user.username)))")
                 return PeerID(bytes: user.noisePublicKey)
             }
-            DebugLogger.emit("DM", "resolveRecipient: \(DebugLogger.redact(user.username)) has key but no peer in PeerStore", isError: true)
             let derivedHex = user.noisePublicKey.prefix(4).map { String(format: "%02x", $0) }.joined()
-            DebugLogger.emit("DM", "resolveRecipientPeerID: found=\(derivedHex) via=relay (derived, \(DebugLogger.redact(user.username)))")
+            DebugLogger.emit("DM", "resolveRecipient: found=\(derivedHex) via=relay (derived, \(DebugLogger.redact(user.username)))")
             return PeerID(noisePublicKey: user.noisePublicKey)
         }
 
-        DebugLogger.emit("DM", "resolveRecipient FAILED: no valid remote user in channel \(channelID)", isError: true)
         DebugLogger.emit("DM", "resolveRecipient FAILED: no valid remote user in channel \(channelID)", isError: true)
         return nil
     }
