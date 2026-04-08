@@ -240,7 +240,11 @@ export class RelayRoom implements DurableObject {
       for (const [peerHex, peerWs] of this.peers) {
         if (peerWs === senderWs) continue; // Don't echo back to sender.
         try {
-          peerWs.send(data.buffer.slice(0)); // Copy buffer per recipient.
+          // Allocate an independent ArrayBuffer per recipient. `data.buffer.slice(0)`
+          // returns a slice of the underlying ArrayBuffer (not the view region) and
+          // can leave recipients sharing memory; `new Uint8Array(data)` allocates a
+          // fresh buffer and copies only the view's bytes.
+          peerWs.send(new Uint8Array(data).buffer);
         } catch {
           this.removePeer(peerWs);
         }
