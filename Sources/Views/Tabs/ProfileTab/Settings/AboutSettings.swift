@@ -11,7 +11,7 @@ struct AboutSettings: View {
 
     var body: some View {
         SettingsComponents.settingsGroup(title: "About", icon: "info.circle.fill", theme: theme) {
-            VStack(spacing: BlipSpacing.md) {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
                 SettingsComponents.settingsInfoRow(title: "Version", value: BuildInfo.version, theme: theme)
                 SettingsComponents.settingsInfoRow(title: "Build", value: BuildInfo.buildNumber, theme: theme)
 
@@ -34,39 +34,35 @@ struct AboutSettings: View {
                 SettingsComponents.settingsInfoRow(title: "Branch", value: BuildInfo.gitBranch, theme: theme)
                 SettingsComponents.settingsInfoRow(title: "Built", value: BuildInfo.buildDate, theme: theme)
 
-                // TODO: BDEV-136 — wire to hosted legal pages and acknowledgements screen
-                disabledLinkRow(title: "Privacy Policy", subtitle: "Unavailable until hosted legal pages are published")
-                disabledLinkRow(title: "Terms of Service", subtitle: "Unavailable until hosted legal pages are published")
-                disabledLinkRow(title: "Open Source Licenses", subtitle: "Unavailable until the in-app acknowledgements screen is wired")
-            }
-        }
-    }
+                // Legal links grouped under a de-emphasized heading below the
+                // working build info. TODO: BDEV-136 — wire to hosted legal
+                // pages and acknowledgements screen.
+                SettingsComponents.comingSoonHeader(theme: theme)
 
-    // MARK: - Private
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                    SettingsComponents.settingsDisabledRow(
+                        title: "Privacy Policy",
+                        subtitle: "Unavailable until hosted legal pages are published",
+                        icon: "arrow.up.right",
+                        theme: theme
+                    )
 
-    private func disabledLinkRow(title: String, subtitle: String) -> some View {
-        Button(action: {}) {
-            HStack {
-                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                    Text(title)
-                        .font(theme.typography.body)
-                        .foregroundStyle(theme.colors.text)
+                    SettingsComponents.settingsDisabledRow(
+                        title: "Terms of Service",
+                        subtitle: "Unavailable until hosted legal pages are published",
+                        icon: "arrow.up.right",
+                        theme: theme
+                    )
 
-                    Text(subtitle)
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
+                    SettingsComponents.settingsDisabledRow(
+                        title: "Open Source Licenses",
+                        subtitle: "Unavailable until the in-app acknowledgements screen is wired",
+                        icon: "arrow.up.right",
+                        theme: theme
+                    )
                 }
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.colors.mutedText)
             }
-            .frame(minHeight: BlipSizing.minTapTarget)
         }
-        .buttonStyle(.plain)
-        .disabled(true)
-        .opacity(0.5)
-        .accessibilityLabel("\(title) unavailable in this build")
     }
 }
 

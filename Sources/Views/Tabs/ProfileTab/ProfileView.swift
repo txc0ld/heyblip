@@ -242,15 +242,17 @@ struct ProfileView: View {
                         .lineLimit(3)
                 }
 
-                // Action buttons
-                HStack(spacing: BlipSpacing.md) {
-                    GlassButton("Edit Profile", icon: "pencil", style: .secondary, size: .small) {
-                        showEditProfile = true
-                    }
+                // Working action — Edit Profile stands alone to read as
+                // the primary, shipped action for this section.
+                GlassButton("Edit Profile", icon: "pencil", style: .secondary, size: .small) {
+                    showEditProfile = true
+                }
 
-                    if !user.isVerified {
-                        verificationUnavailableBadge
-                    }
+                // Verification is not yet available — kept as a small muted
+                // note below the working action so it doesn't compete for
+                // visual weight.
+                if !user.isVerified {
+                    verificationUnavailableNote
                 }
             }
             .frame(maxWidth: .infinity)
@@ -306,20 +308,14 @@ struct ProfileView: View {
         .accessibilityLabel("\(title): \(subtitle)")
     }
 
-    private var verificationUnavailableBadge: some View {
+    private var verificationUnavailableNote: some View {
         HStack(spacing: BlipSpacing.xs) {
-            Image(systemName: "lock.slash")
-                .font(.system(size: 12, weight: .medium))
-            Text("Verification unavailable")
+            Image(systemName: "clock")
+                .font(.system(size: 10, weight: .medium))
+            Text("Verification coming soon")
                 .font(theme.typography.caption)
         }
-        .foregroundStyle(theme.colors.mutedText)
-        .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm)
-        .background(
-            Capsule()
-                .fill(theme.colors.hover)
-        )
+        .foregroundStyle(theme.colors.mutedText.opacity(0.7))
         .accessibilityLabel("Verification unavailable in this build")
     }
 }

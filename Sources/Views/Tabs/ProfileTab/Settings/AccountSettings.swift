@@ -11,8 +11,8 @@ struct AccountSettings: View {
 
     var body: some View {
         SettingsComponents.settingsGroup(title: "Account", icon: "person.crop.circle", theme: theme) {
-            VStack(spacing: BlipSpacing.md) {
-                // Sign Out
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
+                // Working action — Sign Out stays prominent.
                 Button(action: { showSignOutConfirm = true }) {
                     HStack {
                         VStack(alignment: .leading, spacing: BlipSpacing.xs) {
@@ -34,57 +34,27 @@ struct AccountSettings: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Sign out")
 
-                Divider().opacity(0.15)
+                // Unavailable actions grouped under a de-emphasized heading so
+                // working features read as shipped. TODO: BDEV-136 — wire
+                // account data export (JSON) and remote account deletion.
+                SettingsComponents.comingSoonHeader(theme: theme)
 
-                // TODO: BDEV-136 — wire account data export (JSON) and remote account deletion
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Export My Data")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                    SettingsComponents.settingsDisabledRow(
+                        title: "Export My Data",
+                        subtitle: "Unavailable in this build until account export is wired",
+                        icon: "square.and.arrow.up",
+                        theme: theme
+                    )
 
-                            Text("Unavailable in this build until account export is wired")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.blipAccentPurple)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
+                    SettingsComponents.settingsDisabledRow(
+                        title: "Delete Account & Data",
+                        subtitle: "Unavailable until remote deletion is wired end to end",
+                        icon: "trash",
+                        theme: theme,
+                        isDestructive: true
+                    )
                 }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Export my data as JSON")
-
-                Divider().opacity(0.15)
-
-                // Delete Account
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Delete Account & Data")
-                                .font(theme.typography.body)
-                                .foregroundStyle(BlipColors.darkColors.statusRed)
-
-                            Text("Unavailable until remote deletion is wired end to end")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-                        Spacer()
-                        Image(systemName: "trash")
-                            .font(.system(size: 14))
-                            .foregroundStyle(BlipColors.darkColors.statusRed)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Delete account unavailable in this build")
             }
         }
     }
