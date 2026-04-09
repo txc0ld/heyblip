@@ -64,7 +64,7 @@
 - [x] Create an isolated worktree, read the current Blip design spec, and inspect the rename, TLS pinning, and BLE state surfaces.
 - [x] Complete BDEV-219 rename cleanup, run `xcodegen generate`, and verify the simulator build.
 - [x] Complete BDEV-218 pin hash deduplication, run `swift test --package-path Packages/BlipMesh`, and verify the simulator build.
-- [ ] Complete BDEV-200 BLE state cleanup, run `swift test --package-path Packages/BlipMesh`, and verify the simulator build.
+- [x] Complete BDEV-200 BLE state cleanup, run `swift test --package-path Packages/BlipMesh`, and verify the simulator build.
 - [ ] Push the combined branch, open the PR linking BDEV-219/BDEV-218/BDEV-200, and post the `#blip-dev` update.
 
 ## BDEV-209 Logging Consistency

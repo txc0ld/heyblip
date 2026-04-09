@@ -31,6 +31,8 @@ public enum TransportState: Sendable, Equatable {
     case running
     /// Transport has been stopped intentionally.
     case stopped
+    /// Transport cannot start until Bluetooth authorization is restored.
+    case unauthorized
     /// Transport encountered an error and is not operational.
     case failed(String)
 }
