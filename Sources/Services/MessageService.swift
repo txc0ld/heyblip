@@ -435,13 +435,22 @@ final class MessageService: @unchecked Sendable {
         }
         if shouldSkip { return }
 
+        // Re-fetch channel in a fresh context to avoid cross-context crash
+        let context = ModelContext(modelContainer)
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let localChannel = try context.fetch(channelDesc).first else {
+            DebugLogger.emit("DM", "sendTypingIndicator: channel \(channelID) not found in fresh context", isError: true)
+            return
+        }
+
         var payload = Data()
-        payload.append(channel.id.uuidString.data(using: .utf8) ?? Data())
+        payload.append(localChannel.id.uuidString.data(using: .utf8) ?? Data())
 
         _ = try await encryptAndSend(
             payload: payload,
             subType: .typingIndicator,
-            channel: channel,
+            channel: localChannel,
             identity: identity,
             messageID: nil
         )
