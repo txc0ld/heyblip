@@ -70,3 +70,9 @@
 - [x] Rename `Message.encryptedPayload` to `rawPayload` with the requested retry semantics comment.
 - [x] Update every `encryptedPayload` read/write site in services and views, then verify there are zero remaining references.
 - [x] Run package tests, generate the project if needed, run the simulator build, and publish the branch, PR, and Slack update.
+
+## BDEV-212 Typing Indicator Context Safety
+
+- [x] Inspect `sendTypingIndicator` and confirm it skips the fresh-context channel re-fetch used by other send paths.
+- [x] Re-fetch the `Channel` in a fresh `ModelContext` after debounce and pass that local instance into `encryptAndSend`.
+- [x] Run package tests, the simulator build, then push the branch, open the PR, and post the `#blip-dev` update.
