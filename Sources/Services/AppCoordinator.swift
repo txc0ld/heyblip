@@ -151,6 +151,8 @@ final class AppCoordinator {
         let ble = BLEService(localPeerID: peerID)
         let ws = WebSocketTransport(
             localPeerID: peerID,
+            pinnedCertHashes: ServerConfig.pinnedCertHashes,
+            pinnedDomains: ServerConfig.pinnedDomains,
             tokenProvider: { @Sendable in
                 try await AuthTokenManager.shared.validToken()
             },
