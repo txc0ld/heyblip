@@ -16,6 +16,8 @@ struct FriendsListView: View {
     @State private var addUsername: String = ""
     @State private var selectedFriend: FriendListItem?
     @State private var isLoaded = false
+    @State private var friendRequestError: String?
+    @State private var showFriendRequestError = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -58,6 +60,13 @@ struct FriendsListView: View {
             }
         } message: {
             Text("Enter their username to send a friend request.")
+        }
+        .alert("Friend Request Failed", isPresented: $showFriendRequestError, presenting: friendRequestError) { _ in
+            Button("OK", role: .cancel) {
+                friendRequestError = nil
+            }
+        } message: { errorMessage in
+            Text(errorMessage)
         }
         .sheet(item: $selectedFriend) { friend in
             ProfileSheet(
@@ -258,21 +267,32 @@ struct FriendsListView: View {
     }
 
     private func sendFriendRequest() {
-        guard !addUsername.isEmpty else { return }
-        // Look up the peer by username in PeerStore and send a request
-        let username = addUsername
+        let trimmed = addUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         addUsername = ""
 
-        guard let peer = coordinator.peerStore.peer(byUsername: username),
-              let messageService = coordinator.messageService else {
+        guard let messageService = coordinator.messageService else {
+            friendRequestError = "Messaging service is not ready yet. Please try again in a moment."
+            showFriendRequestError = true
             return
         }
+
+        // Route through the auth-server lookup path so users who haven't been
+        // discovered via BLE can still be added. sendFriendRequestByUsername
+        // handles the server-side resolution and creates the local User/Friend
+        // record before dispatching the actual friend request packet.
         Task {
             do {
-                try await messageService.sendFriendRequest(toPeerData: peer.peerID)
+                try await messageService.sendFriendRequestByUsername(trimmed)
                 loadFriends()
             } catch {
-                DebugLogger.shared.log("DM", "Failed to send friend request to \(DebugLogger.redact(username)): \(error.localizedDescription)", isError: true)
+                friendRequestError = error.localizedDescription
+                showFriendRequestError = true
+                DebugLogger.shared.log(
+                    "DM",
+                    "Failed to send friend request to \(DebugLogger.redact(trimmed)): \(error.localizedDescription)",
+                    isError: true
+                )
             }
         }
     }
