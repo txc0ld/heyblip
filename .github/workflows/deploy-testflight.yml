@@ -29,17 +29,20 @@ jobs:
     timeout-minutes: 45
     env:
       XCODE_SCHEME: Blip
-      ARCHIVE_PATH: ${{ runner.temp }}/Blip.xcarchive
-      EXPORT_PATH: ${{ runner.temp }}/export
-      KEYCHAIN_PATH: ${{ runner.temp }}/app-signing.keychain-db
-      CERTIFICATE_PATH: ${{ runner.temp }}/build_certificate.p12
-      PROFILE_PATH: ${{ runner.temp }}/build_pp.mobileprovision
-      PROFILE_PLIST_PATH: ${{ runner.temp }}/build_pp.plist
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Set derived paths
+        run: |
+          echo "ARCHIVE_PATH=$RUNNER_TEMP/Blip.xcarchive" >> "$GITHUB_ENV"
+          echo "EXPORT_PATH=$RUNNER_TEMP/export" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db" >> "$GITHUB_ENV"
+          echo "CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12" >> "$GITHUB_ENV"
+          echo "PROFILE_PATH=$RUNNER_TEMP/build_pp.mobileprovision" >> "$GITHUB_ENV"
+          echo "PROFILE_PLIST_PATH=$RUNNER_TEMP/build_pp.plist" >> "$GITHUB_ENV"
 
       - name: Select Xcode & install iOS platform
         run: |
