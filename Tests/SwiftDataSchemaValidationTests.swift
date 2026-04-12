@@ -257,7 +257,7 @@ struct SwiftDataSchemaValidationTests {
             sender: user,
             channel: channel,
             type: .text,
-            encryptedPayload: Data("hello".utf8),
+            rawPayload: Data("hello".utf8),
             status: .sent
         )
         context.insert(message)
@@ -280,7 +280,7 @@ struct SwiftDataSchemaValidationTests {
                 sender: user,
                 channel: channel,
                 type: type,
-                encryptedPayload: Data()
+                rawPayload: Data()
             )
             context.insert(message)
         }
@@ -340,7 +340,7 @@ struct SwiftDataSchemaValidationTests {
         let msg1 = Message(
             sender: user,
             channel: channel,
-            encryptedPayload: Data("original".utf8)
+            rawPayload: Data("original".utf8)
         )
         context.insert(msg1)
         try context.save()
@@ -348,16 +348,16 @@ struct SwiftDataSchemaValidationTests {
         let msg2 = Message(
             sender: user,
             channel: channel,
-            encryptedPayload: Data("reply".utf8),
+            rawPayload: Data("reply".utf8),
             replyTo: msg1
         )
         context.insert(msg2)
         try context.save()
 
         let fetched = try context.fetch(FetchDescriptor<Message>())
-        let replyMsg = fetched.first { msg in msg.encryptedPayload == Data("reply".utf8) }
+        let replyMsg = fetched.first { msg in msg.rawPayload == Data("reply".utf8) }
         #expect(replyMsg?.replyTo != nil)
-        #expect(replyMsg?.replyTo?.encryptedPayload == Data("original".utf8))
+        #expect(replyMsg?.replyTo?.rawPayload == Data("original".utf8))
     }
 
     @Test("Message deletion")
@@ -1411,7 +1411,7 @@ struct SwiftDataSchemaValidationTests {
             let message = Message(
                 sender: user,
                 channel: channel,
-                encryptedPayload: Data("msg\(i)".utf8)
+                rawPayload: Data("msg\(i)".utf8)
             )
             context.insert(message)
         }
@@ -1452,7 +1452,7 @@ struct SwiftDataSchemaValidationTests {
             let message = Message(
                 sender: user,
                 channel: channel,
-                encryptedPayload: Data("message_\(i)".utf8),
+                rawPayload: Data("message_\(i)".utf8),
                 status: i % 5 == 0 ? .delivered : .sent
             )
             context.insert(message)

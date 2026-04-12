@@ -219,7 +219,7 @@ final class MessageServiceTests: XCTestCase {
 
             // Verify Message model was created
             XCTAssertEqual(message.type, .text)
-            XCTAssertEqual(String(data: message.encryptedPayload, encoding: .utf8), "Hello, Bob!")
+            XCTAssertEqual(String(data: message.rawPayload, encoding: .utf8), "Hello, Bob!")
             XCTAssertNotNil(message.channel)
 
             // Verify transport was used (handshake initiation sends a packet)
@@ -835,7 +835,7 @@ final class MessageServiceTests: XCTestCase {
         let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
         let storedMessage = try XCTUnwrap(verifyContext.fetch(descriptor).first)
         XCTAssertEqual(storedMessage.channel?.id, targetChannel.id)
-        XCTAssertEqual(String(data: storedMessage.encryptedPayload, encoding: .utf8), "Hello group")
+        XCTAssertEqual(String(data: storedMessage.rawPayload, encoding: .utf8), "Hello group")
         XCTAssertEqual(storedMessage.sender?.username, remoteUser.username)
     }
 

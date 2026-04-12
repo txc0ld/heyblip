@@ -24,7 +24,7 @@ final class MessageCleanupTests: XCTestCase {
         let expired = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "old".data(using: .utf8) ?? Data(),
+            rawPayload: "old".data(using: .utf8) ?? Data(),
             expiresAt: Date().addingTimeInterval(-60)
         )
         context.insert(expired)
@@ -33,7 +33,7 @@ final class MessageCleanupTests: XCTestCase {
         let valid = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "new".data(using: .utf8) ?? Data(),
+            rawPayload: "new".data(using: .utf8) ?? Data(),
             expiresAt: Date().addingTimeInterval(3600)
         )
         context.insert(valid)
@@ -42,7 +42,7 @@ final class MessageCleanupTests: XCTestCase {
         let noExpiry = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "forever".data(using: .utf8) ?? Data()
+            rawPayload: "forever".data(using: .utf8) ?? Data()
         )
         context.insert(noExpiry)
 
@@ -78,7 +78,7 @@ final class MessageCleanupTests: XCTestCase {
         let old = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "old".data(using: .utf8) ?? Data(),
+            rawPayload: "old".data(using: .utf8) ?? Data(),
             createdAt: Date().addingTimeInterval(-7200)
         )
         context.insert(old)
@@ -87,7 +87,7 @@ final class MessageCleanupTests: XCTestCase {
         let recent = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "recent".data(using: .utf8) ?? Data(),
+            rawPayload: "recent".data(using: .utf8) ?? Data(),
             createdAt: Date().addingTimeInterval(-600)
         )
         context.insert(recent)
@@ -107,7 +107,7 @@ final class MessageCleanupTests: XCTestCase {
 
         let remaining = try context.fetch(FetchDescriptor<Message>())
         XCTAssertEqual(remaining.count, 1)
-        XCTAssertEqual(String(data: remaining[0].encryptedPayload, encoding: .utf8), "recent")
+        XCTAssertEqual(String(data: remaining[0].rawPayload, encoding: .utf8), "recent")
     }
 
     func testInfiniteRetentionKeepsAllMessages() throws {
@@ -122,7 +122,7 @@ final class MessageCleanupTests: XCTestCase {
         let old = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: "ancient".data(using: .utf8) ?? Data(),
+            rawPayload: "ancient".data(using: .utf8) ?? Data(),
             createdAt: Date().addingTimeInterval(-86400 * 365)
         )
         context.insert(old)

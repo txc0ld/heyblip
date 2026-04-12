@@ -70,7 +70,7 @@ final class ChatViewModelTests: XCTestCase {
         let message = Message(
             channel: channel,
             type: type,
-            encryptedPayload: Data("test payload".utf8),
+            rawPayload: Data("test payload".utf8),
             status: status
         )
         context.insert(message)
@@ -150,7 +150,7 @@ final class ChatViewModelTests: XCTestCase {
         let incoming = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Hey!".utf8),
+            rawPayload: Data("Hey!".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming, in: channel)
@@ -168,7 +168,7 @@ final class ChatViewModelTests: XCTestCase {
         let incoming = Message(
             channel: otherChannel,
             type: .text,
-            encryptedPayload: Data("You there?".utf8),
+            rawPayload: Data("You there?".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming, in: otherChannel)
@@ -190,7 +190,7 @@ final class ChatViewModelTests: XCTestCase {
         let msg = Message(
             channel: ch2,
             type: .text,
-            encryptedPayload: Data("New msg".utf8),
+            rawPayload: Data("New msg".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg, in: ch2)
@@ -261,7 +261,7 @@ final class ChatViewModelTests: XCTestCase {
 
         await vm.openConversation(channel)
         vm.composingText = "Unfinished"
-        vm.replyTarget = Message(channel: channel, type: .text, encryptedPayload: Data())
+        vm.replyTarget = Message(channel: channel, type: .text, rawPayload: Data())
 
         vm.closeConversation()
 
@@ -282,13 +282,13 @@ final class ChatViewModelTests: XCTestCase {
         let msg1 = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("msg1".utf8),
+            rawPayload: Data("msg1".utf8),
             status: .delivered
         )
         let msg2 = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("msg2".utf8),
+            rawPayload: Data("msg2".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg1, in: channel)
@@ -311,7 +311,7 @@ final class ChatViewModelTests: XCTestCase {
         let msg = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("New!".utf8),
+            rawPayload: Data("New!".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg, in: channel)
@@ -333,7 +333,7 @@ final class ChatViewModelTests: XCTestCase {
         let sentMessage = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Ack me".utf8),
+            rawPayload: Data("Ack me".utf8),
             status: .sent
         )
         vm.activeMessages.append(sentMessage)
@@ -355,7 +355,7 @@ final class ChatViewModelTests: XCTestCase {
         let sentMessage = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Read me".utf8),
+            rawPayload: Data("Read me".utf8),
             status: .sent
         )
         vm.activeMessages.append(sentMessage)
@@ -369,7 +369,7 @@ final class ChatViewModelTests: XCTestCase {
     // MARK: - Reply Target
 
     func testSetAndClearReplyTarget() {
-        let msg = Message(type: .text, encryptedPayload: Data("Target".utf8))
+        let msg = Message(type: .text, rawPayload: Data("Target".utf8))
         vm.setReplyTarget(msg)
         XCTAssertEqual(vm.replyTarget?.id, msg.id)
 

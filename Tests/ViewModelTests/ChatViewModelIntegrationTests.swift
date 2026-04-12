@@ -114,7 +114,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let message = Message(
             channel: channel,
             type: type,
-            encryptedPayload: content.data(using: .utf8) ?? Data(),
+            rawPayload: content.data(using: .utf8) ?? Data(),
             status: status,
             createdAt: createdAt
         )
@@ -172,7 +172,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let msg = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Hello".utf8),
+            rawPayload: Data("Hello".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg, in: channel)
@@ -205,7 +205,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let incoming = Message(
             channel: otherChannel,
             type: .text,
-            encryptedPayload: Data("New message".utf8),
+            rawPayload: Data("New message".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming, in: otherChannel)
@@ -217,7 +217,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let incoming2 = Message(
             channel: otherChannel,
             type: .text,
-            encryptedPayload: Data("Another message".utf8),
+            rawPayload: Data("Another message".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming2, in: otherChannel)
@@ -235,7 +235,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let incoming = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Seen immediately".utf8),
+            rawPayload: Data("Seen immediately".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming, in: channel)
@@ -256,13 +256,13 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let msg1 = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("msg1".utf8),
+            rawPayload: Data("msg1".utf8),
             status: .delivered
         )
         let msg2 = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("msg2".utf8),
+            rawPayload: Data("msg2".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg1, in: channel)
@@ -287,7 +287,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let msg = Message(
             channel: channel,
             type: .text,
-            encryptedPayload: Data("Unread".utf8),
+            rawPayload: Data("Unread".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg, in: channel)
@@ -313,7 +313,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let msg = Message(
             channel: ch2,
             type: .text,
-            encryptedPayload: Data("New!".utf8),
+            rawPayload: Data("New!".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(msg, in: ch2)
@@ -357,7 +357,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         XCTAssertEqual(vm.activeChannel?.id, newerChannel.id, "Newest duplicate DM channel should become active")
         XCTAssertEqual(vm.activeMessages.count, 2, "Messages from duplicate DM channels should load together")
         XCTAssertEqual(
-            vm.activeMessages.compactMap { String(data: $0.encryptedPayload, encoding: .utf8) },
+            vm.activeMessages.compactMap { String(data: $0.rawPayload, encoding: .utf8) },
             ["older", "newer"]
         )
     }
@@ -382,7 +382,7 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         let incoming = Message(
             channel: loadedDuplicateChannel,
             type: .text,
-            encryptedPayload: Data("relay message".utf8),
+            rawPayload: Data("relay message".utf8),
             status: .delivered
         )
         vm.handleReceivedMessage(incoming, in: loadedDuplicateChannel)
