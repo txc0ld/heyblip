@@ -255,6 +255,7 @@ final class SOSViewModel {
 
         // Broadcast SOS packet
         await broadcastSOSAlert(alert, severity: severity, fuzzyGeohash: fuzzyGeohash)
+        await broadcastSOSPreciseLocation(alert)
 
         flowState = .active(alertID: alert.id)
     }
@@ -586,6 +587,50 @@ final class SOSViewModel {
         }
     }
 
+    private func broadcastSOSPreciseLocation(_ alert: SOSAlert) async {
+        let identity: Identity
+        do {
+            guard let loaded = try KeyManager.shared.loadIdentity() else {
+                logger.error("No identity found for SOS precise location broadcast")
+                return
+            }
+            identity = loaded
+        } catch {
+            logger.error("Failed to load identity for SOS precise location broadcast: \(error.localizedDescription)")
+            return
+        }
+
+        var payload = Data()
+        payload.append(alert.id.uuidString.data(using: .utf8) ?? Data())
+        payload.append(0x00)
+
+        var latitudeBits = alert.preciseLocationLatitude.bitPattern.littleEndian
+        withUnsafeBytes(of: &latitudeBits) { payload.append(contentsOf: $0) }
+
+        var longitudeBits = alert.preciseLocationLongitude.bitPattern.littleEndian
+        withUnsafeBytes(of: &longitudeBits) { payload.append(contentsOf: $0) }
+
+        let packet = Packet(
+            type: .sosPreciseLocation,
+            ttl: 7,
+            timestamp: Packet.currentTimestamp(),
+            flags: .sosPriority,
+            senderID: identity.peerID,
+            payload: payload
+        )
+
+        do {
+            let data = try PacketSerializer.encode(packet)
+            NotificationCenter.default.post(
+                name: .shouldBroadcastPacket,
+                object: nil,
+                userInfo: ["data": data, "priority": "sos"]
+            )
+        } catch {
+            logger.error("Failed to encode SOS precise location packet: \(error.localizedDescription)")
+        }
+    }
+
     private func broadcastSOSResolve(alertID: UUID) async {
         let identity: Identity
         do {
@@ -646,6 +691,8 @@ final class SOSViewModel {
             await handleIncomingSOS(packet)
         case .sosAccept:
             await handleSOSAccepted(packet)
+        case .sosPreciseLocation:
+            await handleIncomingPreciseLocation(packet)
         case .sosResolve:
             await handleSOSResolved(packet)
         case .sosNearbyAssist:
@@ -713,6 +760,61 @@ final class SOSViewModel {
                 alertID: alertID,
                 responderName: "Responder \(packet.senderID.description.prefix(8))"
             )
+            if let activeAlert {
+                await broadcastSOSPreciseLocation(activeAlert)
+            }
+        }
+
+        await refreshVisibleAlerts()
+    }
+
+    private func handleIncomingPreciseLocation(_ packet: Packet) async {
+        func decodeUInt64(from data: Data) -> UInt64? {
+            guard data.count == MemoryLayout<UInt64>.size else { return nil }
+            var value: UInt64 = 0
+            _ = withUnsafeMutableBytes(of: &value) { buffer in
+                data.copyBytes(to: buffer)
+            }
+            return UInt64(littleEndian: value)
+        }
+
+        let payload = packet.payload
+        guard let separatorIndex = payload.firstIndex(of: 0x00) else { return }
+
+        let uuidData = payload[..<separatorIndex]
+        guard let uuidString = String(data: uuidData, encoding: .utf8),
+              let alertID = UUID(uuidString: uuidString) else { return }
+
+        let coordinateBytes = payload.index(after: separatorIndex)
+        let requiredLength = MemoryLayout<UInt64>.size * 2
+        guard payload.distance(from: coordinateBytes, to: payload.endIndex) >= requiredLength else { return }
+
+        let latitudeBitsData = Data(payload[coordinateBytes..<payload.index(coordinateBytes, offsetBy: MemoryLayout<UInt64>.size)])
+        let longitudeStart = payload.index(coordinateBytes, offsetBy: MemoryLayout<UInt64>.size)
+        let longitudeBitsData = Data(payload[longitudeStart..<payload.index(longitudeStart, offsetBy: MemoryLayout<UInt64>.size)])
+
+        guard let latitudeBits = decodeUInt64(from: latitudeBitsData),
+              let longitudeBits = decodeUInt64(from: longitudeBitsData) else { return }
+
+        let preciseLocation = GeoPoint(
+            latitude: Double(bitPattern: latitudeBits),
+            longitude: Double(bitPattern: longitudeBits)
+        )
+
+        let context = ModelContext(modelContainer)
+        do {
+            if let storedAlert = try context.fetch(FetchDescriptor<SOSAlert>())
+                .first(where: { $0.id == alertID }) {
+                storedAlert.preciseLocation = preciseLocation
+                try context.save()
+                if acceptedAlert?.id == alertID {
+                    acceptedAlert = storedAlert
+                }
+            } else if acceptedAlert?.id == alertID {
+                acceptedAlert?.preciseLocation = preciseLocation
+            }
+        } catch {
+            logger.error("Failed to persist SOS precise location: \(error.localizedDescription)")
         }
 
         await refreshVisibleAlerts()
