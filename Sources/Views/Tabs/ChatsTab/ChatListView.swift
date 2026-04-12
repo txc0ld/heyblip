@@ -453,15 +453,31 @@ struct ChatListView: View {
         return preferredChannel
     }
 
-    /// Resolve a display name for the channel, falling back to the first member's name for DMs.
-    private static func resolveDisplayName(for channel: Channel) -> String {
-        if let name = channel.name, !name.isEmpty {
-            return name
-        }
+    /// Resolve the row title and avatar from the current channel state.
+    private struct ConversationIdentity {
+        let displayName: String
+        let avatarData: Data?
+    }
+
+    private static func resolveConversationIdentity(for channel: Channel) -> ConversationIdentity {
         if channel.type == .dm, let member = channel.memberships.first?.user {
-            return member.resolvedDisplayName
+            let displayName: String
+            if let name = channel.name, !name.isEmpty {
+                displayName = name
+            } else {
+                displayName = member.resolvedDisplayName
+            }
+            return ConversationIdentity(
+                displayName: displayName,
+                avatarData: member.avatarThumbnail
+            )
         }
-        return "Chat"
+
+        if let name = channel.name, !name.isEmpty {
+            return ConversationIdentity(displayName: name, avatarData: nil)
+        }
+
+        return ConversationIdentity(displayName: "Chat", avatarData: nil)
     }
 
     private var filteredConversations: [ConversationPreview] {
@@ -591,11 +607,13 @@ struct ChatListView: View {
         let isMuted = channels.contains(where: \.isMuted)
         let timestamp = channels.map(\.lastActivityAt).max() ?? channel.lastActivityAt
 
+        let identity = Self.resolveConversationIdentity(for: channel)
+
         return ConversationPreview(
             id: channel.id,
             relatedChannelIDs: channels.map(\.id),
-            displayName: Self.resolveDisplayName(for: channel),
-            avatarData: nil,
+            displayName: identity.displayName,
+            avatarData: identity.avatarData,
             lastMessagePreview: lastMessage.flatMap {
                 String(data: $0.rawPayload, encoding: .utf8)
             } ?? "",
