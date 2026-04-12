@@ -302,6 +302,58 @@ extension MessageService {
         // Fetch keys from auth server if still missing after PeerStore resolution
         await fetchRemoteKeysIfNeeded(for: senderUser, context: context)
 
+        // BDEV-216: If we already sent an outgoing friend request to this
+        // user, treat the incoming request as mutual consent and auto-accept.
+        // When both users click Add Friend independently before either
+        // request arrives, both sides detect the pending outgoing Friend on
+        // receive and converge to `.accepted` without any manual step.
+        let senderUserID = senderUser.id
+        let mutualDescriptor = FetchDescriptor<Friend>(
+            predicate: #Predicate<Friend> { friend in
+                friend.user?.id == senderUserID &&
+                friend.statusRaw == "pending" &&
+                friend.requestDirectionRaw == "outgoing"
+            }
+        )
+
+        let outgoingPending: [Friend]
+        do {
+            outgoingPending = try context.fetch(mutualDescriptor)
+        } catch {
+            DebugLogger.shared.log(
+                "DB",
+                "Failed to query for mutual friend request: \(error.localizedDescription)",
+                isError: true
+            )
+            outgoingPending = []
+        }
+
+        if let existingFriend = outgoingPending.first {
+            existingFriend.statusRaw = FriendStatus.accepted.rawValue
+            existingFriend.requestDirectionRaw = nil
+
+            // findOrCreateDMChannel saves the context, so the status update
+            // above is persisted atomically with the DM channel creation.
+            try findOrCreateDMChannel(with: senderUser, context: context)
+
+            DebugLogger.shared.log(
+                "DM",
+                "Auto-accepted mutual friend request from \(DebugLogger.redact(senderUser.username))"
+            )
+            logger.info("Auto-accepted mutual friend request from \(senderUser.username)")
+
+            NotificationCenter.default.post(
+                name: .didAcceptFriendRequest,
+                object: nil,
+                userInfo: ["username": senderUser.username]
+            )
+            NotificationCenter.default.post(
+                name: .friendListDidChange,
+                object: nil
+            )
+            return
+        }
+
         // Create Friend record with pending status (or update if exists)
         try createOrUpdateFriend(
             user: senderUser,
@@ -313,7 +365,6 @@ extension MessageService {
         logger.info("Received friend request from \(senderUser.username)")
 
         // Send local push notification
-        let senderUserID = senderUser.id
         let friendDesc2 = FetchDescriptor<Friend>(predicate: #Predicate { $0.user?.id == senderUserID })
         do {
             if let friendRecord = try context.fetch(friendDesc2).first {
