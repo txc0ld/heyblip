@@ -693,6 +693,45 @@ final class MessageService: @unchecked Sendable {
         }
     }
 
+    // MARK: - Edit / Delete
+
+    /// Send a message edit to the remote peer.
+    @MainActor
+    func sendMessageEdit(messageID: UUID, newContent: String, to channel: Channel) async throws {
+        guard let identity = try KeyManager.shared.loadIdentity() else {
+            DebugLogger.shared.log("DM", "Cannot send edit: no identity", isError: true)
+            return
+        }
+        var payload = Data(messageID.uuidString.utf8)
+        payload.append(newContent.data(using: .utf8) ?? Data())
+        _ = try await encryptAndSend(
+            payload: payload,
+            subType: .messageEdit,
+            channel: channel,
+            identity: identity,
+            messageID: messageID,
+            shouldEnqueueForRetry: false
+        )
+    }
+
+    /// Send a message delete to the remote peer.
+    @MainActor
+    func sendMessageDelete(messageID: UUID, to channel: Channel) async throws {
+        guard let identity = try KeyManager.shared.loadIdentity() else {
+            DebugLogger.shared.log("DM", "Cannot send delete: no identity", isError: true)
+            return
+        }
+        let payload = Data(messageID.uuidString.utf8)
+        _ = try await encryptAndSend(
+            payload: payload,
+            subType: .messageDelete,
+            channel: channel,
+            identity: identity,
+            messageID: messageID,
+            shouldEnqueueForRetry: false
+        )
+    }
+
     // MARK: - Private: Encrypt and Send
 
     @MainActor

@@ -487,8 +487,10 @@ extension MessageService {
         let targetID = messageID
         let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         if let message = try context.fetch(descriptor).first {
-            context.delete(message)
+            message.isDeleted = true
+            message.rawPayload = Data()
             try context.save()
+            DebugLogger.shared.log("DM", "Remote delete applied for message \(DebugLogger.redact(uuidString))")
         }
     }
 
@@ -507,7 +509,10 @@ extension MessageService {
         let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
         if let message = try context.fetch(descriptor).first {
             message.rawPayload = newContent
+            message.isEdited = true
+            message.editedAt = Date()
             try context.save()
+            DebugLogger.shared.log("DM", "Remote edit applied for message \(DebugLogger.redact(uuidString))")
         }
     }
 

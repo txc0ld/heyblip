@@ -576,11 +576,11 @@ final class ChatViewModel {
 
     // MARK: - Message Actions
 
-    /// Mark a message as deleted locally.
+    /// Mark a message as deleted locally and notify the remote peer.
     func deleteMessage(_ message: Message) async {
         let context = ModelContext(modelContainer)
+        let messageID = message.id
         do {
-            let messageID = message.id
             let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
             guard let localMessage = try context.fetch(descriptor).first else { return }
             localMessage.isDeleted = true
@@ -591,6 +591,16 @@ final class ChatViewModel {
             }
         } catch {
             errorMessage = error.localizedDescription
+            return
+        }
+
+        // Send delete to remote peer
+        if let channel = activeChannel {
+            do {
+                try await messageService.sendMessageDelete(messageID: messageID, to: channel)
+            } catch {
+                DebugLogger.shared.log("DM", "Failed to send remote delete: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -608,12 +618,12 @@ final class ChatViewModel {
         composingText = ""
     }
 
-    /// Apply an edit to a message locally.
+    /// Apply an edit to a message locally and notify the remote peer.
     func applyEdit(newText: String) async {
         guard let editing = editingMessage else { return }
+        let editID = editing.id
         let context = ModelContext(modelContainer)
         do {
-            let editID = editing.id
             let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == editID })
             guard let localMessage = try context.fetch(descriptor).first else { return }
             localMessage.rawPayload = newText.data(using: .utf8) ?? Data()
@@ -628,6 +638,15 @@ final class ChatViewModel {
         }
         editingMessage = nil
         composingText = ""
+
+        // Send edit to remote peer
+        if let channel = activeChannel {
+            do {
+                try await messageService.sendMessageEdit(messageID: editID, newContent: newText, to: channel)
+            } catch {
+                DebugLogger.shared.log("DM", "Failed to send remote edit: \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Retry sending a failed message.
