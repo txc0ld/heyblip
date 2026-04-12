@@ -486,6 +486,7 @@ struct ChatListView: View {
         case .composing: return .composing
         case .queued: return .queued
         case .encrypting: return .encrypting
+        case .failed: return .failed
         case .sent: return .sent
         case .delivered: return .delivered
         case .read: return .read

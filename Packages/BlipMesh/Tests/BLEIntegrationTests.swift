@@ -124,6 +124,7 @@ final class MockTransportDelegate: TransportDelegate, @unchecked Sendable {
     private var _connectEvents: [PeerID] = []
     private var _disconnectEvents: [PeerID] = []
     private var _receivedData: [(data: Data, from: PeerID)] = []
+    private var _failedDeliveries: [(data: Data, to: PeerID?)] = []
 
     var stateChanges: [TransportState] {
         lock.withLock { _stateChanges }
@@ -141,6 +142,10 @@ final class MockTransportDelegate: TransportDelegate, @unchecked Sendable {
         lock.withLock { _receivedData }
     }
 
+    var failedDeliveries: [(data: Data, to: PeerID?)] {
+        lock.withLock { _failedDeliveries }
+    }
+
     func transport(_ transport: any Transport, didChangeState state: TransportState) {
         lock.withLock { _stateChanges.append(state) }
     }
@@ -155,6 +160,10 @@ final class MockTransportDelegate: TransportDelegate, @unchecked Sendable {
 
     func transport(_ transport: any Transport, didReceiveData data: Data, from peerID: PeerID) {
         lock.withLock { _receivedData.append((data, peerID)) }
+    }
+
+    func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {
+        lock.withLock { _failedDeliveries.append((data, peerID)) }
     }
 }
 

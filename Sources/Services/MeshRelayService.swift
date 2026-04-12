@@ -135,6 +135,10 @@ extension MeshRelayService: TransportDelegate {
         // Forward downstream.
         delegate?.transport(transport, didChangeState: state)
     }
+
+    func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {
+        delegate?.transport(transport, didFailDelivery: data, to: peerID)
+    }
 }
 
 // MARK: - Helpers

@@ -108,4 +108,11 @@ public protocol TransportDelegate: AnyObject, Sendable {
     ///   - transport: The transport whose state changed.
     ///   - state: The new state.
     func transport(_ transport: any Transport, didChangeState state: TransportState)
+
+    /// Called when queued wire data is permanently dropped after transport retries are exhausted.
+    func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?)
+}
+
+public extension TransportDelegate {
+    func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {}
 }

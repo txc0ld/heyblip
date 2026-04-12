@@ -327,6 +327,7 @@ extension MessageService {
             if let message = try context.fetch(desc).first {
                 message.statusRaw = status.rawValue
                 try context.save()
+                delegate?.messageService(self, didUpdateStatus: status, for: messageID)
             }
         } catch {
             DebugLogger.emit("DB", "Failed to update message status: \(error.localizedDescription)", isError: true)

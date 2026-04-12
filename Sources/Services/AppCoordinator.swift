@@ -70,6 +70,7 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var foregroundObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var transportDelegateBridge: (any TransportDelegate)?
     @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
@@ -197,7 +198,8 @@ final class AppCoordinator {
         // Relay flow: MeshRelayService → TransportCoordinator.broadcast(excluding:)
         let relay = MeshRelayService(transport: coordinator)
         relay.delegate = msgService
-        coordinator.delegate = relay
+        coordinator.delegate = self
+        transportDelegateBridge = relay
         self.meshRelayService = relay
         self.messageService = msgService
 
@@ -656,6 +658,7 @@ final class AppCoordinator {
         powerTierCancellable = nil
         powerManager?.stopMonitoring()
         powerManager = nil
+        transportDelegateBridge = nil
         messageService?.delegate = nil
         messageRetryService?.stop()
         meshViewModel?.stopMonitoring()
@@ -783,6 +786,36 @@ final class AppCoordinator {
         for model in models {
             context.delete(model)
         }
+    }
+}
+
+extension Notification.Name {
+    static let didFailMessageDelivery = Notification.Name("com.blip.didFailMessageDelivery")
+}
+
+extension AppCoordinator: TransportDelegate {
+    nonisolated func transport(_ transport: any Transport, didReceiveData data: Data, from peerID: PeerID) {
+        transportDelegateBridge?.transport(transport, didReceiveData: data, from: peerID)
+    }
+
+    nonisolated func transport(_ transport: any Transport, didConnect peerID: PeerID) {
+        transportDelegateBridge?.transport(transport, didConnect: peerID)
+    }
+
+    nonisolated func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
+        transportDelegateBridge?.transport(transport, didDisconnect: peerID)
+    }
+
+    nonisolated func transport(_ transport: any Transport, didChangeState state: TransportState) {
+        transportDelegateBridge?.transport(transport, didChangeState: state)
+    }
+
+    nonisolated func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {
+        var userInfo: [AnyHashable: Any] = ["data": data]
+        if let peerID {
+            userInfo["peerID"] = peerID.bytes
+        }
+        NotificationCenter.default.post(name: .didFailMessageDelivery, object: nil, userInfo: userInfo)
     }
 }
 

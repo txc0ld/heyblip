@@ -14,6 +14,7 @@ enum MessageStatus: String, Codable, CaseIterable {
     case composing
     case queued
     case encrypting
+    case failed
     case sent
     case delivered
     case read

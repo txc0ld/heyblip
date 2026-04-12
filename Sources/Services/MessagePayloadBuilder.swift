@@ -63,6 +63,14 @@ enum MessagePayloadBuilder {
         return (messageID, content, replyToID)
     }
 
+    /// Parse the leading message ID prefix shared by text and media payloads.
+    static func parseLeadingMessageID(_ data: Data) -> UUID? {
+        let bytes = [UInt8](data)
+        let firstSep = bytes.firstIndex(of: 0x00) ?? bytes.endIndex
+        let messageIDBytes = Data(bytes[0 ..< firstSep])
+        return String(data: messageIDBytes, encoding: .utf8).flatMap(UUID.init)
+    }
+
     /// Build a group text payload: [channelID(36B) 0x00 textPayload]
     static func buildGroupTextPayload(content: String, channelID: UUID, messageID: UUID, replyToID: UUID?) -> Data {
         let textPayload = buildTextPayload(content: content, messageID: messageID, replyToID: replyToID)

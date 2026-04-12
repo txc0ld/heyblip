@@ -355,7 +355,10 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
 
         for var message in messages {
             if message.retryCount >= Self.maxRetries {
-                logger.warning("Dropping message after \(Self.maxRetries) retries")
+                logger.warning(
+                    "Dropping message after \(Self.maxRetries) retries to peer: \(message.targetPeer?.description ?? "broadcast", privacy: .public)"
+                )
+                delegate?.transport(self, didFailDelivery: message.data, to: message.targetPeer)
                 continue
             }
 

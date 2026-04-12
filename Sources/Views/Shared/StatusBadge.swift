@@ -22,6 +22,7 @@ struct StatusBadge: View {
         case composing
         case queued
         case encrypting
+        case failed
         case sent
         case delivered
         case read
@@ -46,6 +47,8 @@ struct StatusBadge: View {
                 queuedIcon
             case .encrypting:
                 encryptingIcon
+            case .failed:
+                failedIcon
             case .sent:
                 sentIcon
             case .delivered:
@@ -88,6 +91,15 @@ struct StatusBadge: View {
     private var encryptingIcon: some View {
         Image(systemName: "lock")
             .font(.system(size: size, weight: .medium))
+            .foregroundStyle(resolvedColor)
+            .scaleEffect(animationTrigger ? 1.0 : 0.5)
+            .opacity(animationTrigger ? 1.0 : 0.0)
+            .onAppear { triggerAnimation() }
+    }
+
+    private var failedIcon: some View {
+        Image(systemName: "exclamationmark.circle.fill")
+            .font(.system(size: size, weight: .semibold))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -150,6 +162,8 @@ struct StatusBadge: View {
             return tintColor
         }
         switch status {
+        case .failed:
+            return theme.colors.statusRed
         case .sent:
             return Color.blipElectricCyan
         case .composing, .queued, .encrypting:
@@ -168,6 +182,7 @@ struct StatusBadge: View {
         case .composing: return "Typing"
         case .queued: return "Queued"
         case .encrypting: return "Encrypting"
+        case .failed: return "Failed to send"
         case .sent: return "Sent"
         case .delivered: return "Delivered"
         case .read: return "Read"
@@ -190,7 +205,7 @@ struct StatusBadge: View {
 #Preview("Status Badges") {
     VStack(spacing: 20) {
         ForEach(
-            [StatusBadge.DeliveryStatus.composing, .queued, .sent, .delivered, .read],
+            [StatusBadge.DeliveryStatus.composing, .queued, .encrypting, .failed, .sent, .delivered, .read],
             id: \.self
         ) { status in
             HStack {

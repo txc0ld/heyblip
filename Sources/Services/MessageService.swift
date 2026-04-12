@@ -85,6 +85,7 @@ final class MessageService: @unchecked Sendable {
     private let bloomFilter: MultiTierBloomFilter
     let peerStore: PeerStore
     weak var delegate: (any MessageServiceDelegate)?
+    private var deliveryFailureObservation: NSObjectProtocol?
 
     // Transport reference (set externally after initialization)
     private var transport: (any Transport)?
@@ -185,6 +186,21 @@ final class MessageService: @unchecked Sendable {
         self.keyManager = keyManager
         self.peerStore = peerStore
         self.bloomFilter = MultiTierBloomFilter()
+        self.deliveryFailureObservation = NotificationCenter.default.addObserver(
+            forName: .didFailMessageDelivery,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            Task { @MainActor [weak self] in
+                self?.handleDeliveryFailureNotification(notification)
+            }
+        }
+    }
+
+    deinit {
+        if let deliveryFailureObservation {
+            NotificationCenter.default.removeObserver(deliveryFailureObservation)
+        }
     }
 
     // MARK: - Configuration
@@ -1396,6 +1412,126 @@ final class MessageService: @unchecked Sendable {
         guard data.count >= 12 else { return nil }
         let geohashData = data.prefix(12)
         return String(data: geohashData, encoding: .utf8)?.trimmingCharacters(in: .controlCharacters)
+    }
+
+    @MainActor
+    private func handleDeliveryFailureNotification(_ notification: Notification) {
+        guard let data = notification.userInfo?["data"] as? Data else { return }
+
+        let targetPeerID: PeerID?
+        if let peerData = notification.userInfo?["peerID"] as? Data {
+            targetPeerID = PeerID(bytes: peerData)
+        } else {
+            targetPeerID = nil
+        }
+
+        let packet: Packet
+        do {
+            packet = try PacketSerializer.decode(data)
+        } catch {
+            DebugLogger.emit("TX", "Failed delivery decode failed: \(error)", isError: true)
+            return
+        }
+
+        let context = ModelContext(modelContainer)
+        let messageID = extractMessageID(fromFailedPacket: packet)
+            ?? findBestEffortFailedMessageID(for: packet, targetPeerID: targetPeerID, context: context)
+
+        guard let messageID else {
+            DebugLogger.emit("TX", "Failed delivery could not be matched to a local message", isError: true)
+            return
+        }
+
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        do {
+            guard let message = try context.fetch(descriptor).first else {
+                DebugLogger.emit("TX", "Failed delivery matched missing message \(messageID.uuidString)", isError: true)
+                return
+            }
+            guard message.status != .delivered, message.status != .read else { return }
+
+            message.status = .failed
+            try context.save()
+            delegate?.messageService(self, didUpdateStatus: .failed, for: messageID)
+        } catch {
+            DebugLogger.emit("DB", "Failed to mark message delivery failure: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    private func extractMessageID(fromFailedPacket packet: Packet) -> UUID? {
+        guard !packet.flags.contains(.hasRecipient) else { return nil }
+
+        var payload = packet.payload
+        if packet.flags.contains(.isCompressed) {
+            do {
+                payload = try PayloadCompressor.decompress(payload)
+            } catch {
+                DebugLogger.emit("TX", "Failed delivery payload decompress failed: \(error)", isError: true)
+                return nil
+            }
+        }
+
+        guard let subTypeByte = payload.first,
+              let subType = EncryptedSubType(rawValue: subTypeByte) else {
+            return nil
+        }
+
+        let body = Data(payload.dropFirst())
+        switch subType {
+        case .groupMessage:
+            let (_, scopedContent) = MessagePayloadBuilder.parseChannelScopedPayload(body)
+            return MessagePayloadBuilder.parseLeadingMessageID(scopedContent)
+        case .privateMessage, .voiceNote, .imageMessage:
+            return MessagePayloadBuilder.parseLeadingMessageID(body)
+        default:
+            return nil
+        }
+    }
+
+    private func findBestEffortFailedMessageID(
+        for packet: Packet,
+        targetPeerID: PeerID?,
+        context: ModelContext
+    ) -> UUID? {
+        let failedPeerID = targetPeerID ?? packet.recipientID
+        guard let failedPeerID, packet.flags.contains(.hasRecipient) else { return nil }
+
+        let packetDate = packet.date
+        let localNoiseKey = getIdentity()?.noisePublicKey.rawRepresentation
+
+        let descriptor = FetchDescriptor<Message>()
+        let messages: [Message]
+        do {
+            messages = try context.fetch(descriptor)
+        } catch {
+            DebugLogger.emit("DB", "Failed delivery candidate fetch failed: \(error.localizedDescription)", isError: true)
+            return nil
+        }
+
+        let candidate = messages
+            .filter { message in
+                guard let channel = message.channel, channel.type == .dm else { return false }
+                guard message.status == .queued || message.status == .encrypting || message.status == .sent else {
+                    return false
+                }
+                return channel.memberships.contains { membership in
+                    guard let user = membership.user else { return false }
+                    if user.noisePublicKey == localNoiseKey {
+                        return false
+                    }
+                    if let directPeerID = PeerID(bytes: user.noisePublicKey), directPeerID == failedPeerID {
+                        return true
+                    }
+                    return PeerID(noisePublicKey: user.noisePublicKey) == failedPeerID
+                }
+            }
+            .map { message in
+                (message, abs(message.createdAt.timeIntervalSince(packetDate)))
+            }
+            .filter { _, delta in delta <= 5.0 }
+            .min { lhs, rhs in lhs.1 < rhs.1 }
+
+        return candidate?.0.id
     }
 }
 
