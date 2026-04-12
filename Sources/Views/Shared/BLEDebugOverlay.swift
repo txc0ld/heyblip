@@ -545,6 +545,7 @@ struct BLEDebugOverlay: View {
             case .starting: bleState = "Starting"
             case .running: bleState = "Running"
             case .stopped: bleState = "Stopped"
+            case .unauthorized: bleState = "Unauthorized"
             case .failed(let reason): bleState = "Failed: \(reason)"
             }
             peerCount = ble.connectedPeers.count

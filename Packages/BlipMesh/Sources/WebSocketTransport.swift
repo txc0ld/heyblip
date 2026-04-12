@@ -24,17 +24,6 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         return url
     }()
 
-    public static let pinnedCertHashes: Set<String> = [
-        "65322daf5b6f90003fcea47d9389234b26435ac1a519b7d7da02de3e9cf07a2f",
-        "908769e8d34477cc2cba0632c88605b22d7294c0840f78596d247c645b1afc0e"
-    ]
-
-    public static let pinnedDomains: Set<String> = [
-        "blip-auth.john-mckean.workers.dev",
-        "blip-relay.john-mckean.workers.dev",
-        "blip-cdn.john-mckean.workers.dev"
-    ]
-
     /// Minimum reconnect delay in seconds.
     public static let minReconnectDelay: TimeInterval = 1.0
 
@@ -67,6 +56,12 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     /// The relay URL for this instance.
     private let relayURL: URL
+
+    /// SPKI hashes accepted for relay TLS pinning.
+    private let pinnedCertHashes: Set<String>
+
+    /// Domains that require relay TLS pinning.
+    private let pinnedDomains: Set<String>
 
     /// Produces the bearer token used for relay authentication.
     private let tokenProvider: @Sendable () async throws -> String
@@ -108,16 +103,22 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     ///
     /// - Parameters:
     ///   - localPeerID: This device's PeerID.
+    ///   - pinnedCertHashes: SPKI hashes accepted for TLS pinning.
+    ///   - pinnedDomains: Domains that require TLS pinning.
     ///   - tokenProvider: Produces the bearer token used for authentication.
     ///   - tokenRefreshHandler: Refreshes the token after an auth failure.
     ///   - relayURL: WebSocket relay endpoint. Defaults to `defaultRelayURL`.
     public init(
         localPeerID: PeerID,
+        pinnedCertHashes: Set<String>,
+        pinnedDomains: Set<String>,
         tokenProvider: @escaping @Sendable () async throws -> String,
         tokenRefreshHandler: (@Sendable () async throws -> Void)? = nil,
         relayURL: URL? = nil
     ) {
         self.localPeerID = localPeerID
+        self.pinnedCertHashes = pinnedCertHashes
+        self.pinnedDomains = pinnedDomains
         self.tokenProvider = tokenProvider
         self.tokenRefreshHandler = tokenRefreshHandler
         self.relayURL = relayURL ?? Self.defaultRelayURL
@@ -480,7 +481,7 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
     ) {
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               let serverTrust = challenge.protectionSpace.serverTrust,
-              Self.pinnedDomains.contains(challenge.protectionSpace.host) else {
+              pinnedDomains.contains(challenge.protectionSpace.host) else {
             completionHandler(.performDefaultHandling, nil)
             return
         }
@@ -500,7 +501,7 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
                 continue
             }
 
-            if Self.pinnedCertHashes.contains(hash) {
+            if pinnedCertHashes.contains(hash) {
                 completionHandler(.useCredential, URLCredential(trust: serverTrust))
                 return
             }

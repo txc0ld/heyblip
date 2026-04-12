@@ -4,7 +4,7 @@
 
 Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events (festivals, sporting events, ultra marathons, concerts, any high-density gathering) via BLE mesh when mobile reception is unavailable.
 
-**Design spec:** `docs/superpowers/specs/2026-03-28-festichat-design.md` — read this before any implementation work. It is the single source of truth. (BDEV-219 covers the pending rename to `blip-design.md`.)
+**Design spec:** `docs/superpowers/specs/blip-design.md` — read this before any implementation work. It is the single source of truth.
 
 ## Build Configuration
 

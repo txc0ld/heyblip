@@ -288,13 +288,13 @@ struct BLELifecycleTests {
         #expect(service.state == .running)
     }
 
-    @Test("Central unauthorized transitions to failed")
+    @Test("Central unauthorized transitions to unauthorized")
     func centralUnauthorizedFails() {
         let (service, _, _, delegate) = makeBLEService()
         service.start()
 
         service.handleCentralStateChange(.unauthorized)
-        #expect(service.state == .failed("Bluetooth unauthorized"))
+        #expect(service.state == .unauthorized)
     }
 
     @Test("Central unsupported transitions to failed")

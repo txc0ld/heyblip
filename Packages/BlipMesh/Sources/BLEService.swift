@@ -156,7 +156,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         switch auth {
         case .denied, .restricted:
             isBluetoothDenied = true
-            state = .failed("Bluetooth unauthorized")
+            state = .unauthorized
             transportEventHandler?("BLE", "start() aborted — Bluetooth authorization: \(auth.rawValue)")
             return
         case .notDetermined, .allowedAlways:
@@ -200,8 +200,8 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         switch auth {
         case .denied, .restricted:
             isBluetoothDenied = true
-            if state != .failed("Bluetooth unauthorized") {
-                state = .failed("Bluetooth unauthorized")
+            if state != .unauthorized {
+                state = .unauthorized
             }
         case .allowedAlways:
             guard isBluetoothDenied else { return }
@@ -569,7 +569,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             state = .failed("Bluetooth powered off")
         case .unauthorized:
             logger.error("Central unauthorized")
-            state = .failed("Bluetooth unauthorized")
+            state = .unauthorized
         case .unsupported:
             logger.error("Central unsupported")
             state = .failed("Bluetooth unsupported")

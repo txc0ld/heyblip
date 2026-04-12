@@ -1,4 +1,4 @@
--- FestiChat user database schema (Neon Postgres)
+-- Blip user database schema (Neon Postgres)
 -- Run this against your Neon database to initialize tables.
 
 CREATE TABLE IF NOT EXISTS users (
