@@ -109,8 +109,8 @@ struct AvatarCropView: View {
                     .offset(x: x)
             }
         }
-        .clipShape(Circle().size(CGSize(width: cropCircleSize, height: cropCircleSize))
-                        .offset(x: -cropCircleSize / 2, y: -cropCircleSize / 2))
+        .frame(width: cropCircleSize, height: cropCircleSize)
+        .clipShape(Circle())
     }
 
     // MARK: - Instructions

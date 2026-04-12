@@ -100,8 +100,11 @@ struct StageMapView: View {
                                 .foregroundStyle(.blipAccentPurple)
 
                             Text(point.label)
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(theme.typography.caption)
                                 .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: 96)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
                                 .background(Capsule().fill(.blipAccentPurple))
