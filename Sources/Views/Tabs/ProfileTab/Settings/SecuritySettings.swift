@@ -9,32 +9,19 @@ struct SecuritySettings: View {
 
     var body: some View {
         SettingsComponents.settingsGroup(title: "Security", icon: "lock.fill", theme: theme) {
-            VStack(spacing: BlipSpacing.md) {
-                // TODO: BDEV-136 — wire recovery kit export with password-protected file
-                Button(action: {}) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                            Text("Recovery Kit Export")
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.text)
+            // The entire section is currently planned work — lead with the
+            // "Coming Soon" header so the card doesn't read as a shipped
+            // feature. TODO: BDEV-136 — wire recovery kit export with
+            // password-protected file.
+            VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                SettingsComponents.comingSoonHeader(theme: theme)
 
-                            Text("Unavailable in this build until file export is wired")
-                                .font(theme.typography.caption)
-                                .foregroundStyle(theme.colors.mutedText)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.blipAccentPurple)
-                    }
-                    .frame(minHeight: BlipSizing.minTapTarget)
-                }
-                .buttonStyle(.plain)
-                .disabled(true)
-                .opacity(0.5)
-                .accessibilityLabel("Export recovery kit")
+                SettingsComponents.settingsDisabledRow(
+                    title: "Recovery Kit Export",
+                    subtitle: "Unavailable in this build until file export is wired",
+                    icon: "square.and.arrow.up",
+                    theme: theme
+                )
             }
         }
     }
