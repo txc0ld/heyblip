@@ -39,7 +39,7 @@ interface RateEntry {
 }
 
 const MAX_VERIFY_ATTEMPTS = 5;
-const MAX_CHALLENGES_PER_MINUTE = 5;
+const MAX_CHALLENGES_PER_MINUTE = 3;
 const CHALLENGE_RATE_LIMIT_WINDOW_SECONDS = 60;
 
 interface RegisterBody {
@@ -188,7 +188,11 @@ export default {
 // ─── Send Code ───────────────────────────────────────────────
 
 async function handleChallenge(request: Request, env: Env): Promise<Response> {
-  const ipAddress = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const ipAddress = request.headers.get("CF-Connecting-IP") ?? (env.DEV_BYPASS === "true" ? "dev-local" : null);
+  if (!ipAddress) {
+    return json({ error: "Unable to identify client" }, 400, env);
+  }
+
   const rateLimited = await checkChallengeRateLimit(env, ipAddress);
   if (rateLimited) {
     return json({ error: "Too many requests. Try again later." }, 429, env);
@@ -345,6 +349,7 @@ async function checkChallengeRateLimit(env: Env, ipAddress: string): Promise<boo
   const currentCount = raw ? parseInt(raw, 10) || 0 : 0;
 
   if (currentCount >= MAX_CHALLENGES_PER_MINUTE) {
+    console.warn(`[auth] challenge rate limit hit for IP: ${ipAddress}`);
     return true;
   }
 
@@ -724,11 +729,13 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
         }
         return json({ userId: result[0]?.id }, 200, env);
       } catch (updateError: any) {
-        return json({ error: "Registration failed", detail: updateError?.message ?? String(updateError) }, 500, env);
+        console.error("[auth] handleRegister (username conflict update) error:", updateError);
+        return json({ error: "Registration failed" }, 500, env);
       }
     }
 
-    return json({ error: "Registration failed", detail: msg }, 500, env);
+    console.error("[auth] handleRegister error:", error);
+    return json({ error: "Registration failed" }, 500, env);
   }
 }
 
@@ -798,7 +805,8 @@ async function handleIssueToken(request: Request, env: Env): Promise<Response> {
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Token issuance failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleIssueToken error:", error);
+    return json({ error: "Token issuance failed" }, 500, env);
   }
 }
 
@@ -836,7 +844,8 @@ async function handleRefreshToken(request: Request, env: Env): Promise<Response>
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Token refresh failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleRefreshToken error:", error);
+    return json({ error: "Token refresh failed" }, 500, env);
   }
 }
 
@@ -874,7 +883,8 @@ async function handleSync(request: Request, env: Env): Promise<Response> {
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Sync failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleSync error:", error);
+    return json({ error: "Sync failed" }, 500, env);
   }
 }
 
@@ -911,7 +921,8 @@ async function handleGetUser(request: Request, url: URL, env: Env): Promise<Resp
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Lookup failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleGetUser error:", error);
+    return json({ error: "Lookup failed" }, 500, env);
   }
 }
 
@@ -988,7 +999,8 @@ async function handleLookupByUsername(request: Request, url: URL, env: Env): Pro
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Lookup failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleLookupByUsername error:", error);
+    return json({ error: "Lookup failed" }, 500, env);
   }
 }
 
@@ -1026,7 +1038,8 @@ async function handleKeys(request: Request, env: Env): Promise<Response> {
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    return json({ error: "Key update failed", detail: error?.message ?? String(error) }, 500, env);
+    console.error("[auth] handleKeys error:", error);
+    return json({ error: "Key update failed" }, 500, env);
   }
 }
 

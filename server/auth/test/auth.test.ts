@@ -276,7 +276,12 @@ describe("POST /v1/auth/send-code", () => {
 
 describe("POST /v1/auth/challenge", () => {
   it("returns a one-time 32-byte challenge and stores it in KV", async () => {
-    const res = await request("POST", "/v1/auth/challenge", {});
+    const res = await request(
+      "POST",
+      "/v1/auth/challenge",
+      {},
+      { "CF-Connecting-IP": "203.0.113.1" }
+    );
     expect(res.status).toBe(200);
 
     const body = await json(res);
@@ -288,8 +293,16 @@ describe("POST /v1/auth/challenge", () => {
     expect(stored).toBe("1");
   });
 
+  it("rejects requests without CF-Connecting-IP outside local dev bypass", async () => {
+    const res = await request("POST", "/v1/auth/challenge", {});
+    expect(res.status).toBe(400);
+    expect(await json(res)).toEqual({
+      error: "Unable to identify client",
+    });
+  });
+
   it("allows requests under the per-IP limit", async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       const res = await request(
         "POST",
         "/v1/auth/challenge",
@@ -300,11 +313,11 @@ describe("POST /v1/auth/challenge", () => {
     }
 
     const storedCount = await env.CODES.get("ratelimit:203.0.113.10");
-    expect(storedCount).toBe("5");
+    expect(storedCount).toBe("3");
   });
 
   it("blocks requests once the per-IP limit is reached", async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       const res = await request(
         "POST",
         "/v1/auth/challenge",
@@ -327,7 +340,7 @@ describe("POST /v1/auth/challenge", () => {
   });
 
   it("tracks different IPs independently", async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       const res = await request(
         "POST",
         "/v1/auth/challenge",
@@ -352,6 +365,12 @@ describe("POST /v1/auth/challenge", () => {
       { "CF-Connecting-IP": "203.0.113.31" }
     );
     expect(otherIP.status).toBe(200);
+  });
+
+  it("allows missing CF-Connecting-IP in local dev bypass mode", async () => {
+    (env as Record<string, unknown>).DEV_BYPASS = "true";
+    const res = await request("POST", "/v1/auth/challenge", {});
+    expect(res.status).toBe(200);
   });
 });
 
@@ -471,7 +490,12 @@ describe("POST /v1/users/register challenge verification", () => {
   });
 
   it("verifies a valid signature before touching the database", async () => {
-    const challengeResponse = await request("POST", "/v1/auth/challenge", {});
+    const challengeResponse = await request(
+      "POST",
+      "/v1/auth/challenge",
+      {},
+      { "CF-Connecting-IP": "203.0.113.40" }
+    );
     const challengeBody = await json(challengeResponse);
     const challenge = challengeBody.challenge as string;
 
