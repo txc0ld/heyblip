@@ -24,6 +24,9 @@ struct MessageBubble: View {
     /// Called when user taps delete in context menu.
     var onDelete: (() -> Void)? = nil
 
+    /// Called when user taps retry on a failed message.
+    var onRetry: (() -> Void)? = nil
+
     /// Called when user taps report in context menu.
     var onReport: (() -> Void)? = nil
 
@@ -61,6 +64,23 @@ struct MessageBubble: View {
                     .contextMenu {
                         contextMenuItems
                     }
+
+                // Retry button for failed messages
+                if message.isFromMe && message.deliveryStatus == .failed {
+                    Button {
+                        onRetry?()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Failed to send. Tap to retry.")
+                                .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
+                        }
+                        .foregroundStyle(theme.colors.statusRed)
+                    }
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .accessibilityLabel("Retry sending message")
+                }
             }
 
             if !message.isFromMe {

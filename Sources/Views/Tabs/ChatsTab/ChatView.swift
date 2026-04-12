@@ -318,7 +318,8 @@ struct ChatView: View {
                 showImageViewer = true
             },
             onEdit: { findOriginal(messageID) { chatViewModel?.startEditing($0) } },
-            onDelete: { findOriginal(messageID) { showDeleteConfirmation = $0 } }
+            onDelete: { findOriginal(messageID) { showDeleteConfirmation = $0 } },
+            onRetry: { findOriginal(messageID) { msg in Task { await chatViewModel?.retryMessage(msg) } } }
         )
         .id(message.id)
     }

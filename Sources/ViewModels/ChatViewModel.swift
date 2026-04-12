@@ -630,6 +630,37 @@ final class ChatViewModel {
         composingText = ""
     }
 
+    /// Retry sending a failed message.
+    func retryMessage(_ message: Message) async {
+        guard let channel = activeChannel,
+              let text = String(data: message.rawPayload, encoding: .utf8),
+              !text.isEmpty else { return }
+
+        // Remove the failed message from the list
+        activeMessages.removeAll { $0.id == message.id }
+
+        // Delete the failed record
+        let context = ModelContext(modelContainer)
+        let failedID = message.id
+        do {
+            let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == failedID })
+            if let failed = try context.fetch(descriptor).first {
+                context.delete(failed)
+                try context.save()
+            }
+        } catch {
+            DebugLogger.shared.log("DM", "Failed to clean up failed message: \(error.localizedDescription)")
+        }
+
+        // Re-send
+        do {
+            let newMessage = try await messageService.sendTextMessage(content: text, to: channel)
+            activeMessages.append(newMessage)
+        } catch {
+            errorMessage = "Retry failed: \(error.localizedDescription)"
+        }
+    }
+
     /// Set a message as the reply target.
     func setReplyTarget(_ message: Message?) {
         replyTarget = message
