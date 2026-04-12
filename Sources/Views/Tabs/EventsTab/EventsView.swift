@@ -19,7 +19,6 @@ struct EventsView: View {
     @State private var showCrowdPulse: Bool = true
 
     @State private var stages: [StageMapItem] = []
-    @State private var announcements: [AnnouncementItem] = []
     @State private var scheduleStages: [ScheduleStage] = []
     @State private var friendPins: [FriendMapPin] = []
     @State private var meetingPoints: [MeetingPointMapItem] = []
@@ -89,7 +88,6 @@ struct EventsView: View {
                 currentArtist: stage.currentArtist
             )
         }
-        announcements = []
         friendPins = []
 
         // Map ViewModel crowd pulse to view cells
@@ -443,6 +441,10 @@ struct EventsView: View {
 
     private var eventTitle: String {
         eventsViewModel?.activeEvent?.name ?? "Event Mode"
+    }
+
+    private var announcements: [AnnouncementItem] {
+        eventsViewModel?.announcements ?? []
     }
 
     private var eventCenter: CLLocationCoordinate2D {

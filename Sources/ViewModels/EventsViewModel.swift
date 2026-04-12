@@ -47,6 +47,9 @@ final class EventsViewModel {
     /// Crowd pulse data for the heat map overlay.
     var crowdPulseData: [CrowdPulseInfo] = []
 
+    /// Live organizer announcements for the active event.
+    var announcements: [AnnouncementItem] = []
+
     /// Discovery state.
     var discoveryState: EventDiscoveryState = .idle
 
@@ -164,6 +167,7 @@ final class EventsViewModel {
     private let locationService: LocationService
     private let notificationService: NotificationService
     @ObservationIgnored nonisolated(unsafe) private var geofenceObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var announcementObservation: NSObjectProtocol?
 
     // MARK: - Constants
 
@@ -188,10 +192,12 @@ final class EventsViewModel {
         self.notificationService = notificationService
 
         setupGeofenceObserver()
+        setupAnnouncementObserver()
     }
 
     deinit {
         if let obs = geofenceObservation { NotificationCenter.default.removeObserver(obs) }
+        if let obs = announcementObservation { NotificationCenter.default.removeObserver(obs) }
     }
 
     // MARK: - Event Discovery
@@ -315,6 +321,9 @@ final class EventsViewModel {
                 await loadStages(for: active)
                 await loadSchedule(for: active)
                 await loadCrowdPulse()
+                refreshAnnouncements()
+            } else {
+                announcements = []
             }
 
         } catch {
@@ -674,6 +683,64 @@ final class EventsViewModel {
     /// Refresh crowd pulse from current mesh observations.
     func refreshCrowdPulse() async {
         await loadCrowdPulse()
+    }
+
+    // MARK: - Announcements
+
+    /// Fetch organizer announcements from the stageChannel and transform to AnnouncementItems.
+    private func refreshAnnouncements() {
+        let context = ModelContext(modelContainer)
+        do {
+            let descriptor = FetchDescriptor<Channel>(
+                predicate: #Predicate { $0.typeRaw == "stageChannel" }
+            )
+            guard let channel = try context.fetch(descriptor).first else {
+                announcements = []
+                return
+            }
+
+            let messages = channel.messages.sorted { $0.createdAt > $1.createdAt }
+            announcements = messages.compactMap { message in
+                guard let text = String(data: message.rawPayload, encoding: .utf8),
+                      !text.isEmpty else { return nil }
+
+                let lines = text.split(separator: "\n", maxSplits: 1)
+                let title: String
+                let body: String
+                if lines.count > 1 {
+                    title = String(lines[0])
+                    body = String(lines[1])
+                } else {
+                    title = "Event Update"
+                    body = text
+                }
+
+                return AnnouncementItem(
+                    id: message.id,
+                    title: title,
+                    message: body,
+                    severity: .info,
+                    timestamp: message.createdAt,
+                    source: activeEvent?.name,
+                    isPinned: false
+                )
+            }
+        } catch {
+            DebugLogger.shared.log("EVENT", "Failed to fetch announcements: \(error.localizedDescription)")
+            announcements = []
+        }
+    }
+
+    private func setupAnnouncementObserver() {
+        announcementObservation = NotificationCenter.default.addObserver(
+            forName: .didReceiveBlipMessage,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshAnnouncements()
+            }
+        }
     }
 
     // MARK: - Private: Manifest
