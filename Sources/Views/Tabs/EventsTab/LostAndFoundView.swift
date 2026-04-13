@@ -1,25 +1,68 @@
 import SwiftUI
+import SwiftData
+
+private enum LostAndFoundL10n {
+    static let postErrorTitle = String(localized: "events.lost_found.post_error.title", defaultValue: "Couldn't post update")
+    static let ok = String(localized: "common.ok", defaultValue: "OK")
+    static let title = String(localized: "events.lost_found.title", defaultValue: "Lost & Found")
+    static let publicChannel = String(localized: "events.lost_found.status.public_channel", defaultValue: "Public channel")
+    static let connecting = String(localized: "events.lost_found.status.connecting", defaultValue: "Connecting...")
+    static let inputPlaceholder = String(localized: "events.lost_found.input.placeholder", defaultValue: "Describe lost or found item...")
+    static let inputAccessibilityLabel = String(localized: "events.lost_found.input.accessibility_label", defaultValue: "Message input for lost and found")
+    static let postButton = String(localized: "events.lost_found.post_button", defaultValue: "Post")
+    static let postButtonAccessibilityLabel = String(localized: "events.lost_found.post_button.accessibility_label", defaultValue: "Post lost and found update")
+    static let emptyTitle = String(localized: "events.lost_found.empty.title", defaultValue: "No lost & found posts yet")
+    static let joiningTitle = String(localized: "events.lost_found.empty.joining_title", defaultValue: "Joining Lost & Found")
+    static let emptySubtitle = String(localized: "events.lost_found.empty.subtitle", defaultValue: "Posts from event staff and attendees will appear here.")
+    static let joiningSubtitle = String(localized: "events.lost_found.empty.joining_subtitle", defaultValue: "This event channel is being prepared. Try again in a moment.")
+    static let messageServiceUnavailable = String(localized: "events.lost_found.error.message_service_unavailable", defaultValue: "Message service is unavailable.")
+    static let channelUnavailable = String(localized: "events.lost_found.error.channel_unavailable", defaultValue: "Lost & Found isn't ready for this event yet.")
+    static let you = String(localized: "common.you", defaultValue: "You")
+    static let attendee = String(localized: "events.lost_found.sender.attendee", defaultValue: "Attendee")
+    static let initialsFallback = String(localized: "events.lost_found.sender.initials_fallback", defaultValue: "LF")
+
+    static func signedPublicPosts(_ eventName: String) -> String {
+        String(
+            format: String(localized: "events.lost_found.header.subtitle", defaultValue: "Signed public posts for %@."),
+            locale: Locale.current,
+            eventName
+        )
+    }
+}
 
 // MARK: - LostAndFoundView
 
-/// Simple chat view for the event's lost & found public channel.
-///
-/// Displays messages in a scrollable list with a text input at the bottom.
-/// Messages are public and not encrypted.
+/// Live event chat view for the Lost & Found public channel.
 struct LostAndFoundView: View {
 
-    @State private var messages: [LostFoundMessage]
-    @State private var inputText: String = ""
+    let eventID: UUID
+    let eventName: String
 
+    @Query private var channels: [Channel]
+    @Query private var channelPosts: [Message]
+
+    @State private var inputText = ""
+    @State private var isSending = false
+    @State private var sendErrorMessage: String?
+
+    @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isInputFocused: Bool
 
-    private let isPostingAvailable: Bool
+    init(eventID: UUID, eventName: String) {
+        self.eventID = eventID
+        self.eventName = eventName
 
-    init(initialMessages: [LostFoundMessage] = [], isPostingAvailable: Bool = false) {
-        _messages = State(initialValue: initialMessages)
-        self.isPostingAvailable = isPostingAvailable
+        let channelID = eventID
+        _channels = Query(
+            filter: #Predicate<Channel> { $0.id == channelID },
+            sort: [SortDescriptor(\Channel.lastActivityAt, order: .reverse)]
+        )
+        _channelPosts = Query(
+            filter: #Predicate<Message> { $0.channel?.id == channelID },
+            sort: [SortDescriptor(\Message.createdAt, order: .forward)]
+        )
     }
 
     var body: some View {
@@ -31,6 +74,32 @@ struct LostAndFoundView: View {
         .background(
             colorScheme == .dark ? Color.black.opacity(0.3) : Color.white.opacity(0.3)
         )
+        .alert(LostAndFoundL10n.postErrorTitle, isPresented: Binding(
+            get: { sendErrorMessage != nil },
+            set: { if !$0 { sendErrorMessage = nil } }
+        )) {
+            Button(LostAndFoundL10n.ok, role: .cancel) {}
+        } message: {
+            Text(sendErrorMessage ?? "")
+        }
+    }
+
+    // MARK: - Derived State
+
+    private var channel: Channel? {
+        channels.first(where: { $0.type == .lostAndFound }) ?? channels.first
+    }
+
+    private var posts: [Message] {
+        channelPosts.filter { !$0.isDeleted }
+    }
+
+    private var trimmedInput: String {
+        inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isPostingAvailable: Bool {
+        channel != nil && coordinator.messageService != nil
     }
 
     // MARK: - Header
@@ -42,14 +111,14 @@ struct LostAndFoundView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.blipAccentPurple)
 
-                Text("Lost & Found")
+                Text(LostAndFoundL10n.title)
                     .font(theme.typography.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.text)
 
                 Spacer()
 
-                Text(isPostingAvailable ? "Public channel" : "Unavailable")
+                Text(isPostingAvailable ? LostAndFoundL10n.publicChannel : LostAndFoundL10n.connecting)
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
                     .padding(.horizontal, BlipSpacing.sm)
@@ -57,12 +126,10 @@ struct LostAndFoundView: View {
                     .background(Capsule().fill(theme.colors.hover))
             }
 
-            if !isPostingAvailable {
-                Text("Lost & Found is not synced to a live event channel in this build yet, so posting is disabled instead of storing fake local messages.")
-                    .font(theme.typography.caption)
-                    .foregroundStyle(theme.colors.mutedText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(LostAndFoundL10n.signedPublicPosts(eventName))
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, BlipSpacing.md)
         .padding(.vertical, BlipSpacing.sm)
@@ -75,22 +142,26 @@ struct LostAndFoundView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: BlipSpacing.sm) {
-                    if messages.isEmpty {
-                        unavailableState
+                    if posts.isEmpty {
+                        emptyState
                     } else {
-                        ForEach(messages) { message in
-                            LostFoundMessageBubble(message: message)
-                                .id(message.id)
+                        ForEach(posts) { post in
+                            LostFoundMessageBubble(
+                                message: post,
+                                senderName: senderName(for: post),
+                                senderInitials: senderInitials(for: post),
+                                isOwn: isOwn(post)
+                            )
+                            .id(post.id)
                         }
                     }
                 }
                 .padding(BlipSpacing.md)
             }
-            .onChange(of: messages.count) { _, _ in
-                if let lastID = messages.last?.id {
-                    withAnimation {
-                        proxy.scrollTo(lastID, anchor: .bottom)
-                    }
+            .onChange(of: posts.last?.id) { _, lastID in
+                guard let lastID else { return }
+                withAnimation {
+                    proxy.scrollTo(lastID, anchor: .bottom)
                 }
             }
         }
@@ -99,8 +170,8 @@ struct LostAndFoundView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: BlipSpacing.sm) {
-            TextField("Describe lost/found item...", text: $inputText, axis: .vertical)
+        HStack(alignment: .bottom, spacing: BlipSpacing.sm) {
+            TextField(LostAndFoundL10n.inputPlaceholder, text: $inputText, axis: .vertical)
                 .font(theme.typography.body)
                 .foregroundStyle(theme.colors.text)
                 .lineLimit(1...4)
@@ -119,40 +190,35 @@ struct LostAndFoundView: View {
                 )
                 .submitLabel(.send)
                 .onSubmit { sendMessage() }
-                .accessibilityLabel("Message input for lost and found")
-                .disabled(!isPostingAvailable)
+                .accessibilityLabel(LostAndFoundL10n.inputAccessibilityLabel)
+                .disabled(!isPostingAvailable || isSending)
 
-            Button(action: sendMessage) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(!isPostingAvailable || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? theme.colors.mutedText
-                                    : .blipAccentPurple)
+            GlassButton(LostAndFoundL10n.postButton, icon: "paperplane.fill", size: .small, isLoading: isSending) {
+                sendMessage()
             }
-            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
-            .disabled(!isPostingAvailable || inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("Send message")
+            .disabled(!isPostingAvailable || trimmedInput.isEmpty || isSending)
+            .accessibilityLabel(LostAndFoundL10n.postButtonAccessibilityLabel)
         }
         .padding(.horizontal, BlipSpacing.md)
         .padding(.vertical, BlipSpacing.sm)
         .background(.ultraThinMaterial)
     }
 
-    private var unavailableState: some View {
+    private var emptyState: some View {
         GlassCard(thickness: .ultraThin) {
             VStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "tray")
+                Image(systemName: isPostingAvailable ? "tray" : "dot.radiowaves.left.and.right")
                     .font(.system(size: 28))
                     .foregroundStyle(theme.colors.mutedText)
 
-                Text(isPostingAvailable ? "No lost & found posts yet" : "Lost & found channel unavailable")
+                Text(isPostingAvailable ? LostAndFoundL10n.emptyTitle : LostAndFoundL10n.joiningTitle)
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
 
                 Text(
                     isPostingAvailable
-                        ? "Posts from event staff and attendees will appear here."
-                        : "This screen stays visible so the feature is discoverable, but it is not connected to a shared public channel yet."
+                        ? LostAndFoundL10n.emptySubtitle
+                        : LostAndFoundL10n.joiningSubtitle
                 )
                 .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
@@ -165,66 +231,103 @@ struct LostAndFoundView: View {
 
     // MARK: - Actions
 
-    // TODO: BDEV-136 — wire to live event channel instead of local-only storage
     private func sendMessage() {
-        guard isPostingAvailable else { return }
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmedInput.isEmpty else { return }
+        guard let messageService = coordinator.messageService else {
+            sendErrorMessage = LostAndFoundL10n.messageServiceUnavailable
+            return
+        }
+        guard let channel else {
+            sendErrorMessage = LostAndFoundL10n.channelUnavailable
+            return
+        }
 
-        let newMessage = LostFoundMessage(
-            id: UUID(),
-            senderName: "You",
-            senderInitials: "YO",
-            text: trimmed,
-            timestamp: Date(),
-            isOwn: true
-        )
-        messages.append(newMessage)
-        inputText = ""
+        let postText = trimmedInput
+        isSending = true
+
+        Task { @MainActor in
+            do {
+                _ = try await messageService.sendPublicChannelTextMessage(content: postText, to: channel)
+                inputText = ""
+            } catch {
+                DebugLogger.shared.log("EVENT", "Failed to post Lost & Found update: \(error)", isError: true)
+                sendErrorMessage = error.localizedDescription
+            }
+            isSending = false
+        }
+    }
+
+    private func isOwn(_ message: Message) -> Bool {
+        guard let identity = coordinator.identity else {
+            return message.sender == nil && message.status != .delivered
+        }
+
+        guard let sender = message.sender else {
+            return message.status != .delivered
+        }
+
+        return sender.noisePublicKey == identity.noisePublicKey.rawRepresentation
+    }
+
+    private func senderName(for message: Message) -> String {
+        isOwn(message) ? LostAndFoundL10n.you : (message.sender?.resolvedDisplayName ?? LostAndFoundL10n.attendee)
+    }
+
+    private func senderInitials(for message: Message) -> String {
+        let components = senderName(for: message)
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(2)
+            .compactMap(\.first)
+
+        let initials = String(components).uppercased()
+        return initials.isEmpty ? LostAndFoundL10n.initialsFallback : initials
     }
 }
 
 // MARK: - LostFoundMessageBubble
 
-/// A single message in the lost & found channel.
 private struct LostFoundMessageBubble: View {
 
-    let message: LostFoundMessage
+    let message: Message
+    let senderName: String
+    let senderInitials: String
+    let isOwn: Bool
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(alignment: .top, spacing: BlipSpacing.sm) {
-            if !message.isOwn {
-                // Sender avatar
+            if !isOwn {
                 Circle()
                     .fill(LinearGradient.blipAccent.opacity(0.6))
                     .frame(width: 28, height: 28)
                     .overlay(
-                        Text(message.senderInitials)
+                        Text(senderInitials)
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
                     )
             }
 
-            VStack(alignment: message.isOwn ? .trailing : .leading, spacing: BlipSpacing.xs) {
-                if !message.isOwn {
-                    Text(message.senderName)
+            VStack(alignment: isOwn ? .trailing : .leading, spacing: BlipSpacing.xs) {
+                if !isOwn {
+                    Text(senderName)
                         .font(theme.typography.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(.blipAccentPurple)
                 }
 
-                Text(message.text)
+                Text(messageText)
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
                     .padding(BlipSpacing.md)
                     .background(
                         RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
-                            .fill(message.isOwn
-                                  ? .blipAccentPurple.opacity(0.15)
-                                  : (colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.04)))
+                            .fill(
+                                isOwn
+                                    ? .blipAccentPurple.opacity(0.15)
+                                    : (colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.04))
+                            )
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous)
@@ -234,50 +337,108 @@ private struct LostFoundMessageBubble: View {
                             )
                     )
 
-                Text(message.timestamp, style: .time)
+                Text(message.createdAt, style: .time)
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText.opacity(0.6))
             }
 
-            if message.isOwn {
+            if isOwn {
                 Spacer(minLength: 40)
             }
         }
-        .frame(maxWidth: .infinity, alignment: message.isOwn ? .trailing : .leading)
+        .frame(maxWidth: .infinity, alignment: isOwn ? .trailing : .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message.senderName): \(message.text)")
+        .accessibilityLabel("\(senderName): \(messageText)")
     }
-}
 
-// MARK: - Data Model
-
-struct LostFoundMessage: Identifiable {
-    let id: UUID
-    let senderName: String
-    let senderInitials: String
-    let text: String
-    let timestamp: Date
-    let isOwn: Bool
-}
-
-// MARK: - Sample Data
-
-extension LostAndFoundView {
-    static let sampleMessages: [LostFoundMessage] = [
-        LostFoundMessage(id: UUID(), senderName: "Alex K", senderInitials: "AK", text: "Lost a green backpack near the West Holts stage around 6pm. Has stickers on it. Please DM if found!", timestamp: Date().addingTimeInterval(-3600), isOwn: false),
-        LostFoundMessage(id: UUID(), senderName: "Jordan", senderInitials: "JO", text: "Found a set of car keys near Camping B showers. Red Toyota keychain. At the info tent.", timestamp: Date().addingTimeInterval(-1800), isOwn: false),
-        LostFoundMessage(id: UUID(), senderName: "You", senderInitials: "YO", text: "Has anyone found a phone with a purple case? Dropped it somewhere around the food trucks.", timestamp: Date().addingTimeInterval(-600), isOwn: true),
-    ]
+    private var messageText: String {
+        String(data: message.rawPayload, encoding: .utf8) ?? ""
+    }
 }
 
 // MARK: - Preview
 
-#Preview("Lost & Found") {
-    ZStack {
-        GradientBackground()
-        LostAndFoundView(initialMessages: LostAndFoundView.sampleMessages, isPostingAvailable: true)
+@MainActor
+private func makeLostAndFoundPreview() -> (container: ModelContainer, eventID: UUID)? {
+    do {
+        let container = try BlipSchema.createPreviewContainer()
+        let context = ModelContext(container)
+        let eventID = UUID()
+        let event = Event(
+            id: eventID,
+            name: "Sonic Fields",
+            coordinates: GeoPoint(latitude: -31.9523, longitude: 115.8613),
+            radiusMeters: 3_000,
+            startDate: .now.addingTimeInterval(-3_600),
+            endDate: .now.addingTimeInterval(28_800),
+            organizerSigningKey: Data(repeating: 1, count: 32)
+        )
+        let channel = Channel(
+            id: eventID,
+            type: .lostAndFound,
+            name: "Lost & Found",
+            event: event,
+            maxRetention: 28_800,
+            isAutoJoined: true
+        )
+        let remoteUser = User(
+            username: "alexk",
+            displayName: "Alex K",
+            emailHash: "",
+            noisePublicKey: Data(repeating: 2, count: 32),
+            signingPublicKey: Data(repeating: 3, count: 32)
+        )
+        let localUser = User(
+            username: "you",
+            displayName: "You",
+            emailHash: "",
+            noisePublicKey: Data(repeating: 4, count: 32),
+            signingPublicKey: Data(repeating: 5, count: 32)
+        )
+        let foundMessage = Message(
+            sender: remoteUser,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Found a blue wallet near Stage B. Dropping it at the info tent.".utf8),
+            status: .delivered,
+            createdAt: .now.addingTimeInterval(-1_200)
+        )
+        let lostMessage = Message(
+            sender: localUser,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Lost a purple phone case by the food trucks.".utf8),
+            status: .sent,
+            createdAt: .now.addingTimeInterval(-300)
+        )
+
+        context.insert(event)
+        context.insert(channel)
+        context.insert(remoteUser)
+        context.insert(localUser)
+        context.insert(foundMessage)
+        context.insert(lostMessage)
+        try context.save()
+        return (container, eventID)
+    } catch {
+        DebugLogger.shared.log("EVENT", "Lost & Found preview unavailable: \(error)", isError: true)
+        return nil
     }
-    .frame(height: 500)
-    .preferredColorScheme(.dark)
-    .blipTheme()
+}
+
+#Preview("Lost & Found") {
+    if let preview = makeLostAndFoundPreview() {
+        ZStack {
+            GradientBackground()
+            LostAndFoundView(eventID: preview.eventID, eventName: "Sonic Fields")
+        }
+        .frame(height: 500)
+        .preferredColorScheme(.dark)
+        .blipTheme()
+        .modelContainer(preview.container)
+        .environment(AppCoordinator())
+    } else {
+        Text("Preview unavailable")
+            .blipTheme()
+    }
 }

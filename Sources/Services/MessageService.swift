@@ -370,6 +370,76 @@ final class MessageService: @unchecked Sendable {
         return message
     }
 
+    /// Send a signed public text message to a shared channel.
+    @MainActor
+    func sendPublicChannelTextMessage(
+        content: String,
+        to channel: Channel,
+        replyTo: Message? = nil
+    ) async throws -> Message {
+        guard let identity = getIdentity() else {
+            DebugLogger.shared.log("EVENT", "sendPublicChannelTextMessage FAILED: no local identity", isError: true)
+            throw MessageServiceError.senderNotFound
+        }
+
+        guard channel.isPublic else {
+            return try await sendTextMessage(content: content, to: channel, replyTo: replyTo)
+        }
+
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            throw MessageServiceError.serializationFailed("Public channel messages cannot be empty")
+        }
+
+        let context = ModelContext(modelContainer)
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let localChannel = try context.fetch(channelDesc).first else {
+            throw MessageServiceError.channelNotFound
+        }
+
+        var localReplyTo: Message?
+        if let replyTo {
+            let replyToID = replyTo.id
+            let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyToID })
+            localReplyTo = try context.fetch(replyDesc).first
+        }
+
+        let message = Message(
+            sender: nil,
+            channel: localChannel,
+            type: .text,
+            rawPayload: trimmedContent.data(using: .utf8) ?? Data(),
+            status: .queued,
+            replyTo: localReplyTo,
+            createdAt: Date()
+        )
+        context.insert(message)
+        try context.save()
+
+        let payload = MessagePayloadBuilder.buildPublicChannelTextPayload(
+            content: trimmedContent,
+            channelID: localChannel.id,
+            messageID: message.id,
+            replyToID: replyTo?.id
+        )
+        let packet = MessagePayloadBuilder.buildPacket(
+            type: .meshBroadcast,
+            payload: payload,
+            flags: [.isReliable],
+            senderID: identity.peerID,
+            recipientID: nil
+        )
+        try await sendPacket(packet)
+
+        message.status = .sent
+        localChannel.lastActivityAt = Date()
+        try context.save()
+
+        DebugLogger.shared.log("EVENT", "Public channel post sent to \(localChannel.id.uuidString)")
+        return message
+    }
+
     /// Send an image message.
     @MainActor
     func sendImage(

@@ -84,6 +84,16 @@ enum MessagePayloadBuilder {
         return (channelID, messageID, content, replyToID)
     }
 
+    /// Build a public channel payload using the same channel-scoped text envelope as groups.
+    static func buildPublicChannelTextPayload(content: String, channelID: UUID, messageID: UUID, replyToID: UUID?) -> Data {
+        buildGroupTextPayload(content: content, channelID: channelID, messageID: messageID, replyToID: replyToID)
+    }
+
+    /// Parse a public channel payload into (channelID, messageID, content, replyToID).
+    static func parsePublicChannelTextPayload(_ data: Data) -> (channelID: UUID?, messageID: UUID, content: Data, replyToID: UUID?) {
+        parseGroupTextPayload(data)
+    }
+
     // MARK: - Media Payloads
 
     /// Build a media payload: [messageID(36B) 0x00 duration?(8B) mediaData]

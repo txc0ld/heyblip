@@ -1,6 +1,48 @@
 import SwiftUI
 import MapKit
 
+private enum EventsViewL10n {
+    static let you = String(localized: "common.you", defaultValue: "You")
+    static let outOfRangeAccessibilityLabel = String(localized: "events.out_of_range.accessibility_label", defaultValue: "You are out of range of this event. Limited access.")
+    static let loadingEventData = String(localized: "events.loading.current", defaultValue: "Loading event data...")
+    static let mapUnavailableTitle = String(localized: "events.map.unavailable.title", defaultValue: "Event map unavailable")
+    static let mapUnavailableSubtitle = String(localized: "events.map.unavailable.subtitle", defaultValue: "Stage and crowd data appear here after a local event manifest is loaded for the venue you are currently in.")
+    static let hideCrowdDensity = String(localized: "events.crowd.hide", defaultValue: "Hide crowd density")
+    static let showCrowdDensity = String(localized: "events.crowd.show", defaultValue: "Show crowd density")
+    static let dropMeetingPoint = String(localized: "events.meeting_point.drop", defaultValue: "Drop meeting point")
+    static let latestAnnouncements = String(localized: "events.announcements.latest", defaultValue: "Latest Announcements")
+    static let seeAll = String(localized: "common.see_all", defaultValue: "See all")
+    static let syncingTitle = String(localized: "events.syncing.title", defaultValue: "Event data is still syncing to this device.")
+    static let outOfRangeTitle = String(localized: "events.out_of_range.title", defaultValue: "Out of event range")
+    static let limitedAccess = String(localized: "events.out_of_range.trailing", defaultValue: "Limited access")
+    static let loadingEvents = String(localized: "events.loading.directory_title", defaultValue: "Loading events...")
+    static let loadingEventsSubtitle = String(localized: "events.loading.directory_subtitle", defaultValue: "Checking for nearby event manifests and cached events.")
+    static let couldntLoad = String(localized: "events.error.load_failed", defaultValue: "Couldn't load events")
+    static let noEventJoined = String(localized: "events.empty.title", defaultValue: "No Event Joined")
+    static let noEventJoinedSubtitle = String(localized: "events.empty.subtitle", defaultValue: "Browse the event directory or enter a geofenced venue to unlock the live map, schedule, and announcements.")
+    static let refreshDirectory = String(localized: "events.empty.cta", defaultValue: "Refresh Event Directory")
+    static let eventMode = String(localized: "events.title.fallback", defaultValue: "Event Mode")
+    static let anyEvent = String(localized: "events.share.any_event", defaultValue: "an event")
+    static let loadingDescription = String(localized: "events.empty.loading_description", defaultValue: "Looking for nearby event manifests and any locally cached events.")
+    static let noManifestDescription = String(localized: "events.empty.no_manifest_description", defaultValue: "Event mode stays visible now, but this device does not have a event manifest cached yet.")
+    static let noEventDescription = String(localized: "events.empty.description", defaultValue: "Pick up a event manifest or enter a geofenced site to unlock the live map, schedule, and announcements.")
+    static let map = String(localized: "events.section.map", defaultValue: "Map")
+    static let schedule = String(localized: "events.section.schedule", defaultValue: "Schedule")
+    static let announcements = String(localized: "events.section.announcements", defaultValue: "Announcements")
+    static let lostAndFound = String(localized: "events.section.lost_and_found", defaultValue: "Lost & Found")
+
+    static func shareText(artistName: String, stageName: String, time: String, eventName: String) -> String {
+        String(
+            format: String(localized: "events.share.set_time_format", defaultValue: "I'm going to see %@ at %@ (%@) - %@"),
+            locale: Locale.current,
+            artistName,
+            stageName,
+            time,
+            eventName
+        )
+    }
+}
+
 // MARK: - EventsView
 
 /// Main view for the Event tab combining all event subviews.
@@ -50,7 +92,7 @@ struct EventsView: View {
                             id: UUID(),
                             label: data.label,
                             coordinate: data.coordinate,
-                            createdBy: "You",
+                            createdBy: EventsViewL10n.you,
                             expiresAt: Date().addingTimeInterval(data.expiry.timeInterval)
                         )
                         meetingPoints.append(point)
@@ -146,7 +188,7 @@ struct EventsView: View {
             // Out of range banner
             if !isInRange {
                 outOfRangeBanner
-                    .accessibilityLabel("You are out of range of this event. Limited access.")
+                    .accessibilityLabel(EventsViewL10n.outOfRangeAccessibilityLabel)
             }
 
             // Loading indicator when event data is being fetched
@@ -154,7 +196,7 @@ struct EventsView: View {
                 VStack(spacing: BlipSpacing.md) {
                     ProgressView()
                         .tint(.blipAccentPurple)
-                    Text("Loading event data...")
+                    Text(EventsViewL10n.loadingEventData)
                         .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                 }
@@ -187,10 +229,12 @@ struct EventsView: View {
                     case .announcements:
                         AnnouncementFeed(announcements: announcements)
                     case .lostAndFound:
-                        LostAndFoundView()
-                            .frame(height: 500)
-                            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl))
-                            .padding(.horizontal, BlipSpacing.md)
+                        if let activeEvent = eventsViewModel?.activeEvent {
+                            LostAndFoundView(eventID: activeEvent.id, eventName: activeEvent.name)
+                                .frame(height: 500)
+                                .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.xl))
+                                .padding(.horizontal, BlipSpacing.md)
+                        }
                     }
 
                     Spacer().frame(height: BlipSpacing.xxl)
@@ -253,8 +297,8 @@ struct EventsView: View {
             if stages.isEmpty {
                 EmptyStateView(
                     icon: "map",
-                    title: "Event map unavailable",
-                    subtitle: "Stage and crowd data appear here after a local event manifest is loaded for the venue you are currently in."
+                    title: EventsViewL10n.mapUnavailableTitle,
+                    subtitle: EventsViewL10n.mapUnavailableSubtitle
                 )
                 .padding(.horizontal, BlipSpacing.md)
             } else {
@@ -305,7 +349,7 @@ struct EventsView: View {
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
-                .accessibilityLabel(showCrowdPulse ? "Hide crowd density" : "Show crowd density")
+                .accessibilityLabel(showCrowdPulse ? EventsViewL10n.hideCrowdDensity : EventsViewL10n.showCrowdDensity)
 
                 // Drop meeting point
                 Button(action: { showMeetingPointSheet = true }) {
@@ -314,7 +358,7 @@ struct EventsView: View {
                         .foregroundStyle(.blipAccentPurple)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
-                .accessibilityLabel("Drop meeting point")
+                .accessibilityLabel(EventsViewL10n.dropMeetingPoint)
             }
             .padding(.horizontal, BlipSpacing.md)
 
@@ -322,7 +366,7 @@ struct EventsView: View {
             if !announcements.isEmpty {
                 VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     HStack {
-                        Text("Latest Announcements")
+                        Text(EventsViewL10n.latestAnnouncements)
                             .font(theme.typography.secondary)
                             .fontWeight(.medium)
                             .foregroundStyle(theme.colors.text)
@@ -330,7 +374,7 @@ struct EventsView: View {
                         Spacer()
 
                         Button(action: { selectedSection = .announcements }) {
-                            Text("See all")
+                            Text(EventsViewL10n.seeAll)
                                 .font(theme.typography.caption)
                                 .foregroundStyle(.blipAccentPurple)
                         }
@@ -347,7 +391,7 @@ struct EventsView: View {
             if announcements.isEmpty && scheduleStages.isEmpty && stages.isEmpty {
                 eventStatusBanner(
                     icon: "tray.fill",
-                    title: "Event data is still syncing to this device.",
+                    title: EventsViewL10n.syncingTitle,
                     tint: theme.colors.mutedText
                 )
                 .padding(.horizontal, BlipSpacing.md)
@@ -360,8 +404,8 @@ struct EventsView: View {
     private var outOfRangeBanner: some View {
         eventStatusBanner(
             icon: "location.slash.fill",
-            title: "Out of event range",
-            trailingText: "Limited access",
+            title: EventsViewL10n.outOfRangeTitle,
+            trailingText: EventsViewL10n.limitedAccess,
             tint: BlipColors.darkColors.statusAmber
         )
     }
@@ -379,10 +423,10 @@ struct EventsView: View {
                         ProgressView()
                             .tint(.blipAccentPurple)
                             .scaleEffect(1.2)
-                        Text("Loading events...")
+                        Text(EventsViewL10n.loadingEvents)
                             .font(theme.typography.secondary)
                             .foregroundStyle(theme.colors.text)
-                        Text("Checking for nearby event manifests and cached events.")
+                        Text(EventsViewL10n.loadingEventsSubtitle)
                             .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.mutedText)
                             .multilineTextAlignment(.center)
@@ -399,7 +443,7 @@ struct EventsView: View {
             VStack(spacing: BlipSpacing.lg) {
                 Spacer()
                 ErrorStateView(
-                    title: "Couldn't load events",
+                    title: EventsViewL10n.couldntLoad,
                     subtitle: message
                 ) {
                     Task {
@@ -417,9 +461,9 @@ struct EventsView: View {
                 Spacer()
                 EmptyStateView(
                     icon: "calendar.badge.plus",
-                    title: "No Event Joined",
-                    subtitle: "Browse the event directory or enter a geofenced venue to unlock the live map, schedule, and announcements.",
-                    ctaTitle: "Refresh Event Directory"
+                    title: EventsViewL10n.noEventJoined,
+                    subtitle: EventsViewL10n.noEventJoinedSubtitle,
+                    ctaTitle: EventsViewL10n.refreshDirectory
                 ) {
                     Task {
                         await eventsViewModel?.fetchEvents()
@@ -461,7 +505,7 @@ struct EventsView: View {
     }
 
     private var eventTitle: String {
-        eventsViewModel?.activeEvent?.name ?? "Event Mode"
+        eventsViewModel?.activeEvent?.name ?? EventsViewL10n.eventMode
     }
 
     private var announcements: [AnnouncementItem] {
@@ -472,9 +516,14 @@ struct EventsView: View {
         guard let id = setTimeID else { return nil }
         for stage in scheduleStages {
             if let act = stage.acts.first(where: { $0.id == id }) {
-                let eventName = eventsViewModel?.activeEvent?.name ?? "an event"
+                let eventName = eventsViewModel?.activeEvent?.name ?? EventsViewL10n.anyEvent
                 let time = act.startTime.formatted(date: .omitted, time: .shortened)
-                return "I'm going to see \(act.artistName) at \(stage.name) (\(time)) — \(eventName) \u{1F3B6}"
+                return EventsViewL10n.shareText(
+                    artistName: act.artistName,
+                    stageName: stage.name,
+                    time: time,
+                    eventName: eventName
+                )
             }
         }
         return nil
@@ -512,7 +561,7 @@ struct EventsView: View {
 
     private var noEventDescription: String {
         if eventsViewModel?.discoveryState == .fetching {
-            return "Looking for nearby event manifests and any locally cached events."
+            return EventsViewL10n.loadingDescription
         }
 
         if let failed = eventsViewModel?.discoveryState,
@@ -521,10 +570,10 @@ struct EventsView: View {
         }
 
         if availableEventNames.isEmpty {
-            return "Event mode stays visible now, but this device does not have a event manifest cached yet."
+            return EventsViewL10n.noManifestDescription
         }
 
-        return "Pick up a event manifest or enter a geofenced site to unlock the live map, schedule, and announcements."
+        return EventsViewL10n.noEventDescription
     }
 }
 
@@ -538,10 +587,10 @@ enum EventSection: CaseIterable {
 
     var displayName: String {
         switch self {
-        case .map: return "Map"
-        case .schedule: return "Schedule"
-        case .announcements: return "Announcements"
-        case .lostAndFound: return "Lost & Found"
+        case .map: return EventsViewL10n.map
+        case .schedule: return EventsViewL10n.schedule
+        case .announcements: return EventsViewL10n.announcements
+        case .lostAndFound: return EventsViewL10n.lostAndFound
         }
     }
 

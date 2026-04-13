@@ -396,6 +396,9 @@ final class EventsViewModel {
         let joinedEvent = JoinedEvent(eventId: eventId)
         context.insert(joinedEvent)
         do {
+            if let event = try fetchEvent(for: eventId, context: context) {
+                ensureLostAndFoundChannel(for: event, context: context)
+            }
             try context.save()
             joinedEventIds.insert(eventId)
             if let index = discoveryEvents.firstIndex(where: { $0.id == eventId }) {
@@ -414,6 +417,7 @@ final class EventsViewModel {
             let matches = try context.fetch(FetchDescriptor<JoinedEvent>())
                 .filter { $0.eventId == eventId }
             for match in matches { context.delete(match) }
+            updateLostAndFoundChannelJoinState(for: eventId, isJoined: false, context: context)
             try context.save()
             joinedEventIds.remove(eventId)
             if let index = discoveryEvents.firstIndex(where: { $0.id == eventId }) {
@@ -480,6 +484,8 @@ final class EventsViewModel {
         activeEvent = event
         isInsideEvent = true
 
+        ensureLostAndFoundChannel(for: event, context: context)
+
         // Update preferences
         let prefsDescriptor = FetchDescriptor<UserPreferences>()
         do {
@@ -508,6 +514,14 @@ final class EventsViewModel {
     func handleEventExit(eventID: UUID) {
         if activeEvent?.id == eventID {
             isInsideEvent = false
+            let context = ModelContext(modelContainer)
+            updateLostAndFoundChannelJoinState(for: eventID.uuidString, isJoined: false, context: context)
+            do {
+                try context.save()
+            } catch {
+                logger.error("Failed to leave Lost & Found channel on event exit: \(error.localizedDescription)")
+                errorMessage = "Failed to leave Lost & Found channel: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -832,6 +846,55 @@ final class EventsViewModel {
             return .concert
         default:
             return .other
+        }
+    }
+
+    private func fetchEvent(for eventId: String, context: ModelContext) throws -> Event? {
+        guard let eventUUID = UUID(uuidString: eventId) else { return nil }
+        let descriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.id == eventUUID })
+        return try context.fetch(descriptor).first
+    }
+
+    private func ensureLostAndFoundChannel(for event: Event, context: ModelContext) {
+        let channelID = event.id
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+
+        do {
+            if let existingChannel = try context.fetch(descriptor).first {
+                existingChannel.type = .lostAndFound
+                existingChannel.name = "Lost & Found"
+                existingChannel.event = event
+                existingChannel.isAutoJoined = true
+                existingChannel.maxRetention = max(event.endDate.timeIntervalSince(event.startDate), 300)
+                return
+            }
+
+            let channel = Channel(
+                id: channelID,
+                type: .lostAndFound,
+                name: "Lost & Found",
+                event: event,
+                maxRetention: max(event.endDate.timeIntervalSince(event.startDate), 300),
+                isAutoJoined: true
+            )
+            context.insert(channel)
+        } catch {
+            logger.error("Failed to ensure Lost & Found channel: \(error.localizedDescription)")
+            errorMessage = "Failed to prepare Lost & Found channel: \(error.localizedDescription)"
+        }
+    }
+
+    private func updateLostAndFoundChannelJoinState(for eventId: String, isJoined: Bool, context: ModelContext) {
+        guard let eventUUID = UUID(uuidString: eventId) else { return }
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == eventUUID })
+
+        do {
+            if let channel = try context.fetch(descriptor).first {
+                channel.isAutoJoined = isJoined
+            }
+        } catch {
+            logger.error("Failed to update Lost & Found channel join state: \(error.localizedDescription)")
+            errorMessage = "Failed to update Lost & Found channel: \(error.localizedDescription)"
         }
     }
 

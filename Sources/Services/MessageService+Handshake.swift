@@ -657,6 +657,51 @@ extension MessageService {
     func handleBroadcastMessage(_ packet: Packet) async throws {
         let context = ModelContext(modelContainer)
 
+        let parsedPayload = MessagePayloadBuilder.parsePublicChannelTextPayload(packet.payload)
+        if let channelID = parsedPayload.channelID {
+            guard let channel = try resolvePublicChannel(channelID: channelID, context: context) else {
+                DebugLogger.shared.log("EVENT", "Dropped public channel broadcast for unknown channel \(channelID.uuidString)", isError: true)
+                return
+            }
+
+            let messageID = parsedPayload.messageID
+            let duplicateDescriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+            if !(try context.fetch(duplicateDescriptor)).isEmpty {
+                return
+            }
+
+            let senderUser = try resolveSenderUser(for: packet.senderID, context: context)
+            let message = Message(
+                id: messageID,
+                sender: senderUser,
+                channel: channel,
+                type: .text,
+                rawPayload: parsedPayload.content,
+                status: .delivered,
+                createdAt: packet.date
+            )
+
+            if let replyToID = parsedPayload.replyToID {
+                let replyDescriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyToID })
+                message.replyTo = try context.fetch(replyDescriptor).first
+            }
+
+            context.insert(message)
+            channel.lastActivityAt = Date()
+            try context.save()
+
+            delegate?.messageService(self, didReceiveMessage: message, in: channel)
+            NotificationCenter.default.post(
+                name: .didReceiveBlipMessage,
+                object: nil,
+                userInfo: [
+                    "messageID": message.id,
+                    "channelID": channel.id,
+                ]
+            )
+            return
+        }
+
         let content = packet.payload
         let geohash = extractGeohash(from: content)
 
@@ -687,6 +732,7 @@ extension MessageService {
         }
 
         let message = Message(
+            sender: try resolveSenderUser(for: packet.senderID, context: context),
             channel: channel,
             type: .text,
             rawPayload: content,
@@ -699,6 +745,30 @@ extension MessageService {
         try context.save()
 
         delegate?.messageService(self, didReceiveMessage: message, in: channel)
+    }
+
+    @MainActor
+    private func resolvePublicChannel(channelID: UUID, context: ModelContext) throws -> Channel? {
+        let channelDescriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        if let existingChannel = try context.fetch(channelDescriptor).first {
+            return existingChannel
+        }
+
+        let eventDescriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.id == channelID })
+        guard let event = try context.fetch(eventDescriptor).first else {
+            return nil
+        }
+
+        let channel = Channel(
+            id: channelID,
+            type: .lostAndFound,
+            name: "Lost & Found",
+            event: event,
+            maxRetention: max(event.endDate.timeIntervalSince(event.startDate), 300),
+            isAutoJoined: true
+        )
+        context.insert(channel)
+        return channel
     }
 
     @MainActor
