@@ -46,6 +46,7 @@ vi.mock("@neondatabase/serverless", () => ({
           updated_at: new Date().toISOString(),
           noise_public_key: noisePublicKey,
           signing_public_key: signingPublicKey,
+          peer_id_hex: null,
         };
         users.push(user);
         return [{ id: user.id }];
@@ -90,7 +91,7 @@ vi.mock("@neondatabase/serverless", () => ({
         }] : [];
       }
 
-      if (normalized.includes("select id, noise_public_key, signing_public_key from users where noise_public_key =")) {
+      if (normalized.includes("select id, noise_public_key, signing_public_key, peer_id_hex from users where noise_public_key =")) {
         const requestedKey = values[0] as Uint8Array;
         return users
           .filter((user) => user.noise_public_key && bytesEqual(user.noise_public_key, requestedKey))
@@ -98,6 +99,7 @@ vi.mock("@neondatabase/serverless", () => ({
             id: user.id,
             noise_public_key: user.noise_public_key,
             signing_public_key: user.signing_public_key,
+            peer_id_hex: user.peer_id_hex,
           }));
       }
 
@@ -116,6 +118,16 @@ vi.mock("@neondatabase/serverless", () => ({
         user.signing_public_key = signingPublicKey;
         user.updated_at = new Date().toISOString();
         return [{ id: user.id }];
+      }
+
+      if (normalized.includes("update users set peer_id_hex =") && normalized.includes("where id =")) {
+        const peerIdHex = values[0] as string;
+        const userID = values[1] as string;
+        const user = users.find((candidate) => candidate.id === userID);
+        if (user) {
+          user.peer_id_hex = peerIdHex;
+        }
+        return [];
       }
 
       if (normalized.includes("update users set") && normalized.includes("where email_hash =")) {
@@ -209,6 +221,7 @@ interface MockUser {
   updated_at: string;
   noise_public_key: Uint8Array | null;
   signing_public_key: Uint8Array | null;
+  peer_id_hex: string | null;
 }
 
 async function request(
