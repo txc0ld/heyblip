@@ -255,7 +255,17 @@ Note: Delete uses `issue_key` (numeric like 1605380), NOT `issue_id` (like HEY-2
 - Never commit with failing tests
 - **Branch naming:** `type/HEY-XXX-short-description` (matches Bugasura ticket)
 - **Before merging:** Always rebase onto latest `main` and re-run build + tests
-- **After merging:** Update the Bugasura ticket status to `"Fixed"`
+
+### PR and Ticket Handoff — STOP HERE
+
+**NEVER merge your own PRs.** Your job ends at:
+1. Branch pushed to `origin`
+2. PR opened on GitHub
+3. Message posted in `#blip-dev` that the PR is up
+
+Cowork (the AI orchestrator) owns all PR reviews and merges. Do not merge, do not approve, do not squash — just notify and stop.
+
+**NEVER update Bugasura ticket status.** Cowork manages all ticket transitions (New → In Progress → Fixed → Closed). Do not touch ticket status at any point during your work.
 
 ## Execution Model
 
