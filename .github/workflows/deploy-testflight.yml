@@ -89,6 +89,22 @@ jobs:
             exit 1
           fi
 
+      - name: Parse version from tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Extract version and build from tag: alpha-1.0.0-3 → 1.0.0 / 3
+          if [[ "$TAG" =~ ^(alpha|beta|v)-?([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)$ ]]; then
+            echo "APP_VERSION=${BASH_REMATCH[2]}" >> "$GITHUB_ENV"
+            echo "APP_BUILD=${BASH_REMATCH[3]}" >> "$GITHUB_ENV"
+          elif [[ "$TAG" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "APP_VERSION=${BASH_REMATCH[1]}" >> "$GITHUB_ENV"
+            echo "APP_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+          else
+            echo "APP_VERSION=1.0.0" >> "$GITHUB_ENV"
+            echo "APP_BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+          fi
+
       - name: Record build note
         run: |
           note="${{ github.event.inputs.build_note || 'Alpha build' }}"
@@ -96,6 +112,7 @@ jobs:
             echo "## TestFlight deployment"
             echo
             echo "- Trigger: ${{ github.event_name }}"
+            echo "- Version: $APP_VERSION ($APP_BUILD)"
             echo "- Note: $note"
             echo "- Commit: ${{ github.sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -160,6 +177,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+            MARKETING_VERSION="$APP_VERSION" \
+            CURRENT_PROJECT_VERSION="$APP_BUILD" \
             OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
             -quiet
 
