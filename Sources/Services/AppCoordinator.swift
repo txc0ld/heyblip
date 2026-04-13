@@ -8,6 +8,7 @@ import Combine
 import os.log
 #if canImport(UIKit)
 import UIKit
+import UserNotifications
 #endif
 
 /// Wires BLE mesh, WebSocket relay, identity, and MessageService together on launch.
@@ -75,6 +76,8 @@ final class AppCoordinator {
     @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) private var authRefreshTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) private var pushWakeUpObservation: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var badgeResetObservation: NSObjectProtocol?
     private(set) var powerManager: PowerManager?
     private(set) var messageCleanupService: MessageCleanupService?
     @ObservationIgnored nonisolated(unsafe) private var powerTierCancellable: AnyCancellable?
@@ -579,6 +582,8 @@ final class AppCoordinator {
             if notifGranted {
                 UIApplication.shared.registerForRemoteNotifications()
             }
+            // Re-upload token on each launch in case it changed since last run.
+            Task { await PushTokenManager.shared.uploadTokenIfNeeded() }
 
             await profileViewModel?.loadProfile()
 
@@ -635,7 +640,41 @@ final class AppCoordinator {
 
         messageCleanupService?.start()
 
+        // Wake up WebSocket on push notification if not already connected.
+        pushWakeUpObservation = NotificationCenter.default.addObserver(
+            forName: .remotePushReceived,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handlePushWakeUp()
+        }
+
+        // Reset badge count when the app becomes active.
+        badgeResetObservation = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task {
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            }
+        }
+
         logger.info("Transports started")
+    }
+
+    /// Called when a remote push notification arrives.
+    /// Reconnects the WebSocket if it is not already running, so store-and-forward
+    /// packets can drain immediately rather than waiting for the next scheduled reconnect.
+    private func handlePushWakeUp() {
+        guard let ws = webSocketTransport else { return }
+        guard ws.state != .running else {
+            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected — no action needed")
+            return
+        }
+        DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(ws.state)) — reconnecting")
+        ws.stop()
+        ws.start()
     }
 
     /// Stop all transports and clean up.
@@ -673,6 +712,16 @@ final class AppCoordinator {
         if let observation = foregroundObservation {
             NotificationCenter.default.removeObserver(observation)
             foregroundObservation = nil
+        }
+
+        if let observation = pushWakeUpObservation {
+            NotificationCenter.default.removeObserver(observation)
+            pushWakeUpObservation = nil
+        }
+
+        if let observation = badgeResetObservation {
+            NotificationCenter.default.removeObserver(observation)
+            badgeResetObservation = nil
         }
 
         powerTierCancellable?.cancel()
