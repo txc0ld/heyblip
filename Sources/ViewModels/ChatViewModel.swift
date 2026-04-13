@@ -101,7 +101,26 @@ final class ChatViewModel {
         let context = self.context
 
         do {
-            channels = try context.fetch(FetchDescriptor<Channel>())
+            var allChannels = try context.fetch(FetchDescriptor<Channel>())
+
+            // Deduplicate DM channels sharing the same conversation key
+            let dmChannels = allChannels.filter { $0.type == .dm }
+            let grouped = Dictionary(grouping: dmChannels) { $0.dmConversationKey ?? "unknown:\($0.id)" }
+            for (key, duplicates) in grouped where duplicates.count > 1 {
+                let sorted = duplicates.sorted { $0.createdAt < $1.createdAt }
+                let primary = sorted[0]
+                for duplicate in sorted.dropFirst() {
+                    for message in duplicate.messages {
+                        message.channel = primary
+                    }
+                    context.delete(duplicate)
+                    allChannels.removeAll { $0.id == duplicate.id }
+                }
+                DebugLogger.shared.log("CHAT", "Deduped \(duplicates.count - 1) duplicate channel(s) for key \(DebugLogger.redact(key))")
+            }
+            try context.save()
+
+            channels = allChannels
             sortChannels()
             syncUnreadCounts()
         } catch {

@@ -827,6 +827,30 @@ extension MessageService {
             return preferredChannel
         }
 
+        // Check for existing channel by dmConversationKey before creating
+        let candidateKey: String? = {
+            if !localUser.noisePublicKey.isEmpty {
+                return "noise:\(localUser.noisePublicKey.base64EncodedString())"
+            }
+            let normalized = localUser.username
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return normalized.isEmpty ? nil : "username:\(normalized)"
+        }()
+        if let candidateKey {
+            let existingByKey = channels.filter { $0.dmConversationKey == candidateKey }
+            if let existing = existingByKey.first {
+                let membership = GroupMembership(user: localUser, channel: existing, role: .member)
+                context.insert(membership)
+                if existing.name?.isEmpty != false {
+                    existing.name = displayName
+                }
+                try context.save()
+                DebugLogger.shared.log("DM", "Matched existing channel by dmConversationKey for \(DebugLogger.redact(username))")
+                return existing
+            }
+        }
+
         let channel = Channel(type: .dm, name: displayName)
         context.insert(channel)
         let membership = GroupMembership(user: localUser, channel: channel, role: .member)
