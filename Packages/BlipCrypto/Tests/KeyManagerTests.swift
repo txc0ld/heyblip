@@ -182,6 +182,61 @@ struct KeyManagerTests {
         #expect(plaintext.count == 128)
     }
 
+    // MARK: - Data Encryption
+
+    @Test("Encrypt and decrypt data round-trips correctly")
+    func testEncryptDecryptData() throws {
+        let km = KeyManager()
+        let password = "strong-test-password-42!"
+        let originalData = Data("Hello, Blip export encryption!".utf8)
+
+        let encrypted = try km.encryptData(originalData, password: password)
+
+        // Encrypted data should be larger: salt(32) + nonce(12) + ciphertext + tag(16)
+        #expect(encrypted.count == 32 + 12 + originalData.count + 16)
+
+        let decrypted = try km.decryptData(encrypted, password: password)
+        #expect(decrypted == originalData)
+    }
+
+    @Test("Decrypt data with wrong password fails")
+    func testDecryptDataWrongPassword() throws {
+        let km = KeyManager()
+        let originalData = Data("Secret account data".utf8)
+
+        let encrypted = try km.encryptData(originalData, password: "correct-password")
+
+        #expect(throws: KeyManagerError.self) {
+            _ = try km.decryptData(encrypted, password: "wrong-password")
+        }
+    }
+
+    @Test("Decrypt malformed data fails")
+    func testDecryptMalformedData() throws {
+        let km = KeyManager()
+        let shortData = Data(repeating: 0, count: 10)
+
+        #expect(throws: KeyManagerError.self) {
+            _ = try km.decryptData(shortData, password: "password")
+        }
+    }
+
+    @Test("Encrypt and decrypt large JSON-like data round-trips")
+    func testEncryptDecryptLargeData() throws {
+        let km = KeyManager()
+        let password = "export-password-2026!"
+
+        // Simulate a JSON export payload
+        let jsonString = String(repeating: "{\"user\":\"blip\",\"messages\":[\"hello\"]}", count: 100)
+        let originalData = Data(jsonString.utf8)
+
+        let encrypted = try km.encryptData(originalData, password: password)
+        let decrypted = try km.decryptData(encrypted, password: password)
+
+        #expect(decrypted == originalData)
+        #expect(String(data: decrypted, encoding: .utf8) == jsonString)
+    }
+
     // MARK: - Phone Salt
 
     @Test("Phone salt is generated and persisted")

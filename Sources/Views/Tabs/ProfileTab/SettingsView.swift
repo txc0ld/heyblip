@@ -25,6 +25,13 @@ private enum SettingsL10n {
     static let localResetUnavailable = String(localized: "settings.delete_account.local_reset_unavailable", defaultValue: "Account was deleted on the server, but this build cannot reset local state automatically.")
     static let localResetFailed = String(localized: "settings.delete_account.local_reset_failed", defaultValue: "Account was deleted on the server, but local data cleanup failed.")
     static let exportSaved = String(localized: "settings.account_export.saved", defaultValue: "Account export saved")
+    static let exportPasswordTitle = String(localized: "settings.account_export.password_title", defaultValue: "Encrypt Export")
+    static let exportPasswordMessage = String(localized: "settings.account_export.password_message", defaultValue: "Enter a password to encrypt your account export. You will need this password to import the data later.")
+    static let exportPasswordPlaceholder = String(localized: "settings.account_export.password_placeholder", defaultValue: "Password")
+    static let exportPasswordConfirmPlaceholder = String(localized: "settings.account_export.password_confirm_placeholder", defaultValue: "Confirm Password")
+    static let exportButton = String(localized: "settings.account_export.export_button", defaultValue: "Encrypt & Export")
+    static let exportPasswordMismatch = String(localized: "settings.account_export.password_mismatch", defaultValue: "Passwords do not match.")
+    static let exportPasswordTooShort = String(localized: "settings.account_export.password_too_short", defaultValue: "Password must be at least 8 characters.")
 
     static func deleteServerFailed(_ error: String) -> String {
         String(format: deleteServerFailedFormat, locale: Locale.current, error)
@@ -58,6 +65,9 @@ struct SettingsView: View {
     @State private var exportFileURL: URL?
     @State private var actionErrorMessage: String?
     @State private var isHydratingPreferences = false
+    @State private var showExportPasswordPrompt = false
+    @State private var exportPassword: String = ""
+    @State private var exportPasswordConfirm: String = ""
 
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -171,6 +181,23 @@ struct SettingsView: View {
                 AccountExportShareSheet(fileURL: exportFileURL)
             }
         }
+        .sheet(isPresented: $showExportPasswordPrompt) {
+            ExportPasswordPrompt(
+                password: $exportPassword,
+                passwordConfirm: $exportPasswordConfirm,
+                onExport: {
+                    showExportPasswordPrompt = false
+                    performEncryptedExport()
+                },
+                onCancel: {
+                    showExportPasswordPrompt = false
+                    exportPassword = ""
+                    exportPasswordConfirm = ""
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Actions
@@ -193,6 +220,29 @@ struct SettingsView: View {
     private func startAccountExport() {
         guard !isExportingAccountData else { return }
 
+        exportPassword = ""
+        exportPasswordConfirm = ""
+        showExportPasswordPrompt = true
+    }
+
+    private func performEncryptedExport() {
+        guard !isExportingAccountData else { return }
+
+        let password = exportPassword
+        let confirm = exportPasswordConfirm
+
+        // Validate password length
+        guard password.count >= 8 else {
+            actionErrorMessage = SettingsL10n.exportPasswordTooShort
+            return
+        }
+
+        // Validate passwords match
+        guard password == confirm else {
+            actionErrorMessage = SettingsL10n.exportPasswordMismatch
+            return
+        }
+
         Task {
             isExportingAccountData = true
             defer { isExportingAccountData = false }
@@ -203,7 +253,7 @@ struct SettingsView: View {
             }
 
             do {
-                let export = try await profileViewModel.exportAccountData()
+                let export = try await profileViewModel.exportAccountData(password: password)
                 exportFileURL = export.url
             } catch {
                 actionErrorMessage = error.localizedDescription
@@ -333,6 +383,112 @@ struct SettingsView: View {
             }
         )
     }
+}
+
+// MARK: - Export Password Prompt
+
+private struct ExportPasswordPrompt: View {
+
+    @Binding var password: String
+    @Binding var passwordConfirm: String
+    let onExport: () -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.theme) private var theme
+
+    private var isValid: Bool {
+        password.count >= 8 && password == passwordConfirm
+    }
+
+    private var validationMessage: String? {
+        if password.isEmpty && passwordConfirm.isEmpty {
+            return nil
+        }
+        if password.count < 8 {
+            return SettingsL10n.exportPasswordTooShort
+        }
+        if !passwordConfirm.isEmpty && password != passwordConfirm {
+            return SettingsL10n.exportPasswordMismatch
+        }
+        return nil
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: BlipSpacing.lg) {
+                VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                    Text(SettingsL10n.exportPasswordMessage)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.mutedText)
+                        .multilineTextAlignment(.leading)
+                }
+
+                VStack(spacing: BlipSpacing.md) {
+                    SecureField(SettingsL10n.exportPasswordPlaceholder, text: $password)
+                        .textContentType(.newPassword)
+                        .padding(BlipSpacing.sm)
+                        .background(theme.colors.cardBG)
+                        .cornerRadius(BlipSpacing.sm)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BlipSpacing.sm)
+                                .stroke(theme.colors.border, lineWidth: 0.5)
+                        )
+                        .accessibilityLabel(SettingsL10n.exportPasswordPlaceholder)
+
+                    SecureField(SettingsL10n.exportPasswordConfirmPlaceholder, text: $passwordConfirm)
+                        .textContentType(.newPassword)
+                        .padding(BlipSpacing.sm)
+                        .background(theme.colors.cardBG)
+                        .cornerRadius(BlipSpacing.sm)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BlipSpacing.sm)
+                                .stroke(theme.colors.border, lineWidth: 0.5)
+                        )
+                        .accessibilityLabel(SettingsL10n.exportPasswordConfirmPlaceholder)
+                }
+
+                if let message = validationMessage {
+                    Text(message)
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.statusRed)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button(action: onExport) {
+                    Text(SettingsL10n.exportButton)
+                        .font(theme.typography.bodyMedium)
+                        .frame(maxWidth: .infinity)
+                        .padding(BlipSpacing.sm)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blipAccentPurple)
+                .disabled(!isValid)
+                .accessibilityLabel(SettingsL10n.exportButton)
+
+                Spacer()
+            }
+            .padding(BlipSpacing.lg)
+            .navigationTitle(SettingsL10n.exportPasswordTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(SettingsL10n.cancel, action: onCancel)
+                }
+            }
+        }
+    }
+}
+
+#Preview("Export Password Prompt") {
+    ExportPasswordPrompt(
+        password: .constant(""),
+        passwordConfirm: .constant(""),
+        onExport: {},
+        onCancel: {}
+    )
+    .preferredColorScheme(.dark)
+    .blipTheme()
 }
 
 #if canImport(UIKit)

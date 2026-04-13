@@ -7,7 +7,7 @@ private enum AccountSettingsL10n {
     static let signOutAccessibility = String(localized: "settings.account.sign_out.accessibility_label", defaultValue: "Sign out")
     static let exportData = String(localized: "settings.account.export.title", defaultValue: "Export My Data")
     static let exportPreparing = String(localized: "settings.account.export.preparing", defaultValue: "Preparing your JSON export...")
-    static let exportSubtitle = String(localized: "settings.account.export.subtitle", defaultValue: "Create a JSON archive of profile, messages, friends, and saved events")
+    static let exportSubtitle = String(localized: "settings.account.export.subtitle", defaultValue: "Create a password-encrypted archive of profile, messages, friends, and saved events")
     static let exportAccessibility = String(localized: "settings.account.export.accessibility_label", defaultValue: "Export my data")
     static let deleteAccount = String(localized: "settings.account.delete.title", defaultValue: "Delete Account & Data")
     static let deleteProgress = String(localized: "settings.account.delete.progress", defaultValue: "Deleting your account...")

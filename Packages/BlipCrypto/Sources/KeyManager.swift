@@ -378,6 +378,70 @@ public final class KeyManager: @unchecked Sendable {
         return identity
     }
 
+    // MARK: - Data Encryption (AES-256-GCM)
+
+    /// Encrypt arbitrary data with a user-chosen password using AES-256-GCM.
+    ///
+    /// The encryption key is derived from the password via iterated HKDF-SHA256 (same
+    /// derivation used for recovery kits). The output is self-contained and includes
+    /// the salt and nonce required for decryption.
+    ///
+    /// Format: `[salt:32][nonce:12][ciphertext+tag]`
+    public func encryptData(_ plaintext: Data, password: String) throws -> Data {
+        let salt = generateRandomBytes(count: Self.recoverySaltLength)
+        let symmetricKey = deriveKey(password: password, salt: salt)
+
+        let nonce = AES.GCM.Nonce()
+        let sealed = try AES.GCM.seal(plaintext, using: symmetricKey, nonce: nonce)
+
+        var output = Data()
+        output.append(salt)
+        output.append(contentsOf: nonce)
+        output.append(sealed.ciphertext + sealed.tag)
+
+        return output
+    }
+
+    /// Decrypt data that was encrypted with ``encryptData(_:password:)``.
+    ///
+    /// Returns the original plaintext on success. Throws on wrong password or
+    /// corrupted/truncated data.
+    public func decryptData(_ encryptedData: Data, password: String) throws -> Data {
+        // Minimum: salt(32) + nonce(12) + tag(16) + at least 1 byte of ciphertext = 61
+        let minSize = Self.recoverySaltLength + 12 + 16 + 1
+        guard encryptedData.count >= minSize else {
+            throw KeyManagerError.recoveryKitMalformed
+        }
+
+        var offset = 0
+        let salt = Data(encryptedData[offset ..< offset + Self.recoverySaltLength])
+        offset += Self.recoverySaltLength
+
+        let nonceData = Data(encryptedData[offset ..< offset + 12])
+        offset += 12
+
+        let ciphertextAndTag = Data(encryptedData[offset...])
+
+        let symmetricKey = deriveKey(password: password, salt: salt)
+
+        let nonce = try AES.GCM.Nonce(data: nonceData)
+        let tagLength = 16
+        guard ciphertextAndTag.count >= tagLength else {
+            throw KeyManagerError.recoveryKitMalformed
+        }
+        let sealedBox = try AES.GCM.SealedBox(
+            nonce: nonce,
+            ciphertext: ciphertextAndTag.dropLast(tagLength),
+            tag: ciphertextAndTag.suffix(tagLength)
+        )
+
+        do {
+            return try AES.GCM.open(sealedBox, using: symmetricKey)
+        } catch {
+            throw KeyManagerError.recoveryKitDecryptionFailed
+        }
+    }
+
     // MARK: - Phone Salt
 
     /// Load or generate the per-user salt used for phone number hashing.

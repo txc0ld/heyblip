@@ -561,8 +561,8 @@ final class ProfileViewModel {
 
     // MARK: - Account Management
 
-    func exportAccountData() async throws -> AccountExportFile {
-        DebugLogger.shared.log("ACCOUNT", "Starting account data export")
+    func exportAccountData(password: String) async throws -> AccountExportFile {
+        DebugLogger.shared.log("ACCOUNT", "Starting encrypted account data export")
         let context = self.context
 
         do {
@@ -595,17 +595,21 @@ final class ProfileViewModel {
             encoder.dateEncodingStrategy = .iso8601
             encoder.dataEncodingStrategy = .base64
 
-            let data = try encoder.encode(payload)
+            let jsonData = try encoder.encode(payload)
+
+            // Encrypt the JSON with the user's password using AES-256-GCM
+            let encryptedData = try keyManager.encryptData(jsonData, password: password)
+
             let timestamp = exportFileTimestamp(for: Date())
             let username = sanitizeFileComponent(currentUser?.username ?? "account")
             let fileURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("blip-account-export-\(username)-\(timestamp)")
-                .appendingPathExtension("json")
+                .appendingPathExtension("blipexport")
 
-            try data.write(to: fileURL, options: .atomic)
+            try encryptedData.write(to: fileURL, options: .atomic)
             DebugLogger.shared.log(
                 "ACCOUNT",
-                "Account export ready: \(fileURL.lastPathComponent) (\(data.count) bytes)"
+                "Encrypted account export ready: \(fileURL.lastPathComponent) (\(encryptedData.count) bytes, plaintext: \(jsonData.count) bytes)"
             )
 
             return AccountExportFile(
