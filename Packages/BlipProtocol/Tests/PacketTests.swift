@@ -28,11 +28,13 @@ struct MessageTypeTests {
         #expect(MessageType.locationRequest.rawValue == 0x51)
         #expect(MessageType.proximityPing.rawValue == 0x52)
         #expect(MessageType.iAmHereBeacon.rawValue == 0x53)
+        #expect(MessageType.friendRequest.rawValue == 0x60)
+        #expect(MessageType.friendAccept.rawValue == 0x61)
     }
 
-    @Test("All cases count is 20")
+    @Test("All cases count is 22")
     func allCasesCount() {
-        #expect(MessageType.allCases.count == 20)
+        #expect(MessageType.allCases.count == 22)
     }
 
     @Test("SOS types identified correctly")

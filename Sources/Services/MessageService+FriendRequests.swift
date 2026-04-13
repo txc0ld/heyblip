@@ -122,12 +122,14 @@ extension MessageService {
         payload.append(0x00)
         payload.append(localUser.resolvedDisplayName.data(using: .utf8) ?? Data())
 
-        try await sendEncryptedControl(
+        let packet = MessagePayloadBuilder.buildPacket(
+            type: .friendRequest,
             payload: payload,
-            subType: .friendRequest,
-            to: peerID,
-            identity: identity
+            flags: [.hasRecipient, .isReliable],
+            senderID: identity.peerID,
+            recipientID: peerID
         )
+        try await sendPacket(packet)
 
         // Create or update local Friend record for the remote peer
         let peerData = peerID.bytes
@@ -210,12 +212,14 @@ extension MessageService {
         var payload = Data()
         payload.append(localUser.username.data(using: .utf8) ?? Data())
 
-        try await sendEncryptedControl(
+        let packet = MessagePayloadBuilder.buildPacket(
+            type: .friendAccept,
             payload: payload,
-            subType: .friendAccept,
-            to: recipientPeerID,
-            identity: identity
+            flags: [.hasRecipient, .isReliable],
+            senderID: identity.peerID,
+            recipientID: recipientPeerID
         )
+        try await sendPacket(packet)
 
         logger.info("Accepted friend request from \(friendUser.username)")
 

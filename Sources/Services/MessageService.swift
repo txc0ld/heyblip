@@ -696,6 +696,8 @@ final class MessageService: @unchecked Sendable {
                     let hasNoiseSession = packet.type == .noiseEncrypted
                         && self.noiseSessionManager?.hasSession(for: packet.senderID) == true
                     let isExempt = packet.type == .noiseHandshake
+                        || packet.type == .friendRequest
+                        || packet.type == .friendAccept
                         || Self.isHandshakeRelatedEncrypted(packet)
                         || hasNoiseSession
 
@@ -756,6 +758,10 @@ final class MessageService: @unchecked Sendable {
                         self.handleFileTransfer(packet, from: peerID)
                     case .channelUpdate:
                         self.handleChannelUpdate(packet)
+                    case .friendRequest:
+                        try await self.handleFriendRequest(data: packet.payload, from: peerID)
+                    case .friendAccept:
+                        try await self.handleFriendAccept(data: packet.payload, from: peerID)
                     }
                 } catch {
                     let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()

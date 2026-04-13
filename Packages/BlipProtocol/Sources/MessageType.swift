@@ -62,6 +62,13 @@ public enum MessageType: UInt8, Sendable, Codable, CaseIterable {
     case proximityPing      = 0x52
     /// Dropped pin with label.
     case iAmHereBeacon      = 0x53
+
+    // MARK: - Social
+
+    /// Signed-but-unencrypted friend request (bypasses Noise handshake).
+    case friendRequest      = 0x60
+    /// Signed-but-unencrypted friend accept (bypasses Noise handshake).
+    case friendAccept       = 0x61
 }
 
 // MARK: - Convenience
@@ -90,6 +97,8 @@ extension MessageType: CustomStringConvertible {
         case .locationRequest:    return "locationRequest"
         case .proximityPing:      return "proximityPing"
         case .iAmHereBeacon:      return "iAmHereBeacon"
+        case .friendRequest:      return "friendRequest"
+        case .friendAccept:       return "friendAccept"
         }
     }
 

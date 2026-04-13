@@ -241,6 +241,9 @@ public final class StoreForwardCache: @unchecked Sendable {
 
         case .locationShare, .locationRequest, .proximityPing, .iAmHereBeacon:
             return Self.channelDuration
+
+        case .friendRequest, .friendAccept:
+            return Self.dmDuration
         }
     }
 
