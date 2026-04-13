@@ -183,6 +183,7 @@ final class MessageService: @unchecked Sendable {
 
     // MARK: - Init
 
+    @MainActor
     init(modelContainer: ModelContainer, keyManager: KeyManager = .shared, peerStore: PeerStore = .shared, notificationService: NotificationService = NotificationService()) {
         self.modelContainer = modelContainer
         self.context = ModelContext(modelContainer)

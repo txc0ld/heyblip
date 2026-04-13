@@ -319,6 +319,7 @@ extension MessageService {
     }
 
     /// Update a message's status in SwiftData.
+    @MainActor
     func updateMessageStatus(messageID: UUID, to status: MessageStatus) {
         let context = self.context
         let targetID = messageID
