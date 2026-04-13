@@ -179,7 +179,13 @@ public final class KeyManager: @unchecked Sendable {
     private let keyStore: KeyManagerStore
 
     public init() {
+        #if targetEnvironment(simulator)
+        // Simulator keychain requires code signing entitlements that aren't
+        // available in unsigned CLI builds. Use in-memory storage instead.
+        self.keyStore = InMemoryKeyManagerStore()
+        #else
         self.keyStore = KeychainKeyManagerStore()
+        #endif
         self.sodium = Sodium()
     }
 
