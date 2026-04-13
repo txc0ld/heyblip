@@ -16,7 +16,11 @@ final class AuthTokenManager: ObservableObject {
     private let refreshThreshold: TimeInterval = 300
     private let keyManager: KeyManager
     private let sodium: Sodium
-    private let iso8601Formatter = ISO8601DateFormatter()
+    private let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     private struct TokenResponse: Decodable {
         let token: String
