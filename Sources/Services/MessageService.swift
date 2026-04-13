@@ -721,7 +721,11 @@ final class MessageService: @unchecked Sendable {
             // Deduplicate via Bloom filter
             let packetIDData = MessagePayloadBuilder.buildPacketID(packet)
             if self.bloomFilter.contains(packetIDData) {
-                DebugLogger.emit("RX", "DUPLICATE packet — skipping", level: .verbose)
+                if packet.type == .friendRequest || packet.type == .friendAccept {
+                    DebugLogger.emit("RX", "DUPLICATE \(packet.type) from \(claimedHex) — skipping", level: .debug)
+                } else {
+                    DebugLogger.emit("RX", "DUPLICATE packet — skipping", level: .verbose)
+                }
                 return
             }
             self.bloomFilter.insert(packetIDData)
@@ -967,6 +971,16 @@ final class MessageService: @unchecked Sendable {
             transport.broadcast(data: wireData)
             DebugLogger.emit("TX", "BROADCAST \(wireData.count)B", level: .verbose)
         }
+    }
+
+    func transportAvailabilitySnapshot() -> (ble: Bool, webSocket: Bool)? {
+        guard let coordinator = transport as? TransportCoordinator else {
+            return nil
+        }
+        return (
+            ble: coordinator.bleTransport.state == .running,
+            webSocket: coordinator.webSocketTransport.state == .running
+        )
     }
 
     // MARK: - Private: Handle Received Packets

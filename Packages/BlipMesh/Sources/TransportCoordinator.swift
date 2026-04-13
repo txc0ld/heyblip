@@ -181,6 +181,7 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         }
 
         // Queue locally.
+        logger.warning("All transports unavailable for \(peerID), packet queued locally")
         enqueueLocally(data: data, targetPeer: peerID)
     }
 

@@ -129,6 +129,11 @@ extension MessageService {
             senderID: identity.peerID,
             recipientID: peerID
         )
+        if let transportState = transportAvailabilitySnapshot() {
+            let bleState = transportState.ble ? "up" : "down"
+            let wsState = transportState.webSocket ? "up" : "down"
+            DebugLogger.shared.log("TX", "FRIEND_REQ: BLE=\(bleState) WS=\(wsState)")
+        }
         try await sendPacket(packet)
 
         // Create or update local Friend record for the remote peer
@@ -141,6 +146,9 @@ extension MessageService {
                 direction: .outgoing,
                 context: context
             )
+        } else {
+            let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            DebugLogger.shared.log("TX", "FRIEND_REQ: no PeerInfo for \(shortID) — Friend record not created locally")
         }
 
         let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
@@ -305,6 +313,7 @@ extension MessageService {
                 }
             }
         } else {
+            DebugLogger.shared.log("DM", "FRIEND_REQ dropped: no parseable sender info in payload", isError: true)
             logger.warning("Received friend request with no parseable sender info")
             return
         }

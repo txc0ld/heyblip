@@ -82,6 +82,9 @@ extension MeshRelayService: TransportDelegate {
         if isNew {
             // Forward original data to MessageService for local processing.
             delegate?.transport(transport, didReceiveData: data, from: peerID)
+        } else {
+            let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            DebugLogger.emit("RELAY", "GossipRouter dedup: dropped \(data.count)B from \(peerHex)")
         }
 
         // Update queue fill ratio for congestion-aware relay decisions.
@@ -92,6 +95,9 @@ extension MeshRelayService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.emit("RELAY", "Peer connected: \(peerHex)")
+
         // Update the adaptive relay's peer count.
         if let coordinator = self.transport {
             adaptiveRelay.connectedPeerCount = coordinator.connectedPeers.count
@@ -119,6 +125,9 @@ extension MeshRelayService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.emit("RELAY", "Peer disconnected: \(peerHex)")
+
         // Update peer count.
         if let coordinator = self.transport {
             adaptiveRelay.connectedPeerCount = max(0, coordinator.connectedPeers.count - 1)

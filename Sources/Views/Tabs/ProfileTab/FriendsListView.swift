@@ -29,6 +29,7 @@ private enum FriendsListL10n {
     static let emptyOnline = String(localized: "friends.empty.online", defaultValue: "No friends online right now")
     static let emptyAll = String(localized: "friends.empty.all", defaultValue: "No friends yet. Add someone!")
     static let emptyPending = String(localized: "friends.empty.pending", defaultValue: "No pending requests")
+    static let relayOffline = String(localized: "friends.empty.pending.relay_offline", defaultValue: "Relay offline — friend requests may be delayed")
     static let emptyBlocked = String(localized: "friends.empty.blocked", defaultValue: "No blocked users")
     static let previewSarahChen = String(localized: "friends.preview.sarah_chen", defaultValue: "Sarah Chen")
     static let previewJakeMorrison = String(localized: "friends.preview.jake_morrison", defaultValue: "Jake Morrison")
@@ -289,6 +290,13 @@ struct FriendsListView: View {
                 .foregroundStyle(theme.colors.mutedText)
                 .multilineTextAlignment(.center)
 
+            if selectedSection == .pending, coordinator.webSocketTransport?.state != .running {
+                Text(FriendsListL10n.relayOffline)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.statusAmber)
+                    .padding(.top, BlipSpacing.xs)
+            }
+
             if selectedSection == .all && searchText.isEmpty {
                 GlassButton(FriendsListL10n.addFriend, icon: "person.badge.plus", style: .secondary, size: .small) {
                     showAddFriend = true
@@ -422,7 +430,10 @@ struct FriendsListView: View {
             let connectedKeys = Set(coordinator.peerStore.connectedPeers().map(\.noisePublicKey))
 
             friends = allFriends.compactMap { friend -> FriendListItem? in
-                guard let user = friend.user else { return nil }
+                guard let user = friend.user else {
+                    DebugLogger.shared.log("DB", "Friend \(friend.id) has nil User — excluded from list")
+                    return nil
+                }
                 let isOnline = connectedKeys.contains(user.noisePublicKey)
                 return FriendListItem(
                     id: friend.id,

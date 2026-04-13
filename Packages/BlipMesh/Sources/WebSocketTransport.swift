@@ -350,6 +350,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             } else {
                 senderPeerID = serverPeerID
             }
+            logger.debug("WS received \(data.count)B from \(senderPeerID)")
             delegate?.transport(self, didReceiveData: data, from: senderPeerID)
 
         case .string(let text):

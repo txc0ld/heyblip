@@ -155,7 +155,21 @@ final class AppCoordinator {
             pinnedCertHashes: ServerConfig.pinnedCertHashes,
             pinnedDomains: ServerConfig.pinnedDomains,
             tokenProvider: { @Sendable in
-                try await AuthTokenManager.shared.validToken()
+                do {
+                    return try await AuthTokenManager.shared.validToken()
+                } catch {
+                    // JWT unavailable; fall back to legacy base64 noise key auth.
+                    // The relay server accepts both JWT and raw base64(noisePublicKey).
+                    guard let identity = try KeyManager.shared.loadIdentity() else {
+                        throw error
+                    }
+                    await DebugLogger.shared.log(
+                        "AUTH",
+                        "JWT unavailable, using legacy relay auth: \(error.localizedDescription)",
+                        isError: true
+                    )
+                    return identity.noisePublicKey.rawRepresentation.base64EncodedString()
+                }
             },
             tokenRefreshHandler: { @Sendable in
                 try await AuthTokenManager.shared.refreshIfNeeded(force: true)
