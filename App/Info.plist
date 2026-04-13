@@ -71,7 +71,18 @@
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Blip uses your location in the background to keep your friends updated and detect when you arrive at events.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Blip uses the camera to take profile photos and share images in chats.</string>
+    <string>Blip uses the camera to take profile photos, share images in chats, and scan QR codes to add friends.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>au.heyblip.Blip</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>blip</string>
+            </array>
+        </dict>
+    </array>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Blip accesses your photo library to set a profile picture or share images in chats.</string>
     <key>NSMicrophoneUsageDescription</key>

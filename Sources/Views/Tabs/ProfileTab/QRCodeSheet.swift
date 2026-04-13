@@ -7,6 +7,8 @@ private enum QRCodeSheetL10n {
     static let subtitle = String(localized: "profile.qr_code.subtitle", defaultValue: "Scan to add me on Blip")
     static let shareTitle = String(localized: "profile.qr_code.share_title", defaultValue: "My Blip QR Code")
     static let shareCTA = String(localized: "profile.qr_code.share_cta", defaultValue: "Share QR Code")
+    static let scanCTA = String(localized: "profile.qr_code.scan_cta", defaultValue: "Scan a QR Code")
+    static let scanAccessibility = String(localized: "profile.qr_code.scan.accessibility", defaultValue: "Scan someone else's QR code")
 }
 
 // MARK: - QRCodeSheet
@@ -20,6 +22,10 @@ struct QRCodeSheet: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+
+    @State private var showScanner = false
+    @State private var showAddFriend = false
+    @State private var scannedUsername = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,7 +116,41 @@ struct QRCodeSheet: View {
                 .frame(minHeight: BlipSizing.minTapTarget)
             }
 
+            // Scan QR button
+            Button(action: { showScanner = true }) {
+                HStack(spacing: BlipSpacing.sm) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(size: 14, weight: .medium))
+                    Text(QRCodeSheetL10n.scanCTA)
+                        .font(theme.typography.body)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(theme.colors.text)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, BlipSpacing.sm + 2)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.08), lineWidth: BlipSizing.hairline)
+                )
+            }
+            .padding(.horizontal, BlipSpacing.lg)
+            .frame(minHeight: BlipSizing.minTapTarget)
+            .accessibilityLabel(QRCodeSheetL10n.scanAccessibility)
+
             Spacer()
+        }
+        .sheet(isPresented: $showScanner) {
+            QRScannerView { username in
+                scannedUsername = username
+                showAddFriend = true
+            }
+        }
+        .sheet(isPresented: $showAddFriend) {
+            AddFriendByUsernameSheet(initialUsername: scannedUsername)
         }
     }
 

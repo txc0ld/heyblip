@@ -10,6 +10,7 @@ struct BlipApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var coordinator = AppCoordinator()
+    @State private var deepLinkUsername: String?
 
     var sharedModelContainer: ModelContainer = {
         BlipSchema.ensureStoreDirectoryExists()
@@ -33,7 +34,7 @@ struct BlipApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(coordinator: coordinator)
+            RootView(coordinator: coordinator, deepLinkUsername: $deepLinkUsername)
                 .environment(coordinator)
                 .environment(\.theme, Theme.shared)
                 .preferredColorScheme(appTheme.colorScheme)
@@ -41,6 +42,12 @@ struct BlipApp: App {
                 .onAppear {
                     if !coordinator.isReady && !coordinator.needsOnboarding {
                         coordinator.configure(modelContainer: sharedModelContainer)
+                    }
+                }
+                .onOpenURL { url in
+                    if let username = parseBlipUserURL(url.absoluteString) {
+                        DebugLogger.shared.log("APP", "Deep link received for user: \(DebugLogger.redact(username))")
+                        deepLinkUsername = username
                     }
                 }
         }
@@ -70,9 +77,12 @@ struct RootView: View {
     @State private var appPhase: AppPhase = .splash
     @State private var showSetupError = false
     @State private var isRetrying = false
+    @State private var showDeepLinkAddFriend = false
+    @State private var deepLinkUsernameForSheet = ""
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var modelContext
 
+    @Binding var deepLinkUsername: String?
     var coordinator: AppCoordinator
 
     enum AppPhase: Equatable {
@@ -121,6 +131,15 @@ struct RootView: View {
             }
         }
         .animation(SpringConstants.accessibleReveal, value: appPhase)
+        .sheet(isPresented: $showDeepLinkAddFriend) {
+            AddFriendByUsernameSheet(initialUsername: deepLinkUsernameForSheet)
+        }
+        .onChange(of: deepLinkUsername) { _, newValue in
+            guard let username = newValue, !username.isEmpty, appPhase == .main else { return }
+            deepLinkUsernameForSheet = username
+            deepLinkUsername = nil
+            showDeepLinkAddFriend = true
+        }
         .onChange(of: coordinator.needsOnboarding) { _, needsOnboarding in
             guard needsOnboarding else { return }
             hasCompletedOnboarding = false

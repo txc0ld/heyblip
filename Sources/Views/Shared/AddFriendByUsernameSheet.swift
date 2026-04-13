@@ -48,6 +48,13 @@ private enum AddFriendByUsernameL10n {
 /// Used for remote DM testing when users aren't in Bluetooth range.
 struct AddFriendByUsernameSheet: View {
 
+    /// Optional pre-filled username (e.g. from QR code scan or deep link).
+    private let initialUsername: String
+
+    init(initialUsername: String = "") {
+        self.initialUsername = initialUsername
+    }
+
     @State private var username = ""
     @State private var lookupResult: UserSyncService.RemoteLookupResult?
     @State private var isSearching = false
@@ -84,6 +91,12 @@ struct AddFriendByUsernameSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .presentationBackground(.ultraThinMaterial)
+        .onAppear {
+            if !initialUsername.isEmpty {
+                username = initialUsername
+                Task { await search() }
+            }
+        }
     }
 
     // MARK: - Search Field
