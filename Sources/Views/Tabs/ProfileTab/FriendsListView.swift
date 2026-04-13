@@ -4,12 +4,6 @@ import SwiftData
 private enum FriendsListL10n {
     static let title = String(localized: "friends.title", defaultValue: "Friends")
     static let addFriend = String(localized: "common.add_friend", defaultValue: "Add Friend")
-    static let username = String(localized: "common.username", defaultValue: "Username")
-    static let sendRequest = String(localized: "friends.send_request", defaultValue: "Send Request")
-    static let cancel = String(localized: "common.cancel", defaultValue: "Cancel")
-    static let addFriendMessage = String(localized: "friends.add_friend.message", defaultValue: "Enter their username to send a friend request.")
-    static let requestFailed = String(localized: "friends.request_failed", defaultValue: "Friend Request Failed")
-    static let ok = String(localized: "common.ok", defaultValue: "OK")
     static let searchPlaceholder = String(localized: "friends.search.placeholder", defaultValue: "Search friends...")
     static let searchAccessibilityLabel = String(localized: "friends.search.accessibility_label", defaultValue: "Search friends")
     static let remove = String(localized: "friends.action.remove", defaultValue: "Remove")
@@ -17,7 +11,6 @@ private enum FriendsListL10n {
     static let unblock = String(localized: "friends.action.unblock", defaultValue: "Unblock")
     static let cancelRequest = String(localized: "friends.action.cancel_request", defaultValue: "Cancel Request")
     static let decline = String(localized: "friends.action.decline", defaultValue: "Decline")
-    static let notReadyError = String(localized: "friends.request.not_ready", defaultValue: "Messaging service is not ready yet. Please try again in a moment.")
     static let notFound = String(localized: "friends.error.not_found", defaultValue: "Friend not found")
     static let blocked = String(localized: "friends.status.blocked", defaultValue: "Blocked")
     static let requested = String(localized: "friends.status.requested", defaultValue: "Requested")
@@ -57,11 +50,8 @@ struct FriendsListView: View {
     @State private var searchText: String = ""
     @State private var selectedSection: FriendSection = .all
     @State private var showAddFriend = false
-    @State private var addUsername: String = ""
     @State private var selectedFriend: FriendListItem?
     @State private var isLoaded = false
-    @State private var friendRequestError: String?
-    @State private var showFriendRequestError = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -91,26 +81,8 @@ struct FriendsListView: View {
                 .accessibilityLabel(FriendsListL10n.addFriend)
             }
         }
-        .alert(FriendsListL10n.addFriend, isPresented: $showAddFriend) {
-            TextField(FriendsListL10n.username, text: $addUsername)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
-            Button(FriendsListL10n.sendRequest) {
-                sendFriendRequest()
-            }
-            Button(FriendsListL10n.cancel, role: .cancel) {
-                addUsername = ""
-            }
-        } message: {
-            Text(FriendsListL10n.addFriendMessage)
-        }
-        .alert(FriendsListL10n.requestFailed, isPresented: $showFriendRequestError, presenting: friendRequestError) { _ in
-            Button(FriendsListL10n.ok, role: .cancel) {
-                friendRequestError = nil
-            }
-        } message: { errorMessage in
-            Text(errorMessage)
+        .sheet(isPresented: $showAddFriend) {
+            AddFriendByUsernameSheet()
         }
         .sheet(item: $selectedFriend) { friend in
             ProfileSheet(
@@ -314,37 +286,6 @@ struct FriendsListView: View {
         case .all: return friends.filter { $0.status == .accepted }
         case .pending: return friends.filter { $0.status == .pending }
         case .blocked: return friends.filter { $0.status == .blocked }
-        }
-    }
-
-    private func sendFriendRequest() {
-        let trimmed = addUsername.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        addUsername = ""
-
-        guard let messageService = coordinator.messageService else {
-            friendRequestError = FriendsListL10n.notReadyError
-            showFriendRequestError = true
-            return
-        }
-
-        // Route through the auth-server lookup path so users who haven't been
-        // discovered via BLE can still be added. sendFriendRequestByUsername
-        // handles the server-side resolution and creates the local User/Friend
-        // record before dispatching the actual friend request packet.
-        Task {
-            do {
-                try await messageService.sendFriendRequestByUsername(trimmed)
-                loadFriends()
-            } catch {
-                friendRequestError = error.localizedDescription
-                showFriendRequestError = true
-                DebugLogger.shared.log(
-                    "DM",
-                    "Failed to send friend request to \(DebugLogger.redact(trimmed)): \(error.localizedDescription)",
-                    isError: true
-                )
-            }
         }
     }
 
