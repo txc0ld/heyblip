@@ -160,13 +160,15 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
     ///   - data: The binary data to send.
     ///   - peerID: The destination peer.
     public func send(data: Data, to peerID: PeerID) {
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+
         // Try BLE first.
         if bleTransport.state == .running {
             do {
                 try bleTransport.send(data: data, to: peerID)
                 return
             } catch {
-                logger.debug("BLE send failed, trying WebSocket: \(error.localizedDescription)")
+                logger.debug("BLE send failed for \(peerHex), trying WebSocket: \(error.localizedDescription)")
             }
         }
 
@@ -174,14 +176,15 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         if webSocketTransport.state == .running {
             do {
                 try webSocketTransport.send(data: data, to: peerID)
+                bleTransport.transportEventHandler?("RELAY", "SENT \(data.count)B → \(peerHex) via WebSocket relay")
                 return
             } catch {
-                logger.debug("WebSocket send failed, queueing: \(error.localizedDescription)")
+                logger.debug("WebSocket send failed for \(peerHex), queueing: \(error.localizedDescription)")
             }
         }
 
         // Queue locally.
-        logger.warning("All transports unavailable for \(peerID), packet queued locally")
+        bleTransport.transportEventHandler?("TX", "QUEUED \(data.count)B → \(peerHex) (no transport available)")
         enqueueLocally(data: data, targetPeer: peerID)
     }
 
