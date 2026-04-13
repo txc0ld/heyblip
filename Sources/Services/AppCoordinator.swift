@@ -390,6 +390,7 @@ final class AppCoordinator {
             return false
         }
 
+        Task { await PushTokenManager.shared.clearToken() }
         teardownRuntimeState()
         guard clearLocalStore(in: container) else {
             initError = "Failed to erase local data from this device."
@@ -575,6 +576,9 @@ final class AppCoordinator {
             // Request notification permissions
             let notifGranted = await notificationService.requestAuthorization()
             DebugLogger.shared.log("LIFECYCLE", "NotificationService authorization: \(notifGranted ? "granted" : "denied")")
+            if notifGranted {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
 
             await profileViewModel?.loadProfile()
 

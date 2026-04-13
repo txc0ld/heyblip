@@ -56,6 +56,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
+    // MARK: - Remote Notifications
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        PushTokenManager.shared.didRegisterToken(deviceToken)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        PushTokenManager.shared.didFailToRegister(error)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        NotificationCenter.default.post(name: .remotePushReceived, object: nil, userInfo: userInfo)
+        completionHandler(.newData)
+    }
+
     // MARK: - BLE State Restoration
 
     /// Handles central manager state restoration.
@@ -132,4 +157,7 @@ extension Notification.Name {
 
     /// Posted when BLE peripheral manager state is restored from background.
     static let blePeripheralStateRestored = Notification.Name("Blip.blePeripheralStateRestored")
+
+    /// Posted when a remote push notification is received in the foreground or background.
+    static let remotePushReceived = Notification.Name("Blip.remotePushReceived")
 }

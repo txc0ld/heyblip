@@ -480,6 +480,28 @@ final class UserSyncService: Sendable {
         let createdAt: String
     }
 
+    // MARK: - Device Token
+
+    /// Registers an APNs device token with the backend so the server can send push notifications.
+    func registerDeviceToken(_ token: String) async throws {
+        let body: [String: Any] = ["token": token, "platform": "ios"]
+        let (_, response) = try await post(path: "/devices/register", body: body, requiresAuth: true)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw SyncError.serverError("Device token registration failed (\(status))")
+        }
+    }
+
+    /// Unregisters an APNs device token from the backend (called on sign out).
+    func unregisterDeviceToken(_ token: String) async throws {
+        let body: [String: Any] = ["token": token]
+        let (_, response) = try await post(path: "/devices/unregister", body: body, requiresAuth: true)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw SyncError.serverError("Device token unregistration failed (\(status))")
+        }
+    }
+
     // MARK: - Private
 
     private func requestChallenge() async throws -> String {

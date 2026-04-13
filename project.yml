@@ -51,7 +51,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/Entitlements/Blip.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: false
-        INFOPLIST_FILE: App/Info.plist
+        INFOPLIST_FILE: App/Info.plist  # UIBackgroundModes includes remote-notification — see App/Info.plist
         BLIP_AUTH_BASE_URL: https://blip-auth.john-mckean.workers.dev/v1
         BLIP_RELAY_BASE_URL: https://blip-relay.john-mckean.workers.dev
         BLIP_CDN_BASE_URL: https://blip-cdn.john-mckean.workers.dev
