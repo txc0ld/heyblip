@@ -84,6 +84,11 @@ struct FriendsListView: View {
         .sheet(isPresented: $showAddFriend) {
             AddFriendByUsernameSheet()
         }
+        .onChange(of: showAddFriend) { _, isPresented in
+            if !isPresented {
+                loadFriends()
+            }
+        }
         .sheet(item: $selectedFriend) { friend in
             ProfileSheet(
                 isPresented: Binding(
