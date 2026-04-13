@@ -33,6 +33,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// Maximum number of reconnection attempts.
     public static let maxReconnectAttempts = 10
 
+    /// Relay keep-alive interval.
+    private static let pingInterval: TimeInterval = 30.0
+
     // MARK: - Transport conformance
 
     public weak var delegate: (any TransportDelegate)?
@@ -81,6 +84,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// The active WebSocket task.
     private var webSocketTask: URLSessionWebSocketTask?
 
+    /// Keep-alive timer for the active WebSocket task.
+    private var pingTimer: DispatchSourceTimer?
+
     /// Whether we are currently connected.
     private var isConnected = false
 
@@ -95,7 +101,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     /// Monotonic counter incremented each time a new WebSocket task is created.
     /// Used to detect and silently drop stale receive callbacks from old tasks.
-    private var connectionGeneration: UInt64 = 0
+    private var taskGeneration: UInt64 = 0
 
     /// Whether a reconnection is currently scheduled. Prevents duplicate
     /// reconnections when both didCloseWith and receiveNextMessage fire.
@@ -223,7 +229,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         // Increment the generation counter so stale callbacks from the old
         // task are silently dropped.
         lock.withLock {
-            connectionGeneration += 1
+            taskGeneration += 1
         }
 
         var request = URLRequest(url: self.relayURL)
@@ -242,25 +248,31 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     }
 
     private func disconnect() {
+        stopPingTimer()
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
 
         lock.withLock {
             isConnected = false
+            taskGeneration += 1
         }
     }
 
     private func handleConnectionEstablished() {
-        let generation: UInt64 = lock.withLock {
+        let generation: UInt64? = lock.withLock {
+            guard !isConnected else { return nil }
             isConnected = true
             reconnectAttempts = 0
             currentReconnectDelay = Self.minReconnectDelay
             isReconnectScheduled = false
-            return connectionGeneration
+            return taskGeneration
         }
+        guard let generation else { return }
 
         state = .running
         delegate?.transport(self, didConnect: serverPeerID)
+
+        startPingTimer(generation: generation)
 
         // Start the receive loop now that the relay has confirmed registration.
         receiveNextMessage(generation: generation)
@@ -268,6 +280,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     }
 
     private func handleConnectionLost(error: Error?) {
+        stopPingTimer()
         let wasConnected: Bool = lock.withLock {
             let was = isConnected
             isConnected = false
@@ -292,6 +305,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     private func handleExpiredToken() {
         logger.info("WebSocket token expired, requesting refresh")
+        stopPingTimer()
 
         // Cancel the old task to prevent ghost receive callbacks from
         // triggering a parallel handleConnectionLost.
@@ -300,6 +314,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
         lock.withLock {
             isConnected = false
+            taskGeneration += 1
         }
 
         Task { [weak self] in
@@ -358,12 +373,34 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     // MARK: - Message receiving
 
+    private func receiveRegistrationMessage(generation: UInt64) {
+        webSocketTask?.receive { [weak self] result in
+            guard let self else { return }
+
+            let current = self.lock.withLock { self.taskGeneration }
+            guard generation == current else { return }
+
+            switch result {
+            case .success(let message):
+                if case .string(let text) = message, text == "connected" {
+                    self.handleConnectionEstablished()
+                } else {
+                    self.logger.debug("WebSocket registration message ignored before relay connected")
+                    self.receiveRegistrationMessage(generation: generation)
+                }
+
+            case .failure(let error):
+                self.handleConnectionLost(error: error)
+            }
+        }
+    }
+
     private func receiveNextMessage(generation: UInt64) {
         webSocketTask?.receive { [weak self] result in
             guard let self else { return }
 
             // Drop stale callbacks from old WebSocket tasks.
-            let current = self.lock.withLock { self.connectionGeneration }
+            let current = self.lock.withLock { self.taskGeneration }
             guard generation == current else { return }
 
             switch result {
@@ -408,6 +445,57 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
         @unknown default:
             break
+        }
+    }
+
+    // MARK: - Keep-alive
+
+    private func startPingTimer(generation: UInt64) {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + Self.pingInterval, repeating: Self.pingInterval)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            guard let task = self.currentWebSocketTask(for: generation) else { return }
+
+            task.sendPing { [weak self] error in
+                guard let self else { return }
+                guard self.currentWebSocketTask(for: generation) != nil else { return }
+                guard let error else { return }
+
+                self.logger.warning("WebSocket ping failed: \(error.localizedDescription)")
+                self.handleConnectionLost(error: error)
+            }
+        }
+
+        let oldTimer = lock.withLock {
+            let old = pingTimer
+            pingTimer = timer
+            return old
+        }
+        oldTimer?.cancel()
+        timer.resume()
+    }
+
+    private func stopPingTimer() {
+        let timer = lock.withLock {
+            let timer = pingTimer
+            pingTimer = nil
+            return timer
+        }
+        timer?.cancel()
+    }
+
+    private func currentWebSocketTask(for generation: UInt64) -> URLSessionWebSocketTask? {
+        lock.withLock {
+            guard taskGeneration == generation, isConnected else { return nil }
+            return webSocketTask
+        }
+    }
+
+    private func isCurrentWebSocketTask(_ task: URLSessionTask) -> Bool {
+        lock.withLock {
+            guard let webSocketTask else { return false }
+            return webSocketTask === task
         }
     }
 }
@@ -562,21 +650,14 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
+        guard isCurrentWebSocketTask(webSocketTask) else { return }
+
         // TLS handshake is complete but the relay Durable Object hasn't
         // confirmed registration yet. Wait for the "connected" text frame
-        // as the authoritative signal. Fall back after 5 seconds in case
-        // the relay never sends it (e.g., server code change).
+        // as the authoritative signal.
         logger.info("WebSocket TLS handshake complete, waiting for relay registration")
-        let gen = lock.withLock { connectionGeneration }
-        queue.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            guard let self else { return }
-            let (currentGen, connected) = self.lock.withLock {
-                (self.connectionGeneration, self.isConnected)
-            }
-            guard gen == currentGen, !connected else { return }
-            self.logger.warning("No 'connected' frame after 5s — establishing via fallback")
-            self.handleConnectionEstablished()
-        }
+        let gen = lock.withLock { taskGeneration }
+        receiveRegistrationMessage(generation: gen)
     }
 
     public func urlSession(
@@ -585,6 +666,8 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
         didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
         reason: Data?
     ) {
+        guard isCurrentWebSocketTask(webSocketTask) else { return }
+
         let reasonString = reason.flatMap { String(data: $0, encoding: .utf8) }
         logger.info("WebSocket closed: \(closeCode.rawValue) reason: \(reasonString ?? "none")")
         if closeCode.rawValue == 4001 {
@@ -599,6 +682,8 @@ extension WebSocketTransport: URLSessionWebSocketDelegate {
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        guard isCurrentWebSocketTask(task) else { return }
+
         if let response = task.response as? HTTPURLResponse, response.statusCode == 401 {
             handleExpiredToken()
             return
