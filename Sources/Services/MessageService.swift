@@ -102,6 +102,9 @@ final class MessageService: @unchecked Sendable {
     /// Manages Noise XX handshakes and active encrypted sessions.
     var noiseSessionManager: NoiseSessionManager?
 
+    /// Manages AES-256-GCM sender keys for group message encryption.
+    var senderKeyManager: SenderKeyManager?
+
     /// Messages queued while waiting for a Noise handshake to complete.
     var pendingHandshakeMessages: [Data: [PendingEncryptedMessage]] = [:]
 
@@ -216,6 +219,7 @@ final class MessageService: @unchecked Sendable {
         self.transport = transport
         self.localIdentity = identity
         self.noiseSessionManager = NoiseSessionManager(localStaticKey: identity.noisePrivateKey)
+        self.senderKeyManager = SenderKeyManager(localPeerID: identity.peerID)
     }
 
     // MARK: - Send Message
@@ -898,16 +902,44 @@ final class MessageService: @unchecked Sendable {
                 }
             }
         } else {
-            // Group/channel: broadcast (no Noise encryption for groups yet)
-            DebugLogger.emit("TX", "BROADCAST \(subType) (\(compressed.data.count)B)")
+            // Group/channel: encrypt with AES-256-GCM sender key
+            guard let senderKeyManager else {
+                throw MessageServiceError.encryptionFailed("SenderKeyManager not configured")
+            }
+
+            let channelIDData = channel.id.uuidString.data(using: .utf8) ?? Data()
+
+            // Ensure we have a sender key for this channel; create + distribute if missing
+            if senderKeyManager.getOurKey(forChannel: channelIDData) == nil {
+                let newKey = senderKeyManager.createKey(forChannel: channelIDData)
+                DebugLogger.emit("CRYPTO", "Created sender key for channel \(String(channel.id.uuidString.prefix(8))) gen=\(newKey.generation)")
+                try await distributeSenderKey(newKey, to: channel, identity: identity)
+            }
+
+            let preEncryptKeyID = senderKeyManager.getOurKey(forChannel: channelIDData)?.keyID
+            let (ciphertext, usedKey) = try senderKeyManager.encrypt(plaintext: compressed.data, forChannel: channelIDData)
+            DebugLogger.emit("TX", "BROADCAST \(subType) sender-key encrypted (\(compressed.data.count)B → \(ciphertext.count)B)")
+
+            // Prepend channel UUID (16 raw bytes) so receiver can look up the correct key
+            var groupPayload = Data()
+            withUnsafeBytes(of: channel.id.uuid) { groupPayload.append(contentsOf: $0) }
+            groupPayload.append(ciphertext)
+
             let packet = MessagePayloadBuilder.buildPacket(
                 type: .noiseEncrypted,
-                payload: compressed.data,
+                payload: groupPayload,
                 flags: flags,
                 senderID: identity.peerID,
                 recipientID: nil
             )
             try await sendPacket(packet)
+
+            // If key was rotated during encryption, distribute the new key to members
+            if usedKey.keyID != preEncryptKeyID {
+                DebugLogger.emit("CRYPTO", "Sender key rotated for channel \(String(channel.id.uuidString.prefix(8))) → gen=\(usedKey.generation)")
+                try await distributeSenderKey(usedKey, to: channel, identity: identity)
+            }
+
             return .sent
         }
 
@@ -917,6 +949,55 @@ final class MessageService: @unchecked Sendable {
         }
 
         return .deferred(.queued)
+    }
+
+    // MARK: - Sender Key Distribution
+
+    /// Distribute a sender key to all members of a group channel via pairwise Noise sessions.
+    @MainActor
+    private func distributeSenderKey(_ key: BlipCrypto.GroupSenderKey, to channel: Channel, identity: Identity) async throws {
+        // Serialize key for distribution: [keyID:16][keyMaterial:32][generation:4][senderPeerID:8]
+        var keyPayload = Data()
+        keyPayload.append(key.keyID)
+        keyPayload.append(key.keyMaterial)
+        var gen = key.generation.bigEndian
+        keyPayload.append(Data(bytes: &gen, count: 4))
+        key.senderPeerID.appendTo(&keyPayload)
+
+        // Wrap in channel-scoped format so receiver knows which group it's for
+        let channelScoped = MessagePayloadBuilder.buildChannelScopedPayload(channelID: channel.id, content: keyPayload)
+
+        let channelShort = String(channel.id.uuidString.prefix(8))
+        let localNoiseKey = identity.noisePublicKey.rawRepresentation
+
+        for membership in channel.memberships {
+            guard let user = membership.user else { continue }
+            // Skip self
+            guard user.noisePublicKey != localNoiseKey, !user.noisePublicKey.isEmpty else { continue }
+
+            // Resolve PeerID for this member
+            let memberPeerID: PeerID
+            if let peer = peerStore.peer(byNoisePublicKey: user.noisePublicKey),
+               let resolved = PeerID(bytes: peer.peerID) {
+                memberPeerID = resolved
+            } else {
+                memberPeerID = PeerID(noisePublicKey: user.noisePublicKey)
+            }
+
+            do {
+                try await sendEncryptedControl(
+                    payload: channelScoped,
+                    subType: .groupKeyDistribution,
+                    to: memberPeerID,
+                    identity: identity
+                )
+                let memberHex = memberPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.emit("CRYPTO", "Distributed sender key to \(memberHex) for channel \(channelShort)")
+            } catch {
+                let memberHex = memberPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.emit("CRYPTO", "Failed to distribute sender key to \(memberHex): \(error)", isError: true)
+            }
+        }
     }
 
     /// Sign, encode, and transmit a packet. Dispatches signing + encoding to

@@ -601,6 +601,11 @@ extension MessageService {
             return
         }
 
+        // Handle sender key distribution: parse and store the peer's key
+        if subType == .groupKeyDistribution {
+            handleSenderKeyDistribution(data: contentData, channelID: channelID, from: peerID, senderHex: senderHex)
+        }
+
         NotificationCenter.default.post(
             name: .didReceiveGroupManagement,
             object: nil,
@@ -611,6 +616,44 @@ extension MessageService {
                 "peerID": peerID,
             ]
         )
+    }
+
+    /// Parse and store a sender key received via groupKeyDistribution.
+    ///
+    /// Payload format: `[keyID:16][keyMaterial:32][generation:4][senderPeerID:8]`
+    private func handleSenderKeyDistribution(data: Data, channelID: UUID, from peerID: PeerID, senderHex: String) {
+        // keyID(16) + keyMaterial(32) + generation(4) + senderPeerID(8) = 60
+        guard data.count >= 60 else {
+            DebugLogger.emit("CRYPTO", "Dropped sender key from \(senderHex): payload too short (\(data.count)B, need 60)", isError: true)
+            return
+        }
+
+        let keyID = Data(data[0 ..< 16])
+        let keyMaterial = Data(data[16 ..< 48])
+        let generation = Data(data[48 ..< 52]).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let senderPeerIDBytes = Data(data[52 ..< 60])
+
+        guard let senderPeerID = PeerID(bytes: senderPeerIDBytes) else {
+            DebugLogger.emit("CRYPTO", "Dropped sender key from \(senderHex): invalid sender PeerID", isError: true)
+            return
+        }
+
+        let channelIDData = channelID.uuidString.data(using: .utf8) ?? Data()
+        let peerKey = BlipCrypto.GroupSenderKey(
+            keyID: keyID,
+            keyMaterial: keyMaterial,
+            channelID: channelIDData,
+            senderPeerID: senderPeerID,
+            generation: generation
+        )
+
+        guard let senderKeyManager else {
+            DebugLogger.emit("CRYPTO", "Dropped sender key from \(senderHex): SenderKeyManager not configured", isError: true)
+            return
+        }
+
+        senderKeyManager.storePeerKey(peerKey)
+        DebugLogger.emit("CRYPTO", "Stored sender key from \(senderHex) for channel \(String(channelID.uuidString.prefix(8))) gen=\(generation)")
     }
 
 

@@ -340,6 +340,13 @@ extension MessageService {
         let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         let peerBytes = peerID.bytes
 
+        // Broadcast (no recipient) → sender-key encrypted group message
+        if !packet.flags.contains(.hasRecipient) {
+            try await handleSenderKeyEncryptedPacket(packet, from: peerID, senderHex: senderHex)
+            return
+        }
+
+        // Addressed (has recipient) → Noise session encrypted DM
         guard let session = noiseSessionManager?.getSession(for: peerID) else {
             DebugLogger.shared.log("NOISE", "Dropped .noiseEncrypted packet from \(senderHex): no active Noise session", isError: true)
             return
@@ -362,6 +369,50 @@ extension MessageService {
             return
         }
 
+        try await dispatchDecryptedPayload(decryptedPayload, packet: packet, from: peerID, senderHex: senderHex)
+    }
+
+    /// Decrypt and dispatch a sender-key encrypted group broadcast packet.
+    @MainActor
+    private func handleSenderKeyEncryptedPacket(_ packet: Packet, from peerID: PeerID, senderHex: String) async throws {
+        guard let senderKeyManager else {
+            DebugLogger.shared.log("CRYPTO", "Dropped group packet from \(senderHex): SenderKeyManager not configured", isError: true)
+            return
+        }
+
+        // Payload format: [channelUUID:16 raw bytes][senderKey ciphertext]
+        guard packet.payload.count > 16 else {
+            DebugLogger.shared.log("CRYPTO", "Dropped group packet from \(senderHex): payload too short (\(packet.payload.count)B)", isError: true)
+            return
+        }
+
+        let uuidBytes = packet.payload.prefix(16)
+        let ciphertext = Data(packet.payload.dropFirst(16))
+
+        // Reconstruct channel UUID from raw bytes
+        let uuid = uuidBytes.withUnsafeBytes { $0.load(as: uuid_t.self) }
+        let channelUUID = UUID(uuid: uuid)
+        let channelIDData = channelUUID.uuidString.data(using: .utf8) ?? Data()
+
+        let decryptedPayload: Data
+        do {
+            decryptedPayload = try senderKeyManager.decrypt(
+                ciphertext: ciphertext,
+                channelID: channelIDData,
+                senderPeerID: peerID
+            )
+            DebugLogger.shared.log("CRYPTO", "Sender-key decrypted \(decryptedPayload.count)B from \(senderHex) for channel \(String(channelUUID.uuidString.prefix(8)))")
+        } catch {
+            DebugLogger.shared.log("CRYPTO", "Dropped group packet from \(senderHex): sender key decryption failed: \(error)", isError: true)
+            return
+        }
+
+        try await dispatchDecryptedPayload(decryptedPayload, packet: packet, from: peerID, senderHex: senderHex)
+    }
+
+    /// Decompress, extract sub-type, and dispatch a decrypted payload to the appropriate handler.
+    @MainActor
+    private func dispatchDecryptedPayload(_ decryptedPayload: Data, packet: Packet, from peerID: PeerID, senderHex: String) async throws {
         // Decompress if needed
         var payload = decryptedPayload
         if packet.flags.contains(.isCompressed) {
