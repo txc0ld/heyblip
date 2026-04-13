@@ -15,6 +15,7 @@ final class User {
     var signingPublicKey: Data
     var avatarThumbnail: Data?
     var avatarFullRes: Data?
+    var avatarURL: String?
     var bio: String?
     var isVerified: Bool
     var createdAt: Date
@@ -56,6 +57,7 @@ final class User {
         signingPublicKey: Data,
         avatarThumbnail: Data? = nil,
         avatarFullRes: Data? = nil,
+        avatarURL: String? = nil,
         bio: String? = nil,
         isVerified: Bool = false,
         createdAt: Date = Date()
@@ -68,6 +70,7 @@ final class User {
         self.signingPublicKey = signingPublicKey
         self.avatarThumbnail = avatarThumbnail
         self.avatarFullRes = avatarFullRes
+        self.avatarURL = avatarURL
         self.bio = bio
         self.isVerified = isVerified
         self.createdAt = createdAt

@@ -1,0 +1,13 @@
+name = "blip-cdn"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+
+[vars]
+CORS_ORIGIN = "http://localhost:3000"
+MAX_AVATAR_BYTES = "2097152"
+
+# Set JWT_SECRET via `wrangler secret put JWT_SECRET`
+
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "blip-avatars"

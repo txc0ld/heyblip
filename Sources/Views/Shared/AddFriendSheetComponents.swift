@@ -62,6 +62,7 @@ enum AddFriendSheetComponents {
                 HStack(spacing: BlipSpacing.sm) {
                     AvatarView(
                         imageData: nil,
+                        avatarURL: result.avatarURL,
                         name: result.username,
                         size: BlipSizing.avatarMedium,
                         ringStyle: result.isVerified ? .subscriber : .none,
