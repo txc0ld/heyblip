@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftData
 
 private enum ChatListL10n {
-    static let chats = String(localized: "chat.list.mode.chats", defaultValue: "Chats")
-    static let friends = String(localized: "chat.list.mode.friends", defaultValue: "Friends")
     static let searchPrompt = String(localized: "chat.list.search.prompt", defaultValue: "Search conversations")
     static let searchMessages = String(localized: "chat.list.search_messages", defaultValue: "Search messages")
     static let addFriend = String(localized: "common.add_friend", defaultValue: "Add friend")
@@ -32,20 +30,7 @@ private enum ChatListL10n {
 
 /// Chat list with NavigationStack, search, sorted by lastActivityAt.
 /// Pull-to-refresh, floating action button for new message.
-/// Toggle between Chats (existing conversations) and Friends (all accepted friends).
 struct ChatListView: View {
-
-    enum ChatListMode: String, CaseIterable {
-        case chats
-        case friends
-
-        var displayName: String {
-            switch self {
-            case .chats: return ChatListL10n.chats
-            case .friends: return ChatListL10n.friends
-            }
-        }
-    }
 
     var chatViewModel: ChatViewModel? = nil
 
@@ -56,7 +41,6 @@ struct ChatListView: View {
     @State private var showAddFriend = false
     @State private var showMessageSearch = false
     @State private var selectedConversation: ConversationPreview? = nil
-    @State private var listMode: ChatListMode = .chats
     @Environment(\.theme) private var theme
     @Environment(AppCoordinator.self) private var coordinator
 
@@ -74,30 +58,15 @@ struct ChatListView: View {
                             .padding(.horizontal, BlipSpacing.md)
                             .padding(.top, BlipSpacing.sm)
                     }
-                    modeToggle
-                    if listMode == .chats {
-                        scrollContent
-                    } else {
-                        ScrollView {
-                            ChatFriendsListView(
-                                chatViewModel: chatViewModel,
-                                onStartConversation: { friend in
-                                    startConversation(with: friend)
-                                }
-                            )
-                        }
-                        .refreshable {
-                            await performRefresh()
-                        }
-                    }
+                    scrollContent
                 }
 
-                // Floating Action Button - New Message (hidden when inbox is empty or in Friends mode)
-                if listMode == .chats && !filteredConversations.isEmpty {
+                // Floating Action Button - New Message (hidden when inbox is empty)
+                if !filteredConversations.isEmpty {
                     newMessageFAB
                 }
             }
-            .navigationTitle(ChatListL10n.chats)
+            .navigationTitle(ChatListL10n.title)
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.hidden, for: .navigationBar)
             .searchable(
@@ -154,38 +123,6 @@ struct ChatListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .didReceiveFriendAccept)) { notification in
             navigateToFriendDM(from: notification)
         }
-    }
-
-    // MARK: - Mode Toggle
-
-    private var modeToggle: some View {
-        HStack(spacing: BlipSpacing.xs) {
-            ForEach(ChatListMode.allCases, id: \.self) { mode in
-                Button {
-                    withAnimation(SpringConstants.accessiblePageEntrance) {
-                        listMode = mode
-                    }
-                } label: {
-                    Text(mode.displayName)
-                        .font(theme.typography.body)
-                        .fontWeight(listMode == mode ? .semibold : .regular)
-                        .foregroundStyle(listMode == mode ? .white : theme.colors.text)
-                        .padding(.horizontal, BlipSpacing.md)
-                        .padding(.vertical, BlipSpacing.sm)
-                        .background(
-                            listMode == mode
-                                ? AnyShapeStyle(.blipAccentPurple)
-                                : AnyShapeStyle(.ultraThinMaterial)
-                        )
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(listMode == mode ? .isSelected : [])
-            }
-            Spacer()
-        }
-        .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm)
     }
 
     // MARK: - Scroll Content
@@ -556,7 +493,6 @@ struct ChatListView: View {
             guard let channel = await chatViewModel?.createDMChannel(with: user) else { return }
             await chatViewModel?.loadChannels()
             await MainActor.run {
-                listMode = .chats
                 selectedConversation = makeConversationPreview(for: channel)
             }
         }
