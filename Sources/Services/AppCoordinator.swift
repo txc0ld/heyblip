@@ -184,6 +184,15 @@ final class AppCoordinator {
             webSocketTransport: ws
         )
 
+        // When a transport send fails, log it. The message already exists in SwiftData
+        // with .queued status — MessageRetryService picks it up every 2s automatically.
+        coordinator.onSendFailed = { data, peerID in
+            let peerHex = peerID?.bytes.prefix(4).map { String(format: "%02x", $0) }.joined() ?? "broadcast"
+            Task { @MainActor in
+                DebugLogger.shared.log("TX", "Send failed \(data.count)B → \(peerHex) — MessageRetryService will handle retry")
+            }
+        }
+
         // Wire BLE transport events to DebugLogger
         ble.transportEventHandler = { category, message in
             Task { @MainActor in

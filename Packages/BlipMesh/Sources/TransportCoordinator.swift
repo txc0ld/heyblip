@@ -17,16 +17,6 @@ public enum ConnectivityState: Sendable, Equatable {
     case meshAndWebSocket
 }
 
-// MARK: - Queued message
-
-/// A message waiting in the local queue for delivery.
-struct PendingMessage: Sendable {
-    let data: Data
-    let targetPeer: PeerID?
-    let enqueuedAt: Date
-    let retryCount: Int
-}
-
 // MARK: - TransportCoordinator
 
 /// Owns all transports and routes messages through the best available path
@@ -35,7 +25,7 @@ struct PendingMessage: Sendable {
 /// Transport priority:
 /// 1. BLE mesh (always attempted first, 100ms timeout)
 /// 2. WebSocket relay (if BLE has no path and internet available)
-/// 3. Queue locally (if neither available, deliver when either becomes available)
+/// 3. Notify via `onSendFailed` (app layer persists to SwiftData for retry)
 ///
 /// Publishes transport state via Combine for the UI layer.
 public final class TransportCoordinator: @unchecked Sendable, Transport {
@@ -44,15 +34,6 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
 
     /// Timeout for BLE send attempt before falling back to WebSocket.
     public static let bleSendTimeout: TimeInterval = 0.1 // 100ms
-
-    /// Maximum number of locally queued messages.
-    public static let maxLocalQueueSize = 200
-
-    /// How often to retry sending queued messages.
-    public static let retryInterval: TimeInterval = 5.0
-
-    /// Maximum retry count before dropping a queued message.
-    public static let maxRetries = 20
 
     // MARK: - Transports
 
@@ -64,6 +45,12 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
 
     /// The WiFi Direct transport (v2 stub).
     public let wifiTransport: WiFiTransport
+
+    // MARK: - Callbacks
+
+    /// Called when a send fails and no transport is available.
+    /// The app layer uses this to trigger SwiftData-backed retry via MessageRetryService.
+    public var onSendFailed: ((Data, PeerID?) -> Void)?
 
     // MARK: - Published state
 
@@ -86,11 +73,6 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         return .idle
     }
 
-    // MARK: - Local queue
-
-    /// Messages queued for delivery when a transport becomes available.
-    private var localQueue: [PendingMessage] = []
-
     // MARK: - Location rate limiting
 
     /// Last location broadcast time per peer, for rate limiting (max 1/30s).
@@ -99,7 +81,6 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
     // MARK: - Internals
 
     private let lock = NSLock()
-    private var retryTimer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.blip.coordinator", qos: .userInitiated)
     private let logger = Logger(subsystem: "com.blip", category: "TransportCoordinator")
 
@@ -135,15 +116,11 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         bleTransport.start()
         webSocketTransport.start()
 
-        startRetryTimer()
         updateConnectivityState()
     }
 
     /// Stop all transports.
     public func stop() {
-        retryTimer?.cancel()
-        retryTimer = nil
-
         bleTransport.stop()
         webSocketTransport.stop()
 
@@ -154,7 +131,7 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
 
     /// Send data to a specific peer using the best available transport.
     ///
-    /// Tries BLE first with a 100ms timeout, then WebSocket, then queues locally.
+    /// Tries BLE first, then WebSocket. If both fail, calls `onSendFailed`.
     ///
     /// - Parameters:
     ///   - data: The binary data to send.
@@ -183,9 +160,9 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
             }
         }
 
-        // Queue locally.
-        bleTransport.transportEventHandler?("TX", "QUEUED \(data.count)B → \(peerHex) (no transport available)")
-        enqueueLocally(data: data, targetPeer: peerID)
+        // Notify app layer so SwiftData-backed retry can handle persistence.
+        bleTransport.transportEventHandler?("TX", "SEND FAILED \(data.count)B → \(peerHex) (no transport available)")
+        onSendFailed?(data, peerID)
     }
 
     /// Broadcast data to all connected peers across all transports.
@@ -330,99 +307,6 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         return Array(peers)
     }
 
-    // MARK: - Local queue
-
-    private func enqueueLocally(data: Data, targetPeer: PeerID?) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if localQueue.count >= Self.maxLocalQueueSize {
-            // Drop oldest message.
-            localQueue.removeFirst()
-            logger.warning("Local queue full, dropping oldest message")
-        }
-
-        localQueue.append(PendingMessage(
-            data: data,
-            targetPeer: targetPeer,
-            enqueuedAt: Date(),
-            retryCount: 0
-        ))
-    }
-
-    /// Retry sending queued messages.
-    private func retryQueuedMessages() {
-        lock.lock()
-        let messages = localQueue
-        localQueue.removeAll()
-        lock.unlock()
-
-        for var message in messages {
-            if message.retryCount >= Self.maxRetries {
-                logger.warning(
-                    "Dropping message after \(Self.maxRetries) retries to peer: \(message.targetPeer?.description ?? "broadcast", privacy: .public)"
-                )
-                delegate?.transport(self, didFailDelivery: message.data, to: message.targetPeer)
-                continue
-            }
-
-            var sent = false
-
-            if let target = message.targetPeer {
-                if bleTransport.state == .running {
-                    do {
-                        try bleTransport.send(data: message.data, to: target)
-                        sent = true
-                    } catch {
-                        logger.debug("Queue drain: BLE send failed to \(target): \(error.localizedDescription)")
-                    }
-                }
-
-                if !sent && webSocketTransport.state == .running {
-                    do {
-                        try webSocketTransport.send(data: message.data, to: target)
-                        sent = true
-                    } catch {
-                        logger.debug("Queue drain: WS send failed to \(target): \(error.localizedDescription)")
-                    }
-                }
-            } else {
-                // Broadcast.
-                broadcast(data: message.data)
-                sent = true
-            }
-
-            if !sent {
-                message = PendingMessage(
-                    data: message.data,
-                    targetPeer: message.targetPeer,
-                    enqueuedAt: message.enqueuedAt,
-                    retryCount: message.retryCount + 1
-                )
-                lock.lock()
-                localQueue.append(message)
-                lock.unlock()
-            }
-        }
-    }
-
-    // MARK: - Retry timer
-
-    private func startRetryTimer() {
-        retryTimer?.cancel()
-
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(
-            deadline: .now() + Self.retryInterval,
-            repeating: Self.retryInterval
-        )
-        timer.setEventHandler { [weak self] in
-            self?.retryQueuedMessages()
-        }
-        timer.resume()
-        retryTimer = timer
-    }
-
     // MARK: - State tracking
 
     private func updateConnectivityState() {
@@ -442,10 +326,6 @@ public final class TransportCoordinator: @unchecked Sendable, Transport {
         }
     }
 
-    /// Current number of locally queued messages.
-    public var localQueueCount: Int {
-        lock.withLock { localQueue.count }
-    }
 }
 
 // MARK: - TransportDelegate
@@ -459,11 +339,6 @@ extension TransportCoordinator: TransportDelegate {
     public func transport(_ transport: any Transport, didConnect peerID: PeerID) {
         updateConnectivityState()
         delegate?.transport(transport, didConnect: peerID)
-
-        // Retry queued messages now that we have a new connection.
-        queue.async { [weak self] in
-            self?.retryQueuedMessages()
-        }
     }
 
     public func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
