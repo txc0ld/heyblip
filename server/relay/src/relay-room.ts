@@ -15,6 +15,7 @@ import {
   MIN_ADDRESSED_PACKET_SIZE,
   MIN_PACKET_SIZE,
   type PeerIDHex,
+  type Env,
 } from "./types";
 
 /** Extract the recipient PeerID hex from a binary packet, or null if not routable. */
@@ -71,9 +72,12 @@ export class RelayRoom implements DurableObject {
   /** State TTL: 1 hour. Stale entries cleaned on access. */
   private static readonly STATE_TTL_MS = 3600_000;
 
+  private lastPushSentAt: Map<string, number> = new Map();
+  private readonly PUSH_COOLDOWN_MS = 30_000; // 30 seconds between pushes per recipient
+
   constructor(
     private readonly state: DurableObjectState,
-    private readonly env: unknown
+    private readonly env: Env
   ) {}
 
   async fetch(request: Request): Promise<Response> {
@@ -164,6 +168,7 @@ export class RelayRoom implements DurableObject {
       } catch {
         console.info(`[relay] close on replaced socket for peer ${peerIdHex} failed (already closed)`);
       }
+      this.lastPushSentAt.delete(peerIdHex);
     }
 
     this.peers.set(peerIdHex, ws);
@@ -308,6 +313,11 @@ export class RelayRoom implements DurableObject {
     if (!existingAlarm) {
       this.state.storage.setAlarm(storedAt + QUEUE_TTL_MS);
     }
+
+    // Extract sender PeerID from packet header
+    const senderHex = bytesToHex(data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH));
+    // Fire-and-forget push trigger — don't await (don't block queuing)
+    this.triggerPush(recipientHex, senderHex).catch(() => {});
   }
 
   /**
@@ -405,6 +415,34 @@ export class RelayRoom implements DurableObject {
         `[relay] drainQueue: max retries reached for ${peerHex}, ${failedKeys.length} packets remain queued for TTL expiry`
       );
       this.drainRetryCount.delete(peerHex);
+    }
+  }
+
+  private async triggerPush(recipientHex: string, senderHex: string): Promise<void> {
+    const now = Date.now();
+    const lastSent = this.lastPushSentAt.get(recipientHex) ?? 0;
+    if (now - lastSent < this.PUSH_COOLDOWN_MS) return;
+
+    this.lastPushSentAt.set(recipientHex, now);
+
+    try {
+      const resp = await fetch(this.env.AUTH_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Key': this.env.INTERNAL_API_KEY,
+        },
+        body: JSON.stringify({
+          recipientPeerIdHex: recipientHex,
+          senderPeerIdHex: senderHex,
+        }),
+      });
+      if (!resp.ok) {
+        console.error(`[relay] Push trigger failed: ${resp.status}`);
+      }
+    } catch (error) {
+      console.error(`[relay] Push trigger error: ${error}`);
+      // Fire-and-forget — don't break packet queuing
     }
   }
 

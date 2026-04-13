@@ -10,6 +10,7 @@ import {
   OFFSET_SENDER_ID,
   OFFSET_RECIPIENT_ID,
   bytesToHex,
+  type Env,
 } from "../src/types";
 
 // --- Helpers ---
@@ -179,7 +180,10 @@ function makeRelayRoom(storage: FakeStorage): RelayRoom {
     storage,
   } as unknown as DurableObjectState;
 
-  return new RelayRoom(state, {});
+  return new RelayRoom(state, {
+    AUTH_PUSH_URL: "http://localhost/push",
+    INTERNAL_API_KEY: "test-key",
+  } as unknown as Env);
 }
 
 function queuedPacketEntry(storedAt: number): QueueEntry {
