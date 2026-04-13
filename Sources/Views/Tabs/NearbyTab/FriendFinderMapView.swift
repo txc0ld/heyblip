@@ -1,5 +1,7 @@
 import SwiftUI
 import MapKit
+import SwiftData
+import CoreLocation
 
 private enum FriendFinderMapViewL10n {
     static let title = String(localized: "nearby.friend_finder.title", defaultValue: "Friend Finder")
@@ -53,14 +55,40 @@ private enum FriendFinderMapViewL10n {
 /// Full-screen friend finder with map, "I'm Here" beacon toggle,
 /// precision radius rings, and a bottom sheet friend list.
 ///
-/// Uses sample data until John wires up LocationService.
+/// Displays real friend locations from LocationViewModel (SwiftData) merged
+/// with live mesh peers from FriendFinderViewModel. Falls back to sample
+/// data only in `#Preview` blocks.
 struct FriendFinderMapView: View {
 
     var friendFinderViewModel: FriendFinderViewModel? = nil
     var locationService: LocationService? = nil
+    var locationViewModel: LocationViewModel? = nil
 
-    @State private var fallbackFriends: [FriendMapPin] = Self.sampleFriends
-    @State private var fallbackBeacons: [BeaconPin] = []
+    @State private var localLocationViewModel: LocationViewModel?
+    @State private var fallbackFriends: [FriendMapPin]
+    @State private var fallbackBeacons: [BeaconPin]
+
+    /// Standard initializer for runtime use with real data sources.
+    init(
+        friendFinderViewModel: FriendFinderViewModel? = nil,
+        locationService: LocationService? = nil,
+        locationViewModel: LocationViewModel? = nil
+    ) {
+        self.friendFinderViewModel = friendFinderViewModel
+        self.locationService = locationService
+        self.locationViewModel = locationViewModel
+        _fallbackFriends = State(initialValue: [])
+        _fallbackBeacons = State(initialValue: [])
+    }
+
+    /// Preview-only initializer that injects sample friends for Xcode previews.
+    init(previewFriends: [FriendMapPin], previewBeacons: [BeaconPin] = []) {
+        self.friendFinderViewModel = nil
+        self.locationService = nil
+        self.locationViewModel = nil
+        _fallbackFriends = State(initialValue: previewFriends)
+        _fallbackBeacons = State(initialValue: previewBeacons)
+    }
     @State private var isSharingLocation = false
     @State private var selectedFriend: FriendMapPin? = nil
     @State private var showFriendList = true
@@ -72,8 +100,7 @@ struct FriendFinderMapView: View {
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
-
-    private let previewLocation = CLLocationCoordinate2D(latitude: 51.0043, longitude: -2.5856)
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -82,7 +109,7 @@ struct FriendFinderMapView: View {
 
             // Controls
             VStack {
-                if friendFinderViewModel != nil {
+                if friendFinderViewModel != nil || resolvedLocationViewModel != nil {
                     availabilityBanner
                         .padding(.horizontal, BlipSpacing.md)
                         .padding(.top, BlipSpacing.sm)
@@ -112,6 +139,7 @@ struct FriendFinderMapView: View {
         }
         .onDisappear {
             stopLocationRefresh()
+            localLocationViewModel?.stopMonitoring()
         }
         .alert(FriendFinderMapViewL10n.dropBeaconTitle, isPresented: $showBeaconConfirm) {
             Button(FriendFinderMapViewL10n.dropHere) { performDropBeacon() }
@@ -537,29 +565,105 @@ struct FriendFinderMapView: View {
         .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg, style: .continuous))
     }
 
-    private var displayFriends: [FriendMapPin] {
-        if let friendFinderViewModel {
-            return friendFinderViewModel.friends
+    // MARK: - Resolved ViewModels
+
+    private var resolvedLocationViewModel: LocationViewModel? {
+        locationViewModel ?? localLocationViewModel
+    }
+
+    /// Friend pins built from SwiftData via LocationViewModel, matching NearbyView's pattern.
+    private var swiftDataFriendPins: [FriendMapPin] {
+        guard let vm = resolvedLocationViewModel else { return [] }
+        let userCoordinate = vm.userLocation
+
+        return vm.friendAnnotations.map { friend in
+            FriendMapPin(
+                id: friend.friendID,
+                displayName: friend.name,
+                coordinate: friend.coordinate,
+                precision: mapPrecision(friend.precision),
+                color: .blue,
+                lastUpdated: friend.lastUpdated,
+                accuracyMeters: friend.precision == .precise ? 12 : 60,
+                distanceFromUser: userCoordinate.map {
+                    CLLocation(latitude: $0.latitude, longitude: $0.longitude)
+                        .distance(from: CLLocation(latitude: friend.coordinate.latitude, longitude: friend.coordinate.longitude))
+                },
+                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800
+            )
         }
-        return fallbackFriends
+    }
+
+    private var displayFriends: [FriendMapPin] {
+        // Merge live mesh friends (from FriendFinderViewModel) with
+        // SwiftData friends (from LocationViewModel). Mesh data takes
+        // priority when both exist for the same friend (by ID).
+        let meshFriends = friendFinderViewModel?.friends ?? []
+        let storedFriends = swiftDataFriendPins
+
+        if meshFriends.isEmpty && storedFriends.isEmpty {
+            return fallbackFriends
+        }
+
+        var merged: [UUID: FriendMapPin] = [:]
+        for pin in storedFriends {
+            merged[pin.id] = pin
+        }
+        // Mesh data overwrites stored data when present (fresher).
+        for pin in meshFriends {
+            merged[pin.id] = pin
+        }
+        return Array(merged.values)
     }
 
     private var displayBeacons: [BeaconPin] {
-        if let friendFinderViewModel {
-            return friendFinderViewModel.beacons
+        let meshBeacons = friendFinderViewModel?.beacons ?? []
+        let storedBeacons: [BeaconPin] = {
+            guard let beacon = resolvedLocationViewModel?.activeBeacon else { return [] }
+            return [
+                BeaconPin(
+                    id: beacon.id,
+                    label: beacon.label,
+                    coordinate: beacon.coordinate,
+                    createdBy: FriendFinderMapViewL10n.you,
+                    expiresAt: beacon.expiresAt
+                )
+            ]
+        }()
+
+        if meshBeacons.isEmpty && storedBeacons.isEmpty {
+            return fallbackBeacons
         }
-        return fallbackBeacons
+
+        var merged: [UUID: BeaconPin] = [:]
+        for pin in storedBeacons {
+            merged[pin.id] = pin
+        }
+        for pin in meshBeacons {
+            merged[pin.id] = pin
+        }
+        return Array(merged.values)
     }
 
     private var resolvedUserLocation: CLLocationCoordinate2D? {
-        if friendFinderViewModel != nil {
-            return currentUserLocation ?? friendFinderViewModel?.userLocation
-        }
-        return currentUserLocation ?? previewLocation
+        currentUserLocation
+            ?? friendFinderViewModel?.userLocation
+            ?? resolvedLocationViewModel?.userLocation
     }
 
     private func initializeLiveState() async {
         guard let locationService else { return }
+
+        // Create a local LocationViewModel to query SwiftData friend locations
+        // if one was not injected (mirrors the pattern used in NearbyView).
+        if resolvedLocationViewModel == nil {
+            localLocationViewModel = LocationViewModel(
+                modelContainer: modelContext.container,
+                locationService: locationService
+            )
+        }
+        localLocationViewModel?.startMonitoring()
+        await resolvedLocationViewModel?.refreshFriendLocationsForDisplay()
 
         locationService.requestAuthorization()
         locationService.startUpdating(accuracy: .friendSharing)
@@ -582,6 +686,7 @@ struct FriendFinderMapView: View {
         let timer = Timer(timeInterval: 10, repeats: true) { _ in
             Task { @MainActor in
                 refreshLocationSnapshot()
+                await resolvedLocationViewModel?.refreshFriendLocationsForDisplay()
                 if isSharingLocation {
                     friendFinderViewModel?.broadcastLocation()
                 }
@@ -633,6 +738,17 @@ struct FriendFinderMapView: View {
 
         refreshLocationSnapshot()
         friendFinderViewModel?.dropBeacon()
+    }
+
+    private func mapPrecision(_ precision: LocationPrecision) -> LocationPinPrecision {
+        switch precision {
+        case .precise:
+            return .precise
+        case .fuzzy:
+            return .fuzzy
+        case .off:
+            return .off
+        }
     }
 }
 
@@ -823,7 +939,9 @@ extension FriendFinderMapView {
 
 #Preview("Friend Finder Map") {
     NavigationStack {
-        FriendFinderMapView()
+        FriendFinderMapView(
+            previewFriends: FriendFinderMapView.sampleFriends
+        )
     }
     .preferredColorScheme(.dark)
     .environment(\.theme, Theme.shared)
@@ -831,7 +949,9 @@ extension FriendFinderMapView {
 
 #Preview("Friend Finder Map - Light") {
     NavigationStack {
-        FriendFinderMapView()
+        FriendFinderMapView(
+            previewFriends: FriendFinderMapView.sampleFriends
+        )
     }
     .preferredColorScheme(.light)
     .environment(\.theme, Theme.resolved(for: .light))

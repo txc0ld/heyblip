@@ -620,7 +620,8 @@ struct NearbyView: View {
                     NavigationLink {
                         FriendFinderMapView(
                             friendFinderViewModel: coordinator.friendFinderViewModel,
-                            locationService: coordinator.locationService
+                            locationService: coordinator.locationService,
+                            locationViewModel: resolvedLocationViewModel
                         )
                     } label: {
                         FriendFinderMap(
