@@ -87,6 +87,7 @@ final class MockBLEPeripheralManager: BLEPeripheralManaging, @unchecked Sendable
 final class MockPeripheral: BLEPeripheralProxy, @unchecked Sendable {
     let identifier: UUID
     let name: String?
+    var mockMTU: Int = 512
 
     var discoverServicesCalls: [[CBUUID]?] = []
     var discoverCharacteristicsCalls: [([CBUUID]?, CBService)] = []
@@ -112,6 +113,10 @@ final class MockPeripheral: BLEPeripheralProxy, @unchecked Sendable {
 
     func setNotifyValue(_ enabled: Bool, for characteristic: CBCharacteristic) {
         setNotifyValueCalls.append((enabled, characteristic))
+    }
+
+    func maximumWriteValueLength(for type: CBCharacteristicWriteType) -> Int {
+        return mockMTU
     }
 }
 
@@ -819,5 +824,71 @@ struct BLEPeerIDMappingTests {
         #expect(service.peripheralToPeerID[peer1.identifier] != nil)
         #expect(service.peripheralToPeerID[peer3.identifier] != nil)
         #expect(service.peripheralToPeerID[peer2.identifier] == nil)
+    }
+}
+
+// ============================================================
+// Suite 7: Per-Peer MTU
+// ============================================================
+
+@Suite("BLE Per-Peer MTU")
+struct BLEPerPeerMTUTests {
+
+    @Test("send() rejects payload exceeding peer MTU")
+    func sendRejectsPayloadExceedingPeerMTU() throws {
+        let (service, _, _, _) = makeRunningBLEService()
+
+        let mockPeer = MockPeripheral()
+        service.handleDidConnect(peripheral: mockPeer)
+        let peerID = service.connectedPeers[0]
+
+        let char = CBMutableCharacteristic(
+            type: BLEConstants.characteristicUUID,
+            properties: [.write],
+            value: nil,
+            permissions: [.writeable]
+        )
+        service.peripheralCharacteristics[mockPeer.identifier] = char
+        service.peripheralMTU[mockPeer.identifier] = 100
+
+        let payload = Data(repeating: 0xAB, count: 200)
+        #expect(throws: TransportError.payloadTooLarge(size: 200, max: 100)) {
+            try service.send(data: payload, to: peerID)
+        }
+    }
+
+    @Test("send() allows payload within peer MTU")
+    func sendAllowsPayloadWithinPeerMTU() throws {
+        let (service, _, _, _) = makeRunningBLEService()
+
+        let mockPeer = MockPeripheral()
+        service.handleDidConnect(peripheral: mockPeer)
+        let peerID = service.connectedPeers[0]
+
+        let char = CBMutableCharacteristic(
+            type: BLEConstants.characteristicUUID,
+            properties: [.write],
+            value: nil,
+            permissions: [.writeable]
+        )
+        service.peripheralCharacteristics[mockPeer.identifier] = char
+        service.peripheralMTU[mockPeer.identifier] = 100
+
+        let payload = Data(repeating: 0xAB, count: 50)
+        try service.send(data: payload, to: peerID)
+
+        #expect(mockPeer.writeValueCalls.count == 1)
+        #expect(mockPeer.writeValueCalls[0].data == payload)
+    }
+
+    @Test("mtu(for:) returns default for unknown peer")
+    func defaultMTUForUnknownPeer() {
+        let (service, _, _, _) = makeBLEService()
+
+        let unknownPeerID = makePeerID(0xFF)
+        let result = service.mtu(for: unknownPeerID)
+
+        #expect(result == BLEConstants.effectiveMTU)
+        #expect(result == 512)
     }
 }

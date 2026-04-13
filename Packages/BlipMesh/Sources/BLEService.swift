@@ -66,6 +66,9 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Latest RSSI reading per connected peripheral UUID.
     var peripheralRSSI: [UUID: Int] = [:]
 
+    /// Negotiated MTU per connected peripheral UUID.
+    var peripheralMTU: [UUID: Int] = [:]
+
     /// Consecutive connection failure count per peripheral for exponential backoff.
     private var failureCounts: [UUID: Int] = [:]
     /// Timestamp when a peripheral's backoff period started, for expiry calculation.
@@ -239,12 +242,23 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         }
     }
 
+    /// Returns the negotiated MTU for the given peer, or `BLEConstants.effectiveMTU` if unknown.
+    public func mtu(for peerID: PeerID) -> Int {
+        lock.withLock {
+            guard let peripheral = peerIDToPeripheral[peerID] else {
+                return BLEConstants.effectiveMTU
+            }
+            return peripheralMTU[peripheral.identifier] ?? BLEConstants.effectiveMTU
+        }
+    }
+
     public func send(data: Data, to peerID: PeerID) throws {
         guard state == .running else {
             throw TransportError.notStarted
         }
-        guard data.count <= BLEConstants.effectiveMTU else {
-            throw TransportError.payloadTooLarge(size: data.count, max: BLEConstants.effectiveMTU)
+        let peerMTU = mtu(for: peerID)
+        guard data.count <= peerMTU else {
+            throw TransportError.payloadTooLarge(size: data.count, max: peerMTU)
         }
 
         var sent = false
@@ -715,6 +729,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             peripheralCharacteristics.removeValue(forKey: uuid)
             connectedPeripheralRefs.removeValue(forKey: uuid)
             peripheralRSSI.removeValue(forKey: uuid)
+            peripheralMTU.removeValue(forKey: uuid)
             lastDataExchange.removeValue(forKey: uuid)
             connectingPeripherals.remove(uuid)
 
@@ -846,6 +861,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             connectingPeripherals.removeAll()
             connectedPeripheralRefs.removeAll()
             peripheralRSSI.removeAll()
+            peripheralMTU.removeAll()
             subscribedCentrals.removeAll()
             centralToPeerID.removeAll()
             timedOutPeripherals.removeAll()
@@ -950,9 +966,12 @@ extension BLEService: CBPeripheralDelegate {
 
         guard let characteristics = service.characteristics else { return }
         for char in characteristics where char.uuid == BLEConstants.characteristicUUID {
+            let mtu = peripheral.maximumWriteValueLength(for: .withResponse)
             lock.withLock {
                 peripheralCharacteristics[peripheral.identifier] = char
+                peripheralMTU[peripheral.identifier] = mtu
             }
+            logger.info("Negotiated MTU for \(peripheral.identifier.uuidString.prefix(8))...: \(mtu)")
 
             if char.properties.contains(.notify) {
                 peripheral.setNotifyValue(true, for: char)
