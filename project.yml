@@ -40,6 +40,9 @@ targets:
       - path: App
         excludes:
           - "**/*.entitlements"
+          - "PrivacyInfo.xcprivacy"
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Sources
       - path: Resources
     settings:
@@ -89,6 +92,9 @@ targets:
       - package: Sentry
     entitlements:
       path: App/Entitlements/Blip.entitlements
+      properties:
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)au.heyblip.Blip"
 
   BlipTests:
     type: bundle.unit-test
