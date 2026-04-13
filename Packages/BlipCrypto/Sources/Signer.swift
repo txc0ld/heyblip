@@ -127,6 +127,34 @@ public enum Signer {
         return try verify(packetData: wireData, publicKey: publicKey)
     }
 
+    // MARK: - Detached Signature Verification
+
+    /// Verify a detached Ed25519 signature over an arbitrary message.
+    ///
+    /// Unlike `verify(packetData:publicKey:)` which is packet-aware (strips TTL, extracts
+    /// trailing signature), this method verifies a standalone signature against raw message bytes.
+    /// Used for manifest verification and other non-packet signed data.
+    ///
+    /// - Parameters:
+    ///   - message: The signed message bytes.
+    ///   - signature: The 64-byte Ed25519 detached signature.
+    ///   - publicKey: The 32-byte Ed25519 public key of the signer.
+    /// - Returns: `true` if the signature is valid for the given message and key.
+    public static func verifyDetached(message: Data, signature: Data, publicKey: Data) throws -> Bool {
+        guard publicKey.count == publicKeyLength else {
+            throw SignerError.invalidPublicKeyLength(publicKey.count)
+        }
+        guard signature.count == signatureLength else {
+            throw SignerError.invalidSignatureLength(signature.count)
+        }
+
+        return sodium.sign.verify(
+            message: Bytes(message),
+            publicKey: Bytes(publicKey),
+            signature: Bytes(signature)
+        )
+    }
+
     // MARK: - Signable data extraction
 
     /// Extract the bytes that are covered by the signature.
