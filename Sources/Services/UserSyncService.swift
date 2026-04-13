@@ -450,6 +450,7 @@ final class UserSyncService: Sendable {
             isVerified: userDict["isVerified"] as? Bool ?? false,
             noisePublicKey: userDict["noisePublicKey"] as? String,
             signingPublicKey: userDict["signingPublicKey"] as? String,
+            avatarURL: userDict["avatarURL"] as? String,
             lastActiveAt: userDict["lastActiveAt"] as? String
         )
     }
@@ -460,6 +461,7 @@ final class UserSyncService: Sendable {
         let isVerified: Bool
         let noisePublicKey: String?
         let signingPublicKey: String?
+        let avatarURL: String?
         let lastActiveAt: String?
     }
 
@@ -478,6 +480,71 @@ final class UserSyncService: Sendable {
         let messageBalance: Int
         let lastActiveAt: String?
         let createdAt: String
+    }
+
+    // MARK: - Avatar Upload
+
+    /// Upload avatar image to CDN via multipart/form-data.
+    /// Returns the public URL of the uploaded avatar.
+    func uploadAvatar(_ imageData: Data) async throws -> String {
+        let cdnBaseURL = ServerConfig.cdnBaseURL
+
+        guard let url = URL(string: "\(cdnBaseURL)/avatars/upload") else {
+            throw SyncError.networkError("Invalid CDN URL")
+        }
+
+        let boundary = "Blip-\(UUID().uuidString)"
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+
+        // Build multipart body
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"avatar\"; filename=\"avatar.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        // Authenticate
+        request.setValue(try await authorizationHeaderValue(), forHTTPHeaderField: "Authorization")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await ServerConfig.pinnedSession.data(for: request)
+        } catch {
+            throw SyncError.networkError(error.localizedDescription)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw SyncError.networkError("Invalid response")
+        }
+
+        guard http.statusCode == 200 else {
+            let message = parseError(data) ?? "Status \(http.statusCode)"
+            throw SyncError.serverError("Avatar upload failed: \(message)")
+        }
+
+        let json: [String: Any]
+        do {
+            guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw SyncError.serverError("Invalid avatar upload response")
+            }
+            json = parsed
+        } catch let error as SyncError {
+            throw error
+        } catch {
+            throw SyncError.serverError("Invalid avatar upload response")
+        }
+
+        guard let avatarURL = json["url"] as? String, !avatarURL.isEmpty else {
+            throw SyncError.serverError("Missing URL in avatar upload response")
+        }
+
+        return avatarURL
     }
 
     // MARK: - Device Token

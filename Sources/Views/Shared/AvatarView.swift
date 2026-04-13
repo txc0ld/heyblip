@@ -48,8 +48,11 @@ struct AvatarView: View {
         case subscriber
     }
 
-    /// Avatar image data (JPEG/PNG). When nil, shows initials.
+    /// Avatar image data (JPEG/PNG). When nil, falls back to remote URL then initials.
     let imageData: Data?
+
+    /// Remote avatar URL. Used when local imageData is nil.
+    let avatarURL: String?
 
     /// Display name used for initials fallback.
     let name: String
@@ -68,12 +71,14 @@ struct AvatarView: View {
 
     init(
         imageData: Data? = nil,
+        avatarURL: String? = nil,
         name: String,
         size: CGFloat = BlipSizing.avatarSmall,
         ringStyle: RingStyle = .none,
         showOnlineIndicator: Bool = false
     ) {
         self.imageData = imageData
+        self.avatarURL = avatarURL
         self.name = name
         self.size = size
         self.ringStyle = ringStyle
@@ -113,16 +118,39 @@ struct AvatarView: View {
                 .resizable()
                 .scaledToFill()
                 .clipShape(Circle())
+        } else if let urlString = avatarURL, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .clipShape(Circle())
+                case .failure:
+                    initialsFallback
+                case .empty:
+                    initialsFallback
+                        .overlay(
+                            ProgressView()
+                                .tint(.white.opacity(0.6))
+                        )
+                @unknown default:
+                    initialsFallback
+                }
+            }
         } else {
-            // Initials fallback
-            Circle()
-                .fill(initialsGradient)
-                .overlay(
-                    Text(initials)
-                        .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                )
+            initialsFallback
         }
+    }
+
+    private var initialsFallback: some View {
+        Circle()
+            .fill(initialsGradient)
+            .overlay(
+                Text(initials)
+                    .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+            )
     }
 
     // MARK: - Ring
