@@ -9,6 +9,7 @@ protocol BLEPeripheralProxy: AnyObject {
     func discoverCharacteristics(_ characteristicUUIDs: [CBUUID]?, for service: CBService)
     func writeValue(_ data: Data, for characteristic: CBCharacteristic, type: CBCharacteristicWriteType)
     func setNotifyValue(_ enabled: Bool, for characteristic: CBCharacteristic)
+    func maximumWriteValueLength(for type: CBCharacteristicWriteType) -> Int
 }
 
 extension CBPeripheral: BLEPeripheralProxy {}
