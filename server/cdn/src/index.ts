@@ -42,6 +42,11 @@ export default {
         return await handleAvatarGet(avatarMatch[1], env, corsHeaders);
       }
 
+      const manifestMatch = url.pathname.match(/^\/manifests\/([a-zA-Z0-9_\-/.]+\.json)$/);
+      if (request.method === "GET" && manifestMatch) {
+        return await handleManifestGet(manifestMatch[1], env, corsHeaders);
+      }
+
       if (request.method === "GET" && url.pathname === "/health") {
         return jsonResponse({ status: "ok" }, 200, corsHeaders);
       }
@@ -119,6 +124,28 @@ async function handleAvatarGet(
 
   const headers = new Headers(corsHeaders);
   headers.set("Content-Type", "image/jpeg");
+  headers.set("Cache-Control", "public, max-age=3600");
+  headers.set("ETag", object.httpEtag);
+
+  return new Response(object.body, { status: 200, headers });
+}
+
+// MARK: - Manifest Handler
+
+async function handleManifestGet(
+  path: string,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const key = `manifests/${path}`;
+  const object = await env.AVATARS.get(key);
+
+  if (!object) {
+    return jsonResponse({ error: "Manifest not found" }, 404, corsHeaders);
+  }
+
+  const headers = new Headers(corsHeaders);
+  headers.set("Content-Type", "application/json");
   headers.set("Cache-Control", "public, max-age=3600");
   headers.set("ETag", object.httpEtag);
 
