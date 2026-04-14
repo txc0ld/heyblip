@@ -15,10 +15,10 @@ private enum NearbyPeerCardL10n {
     static let friend = String(localized: "common.friend", defaultValue: "friend")
     static let requestPending = String(localized: "nearby.peer.request_pending", defaultValue: "friend request pending")
     static let online = String(localized: "common.online", defaultValue: "online")
-    static let previewSarah = String(localized: "nearby.peer.preview.sarah", defaultValue: "Sarah")
-    static let previewAlex = String(localized: "nearby.peer.preview.alex", defaultValue: "Alex")
-    static let previewPending = String(localized: "nearby.peer.preview.pending", defaultValue: "Pending")
-    static let previewFarAway = String(localized: "nearby.peer.preview.far_away", defaultValue: "Far Away")
+    static let previewSarah = "Sarah"
+    static let previewAlex = "Alex"
+    static let previewPending = "Pending"
+    static let previewFarAway = "Far Away"
 
     static func signalStrength(_ description: String) -> String {
         String(format: String(localized: "nearby.peer.signal_strength", defaultValue: "Signal strength: %@"), locale: Locale.current, description)

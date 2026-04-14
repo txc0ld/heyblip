@@ -2,12 +2,12 @@ import SwiftUI
 
 private enum AvatarViewL10n {
     static let onlineSuffix = String(localized: "common.avatar.online_suffix", defaultValue: "online")
-    static let previewAlice = String(localized: "common.avatar.preview.alice", defaultValue: "Alice")
-    static let previewBobSmith = String(localized: "common.avatar.preview.bob_smith", defaultValue: "Bob Smith")
-    static let previewCharlie = String(localized: "common.avatar.preview.charlie", defaultValue: "Charlie")
-    static let previewDana = String(localized: "common.avatar.preview.dana", defaultValue: "Dana")
-    static let previewJake = String(localized: "common.avatar.preview.jake", defaultValue: "Jake")
-    static let previewBob = String(localized: "common.avatar.preview.bob", defaultValue: "Bob")
+    static let previewAlice = "Alice"
+    static let previewBobSmith = "Bob Smith"
+    static let previewCharlie = "Charlie"
+    static let previewDana = "Dana"
+    static let previewJake = "Jake"
+    static let previewBob = "Bob"
 
     static func accessibilityLabel(name: String, isOnline: Bool) -> String {
         if isOnline {

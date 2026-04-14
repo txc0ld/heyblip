@@ -14,12 +14,12 @@ private enum AlertCardL10n {
     static let acceptAccessibility = String(localized: "medical.alert_card.accept_accessibility_label", defaultValue: "Accept this alert")
     static let navigateAccessibility = String(localized: "medical.alert_card.navigate_accessibility_label", defaultValue: "Navigate to alert location")
     static let resolveAccessibility = String(localized: "medical.alert_card.resolve_accessibility_label", defaultValue: "Resolve this alert")
-    static let previewNearPyramid = String(localized: "medical.alert_card.preview.near_pyramid", defaultValue: "Near Pyramid Stage, Section B")
-    static let previewCampingArea = String(localized: "medical.alert_card.preview.camping_area_b", defaultValue: "Camping Area B, near showers")
-    static let previewDizzy = String(localized: "medical.alert_card.preview.dizzy", defaultValue: "Feeling very dizzy and nauseous")
-    static let previewMedic5 = String(localized: "medical.alert_card.preview.medic_5", defaultValue: "Medic-5")
-    static let previewWestHolts = String(localized: "medical.alert_card.preview.west_holts", defaultValue: "West Holts area")
-    static let previewMinorCut = String(localized: "medical.alert_card.preview.minor_cut", defaultValue: "Minor cut, need first aid")
+    static let previewNearPyramid = "Near Pyramid Stage, Section B"
+    static let previewCampingArea = "Camping Area B, near showers"
+    static let previewDizzy = "Feeling very dizzy and nauseous"
+    static let previewMedic5 = "Medic-5"
+    static let previewWestHolts = "West Holts area"
+    static let previewMinorCut = "Minor cut, need first aid"
 
     static func alertID(_ shortID: String) -> String {
         String(

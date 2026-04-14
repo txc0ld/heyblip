@@ -27,11 +27,11 @@ private enum FriendFinderMapViewL10n {
     static let liveSharingActive = String(localized: "nearby.friend_finder.banner.active", defaultValue: "Live location sharing is active for this session.")
     static let close = String(localized: "common.close", defaultValue: "Close")
     static let imHere = String(localized: "nearby.friend_finder.beacon.default_label", defaultValue: "I'm here!")
-    static let previewSarahChen = String(localized: "nearby.friend_finder.preview.sarah_chen", defaultValue: "Sarah Chen")
-    static let previewJakeMorrison = String(localized: "nearby.friend_finder.preview.jake_morrison", defaultValue: "Jake Morrison")
-    static let previewPriyaPatel = String(localized: "nearby.friend_finder.preview.priya_patel", defaultValue: "Priya Patel")
-    static let previewAlexRivera = String(localized: "nearby.friend_finder.preview.alex_rivera", defaultValue: "Alex Rivera")
-    static let previewMiaKim = String(localized: "nearby.friend_finder.preview.mia_kim", defaultValue: "Mia Kim")
+    static let previewSarahChen = "Sarah Chen"
+    static let previewJakeMorrison = "Jake Morrison"
+    static let previewPriyaPatel = "Priya Patel"
+    static let previewAlexRivera = "Alex Rivera"
+    static let previewMiaKim = "Mia Kim"
 
     static func nearbyCount(_ count: Int) -> String {
         String(format: String(localized: "nearby.friend_finder.count_nearby", defaultValue: "%d nearby"), locale: Locale.current, count)

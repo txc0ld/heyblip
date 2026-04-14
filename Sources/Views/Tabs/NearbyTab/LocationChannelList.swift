@@ -6,11 +6,11 @@ private enum LocationChannelListL10n {
     static let noChannelsSubtitle = String(localized: "nearby.location_channels.empty.subtitle", defaultValue: "Channels appear when people are chatting in your area")
     static let autoJoined = String(localized: "nearby.location_channels.auto_joined", defaultValue: "Auto-joined")
     static let tapToJoin = String(localized: "nearby.location_channels.tap_to_join", defaultValue: "Tap to join")
-    static let previewMainField = String(localized: "nearby.location_channels.preview.main_field", defaultValue: "Main Field")
-    static let previewFoodTrucks = String(localized: "nearby.location_channels.preview.food_trucks", defaultValue: "Anyone know where the food trucks are?")
-    static let previewCampingAreaB = String(localized: "nearby.location_channels.preview.camping_area_b", defaultValue: "Camping Area B")
-    static let previewShowers = String(localized: "nearby.location_channels.preview.showers", defaultValue: "The showers are open until midnight")
-    static let previewCarPark3 = String(localized: "nearby.location_channels.preview.car_park_3", defaultValue: "Car Park 3")
+    static let previewMainField = "Main Field"
+    static let previewFoodTrucks = "Anyone know where the food trucks are?"
+    static let previewCampingAreaB = "Camping Area B"
+    static let previewShowers = "The showers are open until midnight"
+    static let previewCarPark3 = "Car Park 3"
 
     static func memberCount(_ count: Int) -> String {
         String(format: String(localized: "nearby.location_channels.member_count", defaultValue: "%d %@"), locale: Locale.current, count, count == 1 ? "person" : "people")

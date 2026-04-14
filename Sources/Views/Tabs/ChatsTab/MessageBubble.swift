@@ -15,12 +15,12 @@ private enum MessageBubbleL10n {
     static let editedSuffix = String(localized: "chat.message.accessibility.edited_suffix", defaultValue: ", edited")
     static let viaMesh = String(localized: "chat.message.transport.mesh", defaultValue: "Sent via mesh")
     static let viaRelay = String(localized: "chat.message.transport.relay", defaultValue: "Sent via cloud relay")
-    static let previewAlice = String(localized: "chat.preview.sender.alice", defaultValue: "Alice")
-    static let previewMe = String(localized: "chat.preview.sender.me", defaultValue: "Me")
-    static let previewQuestion = String(localized: "chat.preview.message.question", defaultValue: "Hey! Are you at the event yet?")
-    static let previewArrival = String(localized: "chat.preview.message.arrival", defaultValue: "Just arrived! Where are you?")
-    static let previewPyramid = String(localized: "chat.preview.message.pyramid", defaultValue: "I'm near the Pyramid Stage! Bicep is about to start")
-    static let previewOnMyWay = String(localized: "chat.preview.message.on_my_way", defaultValue: "On my way! Save me a spot")
+    static let previewAlice = "Alice"
+    static let previewMe = "Me"
+    static let previewQuestion = "Hey! Are you at the event yet?"
+    static let previewArrival = "Just arrived! Where are you?"
+    static let previewPyramid = "I'm near the Pyramid Stage! Bicep is about to start"
+    static let previewOnMyWay = "On my way! Save me a spot"
 }
 
 // MARK: - MessageBubble

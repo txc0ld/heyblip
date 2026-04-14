@@ -1,10 +1,10 @@
 import SwiftUI
 
 private enum BlipWordmarkL10n {
-    static let festi = String(localized: "brand.wordmark.festi", defaultValue: "Festi")
-    static let chat = String(localized: "brand.wordmark.chat", defaultValue: "Chat")
+    static let hey = "Hey"
+    static let blip = "Blip"
     static let tagline = String(localized: "brand.wordmark.tagline", defaultValue: "Chat at events, even without signal")
-    static let accessibility = String(localized: "brand.wordmark.accessibility", defaultValue: "HeyBlip")
+    static let accessibility = "HeyBlip"
 }
 
 // MARK: - BlipWordmark
@@ -27,11 +27,11 @@ struct BlipWordmark: View {
         VStack(spacing: 8) {
             // Main wordmark
             HStack(spacing: 0) {
-                Text(BlipWordmarkL10n.festi)
+                Text(BlipWordmarkL10n.hey)
                     .font(.custom(BlipFontName.bold, size: fontSize))
                     .foregroundStyle(.white)
 
-                Text(BlipWordmarkL10n.chat)
+                Text(BlipWordmarkL10n.blip)
                     .font(.custom(BlipFontName.bold, size: fontSize))
                     .foregroundStyle(
                         LinearGradient(

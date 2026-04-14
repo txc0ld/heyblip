@@ -16,9 +16,9 @@ private enum FriendFinderMapL10n {
     static let justNow = String(localized: "common.time.just_now", defaultValue: "Just now")
     static let overDayAgo = String(localized: "common.time.over_day_ago", defaultValue: "Over a day ago")
     static let close = String(localized: "common.close", defaultValue: "Close")
-    static let previewSarah = String(localized: "nearby.friend_finder.map.preview.sarah", defaultValue: "Sarah")
-    static let previewJake = String(localized: "nearby.friend_finder.map.preview.jake", defaultValue: "Jake")
-    static let previewMeetHere = String(localized: "nearby.friend_finder.map.preview.meet_here", defaultValue: "Meet here!")
+    static let previewSarah = "Sarah"
+    static let previewJake = "Jake"
+    static let previewMeetHere = "Meet here!"
 
     static func navigateToFriend(_ name: String) -> String {
         String(format: String(localized: "nearby.friend_finder.map.navigate_accessibility_label", defaultValue: "Navigate to %@"), locale: Locale.current, name)

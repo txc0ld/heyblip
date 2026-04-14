@@ -25,10 +25,10 @@ private enum AlertDetailL10n {
     static let nonUrgent = String(localized: "medical.alert.severity.non_urgent", defaultValue: "Non-Urgent")
     static let urgent = String(localized: "medical.alert.severity.urgent", defaultValue: "Urgent")
     static let criticalEmergency = String(localized: "medical.alert.severity.critical_emergency", defaultValue: "Critical Emergency")
-    static let previewNearPyramid = String(localized: "medical.alert_detail.preview.near_pyramid", defaultValue: "Near Pyramid Stage, Section B, Row 12")
-    static let previewCampingArea = String(localized: "medical.alert_detail.preview.camping_area_b", defaultValue: "Camping Area B, near showers")
-    static let previewDescription = String(localized: "medical.alert_detail.preview.description", defaultValue: "Feeling very dizzy and nauseous, has not eaten today")
-    static let previewMedic5 = String(localized: "medical.alert_detail.preview.medic_5", defaultValue: "Medic-5")
+    static let previewNearPyramid = "Near Pyramid Stage, Section B, Row 12"
+    static let previewCampingArea = "Camping Area B, near showers"
+    static let previewDescription = "Feeling very dizzy and nauseous, has not eaten today"
+    static let previewMedic5 = "Medic-5"
 
     static func alertTitle(_ shortID: String) -> String {
         String(format: String(localized: "medical.alert.identifier", defaultValue: "Alert #%@"), locale: Locale.current, shortID)

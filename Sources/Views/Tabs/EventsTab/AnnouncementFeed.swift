@@ -8,15 +8,15 @@ private enum AnnouncementFeedL10n {
     static let warning = String(localized: "events.announcements.severity.warning", defaultValue: "Warning")
     static let urgent = String(localized: "events.announcements.severity.urgent", defaultValue: "Urgent")
     static let emergency = String(localized: "events.announcements.severity.emergency", defaultValue: "Emergency")
-    static let previewWeatherWarning = String(localized: "events.announcements.preview.weather_warning", defaultValue: "WEATHER WARNING")
-    static let previewWeatherMessage = String(localized: "events.announcements.preview.weather_message", defaultValue: "Heavy rain expected from 8pm. Seek shelter in covered areas. Waterproofs recommended.")
-    static let previewEventSafety = String(localized: "events.announcements.preview.event_safety", defaultValue: "Event Safety")
-    static let previewScheduleChange = String(localized: "events.announcements.preview.schedule_change", defaultValue: "Schedule Change")
-    static let previewScheduleMessage = String(localized: "events.announcements.preview.schedule_message", defaultValue: "Fred Again.. moved from 9pm to 10pm on Pyramid Stage due to technical setup.")
-    static let previewProgrammeTeam = String(localized: "events.announcements.preview.programme_team", defaultValue: "Programme Team")
-    static let previewFoodVillage = String(localized: "events.announcements.preview.food_village", defaultValue: "Food Village Extended")
-    static let previewFoodVillageMessage = String(localized: "events.announcements.preview.food_village_message", defaultValue: "Food vendors in the Green Field area will remain open until 2am tonight.")
-    static let previewEventInfo = String(localized: "events.announcements.preview.event_info", defaultValue: "Event Info")
+    static let previewWeatherWarning = "WEATHER WARNING"
+    static let previewWeatherMessage = "Heavy rain expected from 8pm. Seek shelter in covered areas. Waterproofs recommended."
+    static let previewEventSafety = "Event Safety"
+    static let previewScheduleChange = "Schedule Change"
+    static let previewScheduleMessage = "Fred Again.. moved from 9pm to 10pm on Pyramid Stage due to technical setup."
+    static let previewProgrammeTeam = "Programme Team"
+    static let previewFoodVillage = "Food Village Extended"
+    static let previewFoodVillageMessage = "Food vendors in the Green Field area will remain open until 2am tonight."
+    static let previewEventInfo = "Event Info"
 
     static func accessibilityLabel(severity: String, title: String, message: String) -> String {
         String(

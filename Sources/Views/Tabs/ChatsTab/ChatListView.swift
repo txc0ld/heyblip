@@ -4,7 +4,7 @@ import SwiftData
 private enum ChatListL10n {
     static let searchPrompt = String(localized: "chat.list.search.prompt", defaultValue: "Search conversations")
     static let searchMessages = String(localized: "chat.list.search_messages", defaultValue: "Search messages")
-    static let addFriend = String(localized: "common.add_friend", defaultValue: "Add friend")
+    static let addFriend = String(localized: "common.add_friend", defaultValue: "Add Friend")
     static let emptyTitle = String(localized: "chat.list.empty.title", defaultValue: "No conversations yet")
     static let emptySubtitle = String(localized: "chat.list.empty.subtitle", defaultValue: "Add a friend to start chatting.")
     static let searchEmptySubtitle = String(localized: "chat.list.empty.search_subtitle", defaultValue: "Try a different search term.")

@@ -9,10 +9,10 @@ private enum EventDetailL10n {
     static let mapUnavailable = String(localized: "events.detail.map_unavailable", defaultValue: "Map available after joining")
     static let leaveEvent = String(localized: "events.detail.leave", defaultValue: "Leave Event")
     static let joinEvent = String(localized: "events.detail.join", defaultValue: "Join Event")
-    static let previewUnavailable = String(localized: "events.detail.preview.unavailable", defaultValue: "Preview unavailable")
-    static let previewGlastonbury = String(localized: "events.detail.preview.glastonbury", defaultValue: "Glastonbury 2026")
-    static let previewPilton = String(localized: "events.detail.preview.pilton", defaultValue: "Pilton, Somerset")
-    static let previewDescription = String(localized: "events.detail.preview.description", defaultValue: "The world's most famous greenfield music and performing arts festival. Five days of music, art, and culture across multiple stages.")
+    static let previewUnavailable = "Preview unavailable"
+    static let previewGlastonbury = "Glastonbury 2026"
+    static let previewPilton = "Pilton, Somerset"
+    static let previewDescription = "The world's most famous greenfield music and performing arts festival. Five days of music, art, and culture across multiple stages."
 
     static func attendeeCount(_ count: Int) -> String {
         String(format: String(localized: "events.detail.attendee_count", defaultValue: "%d"), locale: Locale.current, count)
@@ -185,8 +185,8 @@ struct EventDetailView: View {
     // MARK: - Helpers
 
     private func formattedDateRange(for event: EventsViewModel.DiscoverableEvent) -> String {
-        let start = event.startDate.formatted(date: .complete, time: .omitted)
-        let end = event.endDate.formatted(date: .complete, time: .omitted)
+        let start = event.startDate.formatted(date: .abbreviated, time: .omitted)
+        let end = event.endDate.formatted(date: .abbreviated, time: .omitted)
         return "\(start) – \(end)"
     }
 }

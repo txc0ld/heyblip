@@ -30,18 +30,18 @@ private enum EventsViewL10n {
     static let schedule = String(localized: "events.section.schedule", defaultValue: "Schedule")
     static let announcements = String(localized: "events.section.announcements", defaultValue: "Announcements")
     static let lostAndFound = String(localized: "events.section.lost_and_found", defaultValue: "Lost & Found")
-    static let previewPyramid = String(localized: "events.preview.stage.pyramid", defaultValue: "Pyramid")
-    static let previewOther = String(localized: "events.preview.stage.other", defaultValue: "Other")
-    static let previewWestHolts = String(localized: "events.preview.stage.west_holts", defaultValue: "West Holts")
-    static let previewBicep = String(localized: "events.preview.artist.bicep", defaultValue: "Bicep")
-    static let previewFloatingPoints = String(localized: "events.preview.artist.floating_points", defaultValue: "Floating Points")
-    static let previewWeatherWarning = String(localized: "events.preview.announcement.weather_warning", defaultValue: "WEATHER WARNING")
-    static let previewWeatherMessage = String(localized: "events.preview.announcement.weather_message", defaultValue: "Heavy rain expected from 8pm. Seek shelter.")
-    static let previewSafety = String(localized: "events.preview.announcement.safety", defaultValue: "Safety")
-    static let previewScheduleChange = String(localized: "events.preview.announcement.schedule_change", defaultValue: "Schedule Change")
-    static let previewScheduleMessage = String(localized: "events.preview.announcement.schedule_message", defaultValue: "Fred Again.. moved to 10pm on Pyramid.")
-    static let previewProgramme = String(localized: "events.preview.announcement.programme", defaultValue: "Programme")
-    static let previewPyramidStage = String(localized: "events.preview.stage.pyramid_stage", defaultValue: "Pyramid Stage")
+    static let previewPyramid = "Pyramid"
+    static let previewOther = "Other"
+    static let previewWestHolts = "West Holts"
+    static let previewBicep = "Bicep"
+    static let previewFloatingPoints = "Floating Points"
+    static let previewWeatherWarning = "WEATHER WARNING"
+    static let previewWeatherMessage = "Heavy rain expected from 8pm. Seek shelter."
+    static let previewSafety = "Safety"
+    static let previewScheduleChange = "Schedule Change"
+    static let previewScheduleMessage = "Fred Again.. moved to 10pm on Pyramid."
+    static let previewProgramme = "Programme"
+    static let previewPyramidStage = "Pyramid Stage"
 
     static func shareText(artistName: String, stageName: String, time: String, eventName: String) -> String {
         String(

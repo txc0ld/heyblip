@@ -4,13 +4,13 @@ import MapKit
 private enum StageMapViewL10n {
     static let recenter = String(localized: "events.map.recenter", defaultValue: "Recenter map on event")
     static let openStageChannel = String(localized: "events.map.stage.open_channel", defaultValue: "Tap to open stage channel")
-    static let previewPyramid = String(localized: "events.map.preview.stage.pyramid", defaultValue: "Pyramid")
-    static let previewBicep = String(localized: "events.map.preview.artist.bicep", defaultValue: "Bicep")
-    static let previewOther = String(localized: "events.map.preview.stage.other", defaultValue: "Other")
-    static let previewWestHolts = String(localized: "events.map.preview.stage.west_holts", defaultValue: "West Holts")
-    static let previewFloatingPoints = String(localized: "events.map.preview.artist.floating_points", defaultValue: "Floating Points")
-    static let previewMeetingPoint = String(localized: "events.map.preview.meeting_point", defaultValue: "Meet at tent")
-    static let previewSarah = String(localized: "events.map.preview.created_by.sarah", defaultValue: "Sarah")
+    static let previewPyramid = "Pyramid"
+    static let previewBicep = "Bicep"
+    static let previewOther = "Other"
+    static let previewWestHolts = "West Holts"
+    static let previewFloatingPoints = "Floating Points"
+    static let previewMeetingPoint = "Meet at tent"
+    static let previewSarah = "Sarah"
 
     static func meetingPoint(_ label: String) -> String {
         String(
