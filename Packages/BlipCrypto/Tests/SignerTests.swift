@@ -175,4 +175,88 @@ struct SignerTests {
             _ = try Signer.sign(packetData: shortData, secretKey: secretKey)
         }
     }
+
+    // MARK: - Detached Signature Verification
+
+    @Test("verifyDetached succeeds with valid signature")
+    func testVerifyDetachedValid() throws {
+        let sodium = Sodium()
+        let kp = sodium.sign.keyPair()!
+        let message = Data("event manifest payload".utf8)
+
+        guard let signature = sodium.sign.signature(
+            message: Bytes(message),
+            secretKey: kp.secretKey
+        ) else {
+            Issue.record("Failed to produce detached signature")
+            return
+        }
+
+        let isValid = try Signer.verifyDetached(
+            message: message,
+            signature: Data(signature),
+            publicKey: Data(kp.publicKey)
+        )
+        #expect(isValid)
+    }
+
+    @Test("verifyDetached fails with tampered message")
+    func testVerifyDetachedTampered() throws {
+        let sodium = Sodium()
+        let kp = sodium.sign.keyPair()!
+        let message = Data("original message".utf8)
+
+        guard let signature = sodium.sign.signature(
+            message: Bytes(message),
+            secretKey: kp.secretKey
+        ) else {
+            Issue.record("Failed to produce detached signature")
+            return
+        }
+
+        let tampered = Data("tampered message".utf8)
+        let isValid = try Signer.verifyDetached(
+            message: tampered,
+            signature: Data(signature),
+            publicKey: Data(kp.publicKey)
+        )
+        #expect(!isValid)
+    }
+
+    @Test("verifyDetached fails with wrong public key")
+    func testVerifyDetachedWrongKey() throws {
+        let sodium = Sodium()
+        let kp = sodium.sign.keyPair()!
+        let otherKp = sodium.sign.keyPair()!
+        let message = Data("signed by first key".utf8)
+
+        guard let signature = sodium.sign.signature(
+            message: Bytes(message),
+            secretKey: kp.secretKey
+        ) else {
+            Issue.record("Failed to produce detached signature")
+            return
+        }
+
+        let isValid = try Signer.verifyDetached(
+            message: message,
+            signature: Data(signature),
+            publicKey: Data(otherKp.publicKey)
+        )
+        #expect(!isValid)
+    }
+
+    @Test("verifyDetached throws on invalid key/signature lengths")
+    func testVerifyDetachedBadLengths() throws {
+        let message = Data("test".utf8)
+        let validSig = Data(repeating: 0, count: 64)
+        let validKey = Data(repeating: 0, count: 32)
+
+        #expect(throws: SignerError.self) {
+            _ = try Signer.verifyDetached(message: message, signature: validSig, publicKey: Data(repeating: 0, count: 16))
+        }
+        #expect(throws: SignerError.self) {
+            _ = try Signer.verifyDetached(message: message, signature: Data(repeating: 0, count: 32), publicKey: validKey)
+        }
+    }
 }

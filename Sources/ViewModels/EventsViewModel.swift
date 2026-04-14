@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import CoreLocation
 import os.log
+import BlipCrypto
 
 // MARK: - Event Discovery State
 
@@ -901,9 +902,41 @@ final class EventsViewModel {
     }
 
     private func verifyManifestSignature(_ manifest: EventManifest) -> Bool {
-        // In production: verify Ed25519 signature of the manifest data
-        // For now, accept all manifests (signature infrastructure TBD)
-        return true
+        guard let signatureBase64 = manifest.signature,
+              let signatureData = Data(base64Encoded: signatureBase64) else {
+            DebugLogger.shared.log("EVENT", "Manifest has no valid signature", isError: true)
+            return false
+        }
+
+        guard let firstEvent = manifest.events.first,
+              let publicKeyData = Data(base64Encoded: firstEvent.organizerSigningKey),
+              publicKeyData.count == Signer.publicKeyLength else {
+            DebugLogger.shared.log("EVENT", "Manifest has no valid organizer signing key", isError: true)
+            return false
+        }
+
+        // Canonical message: JSON-encode the events array
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        guard let messageData = try? encoder.encode(manifest.events) else {
+            DebugLogger.shared.log("EVENT", "Failed to encode manifest events for verification", isError: true)
+            return false
+        }
+
+        do {
+            let isValid = try Signer.verifyDetached(
+                message: messageData,
+                signature: signatureData,
+                publicKey: publicKeyData
+            )
+            DebugLogger.shared.log("EVENT", "Manifest signature verification: \(isValid ? "passed" : "FAILED")")
+            return isValid
+        } catch {
+            DebugLogger.shared.log("EVENT", "Manifest signature verification error: \(error.localizedDescription)", isError: true)
+            return false
+        }
     }
 
     private func storeEvents(_ manifestEvents: [ManifestEvent]) async {
