@@ -4,12 +4,13 @@ compatibility_date = "2025-03-01"
 
 [vars]
 FROM_EMAIL = "verify@heyblip.au"
-CORS_ORIGIN = "http://localhost:3000"
+CORS_ORIGIN = "https://heyblip.au,https://www.heyblip.au"
 CODE_TTL_SECONDS = "600"
 MAX_SENDS_PER_HOUR = "3"
 JWT_EXPIRY_SECONDS = "3600"
 JWT_REFRESH_GRACE_SECONDS = "300"
-# Set to "true" only for local development to skip Resend and accept code 000000.
+# SAFETY: Must remain "false" in production. When "true", skips Resend email
+# verification and accepts code 000000. Only enable for local development.
 DEV_BYPASS = "false"
 
 # Set RESEND_API_KEY via `wrangler secret put RESEND_API_KEY`
