@@ -119,11 +119,14 @@ const ED25519_SIGNATURE_LENGTH = 64;
 const MAX_USERNAME_LENGTH = 30;
 const MAX_BODY_BYTES = 16_384;
 let hasLoggedMissingCorsOrigin = false;
+let _requestOrigin: string | null = null;
 
 function corsHeaders(env?: Env): Record<string, string> {
   const headers: Record<string, string> = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-XSS-Protection": "0",
   };
   const corsOrigin = env?.CORS_ORIGIN;
   if (!corsOrigin) {
@@ -134,14 +137,20 @@ function corsHeaders(env?: Env): Record<string, string> {
     return headers;
   }
 
-  headers["Access-Control-Allow-Origin"] = corsOrigin;
-  headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, OPTIONS";
-  headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+  const allowedOrigins = corsOrigin.split(",").map(o => o.trim());
+  if (_requestOrigin && allowedOrigins.includes(_requestOrigin)) {
+    headers["Access-Control-Allow-Origin"] = _requestOrigin;
+    headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, OPTIONS";
+    headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+    headers["Vary"] = "Origin";
+  }
   return headers;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    _requestOrigin = request.headers.get("Origin");
+
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders(env) });
     }
