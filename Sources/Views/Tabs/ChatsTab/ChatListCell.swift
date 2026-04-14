@@ -191,6 +191,7 @@ struct ChatListCell: View {
                     .fill(Color.blipAccentPurple)
             )
             .contentTransition(.numericText())
+            .animation(.default, value: conversation.unreadCount)
             .accessibilityLabel(ChatListCellL10n.unreadCount(conversation.unreadCount))
     }
 

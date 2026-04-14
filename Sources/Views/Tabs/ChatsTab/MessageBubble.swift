@@ -54,6 +54,7 @@ struct MessageBubble: View {
     var onReport: (() -> Void)? = nil
 
     @State private var isVisible = false
+    @State private var isRetrying = false
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
@@ -91,16 +92,39 @@ struct MessageBubble: View {
                 // Retry button for failed messages
                 if message.isFromMe && message.deliveryStatus == .failed {
                     Button {
+                        guard !isRetrying else { return }
+                        isRetrying = true
+                        if !SpringConstants.isReduceMotionEnabled {
+                            #if canImport(UIKit)
+                            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                            #endif
+                        }
                         onRetry?()
+                        Task { @MainActor in
+                            do {
+                                try await Task.sleep(for: .seconds(3))
+                            } catch {
+                                isRetrying = false
+                                return
+                            }
+                            isRetrying = false
+                        }
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(.system(size: 11, weight: .medium))
-                            Text(MessageBubbleL10n.retryText)
-                                .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
+                            if isRetrying {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(theme.colors.statusRed)
+                            } else {
+                                Image(systemName: "exclamationmark.circle")
+                                    .font(.system(size: 11, weight: .medium))
+                                Text(MessageBubbleL10n.retryText)
+                                    .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
+                            }
                         }
                         .foregroundStyle(theme.colors.statusRed)
                     }
+                    .disabled(isRetrying)
                     .padding(.horizontal, BlipSpacing.sm)
                     .accessibilityLabel(MessageBubbleL10n.retryLabel)
                 }

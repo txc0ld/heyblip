@@ -60,6 +60,8 @@ struct ChatView: View {
     @State private var isNearBottom = true
     @State private var unseenMessageCount = 0
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var justSentMessage = false
+    @State private var lastTypingIndicatorSent = Date.distantPast
 
     @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.theme) private var theme
@@ -117,7 +119,10 @@ struct ChatView: View {
                     set: { newValue in
                         if chatViewModel != nil {
                             chatViewModel?.composingText = newValue
-                            chatViewModel?.sendTypingIndicator()
+                            if Date().timeIntervalSince(lastTypingIndicatorSent) > 2.0 {
+                                chatViewModel?.sendTypingIndicator()
+                                lastTypingIndicatorSent = Date()
+                            }
                         } else {
                             messageText = newValue
                         }
@@ -447,10 +452,11 @@ struct ChatView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { oldCount, newCount in
-                if isNearBottom {
+                if isNearBottom || justSentMessage {
                     withAnimation(SpringConstants.accessibleMessage) {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
+                    justSentMessage = false
                 } else {
                     let newMessages = newCount - oldCount
                     if newMessages > 0 {
@@ -475,6 +481,11 @@ struct ChatView: View {
 
     private var jumpToLatestButton: some View {
         Button {
+            if !SpringConstants.isReduceMotionEnabled {
+                #if canImport(UIKit)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                #endif
+            }
             withAnimation(SpringConstants.accessibleMessage) {
                 scrollProxy?.scrollTo("bottom", anchor: .bottom)
             }
@@ -618,6 +629,7 @@ struct ChatView: View {
 
     private func sendMessage(text: String) async {
         guard let vm = chatViewModel else { return }
+        justSentMessage = true
         await vm.sendTextMessage(text: text)
         if let profileVM = coordinator.profileViewModel {
             await profileVM.loadProfile()

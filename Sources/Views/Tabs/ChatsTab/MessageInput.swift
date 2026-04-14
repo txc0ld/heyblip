@@ -113,6 +113,7 @@ struct MessageInput: View {
             Spacer()
 
             Button {
+                isTextFieldFocused = false
                 onCancelEdit()
             } label: {
                 Image(systemName: "xmark")
@@ -177,6 +178,7 @@ struct MessageInput: View {
 
     private var attachmentButton: some View {
         Button {
+            isTextFieldFocused = false
             showAttachmentMenu = true
         } label: {
             Image(systemName: "plus.circle.fill")
@@ -249,6 +251,12 @@ struct MessageInput: View {
                 MorphingIconButton(isSendMode: $isSendMode) {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
+                    isTextFieldFocused = false
+                    if !SpringConstants.isReduceMotionEnabled {
+                        #if canImport(UIKit)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        #endif
+                    }
                     onSend(trimmed)
                     text = ""
                     onClearReply()
@@ -300,11 +308,21 @@ struct MessageInput: View {
                 .onChanged { _ in
                     if !isPTTActive {
                         isPTTActive = true
+                        if !SpringConstants.isReduceMotionEnabled {
+                            #if canImport(UIKit)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            #endif
+                        }
                         onPTTStart()
                     }
                 }
                 .onEnded { _ in
                     isPTTActive = false
+                    if !SpringConstants.isReduceMotionEnabled {
+                        #if canImport(UIKit)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        #endif
+                    }
                     onPTTEnd()
                 }
         )
