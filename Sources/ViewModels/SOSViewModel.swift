@@ -67,6 +67,14 @@ final class SOSViewModel {
     /// All active SOS alerts visible on the mesh (for responders).
     var visibleAlerts: [SOSAlertInfo] = []
 
+    /// Whether expired alerts should remain visible in a separate dashboard section.
+    var showExpired = false {
+        didSet {
+            guard showExpired != oldValue else { return }
+            Task { await refreshVisibleAlerts() }
+        }
+    }
+
     /// The user's false alarm count.
     var falseAlarmCount: Int = 0
 
@@ -112,7 +120,9 @@ final class SOSViewModel {
         let description: String?
         let reporterName: String?
         let createdAt: Date
+        let expiresAt: Date
         let status: SOSStatus
+        let isExpired: Bool
         let distance: CLLocationDistance?
     }
 
@@ -465,7 +475,10 @@ final class SOSViewModel {
         let alerts: [SOSAlert]
         do {
             alerts = try context.fetch(FetchDescriptor<SOSAlert>())
-                .filter { $0.statusRaw == "active" || $0.statusRaw == "accepted" }
+                .filter {
+                    ($0.statusRaw == "active" || $0.statusRaw == "accepted")
+                        && (showExpired || !$0.isExpired)
+                }
                 .sorted { $0.createdAt > $1.createdAt }
         } catch {
             logger.error("Failed to fetch visible SOS alerts: \(error.localizedDescription)")
@@ -496,7 +509,9 @@ final class SOSViewModel {
                 description: alert.alertDescription,
                 reporterName: alert.reporter?.resolvedDisplayName,
                 createdAt: alert.createdAt,
+                expiresAt: alert.expiresAt,
                 status: alert.status,
+                isExpired: alert.isExpired,
                 distance: distance
             )
         }.sorted { ($0.distance ?? .infinity) < ($1.distance ?? .infinity) }

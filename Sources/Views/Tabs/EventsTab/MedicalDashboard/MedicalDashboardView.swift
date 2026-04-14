@@ -10,6 +10,10 @@ private enum MedicalDashboardL10n {
     static let goOffDuty = String(localized: "medical.dashboard.duty.accessibility_off", defaultValue: "Go off duty")
     static let goOnDuty = String(localized: "medical.dashboard.duty.accessibility_on", defaultValue: "Go on duty")
     static let noActiveAlerts = String(localized: "medical.dashboard.alerts.none", defaultValue: "No active SOS alerts")
+    static let showExpiredAlerts = String(localized: "medical.dashboard.alerts.show_expired", defaultValue: "Show expired alerts")
+    static let expiredAlerts = String(localized: "medical.dashboard.alerts.expired_section", defaultValue: "Expired")
+    static let expiredBadge = String(localized: "medical.dashboard.alerts.expired_badge", defaultValue: "Expired")
+    static let expiresSoonBadge = String(localized: "medical.dashboard.alerts.expires_soon_badge", defaultValue: "Expires soon")
     static let accept = String(localized: "common.accept", defaultValue: "Accept")
     static let navigate = String(localized: "common.navigate", defaultValue: "Navigate")
     static let resolve = String(localized: "common.resolve", defaultValue: "Resolve")
@@ -170,23 +174,49 @@ struct MedicalDashboardView: View {
     }
 
     private func alertListView(vm: SOSViewModel) -> some View {
-        Group {
-            if vm.visibleAlerts.isEmpty {
-                GlassCard(thickness: .ultraThin) {
-                    HStack(spacing: BlipSpacing.sm) {
-                        Image(systemName: "checkmark.shield.fill")
-                            .foregroundStyle(theme.colors.statusGreen)
-                        Text(MedicalDashboardL10n.noActiveAlerts)
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.mutedText)
+        let activeAlerts = vm.visibleAlerts.filter { !$0.isExpired }
+        let expiredAlerts = vm.showExpired ? vm.visibleAlerts.filter(\.isExpired) : []
+
+        return Group {
+            VStack(alignment: .leading, spacing: BlipSpacing.md) {
+                Toggle(MedicalDashboardL10n.showExpiredAlerts, isOn: Binding(
+                    get: { vm.showExpired },
+                    set: { vm.showExpired = $0 }
+                ))
+                .font(theme.typography.body)
+                .tint(.blipAccentPurple)
+
+                if activeAlerts.isEmpty {
+                    GlassCard(thickness: .ultraThin) {
+                        HStack(spacing: BlipSpacing.sm) {
+                            Image(systemName: "checkmark.shield.fill")
+                                .foregroundStyle(theme.colors.statusGreen)
+                            Text(MedicalDashboardL10n.noActiveAlerts)
+                                .font(theme.typography.body)
+                                .foregroundStyle(theme.colors.mutedText)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, BlipSpacing.md)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.md)
+                } else {
+                    LazyVStack(spacing: BlipSpacing.sm) {
+                        ForEach(activeAlerts) { alert in
+                            alertRow(alert)
+                        }
+                    }
                 }
-            } else {
-                LazyVStack(spacing: BlipSpacing.sm) {
-                    ForEach(vm.visibleAlerts) { alert in
-                        alertRow(alert)
+
+                if !expiredAlerts.isEmpty {
+                    VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+                        Text(MedicalDashboardL10n.expiredAlerts)
+                            .font(theme.typography.caption)
+                            .foregroundStyle(theme.colors.mutedText)
+
+                        LazyVStack(spacing: BlipSpacing.sm) {
+                            ForEach(expiredAlerts) { alert in
+                                alertRow(alert)
+                            }
+                        }
                     }
                 }
             }
@@ -201,6 +231,21 @@ struct MedicalDashboardView: View {
                     Text(alert.severity.rawValue.uppercased())
                         .font(theme.typography.caption).fontWeight(.bold)
                         .foregroundStyle(severityColor(alert.severity))
+                    HStack(spacing: BlipSpacing.xs) {
+                        if alert.isExpired {
+                            alertBadge(
+                                MedicalDashboardL10n.expiredBadge,
+                                tint: theme.colors.mutedText,
+                                background: theme.colors.hover
+                            )
+                        } else if expiresSoon(alert) {
+                            alertBadge(
+                                MedicalDashboardL10n.expiresSoonBadge,
+                                tint: theme.colors.statusAmber,
+                                background: theme.colors.statusAmber.opacity(0.14)
+                            )
+                        }
+                    }
                     if let distance = alert.distance {
                         Text(MedicalDashboardL10n.distanceMeters(Int(distance)))
                             .font(theme.typography.secondary).foregroundStyle(theme.colors.text)
@@ -209,16 +254,19 @@ struct MedicalDashboardView: View {
                         .font(theme.typography.caption).foregroundStyle(theme.colors.mutedText)
                 }
                 Spacer()
-                Button {
-                    Task { await sosViewModel?.acceptAlert(alert) }
-                } label: {
-                    Text(MedicalDashboardL10n.accept).font(theme.typography.body).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, BlipSpacing.md).padding(.vertical, BlipSpacing.sm)
-                        .background(.blipAccentPurple, in: Capsule())
+                if !alert.isExpired {
+                    Button {
+                        Task { await sosViewModel?.acceptAlert(alert) }
+                    } label: {
+                        Text(MedicalDashboardL10n.accept).font(theme.typography.body).fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, BlipSpacing.md).padding(.vertical, BlipSpacing.sm)
+                            .background(.blipAccentPurple, in: Capsule())
+                    }
+                    .accessibilityLabel(MedicalDashboardL10n.acceptAccessibility(alert.severity.rawValue))
                 }
-                .accessibilityLabel(MedicalDashboardL10n.acceptAccessibility(alert.severity.rawValue))
             }
+            .opacity(alert.isExpired ? 0.6 : 1.0)
         }
     }
 
@@ -302,6 +350,21 @@ struct MedicalDashboardView: View {
         case .amber: return theme.colors.statusAmber
         case .green: return theme.colors.statusGreen
         }
+    }
+
+    private func expiresSoon(_ alert: SOSViewModel.SOSAlertInfo) -> Bool {
+        guard !alert.isExpired else { return false }
+        let remainingTime = alert.expiresAt.timeIntervalSinceNow
+        return remainingTime > 0 && remainingTime <= 300
+    }
+
+    private func alertBadge(_ title: String, tint: Color, background: Color) -> some View {
+        Text(title)
+            .font(theme.typography.caption)
+            .foregroundStyle(tint)
+            .padding(.horizontal, BlipSpacing.sm)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(background))
     }
 
     private func elapsedTime(since date: Date) -> String {

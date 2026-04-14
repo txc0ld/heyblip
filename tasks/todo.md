@@ -140,3 +140,18 @@
 - [x] Add a friend detail GlassCard with navigate and dismiss actions.
 - [x] Add beacon-drop confirmation and guard location sharing when GPS is unavailable.
 - [x] Run the simulator build.
+
+## HEY1241 Expired SOS Alerts
+
+- [x] Read `CLAUDE.md` and the relevant design context before implementation.
+- [x] Inspect `SOSViewModel`, `MedicalDashboardView`, `SOSAlert`, and theme tokens for expiry handling.
+- [x] Create the task branch for `HEY1241`.
+- [x] Add `showExpired` state plus `isExpired` and `expiresAt` fields to `SOSAlertInfo`.
+- [x] Filter expired alerts out by default in `refreshVisibleAlerts()` and include them when `showExpired` is enabled.
+- [x] Add the dashboard toggle, split expired alerts into their own section, and show `Expired` / `Expires soon` badges.
+- [x] Run required grep verification checks.
+- [x] Run the simulator build.
+- [x] Run `swift test --package-path Packages/BlipProtocol`.
+- [x] Run `swift test --package-path Packages/BlipCrypto`.
+- [x] Run `swift test --package-path Packages/BlipMesh`.
+- [x] Commit, push the branch, open a PR targeting `main`, and post the PR status in `#blip-dev`.
