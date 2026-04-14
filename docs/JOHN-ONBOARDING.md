@@ -7,8 +7,8 @@ Hey John, welcome to HeyBlip. Here's everything you need to get started.
 ## 1. Clone the repo
 
 ```bash
-git clone https://github.com/txc0ld/FezChat.git
-cd FezChat
+git clone https://github.com/txc0ld/heyblip.git
+cd heyblip
 ```
 
 ## 2. Read these files first (in this order)
@@ -41,7 +41,7 @@ Your tasks are all prefixed with **J** in `WORKPLAN.md`. Start with **P0 Sprint 
 npm install -g @anthropic-ai/claude-code
 
 # Navigate to the repo
-cd FezChat
+cd heyblip
 
 # Start Claude Code — it auto-loads CLAUDE.md
 claude
@@ -57,7 +57,7 @@ Read the relevant spec sections before starting.
 ### Option B: Codex (OpenAI)
 
 ```bash
-cd FezChat
+cd heyblip
 codex
 ```
 
@@ -72,7 +72,7 @@ Follow the execution lifecycle in AGENTS.md.
 
 1. Open Claude Desktop
 2. Open Cowork
-3. Select the `FezChat` folder
+3. Select the `heyblip` folder
 4. It auto-loads `CLAUDE.md`
 5. Tell it: "Read WORKPLAN.md. I'm John. Start on J1."
 

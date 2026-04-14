@@ -10,12 +10,12 @@ Copy the prompt below into Claude Dispatch or Cowork to begin working.
 I am Tay, working on Blip — a BLE mesh chat app for events.
 
 ## Project
-- Repo: https://github.com/txc0ld/FezChat
+- Repo: https://github.com/txc0ld/heyblip
 - Issue tracker: Bugasura (HeyBlip project — https://my.bugasura.io/)
 - My role: Frontend, UX/UI, Design + shared backend
 
 ## Setup
-1. Clone https://github.com/txc0ld/FezChat if not already cloned
+1. Clone https://github.com/txc0ld/heyblip if not already cloned
 2. Read these files for context:
    - CLAUDE.md (auto-loaded)
    - WORKPLAN.md — my tasks are ALL entries prefixed with "T" and the "Collaborative" section

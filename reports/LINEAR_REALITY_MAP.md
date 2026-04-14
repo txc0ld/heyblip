@@ -2,7 +2,7 @@
 
 ## Workspace Snapshot
 
-- Team: `FezChat`
+- Team: `HeyBlip`
 - Active project signal: `Sprint 2`
 - Visible cycle structure: no active/current/next cycles configured
 - Dominant labels visible in workspace: `Infra`, `Protocol`, plus feature-area labels from the issue stream
@@ -10,7 +10,7 @@
 
 ## What Bugasura Says The Product Is
 
-Blip/FezChat is intended to be a BLE-first event communication app with:
+HeyBlip is intended to be a BLE-first event communication app with:
 
 - mesh DMs and group messaging
 - nearby discovery and friend management

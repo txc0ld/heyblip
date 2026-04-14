@@ -25,7 +25,7 @@
 
 ## Environment Verification Pass
 
-- [x] Verify git remote and recent commit history in `/Users/johnmckean/FezChat`.
+- [x] Verify git remote and recent commit history in `/Users/johnmckean/heyblip`.
 - [x] Verify Bugasura connectivity and list assigned issues for project HeyBlip.
 - [x] Verify Slack connectivity by locating channel `#blip-dev`.
 - [x] Verify the `Blip` simulator build command succeeds.

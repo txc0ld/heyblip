@@ -2,7 +2,7 @@
 
 ## What Blip Is
 
-Blip/FezChat is a BLE-first event communication app intended to provide nearby discovery, DMs, friend coordination, event map/schedule workflows, SOS/medical escalation, and lightweight monetization when normal mobile infrastructure is unreliable.
+HeyBlip is a BLE-first event communication app intended to provide nearby discovery, DMs, friend coordination, event map/schedule workflows, SOS/medical escalation, and lightweight monetization when normal mobile infrastructure is unreliable.
 
 ## What Bugasura Indicated
 
