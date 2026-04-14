@@ -265,7 +265,11 @@ struct ChatView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .onAppear {
                         Task {
-                            try? await Task.sleep(for: .seconds(2))
+                            do {
+                                try await Task.sleep(for: .seconds(2))
+                            } catch {
+                                return
+                            }
                             withAnimation(SpringConstants.gentleAnimation) {
                                 showPTTUnavailableToast = false
                             }

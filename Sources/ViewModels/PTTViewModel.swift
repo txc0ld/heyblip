@@ -258,14 +258,22 @@ final class PTTViewModel {
             state = .sending(progress: 1.0)
 
             // Brief delay to show completion, then return to idle
-            try? await Task.sleep(for: .milliseconds(300))
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                // Task cancelled — skip delay
+            }
             state = .idle
         } catch {
             state = .error("Send failed: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
+            DebugLogger.shared.log("PTT", "Send failed: \(error.localizedDescription)")
 
             // Return to idle after showing error
-            try? await Task.sleep(for: .seconds(2))
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                // Task cancelled — skip delay
+            }
             state = .idle
         }
     }
