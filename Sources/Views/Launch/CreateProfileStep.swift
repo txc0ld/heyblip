@@ -67,6 +67,9 @@ struct CreateProfileStep: View {
     @State private var identityError: String? = nil
     @State private var contentVisible = false
     @State private var resendCooldown: Int = 0
+    @State private var showRegistrationError = false
+    @State private var registrationErrorMessage: String?
+    @State private var pendingRegistrationRetry: (() async -> Void)?
     @FocusState private var focusedField: Field?
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
@@ -152,6 +155,24 @@ struct CreateProfileStep: View {
             withAnimation(SpringConstants.accessiblePageEntrance) {
                 contentVisible = true
             }
+        }
+        .alert(
+            String(localized: "onboarding.profile.registration_error.title", defaultValue: "Registration Failed"),
+            isPresented: $showRegistrationError
+        ) {
+            Button(String(localized: "onboarding.profile.registration_error.retry", defaultValue: "Retry")) {
+                guard let retry = pendingRegistrationRetry else { return }
+                isCreatingIdentity = true
+                Task {
+                    await retry()
+                    isCreatingIdentity = false
+                }
+            }
+            Button(String(localized: "onboarding.profile.registration_error.continue_offline", defaultValue: "Continue Offline"), role: .cancel) {
+                onComplete()
+            }
+        } message: {
+            Text(registrationErrorMessage ?? String(localized: "onboarding.profile.registration_error.message", defaultValue: "Your profile was saved locally but could not be registered on the server. You can retry now or continue — the app will keep trying in the background."))
         }
     }
 
@@ -547,29 +568,29 @@ struct CreateProfileStep: View {
                 DebugLogger.shared.log("AUTH", "Username '\(trimmedUsername)' already taken", isError: true)
                 isCreatingIdentity = false
                 return
-            } catch let error as UserSyncService.SyncError {
-                // Non-fatal — log, queue background retry, still proceed
-                DebugLogger.shared.log("AUTH", "Registration failed (will retry): \(error.localizedDescription)", isError: true)
-                let svc = UserSyncService()
-                Task {
-                    await svc.registerUserWithRetry(
-                        emailHash: emailHash,
-                        username: trimmedUsername,
-                        noisePublicKey: noiseKey,
-                        signingPublicKey: signingKey
-                    )
-                }
             } catch {
-                DebugLogger.shared.log("AUTH", "Registration failed (will retry): \(error.localizedDescription)", isError: true)
-                let svc = UserSyncService()
-                Task {
-                    await svc.registerUserWithRetry(
-                        emailHash: emailHash,
-                        username: trimmedUsername,
-                        noisePublicKey: noiseKey,
-                        signingPublicKey: signingKey
-                    )
+                DebugLogger.shared.log("AUTH", "Registration failed: \(error.localizedDescription)", isError: true)
+                registrationErrorMessage = error.localizedDescription
+                pendingRegistrationRetry = { [noiseKey, signingKey] in
+                    do {
+                        try await UserSyncService().registerUser(
+                            emailHash: emailHash,
+                            username: trimmedUsername,
+                            noisePublicKey: noiseKey,
+                            signingPublicKey: signingKey
+                        )
+                        await MainActor.run { self.onComplete() }
+                    } catch {
+                        DebugLogger.shared.log("AUTH", "Registration retry failed: \(error.localizedDescription)", isError: true)
+                        await MainActor.run {
+                            self.registrationErrorMessage = error.localizedDescription
+                            self.showRegistrationError = true
+                        }
+                    }
                 }
+                isCreatingIdentity = false
+                showRegistrationError = true
+                return
             }
 
             onComplete()
