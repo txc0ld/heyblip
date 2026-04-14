@@ -22,7 +22,6 @@ final class ChatViewModelIntegrationTests: XCTestCase {
 
         messageService = MessageService(modelContainer: container)
         vm = ChatViewModel(
-            modelContainer: container,
             messageService: messageService
         )
     }
@@ -390,5 +389,35 @@ final class ChatViewModelIntegrationTests: XCTestCase {
         XCTAssertEqual(vm.activeMessages.count, 1, "Duplicate DM channel message should stay visible in the open conversation")
         XCTAssertEqual(vm.unreadCounts[loadedDuplicateChannel.id] ?? 0, 0, "Equivalent DM channel should not accumulate unread while open")
         XCTAssertEqual(vm.totalUnreadCount, 0)
+    }
+
+    func testOpenConversationReloadsSentMessagesWrittenThroughMessageServiceContext() async throws {
+        let channel = makeChannel(name: "Relay DM")
+
+        await vm.openConversation(channel)
+        XCTAssertTrue(vm.activeMessages.isEmpty)
+
+        vm.closeConversation()
+
+        let context = messageService.context
+        let channelID = channel.id
+        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        guard let persistedChannel = try context.fetch(descriptor).first else {
+            return XCTFail("Failed to fetch persisted channel from MessageService context")
+        }
+
+        let sentMessage = Message(
+            channel: persistedChannel,
+            type: .text,
+            rawPayload: Data("persisted sent message".utf8),
+            status: .sent
+        )
+        context.insert(sentMessage)
+        try context.save()
+
+        await vm.openConversation(channel)
+
+        XCTAssertEqual(vm.activeMessages.map(\.id), [sentMessage.id])
+        XCTAssertEqual(vm.activeMessages.first?.status, .sent)
     }
 }

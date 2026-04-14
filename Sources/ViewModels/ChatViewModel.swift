@@ -54,7 +54,6 @@ final class ChatViewModel {
 
     // MARK: - Dependencies
 
-    private let modelContainer: ModelContainer
     private let context: ModelContext
     private let messageService: MessageService
     private let audioService: AudioService
@@ -68,15 +67,13 @@ final class ChatViewModel {
     // MARK: - Init
 
     init(
-        modelContainer: ModelContainer,
         messageService: MessageService,
         audioService: AudioService = AudioService(),
         imageService: ImageService = ImageService(),
         notificationService: NotificationService = NotificationService()
     ) {
-        self.modelContainer = modelContainer
-        self.context = ModelContext(modelContainer)
         self.messageService = messageService
+        self.context = messageService.context
         self.audioService = audioService
         self.imageService = imageService
         self.notificationService = notificationService

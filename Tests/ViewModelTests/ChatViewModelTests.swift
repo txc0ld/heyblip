@@ -24,7 +24,6 @@ final class ChatViewModelTests: XCTestCase {
 
         messageService = MessageService(modelContainer: container)
         vm = ChatViewModel(
-            modelContainer: container,
             messageService: messageService
         )
     }

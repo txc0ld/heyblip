@@ -243,7 +243,6 @@ final class AppCoordinator {
         self.messageCleanupService = MessageCleanupService(modelContainer: modelContainer)
 
         self.chatViewModel = ChatViewModel(
-            modelContainer: modelContainer,
             messageService: msgService,
             notificationService: notificationService
         )
