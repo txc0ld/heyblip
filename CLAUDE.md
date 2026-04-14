@@ -98,11 +98,11 @@ The `server/` directory contains Cloudflare Workers deployed to John's account:
 |---|---|---|
 | `blip-auth` | `blip-auth.john-mckean.workers.dev` | Ed25519 challenge-response registration, email verification (Resend), JWT session tokens (`/v1/auth/token`, `/v1/auth/refresh`), key upload, user lookup |
 | `blip-relay` | `blip-relay.john-mckean.workers.dev` | WebSocket relay with store-and-forward (Durable Object storage, 50 packets/peer cap, 1hr TTL), broadcast fan-out for non-addressed packets, sender PeerID verification, per-peer drain serialization with retry (3 attempts, 5s×N backoff), failed-key tracking, JWT validation (accepts JWT or legacy base64 key, expired JWT → close 4001), alarm-based cleanup |
-| `blip-cdn` | `blip-cdn.john-mckean.workers.dev` | Static event manifests and public assets. `/manifests/events.json` serves seed events. CORS enabled, 1hr cache. No DB connection. Source not in `server/` — deployed standalone. |
+| `blip-cdn` | `blip-cdn.john-mckean.workers.dev` | Static event manifests, public assets, and avatar storage. `/manifests/events.json` serves seed events. `POST /avatars/upload` (JWT-authed) stores JPEG avatars in R2 bucket `blip-avatars`, returns CDN URL. `GET /avatars/:id.jpg` serves avatars via R2. CORS enabled (`*`), 1hr cache on manifests. Source in `server/cdn/`. |
 
 The `server/` directory also contains a `verify/` stub (currently unused).
 
-Database: Neon Postgres (managed by Tay). `blip-auth` and `blip-relay` connect via `DATABASE_URL` environment variable in wrangler.toml. `blip-cdn` is static (no DB).
+Database: Neon Postgres (managed by Tay). `blip-auth` and `blip-relay` connect via `DATABASE_URL` environment variable in wrangler.toml. `blip-cdn` uses R2 (no DB) — bucket `blip-avatars` + `JWT_SECRET` shared with `blip-auth`.
 
 **Server URLs are centralized in `Sources/Services/ServerConfig.swift`** — never hardcode server URLs anywhere else. If you need to reference auth or relay endpoints, import and use `ServerConfig`.
 
