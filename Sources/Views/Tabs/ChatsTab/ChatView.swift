@@ -27,6 +27,14 @@ private enum ChatViewL10n {
     }
 
     static let jumpToLatestSingle = String(localized: "chat.jump_to_latest.accessibility.single", defaultValue: "Jump to latest message")
+
+    // Transport indicator
+    static let transportBLE = String(localized: "chat.transport.ble", defaultValue: "Mesh")
+    static let transportRelay = String(localized: "chat.transport.relay", defaultValue: "Relay")
+    static let transportBLEAccessibility = String(localized: "chat.transport.ble.accessibility", defaultValue: "Messages via Bluetooth mesh")
+    static let transportRelayAccessibility = String(localized: "chat.transport.relay.accessibility", defaultValue: "Messages via internet relay")
+    static let transportBothAccessibility = String(localized: "chat.transport.both.accessibility", defaultValue: "Messages via Bluetooth mesh and internet relay")
+    static let transportOfflineAccessibility = String(localized: "chat.transport.offline.accessibility", defaultValue: "No transport available")
 }
 
 // MARK: - ChatView
@@ -252,6 +260,18 @@ struct ChatView: View {
         return peers.contains { !$0.noisePublicKey.isEmpty }
     }
 
+    // MARK: - Transport State
+
+    /// Whether BLE mesh transport is active.
+    private var isBLEActive: Bool {
+        coordinator.meshViewModel?.isBLEActive ?? false
+    }
+
+    /// Whether WebSocket relay transport is connected.
+    private var isWebSocketConnected: Bool {
+        coordinator.meshViewModel?.isWebSocketConnected ?? false
+    }
+
     // MARK: - Navigation Title
 
     private var navigationTitleView: some View {
@@ -293,8 +313,79 @@ struct ChatView: View {
                             .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
                             .foregroundStyle(Color.blipMint.opacity(0.8))
                     }
+
+                    transportIndicator
                 }
             }
+        }
+    }
+
+    // MARK: - Transport Indicator
+
+    /// Small inline indicator showing whether messages route via BLE mesh or WebSocket relay.
+    @ViewBuilder
+    private var transportIndicator: some View {
+        let bleActive = isBLEActive
+        let wsActive = isWebSocketConnected
+
+        if bleActive || wsActive {
+            HStack(spacing: 3) {
+                Text("\u{00B7}")
+                    .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                    .foregroundStyle(theme.colors.mutedText)
+
+                if bleActive {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.blipAccentPurple)
+
+                    Text(ChatViewL10n.transportBLE)
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(theme.colors.mutedText)
+                }
+
+                if bleActive && wsActive {
+                    Text("+")
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(theme.colors.mutedText)
+                }
+
+                if wsActive {
+                    Image(systemName: "cloud.fill")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.blipAccentPurple)
+
+                    Text(ChatViewL10n.transportRelay)
+                        .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption2))
+                        .foregroundStyle(theme.colors.mutedText)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(transportAccessibilityLabel)
+            .transition(
+                SpringConstants.isReduceMotionEnabled
+                    ? .opacity
+                    : .opacity.combined(with: .scale(scale: 0.9))
+            )
+            .animation(SpringConstants.gentleAnimation, value: bleActive)
+            .animation(SpringConstants.gentleAnimation, value: wsActive)
+        }
+    }
+
+    /// Accessibility label for the transport indicator.
+    private var transportAccessibilityLabel: String {
+        let bleActive = isBLEActive
+        let wsActive = isWebSocketConnected
+
+        switch (bleActive, wsActive) {
+        case (true, true):
+            return ChatViewL10n.transportBothAccessibility
+        case (true, false):
+            return ChatViewL10n.transportBLEAccessibility
+        case (false, true):
+            return ChatViewL10n.transportRelayAccessibility
+        case (false, false):
+            return ChatViewL10n.transportOfflineAccessibility
         }
     }
 
