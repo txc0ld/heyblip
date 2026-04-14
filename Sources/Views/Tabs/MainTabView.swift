@@ -42,6 +42,14 @@ struct MainTabView: View {
             floatingTabBar
         }
         .connectionBanner(peerCount: connectedPeerCount, isVisible: $showConnectionBanner)
+        .overlay(alignment: .top) {
+            if coordinator.registrationSyncPending {
+                RegistrationBanner(coordinator: coordinator)
+                    .padding(.horizontal, BlipSpacing.md)
+                    .padding(.top, BlipSpacing.sm)
+            }
+        }
+        .animation(SpringConstants.accessiblePageEntrance, value: coordinator.registrationSyncPending)
     }
 
     // MARK: - Tab Content

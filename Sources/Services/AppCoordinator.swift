@@ -33,6 +33,11 @@ final class AppCoordinator {
     /// Initialization error, if any.
     private(set) var initError: String?
 
+    /// Whether the local user has not yet been confirmed on the server.
+    /// Set to `true` when registration or self-check fails; cleared when
+    /// a successful verification or retry succeeds.
+    private(set) var registrationSyncPending = false
+
     // MARK: - Services
 
     private(set) var bleService: BLEService?
@@ -547,9 +552,11 @@ final class AppCoordinator {
             if result != nil {
                 logger.info("SELF_CHECK PASS — \(localUser.username, privacy: .private) found on server")
                 DebugLogger.shared.log("SELF_CHECK", "PASS — \(DebugLogger.redact(localUser.username)) found on server")
+                registrationSyncPending = false
             } else {
                 logger.warning("SELF_CHECK FAIL — \(localUser.username, privacy: .private) not registered, re-registering")
                 DebugLogger.shared.log("SELF_CHECK", "FAIL — not registered, re-registering", isError: true)
+                registrationSyncPending = true
 
                 await syncService.registerUserWithRetry(
                     emailHash: localUser.emailHash,
@@ -557,13 +564,25 @@ final class AppCoordinator {
                     noisePublicKey: localUser.noisePublicKey,
                     signingPublicKey: localUser.signingPublicKey
                 )
+
+                // Check if retry succeeded
+                let retryResult = try? await syncService.lookupUser(username: localUser.username)
+                registrationSyncPending = (retryResult == nil)
             }
 
             await establishAuthSession(forceRefresh: true)
         } catch {
             logger.error("SELF_CHECK error: \(error.localizedDescription)")
             DebugLogger.shared.log("SELF_CHECK", "Error: \(error.localizedDescription)", isError: true)
+            registrationSyncPending = true
         }
+    }
+
+    /// Retry server registration from the UI (e.g. the sync-pending banner).
+    func retryRegistration() async {
+        guard let modelContainer else { return }
+        DebugLogger.shared.log("AUTH", "Manual registration retry triggered")
+        await verifyServerRegistration(modelContainer: modelContainer)
     }
 
     // MARK: - Lifecycle

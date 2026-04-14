@@ -34,6 +34,8 @@ struct OnboardingFlow: View {
     var onComplete: () -> Void = {}
 
     @State private var currentStep: Int = 0
+    @State private var showBypassError = false
+    @State private var bypassErrorMessage: String?
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
@@ -72,6 +74,17 @@ struct OnboardingFlow: View {
                 // Custom page indicator
                 pageIndicator
                     .padding(.bottom, BlipSpacing.md)
+            }
+            .alert(
+                String(localized: "onboarding.bypass.error.title", defaultValue: "Setup Failed"),
+                isPresented: $showBypassError
+            ) {
+                Button(String(localized: "onboarding.bypass.error.retry", defaultValue: "Retry")) {
+                    handleBypass()
+                }
+                Button(String(localized: "onboarding.bypass.error.dismiss", defaultValue: "OK"), role: .cancel) {}
+            } message: {
+                Text(bypassErrorMessage ?? String(localized: "onboarding.bypass.error.message", defaultValue: "Could not create dev profile. Check your Keychain access and try again."))
             }
         }
     }
@@ -172,8 +185,9 @@ struct OnboardingFlow: View {
 
             completeOnboarding()
         } catch {
-            // Fallback: complete without user creation — profile step can fix later
-            completeOnboarding()
+            DebugLogger.shared.log("AUTH", "Dev bypass failed: \(error.localizedDescription)", isError: true)
+            bypassErrorMessage = error.localizedDescription
+            showBypassError = true
         }
     }
 }
