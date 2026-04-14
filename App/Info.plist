@@ -11,7 +11,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Blip</string>
+    <string>HeyBlip</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -63,15 +63,15 @@
         <string>com.blip.mesh-sync</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Blip uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
+    <string>HeyBlip uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>Blip uses Bluetooth to allow nearby devices to discover and connect with you.</string>
+    <string>HeyBlip uses Bluetooth to allow nearby devices to discover and connect with you.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Blip uses your location to find nearby events, show friends on the map, and share your location with friends you choose.</string>
+    <string>HeyBlip uses your location to find nearby events, show friends on the map, and share your location with friends you choose.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Blip uses your location in the background to keep your friends updated and detect when you arrive at events.</string>
+    <string>HeyBlip uses your location in the background to keep your friends updated and detect when you arrive at events.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Blip uses the camera to take profile photos, share images in chats, and scan QR codes to add friends.</string>
+    <string>HeyBlip uses the camera to take profile photos, share images in chats, and scan QR codes to add friends.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -79,14 +79,15 @@
             <string>au.heyblip.Blip</string>
             <key>CFBundleURLSchemes</key>
             <array>
+                <string>heyblip</string>
                 <string>blip</string>
             </array>
         </dict>
     </array>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Blip accesses your photo library to set a profile picture or share images in chats.</string>
+    <string>HeyBlip accesses your photo library to set a profile picture or share images in chats.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Blip uses the microphone for walkie-talkie and voice notes.</string>
+    <string>HeyBlip uses the microphone for walkie-talkie and voice notes.</string>
     <key>UIAppFonts</key>
     <array>
         <string>PlusJakartaSans-Regular.ttf</string>

@@ -107,11 +107,11 @@ final class BackgroundTaskService {
 
     // MARK: - Background Notification
 
-    /// Post a local notification informing the user that Blip is active in the background.
+    /// Post a local notification informing the user that HeyBlip is active in the background.
     func postBackgroundActiveNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "Blip"
-        content.body = "Blip is keeping you connected"
+        content.title = "HeyBlip"
+        content.body = "HeyBlip is keeping you connected"
         content.sound = nil
         content.interruptionLevel = .passive
 

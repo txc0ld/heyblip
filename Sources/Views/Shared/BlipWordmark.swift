@@ -4,7 +4,7 @@ private enum BlipWordmarkL10n {
     static let festi = String(localized: "brand.wordmark.festi", defaultValue: "Festi")
     static let chat = String(localized: "brand.wordmark.chat", defaultValue: "Chat")
     static let tagline = String(localized: "brand.wordmark.tagline", defaultValue: "Chat at events, even without signal")
-    static let accessibility = String(localized: "brand.wordmark.accessibility", defaultValue: "Blip")
+    static let accessibility = String(localized: "brand.wordmark.accessibility", defaultValue: "HeyBlip")
 }
 
 // MARK: - BlipWordmark

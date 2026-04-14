@@ -5,11 +5,11 @@ import AudioToolbox
 private enum QRScannerL10n {
     static let title = String(localized: "qr_scanner.title", defaultValue: "Scan QR Code")
     static let close = String(localized: "common.close", defaultValue: "Close")
-    static let instructions = String(localized: "qr_scanner.instructions", defaultValue: "Point your camera at a Blip QR code")
+    static let instructions = String(localized: "qr_scanner.instructions", defaultValue: "Point your camera at a HeyBlip QR code")
     static let cameraUnavailable = String(localized: "qr_scanner.camera_unavailable", defaultValue: "Camera Unavailable")
     static let cameraPermission = String(
         localized: "qr_scanner.camera_permission",
-        defaultValue: "Blip needs camera access to scan QR codes.\nGo to Settings to enable it."
+        defaultValue: "HeyBlip needs camera access to scan QR codes.\nGo to Settings to enable it."
     )
     static let openSettings = String(localized: "qr_scanner.open_settings", defaultValue: "Open Settings")
     static let scannerAccessibility = String(localized: "qr_scanner.scanner.accessibility", defaultValue: "QR code camera scanner")
@@ -17,8 +17,8 @@ private enum QRScannerL10n {
 
 // MARK: - QR Scanner View
 
-/// Full-screen camera view for scanning Blip QR codes.
-/// Parses `blip://user/{username}` and returns the scanned username via a callback.
+/// Full-screen camera view for scanning HeyBlip QR codes.
+/// Parses `heyblip://user/{username}` and legacy `blip://user/{username}` URLs.
 struct QRScannerView: View {
 
     private let onUsernameScanned: (String) -> Void
@@ -154,10 +154,12 @@ struct QRScannerView: View {
 
 // MARK: - URL Parsing
 
-/// Parses a `blip://user/{username}` URL and returns the username, or nil if invalid.
+/// Parses a HeyBlip user URL and returns the username, or nil if invalid.
 func parseBlipUserURL(_ urlString: String) -> String? {
+    // Accept both heyblip:// (current) and blip:// (legacy, pre-rename) schemes
     guard let url = URL(string: urlString),
-          url.scheme == "blip",
+          let scheme = url.scheme,
+          ["heyblip", "blip"].contains(scheme),
           url.host == "user" else {
         return nil
     }
@@ -285,7 +287,7 @@ private final class QRCameraViewController: UIViewController, AVCaptureMetadataO
             return
         }
 
-        // Only fire for valid blip:// URLs
+        // Only fire for valid HeyBlip user URLs
         guard parseBlipUserURL(stringValue) != nil else { return }
 
         hasScanned = true

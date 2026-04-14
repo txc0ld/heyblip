@@ -2,7 +2,7 @@ import SwiftUI
 
 private enum WelcomeStepL10n {
     static let title = String(localized: "onboarding.welcome.title", defaultValue: "Chat at events,\neven without signal.")
-    static let subtitle = String(localized: "onboarding.welcome.subtitle", defaultValue: "Blip uses Bluetooth to connect you with people nearby. No WiFi or cell signal needed.")
+    static let subtitle = String(localized: "onboarding.welcome.subtitle", defaultValue: "HeyBlip uses Bluetooth to connect you with people nearby. No WiFi or cell signal needed.")
     static let continueButton = String(localized: "common.continue", defaultValue: "Continue")
     static let devBypass = String(localized: "onboarding.welcome.dev_bypass.title", defaultValue: "Dev Bypass")
     static let code = String(localized: "common.code", defaultValue: "Code")

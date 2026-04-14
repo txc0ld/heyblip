@@ -20,7 +20,7 @@ private enum NearbyL10n {
     static let peopleNearbyTitle = String(localized: "nearby.people.title", defaultValue: "People Nearby")
     static let friendsNearbyTitle = String(localized: "nearby.friends.title", defaultValue: "Friends Nearby")
     static let scanningTitle = String(localized: "nearby.empty.scanning_title", defaultValue: "Scanning for nearby peers...")
-    static let scanningSubtitle = String(localized: "nearby.empty.scanning_subtitle", defaultValue: "Make sure Bluetooth is enabled and you're near other Blip users.")
+    static let scanningSubtitle = String(localized: "nearby.empty.scanning_subtitle", defaultValue: "Make sure Bluetooth is enabled and you're near other HeyBlip users.")
     static let bluetoothOffTitle = String(localized: "nearby.bluetooth_off.title", defaultValue: "Bluetooth is off")
     static let bluetoothOffSubtitle = String(localized: "nearby.bluetooth_off.subtitle", defaultValue: "Turn on Bluetooth to discover people nearby and join the mesh network.")
     static let openSettings = String(localized: "nearby.bluetooth_off.cta", defaultValue: "Open Settings")

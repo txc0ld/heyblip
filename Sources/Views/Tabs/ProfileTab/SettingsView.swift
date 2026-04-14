@@ -11,7 +11,7 @@ private enum SettingsL10n {
     static let signOutMessage = String(localized: "settings.sign_out.message", defaultValue: "This clears the local identity on this device, wipes local data, and returns you to setup. Remote account restore is not available yet.")
     static let deleteAccountTitle = String(localized: "settings.delete_account.title", defaultValue: "Delete your account?")
     static let deleteButton = String(localized: "common.delete", defaultValue: "Delete")
-    static let deleteAccountMessage = String(localized: "settings.delete_account.message", defaultValue: "This will permanently remove your account from Blip servers and wipe this device after the server deletion succeeds.")
+    static let deleteAccountMessage = String(localized: "settings.delete_account.message", defaultValue: "This will permanently remove your account from HeyBlip servers and wipe this device after the server deletion succeeds.")
     static let deleteConfirmTitle = String(localized: "settings.delete_account.confirm_title", defaultValue: "Type DELETE to confirm")
     static let deleteConfirmPlaceholder = String(localized: "settings.delete_account.confirm_placeholder", defaultValue: "DELETE")
     static let deleteAccountButton = String(localized: "settings.delete_account.confirm_button", defaultValue: "Delete Account")

@@ -102,7 +102,7 @@ struct TypewriterText: View {
 
 #Preview("Typewriter Text") {
     VStack(alignment: .leading, spacing: 20) {
-        TypewriterText("Welcome to Blip. Stay connected at the event.")
+        TypewriterText("Welcome to HeyBlip. Stay connected at the event.")
             .font(.title3)
             .foregroundStyle(.white)
 

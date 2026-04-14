@@ -1,6 +1,6 @@
-# Blip — John's Onboarding Guide
+# HeyBlip — John's Onboarding Guide
 
-Hey John, welcome to Blip. Here's everything you need to get started.
+Hey John, welcome to HeyBlip. Here's everything you need to get started.
 
 ---
 
@@ -79,7 +79,7 @@ Follow the execution lifecycle in AGENTS.md.
 ### Paste this into your LLM's first message:
 
 ```
-I am John, working on the Blip project (BLE mesh chat app for events).
+I am John, working on the HeyBlip project (internal codename Blip, BLE mesh chat app for events).
 
 My role: Backend, data, infrastructure, SEO.
 

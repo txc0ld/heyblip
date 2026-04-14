@@ -4,8 +4,8 @@ import CoreImage.CIFilterBuiltins
 private enum QRCodeSheetL10n {
     static let title = String(localized: "profile.qr_code.title", defaultValue: "My QR Code")
     static let close = String(localized: "common.close", defaultValue: "Close")
-    static let subtitle = String(localized: "profile.qr_code.subtitle", defaultValue: "Scan to add me on Blip")
-    static let shareTitle = String(localized: "profile.qr_code.share_title", defaultValue: "My Blip QR Code")
+    static let subtitle = String(localized: "profile.qr_code.subtitle", defaultValue: "Scan to add me on HeyBlip")
+    static let shareTitle = String(localized: "profile.qr_code.share_title", defaultValue: "My HeyBlip QR Code")
     static let shareCTA = String(localized: "profile.qr_code.share_cta", defaultValue: "Share QR Code")
     static let scanCTA = String(localized: "profile.qr_code.scan_cta", defaultValue: "Scan a QR Code")
     static let scanAccessibility = String(localized: "profile.qr_code.scan.accessibility", defaultValue: "Scan someone else's QR code")
@@ -58,7 +58,7 @@ struct QRCodeSheet: View {
 
             // QR Code card — centered and contained
             VStack(spacing: BlipSpacing.md) {
-                if let qrImage = generateQRCode(for: "blip://user/\(user.username)") {
+                if let qrImage = generateQRCode(for: "heyblip://user/\(user.username)") {
                     Image(uiImage: qrImage)
                         .interpolation(.none)
                         .resizable()
@@ -92,7 +92,7 @@ struct QRCodeSheet: View {
             Spacer().frame(height: BlipSpacing.lg)
 
             // Share button
-            if let qrImage = generateQRCode(for: "blip://user/\(user.username)") {
+            if let qrImage = generateQRCode(for: "heyblip://user/\(user.username)") {
                 ShareLink(
                     item: Image(uiImage: qrImage),
                     preview: SharePreview(QRCodeSheetL10n.shareTitle, image: Image(uiImage: qrImage))

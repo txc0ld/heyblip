@@ -6,7 +6,7 @@
 </p>
 
 <h1 align="center">
-  Blip
+  HeyBlip
 </h1>
 
 <p align="center">
@@ -26,9 +26,9 @@ At large events (10,000 - 100,000+ attendees), mobile networks collapse. Towers 
 
 ## The Solution
 
-Blip creates a **self-forming mesh network** using Bluetooth Low Energy. Every phone running the app becomes a relay node. Messages hop from device to device across the crowd until they reach their destination — no cell towers, no WiFi, no internet required.
+HeyBlip creates a **self-forming mesh network** using Bluetooth Low Energy. Every phone running the app becomes a relay node. Messages hop from device to device across the crowd until they reach their destination — no cell towers, no WiFi, no internet required.
 
-When signal is available, Blip seamlessly falls back to WiFi and cellular. But the mesh is always the first choice.
+When signal is available, HeyBlip seamlessly falls back to WiFi and cellular. But the mesh is always the first choice.
 
 ---
 
@@ -148,7 +148,7 @@ No tracking. Keys are generated on your device and signing keys stay local. Unti
 
 ## Design Language
 
-Blip uses a **glassmorphism** design system with translucent materials, depth, and bold gradients.
+HeyBlip uses a **glassmorphism** design system with translucent materials, depth, and bold gradients.
 
 - **Materials**: `.ultraThinMaterial`, `.regularMaterial`, `.thickMaterial`
 - **Cards**: Glass containers with `cornerRadius(24)` and 0.5pt borders at 20% opacity
@@ -305,7 +305,7 @@ swift test --package-path Packages/BlipMesh
 
 ## Contributing
 
-Blip is currently in private development. If you're interested in contributing to the Android implementation or the mesh protocol, reach out.
+HeyBlip is currently in private development. If you're interested in contributing to the Android implementation or the mesh protocol, reach out.
 
 ---
 

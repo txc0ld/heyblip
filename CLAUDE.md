@@ -2,7 +2,7 @@
 
 ## Project Identity
 
-Blip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events (festivals, sporting events, ultra marathons, concerts, any high-density gathering) via BLE mesh when mobile reception is unavailable.
+HeyBlip is a Bluetooth mesh chat app for events. iOS-first, SwiftUI, MVVM. The app lets users chat at events (festivals, sporting events, ultra marathons, concerts, any high-density gathering) via BLE mesh when mobile reception is unavailable. Internal code names remain Blip.
 
 **Design spec:** `docs/superpowers/specs/blip-design.md` — read this before any implementation work. It is the single source of truth.
 

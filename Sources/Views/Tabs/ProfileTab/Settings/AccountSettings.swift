@@ -11,7 +11,7 @@ private enum AccountSettingsL10n {
     static let exportAccessibility = String(localized: "settings.account.export.accessibility_label", defaultValue: "Export my data")
     static let deleteAccount = String(localized: "settings.account.delete.title", defaultValue: "Delete Account & Data")
     static let deleteProgress = String(localized: "settings.account.delete.progress", defaultValue: "Deleting your account...")
-    static let deleteSubtitle = String(localized: "settings.account.delete.subtitle", defaultValue: "Permanently remove your Blip account from the server and this device")
+    static let deleteSubtitle = String(localized: "settings.account.delete.subtitle", defaultValue: "Permanently remove your HeyBlip account from the server and this device")
     static let deleteAccessibility = String(localized: "settings.account.delete.accessibility_label", defaultValue: "Delete account and data")
 }
 

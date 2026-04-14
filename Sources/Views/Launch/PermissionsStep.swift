@@ -3,16 +3,16 @@ import CoreBluetooth
 
 private enum PermissionsStepL10n {
     static let title = String(localized: "onboarding.permissions.title", defaultValue: "Stay connected\nwithout signal")
-    static let subtitle = String(localized: "onboarding.permissions.subtitle", defaultValue: "Blip needs Bluetooth to connect with people nearby. Your device becomes part of a mesh network that relays messages.")
+    static let subtitle = String(localized: "onboarding.permissions.subtitle", defaultValue: "HeyBlip needs Bluetooth to connect with people nearby. Your device becomes part of a mesh network that relays messages.")
     static let bluetoothEnabled = String(localized: "onboarding.permissions.enabled", defaultValue: "Bluetooth enabled")
-    static let bluetoothRequired = String(localized: "onboarding.permissions.required_message", defaultValue: "Bluetooth is required for Blip to work.")
+    static let bluetoothRequired = String(localized: "onboarding.permissions.required_message", defaultValue: "Bluetooth is required for HeyBlip to work.")
     static let openSettings = String(localized: "common.open_settings", defaultValue: "Open Settings")
-    static let openSettingsHint = String(localized: "onboarding.permissions.open_settings.hint", defaultValue: "Opens the iOS Settings app for Blip.")
+    static let openSettingsHint = String(localized: "onboarding.permissions.open_settings.hint", defaultValue: "Opens the iOS Settings app for HeyBlip.")
     static let getStarted = String(localized: "onboarding.permissions.cta.get_started", defaultValue: "Get started")
     static let enableBluetooth = String(localized: "onboarding.permissions.cta.enable_bluetooth", defaultValue: "Enable Bluetooth")
     static let completeHint = String(localized: "onboarding.permissions.complete.hint", defaultValue: "Finishes onboarding and opens the app.")
     static let requestHint = String(localized: "onboarding.permissions.request.hint", defaultValue: "Requests Bluetooth permission from iOS.")
-    static let requiredCaption = String(localized: "onboarding.permissions.required_caption", defaultValue: "Required for Blip to work")
+    static let requiredCaption = String(localized: "onboarding.permissions.required_caption", defaultValue: "Required for HeyBlip to work")
 }
 
 // MARK: - BLE Permission Observer

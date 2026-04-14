@@ -623,8 +623,8 @@ final class ProfileViewModel {
             let timestamp = exportFileTimestamp(for: Date())
             let username = sanitizeFileComponent(currentUser?.username ?? "account")
             let fileURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("blip-account-export-\(username)-\(timestamp)")
-                .appendingPathExtension("blipexport")
+                .appendingPathComponent("heyblip-account-export-\(username)-\(timestamp)")
+                .appendingPathExtension("heyblipexport")
 
             try encryptedData.write(to: fileURL, options: .atomic)
             DebugLogger.shared.log(
