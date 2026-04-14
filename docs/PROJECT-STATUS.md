@@ -1,7 +1,7 @@
-# Blip — Project Status
+# HeyBlip — Project Status
 
-**Last updated:** 2026-03-29
-**Branch:** `main` @ `ce9d333`
+**Last updated:** 2026-04-14
+**Branch:** `main`
 
 ---
 
@@ -49,10 +49,11 @@
 - **Binary protocol** — 16-byte header, packet serialization, fragmentation/reassembly, compression, padding
 - **Bloom filter** — Multi-tier dedup (hot 60s / warm 5min / cold 30min)
 - **GCS sync** — Golomb-Coded Set exchange between peers
+- **Push notifications** — APNs via auth worker, relay `triggerPush`, iOS `PushTokenManager`
 
 ### Mesh Networking (90%)
 - **BLE transport** — Dual-role (central + peripheral), scan cycling, connection limits, state restoration
-- **WebSocket relay** — Bearer auth, SHA256-derived PeerID, binary forwarding, rate limiting (100/s), max 512B packets
+- **WebSocket relay** — JWT auth, store-and-forward with per-peer drain serialization, sender PeerID verification, broadcast fan-out, rate limiting, max 512B packets
 - **TransportCoordinator** — BLE-first with 100ms timeout, WebSocket fallback, local queue (200 msgs)
 - **Gossip routing** — TTL decrement, adaptive relay probability, SOS bypass, store-and-forward cache
 - **Directed routing** — Announcement-based routing table for Mega/Massive modes
@@ -61,26 +62,30 @@
 - **Power management** — Battery-tier scan interval adjustment
 - **Peer management** — RSSI-based connection selection, role-based limits, 20% hysteresis swaps
 
-### App Layer (70%)
+### App Layer (80%)
 - **SwiftData models** — All 21 models complete with relationships and schema registration
 - **AppCoordinator** — Initializes identity, BLE, relay, MessageService on launch
-- **MessageService** — Send text/voice/image, typing indicators, delivery acks, read receipts, fragmentation
+- **MessageService** — Send text/voice/image, E2E encrypted DMs (Noise XX), group messages (AES-256-GCM sender keys), typing indicators, delivery acks, read receipts, fragmentation, transport indicator (mesh/relay)
 - **AudioService** — Voice note recording (30s max), Opus codec (24kbps voice / 16kbps PTT), playback
 - **LocationService** — GPS with geofencing (15 regions), fuzzy vs precise sharing
 - **NotificationService** — Local notifications for messages, SOS, friend requests, set time reminders
+- **Registration failure feedback** — Error dialog plus persistent retry banner
+- **EventsViewModel** — CDN refresh, dynamic announcement severity, 24h lost-and-found retention
 
-### UI (85% built, ~50% wired)
+### UI (85% built, ~80% wired)
 - **Design system** — Glassmorphism, Plus Jakarta Sans, spring animations, dark/light theming
 - **Onboarding** — 3-step flow: Welcome → Profile (identity gen) → Permissions
 - **Chat** — ChatListView + ChatView wired to ChatViewModel; MessageBubble, VoiceNotePlayer, ImageViewer
 - **Nearby** — NearbyView wired to MeshViewModel; peer cards, particle background, friend finder map
-- **Event** — StageMap, Schedule, Announcements, LostAndFound, MeetingPoint, MedicalDashboard (UI complete, sample data)
+- **Event** — StageMap, Schedule, Announcements, LostAndFound, MeetingPoint, MedicalDashboard (UI complete, production data wired where available)
 - **Profile** — ProfileView, EditProfile, FriendsList, AvatarCrop, MessagePackStore, Settings (UI complete, sample data)
 
 ### Relay Server (100%)
 - Cloudflare Workers Durable Object
-- Zero-knowledge binary packet forwarding
-- 24 passing Vitest tests
+- JWT validation with authenticated WebSocket sessions
+- Store-and-forward delivery with per-peer drain serialization
+- Push trigger integration for offline recipients
+- Broadcast fan-out and sender PeerID verification
 
 ---
 
@@ -90,9 +95,6 @@
 
 | Area | Task | Notes |
 |------|------|-------|
-| **End-to-end messaging** | Wire MessageService → Noise encryption → Transport → delivery | Individual pieces work; need integration testing of the full pipeline |
-| **Message decryption for display** | ChatView maps `encryptedPayload` directly; needs decrypt layer | Currently does `String(data: encryptedPayload)` — works for local, not for received |
-| **Event tab data binding** | EventView, StageMapView, ScheduleView, CrowdPulseOverlay use sample data | EventViewModel exists with manifest fetch/geofence logic |
 | **Profile tab data binding** | ProfileView, FriendsListView, SettingsView use sample data | ProfileViewModel exists |
 | **Friend system wiring** | Friend discovery, add/accept flow, location sharing toggle | Models and basic ViewModel exist |
 
@@ -100,9 +102,7 @@
 
 | Area | Task | Notes |
 |------|------|-------|
-| **Group encryption** | Double ratchet / sender key protocol for group channels | GroupSenderKey model exists; protocol implementation needed |
 | **SOS responder assignment** | Connect SOSViewModel broadcast → mesh → responder accept | Models, UI, and state machine defined; broadcast uses Identity correctly |
-| **Event manifest** | CDN fetch + Ed25519 signature verification of event data | EventViewModel has CDN URL and fetch logic; needs testing |
 | **PTT streaming** | Live push-to-talk audio over mesh | PTTViewModel has recording state; chunked streaming partially done |
 | **Image pipeline** | Compression, thumbnail generation, progressive loading | ImageService is basic; needs HEIF/JPEG quality ladder |
 
@@ -110,7 +110,7 @@
 
 | Area | Task | Notes |
 |------|------|-------|
-| **In-app purchases** | StoreKit 2 integration for message packs | StoreViewModel and PaywallSheet UI exist; needs App Store Connect setup |
+| **Premium features** | Define and ship StoreKit 2 premium offering | Product scope still TBD |
 | **Settings persistence** | Wire SettingsView toggles to UserPreferences SwiftData model | Model complete, view is stub |
 | **Account recovery** | RecoveryKit export/import flow in settings | KeyManager supports it; no UI yet |
 | **Lost & Found** | Item posting/searching in LostAndFoundView | View is stub |
@@ -129,8 +129,8 @@
 | BlipProtocol (Swift) | ~40 | Passing |
 | BlipCrypto (Swift) | ~25 | Passing |
 | SwiftData schema validation | ~50 | Passing |
-| server/relay (Vitest) | 24 | Passing |
-| **Total** | **~254** | **All green** |
+| server/relay (Vitest) | Expanded coverage for JWT validation, push trigger, drain serialization, and fan-out | Passing |
+| **Total** | **Core suites green** | **All green** |
 
 ---
 
@@ -168,7 +168,7 @@
 
 ```bash
 # App (iOS 17+)
-xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO -quiet
 
 # Mesh package tests
 swift test --package-path Packages/BlipMesh

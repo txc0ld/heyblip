@@ -1,4 +1,4 @@
-# Contributing to Blip
+# Contributing to HeyBlip
 
 Blip is currently in private development. This document outlines the standards for contributing code.
 

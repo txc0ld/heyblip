@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-iOS%2016%2B%20%7C%20macOS%2013%2B-6600FF?style=for-the-badge&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-iOS%2017%2B%20%7C%20macOS%2013%2B-6600FF?style=for-the-badge&logo=apple&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift">
   <img src="https://img.shields.io/badge/License-Proprietary-333333?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/Status-In%20Development-6600FF?style=for-the-badge" alt="Status">
@@ -35,8 +35,8 @@ When signal is available, HeyBlip seamlessly falls back to WiFi and cellular. Bu
 ## Features
 
 ### Mesh Chat
-- **1-on-1 DMs** — Private chats over BLE mesh with signed packets; pairwise Noise encryption is still being wired end-to-end
-- **Group chats** — Invite-only group threads with signed transport; sender-key encryption remains in progress
+- **1-on-1 DMs** — End-to-end encrypted with Noise_XX_25519_ChaChaPoly_SHA256
+- **Group chats** — AES-256-GCM sender key encryption with automatic key rotation
 - **Location channels** — Auto-joined public channels based on where you are
 - **Stage channels** — Event-specific channels per stage, auto-populated
 
@@ -77,7 +77,7 @@ When signal is available, HeyBlip seamlessly falls back to WiFi and cellular. Bu
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 Blip App                    │
+│               HeyBlip App                  │
 │                                                  │
 │   SwiftUI Views (Glassmorphism + Animations)     │
 │              ┌─────────────┐                     │
@@ -112,19 +112,19 @@ When signal is available, HeyBlip seamlessly falls back to WiFi and cellular. Bu
 
 ## Security
 
-Packet signing is live. Full end-to-end encryption is **not** complete across the shipped app flows yet, and relay nodes should not currently be treated as unable to read private-message payloads.
+End-to-end encryption is live for DMs and group chats, and relay nodes cannot read private-message payloads.
 
 | Layer | Implementation |
 |---|---|
-| **Key Exchange** | Noise_XX_25519_ChaChaPoly_SHA256 (implemented in package tests; not fully wired into all app message flows yet) |
+| **Key Exchange** | Noise_XX_25519_ChaChaPoly_SHA256 |
 | **Signing** | Ed25519 (packet authenticity) |
-| **Group Encryption** | AES-256-GCM Sender Keys (planned app integration) |
+| **Group Encryption** | AES-256-GCM sender keys with automatic key rotation |
 | **Key Storage** | iOS Keychain (`kSecAttrAccessibleAfterFirstUnlock`) |
 | **Replay Protection** | Sliding window nonce (64-bit counter + 128-bit bitmap) |
 | **Traffic Analysis** | PKCS#7 padding to fixed block sizes |
 | **Phone Privacy** | SHA256(phone + per-user salt), never transmitted raw |
 
-No tracking. Keys are generated on your device and signing keys stay local. Until Noise transport is fully wired in the app, do not treat current private chat payloads as production-grade confidential messaging.
+No tracking. Keys are generated on your device and signing keys stay local.
 
 ---
 
@@ -179,12 +179,12 @@ Blip/
 │   ├── ViewModels/               # 8 @Observable view models
 │   └── Views/
 │       ├── Launch/               # Splash, onboarding (3 screens)
-│       ├── Shared/               # Avatar, glass card, SOS button, paywall
+│       ├── Shared/               # Avatar, glass card, SOS button, premium UI
 │       └── Tabs/
 │           ├── ChatsTab/         # Chat list, message thread, voice notes
 │           ├── NearbyTab/        # Peer cards, channels, friend finder map
 │           ├── EventsTab/      # Stage map, schedule, announcements, medical
-│           └── ProfileTab/       # Profile, friends, settings, message packs
+│           └── ProfileTab/       # Profile, friends, settings, premium features
 ├── Packages/
 │   ├── BlipProtocol/        # Binary wire format + tests
 │   ├── BlipCrypto/          # E2E encryption + tests
@@ -233,17 +233,7 @@ SOS alerts are **never throttled** at any scale. TTL 7, 100% relay, queue-jumpin
 
 ## Monetization
 
-| Tier | Messages | Price |
-|---|---|---|
-| Free | 10 | $0.00 |
-| Starter | 10 | $0.99 |
-| Social | 25 | $1.99 |
-| Event | 50 | $3.99 |
-| Squad | 100 | $5.99 |
-| Season Pass | 1,000 | $29.99 |
-| Unlimited | Subscription | TBD |
-
-Location channel broadcasts, friend requests, and receipts are always free. Receiving messages is always free.
+Messages are free at all crowd scales. Premium features (TBD) will be offered via StoreKit 2.
 
 ---
 
@@ -251,7 +241,7 @@ Location channel broadcasts, friend requests, and receipts are always free. Rece
 
 | Platform | Status | Details |
 |---|---|---|
-| **iOS** | In Development | iOS 16.0+, Swift/SwiftUI, Xcode |
+| **iOS** | In Development | iOS 17.0+, Swift/SwiftUI, Xcode |
 | **macOS** | In Development | macOS 13.0+, same codebase |
 | **Android** | Planned | API 26+, Kotlin, same binary protocol |
 
@@ -270,7 +260,7 @@ xcodegen generate
 open Blip.xcodeproj
 
 # Build
-xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
+xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet
 ```
 
 ---
@@ -281,7 +271,7 @@ xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
 |---|---|
 | [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | Cross-platform binary protocol specification |
 | [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md) | Project whitepaper |
-| [`docs/superpowers/specs/2026-03-28-blip-design.md`](docs/superpowers/specs/2026-03-28-blip-design.md) | Full design specification (1,500+ lines) |
+| [`docs/superpowers/specs/blip-design.md`](docs/superpowers/specs/blip-design.md) | Full design specification (1,500+ lines) |
 | [`docs/superpowers/plans/2026-03-28-blip-implementation.md`](docs/superpowers/plans/2026-03-28-blip-implementation.md) | Implementation plan |
 
 ---
