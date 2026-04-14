@@ -15,13 +15,13 @@ private enum ResponderMapL10n {
     static let gpsLock = String(localized: "medical.alert.accuracy.gps_lock", defaultValue: "GPS Lock")
     static let estimated = String(localized: "medical.alert.accuracy.estimated", defaultValue: "Estimated")
     static let lastKnown = String(localized: "medical.alert.accuracy.last_known", defaultValue: "Last Known")
-    static let previewNearPyramid = String(localized: "medical.responder_map.preview.near_pyramid", defaultValue: "Near Pyramid Stage")
-    static let previewCampingB = String(localized: "medical.responder_map.preview.camping_b", defaultValue: "Camping B")
-    static let previewDizzy = String(localized: "medical.responder_map.preview.dizzy", defaultValue: "Dizzy")
-    static let previewMedic5 = String(localized: "medical.responder_map.preview.medic_5", defaultValue: "Medic-5")
-    static let previewMedical1 = String(localized: "medical.responder_map.preview.medical_1", defaultValue: "Medical 1")
-    static let previewMedical2 = String(localized: "medical.responder_map.preview.medical_2", defaultValue: "Medical 2")
-    static let previewMedic1 = String(localized: "medical.responder_map.preview.medic_1", defaultValue: "Medic-1")
+    static let previewNearPyramid = "Near Pyramid Stage"
+    static let previewCampingB = "Camping B"
+    static let previewDizzy = "Dizzy"
+    static let previewMedic5 = "Medic-5"
+    static let previewMedical1 = "Medical 1"
+    static let previewMedical2 = "Medical 2"
+    static let previewMedic1 = "Medic-1"
 
     static func medicalTent(_ name: String) -> String {
         String(format: String(localized: "medical.responder_map.medical_tent_accessibility_label", defaultValue: "Medical tent: %@"), locale: Locale.current, name)

@@ -189,7 +189,7 @@ struct MessagePackStore: View {
                     .foregroundStyle(theme.colors.mutedText)
 
                 HStack(alignment: .firstTextBaseline, spacing: BlipSpacing.xs) {
-                    Text(resolvedStoreViewModel?.balanceDisplay ?? MessagePackStoreL10n.unlimited)
+                    Text(MessagePackStoreL10n.unlimited)
                         .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundStyle(.blipAccentPurple)
                         .contentTransition(.numericText())

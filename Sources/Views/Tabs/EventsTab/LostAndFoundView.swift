@@ -20,12 +20,12 @@ private enum LostAndFoundL10n {
     static let you = String(localized: "common.you", defaultValue: "You")
     static let attendee = String(localized: "events.lost_found.sender.attendee", defaultValue: "Attendee")
     static let initialsFallback = String(localized: "events.lost_found.sender.initials_fallback", defaultValue: "LF")
-    static let previewEvent = String(localized: "events.lost_found.preview.event", defaultValue: "Sonic Fields")
-    static let previewChannel = String(localized: "events.lost_found.preview.channel", defaultValue: "Lost & Found")
-    static let previewAlex = String(localized: "events.lost_found.preview.sender.alex", defaultValue: "Alex K")
-    static let previewFoundWallet = String(localized: "events.lost_found.preview.message.found_wallet", defaultValue: "Found a blue wallet near Stage B. Dropping it at the info tent.")
-    static let previewLostPhoneCase = String(localized: "events.lost_found.preview.message.lost_phone_case", defaultValue: "Lost a purple phone case by the food trucks.")
-    static let previewUnavailable = String(localized: "events.lost_found.preview.unavailable", defaultValue: "Preview unavailable")
+    static let previewEvent = "Sonic Fields"
+    static let previewChannel = "Lost & Found"
+    static let previewAlex = "Alex K"
+    static let previewFoundWallet = "Found a blue wallet near Stage B. Dropping it at the info tent."
+    static let previewLostPhoneCase = "Lost a purple phone case by the food trucks."
+    static let previewUnavailable = "Preview unavailable"
 
     static func signedPublicPosts(_ eventName: String) -> String {
         String(

@@ -24,14 +24,14 @@ private enum FriendsListL10n {
     static let emptyPending = String(localized: "friends.empty.pending", defaultValue: "No pending requests")
     static let relayOffline = String(localized: "friends.empty.pending.relay_offline", defaultValue: "Relay offline — friend requests may be delayed")
     static let emptyBlocked = String(localized: "friends.empty.blocked", defaultValue: "No blocked users")
-    static let previewSarahChen = String(localized: "friends.preview.sarah_chen", defaultValue: "Sarah Chen")
-    static let previewJakeMorrison = String(localized: "friends.preview.jake_morrison", defaultValue: "Jake Morrison")
-    static let previewPriyaPatel = String(localized: "friends.preview.priya_patel", defaultValue: "Priya Patel")
-    static let previewTomWilson = String(localized: "friends.preview.tom_wilson", defaultValue: "Tom Wilson")
-    static let previewBlockedUser = String(localized: "friends.preview.blocked_user", defaultValue: "Blocked User")
-    static let previewMusicAndMountains = String(localized: "friends.preview.music_and_mountains", defaultValue: "Music and mountains")
-    static let previewAlwaysAtFront = String(localized: "friends.preview.always_at_front", defaultValue: "Always at the front")
-    static let previewEventPhotographer = String(localized: "friends.preview.event_photographer", defaultValue: "Event photographer")
+    static let previewSarahChen = "Sarah Chen"
+    static let previewJakeMorrison = "Jake Morrison"
+    static let previewPriyaPatel = "Priya Patel"
+    static let previewTomWilson = "Tom Wilson"
+    static let previewBlockedUser = "Blocked User"
+    static let previewMusicAndMountains = "Music and mountains"
+    static let previewAlwaysAtFront = "Always at the front"
+    static let previewEventPhotographer = "Event photographer"
 
     static func sectionAccessibility(_ name: String, count: Int) -> String {
         String(format: String(localized: "friends.section.accessibility", defaultValue: "%1$@, %2$d friends"), locale: Locale.current, name, count)

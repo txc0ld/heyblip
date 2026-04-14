@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum ConnectionBannerL10n {
-    static let previewShowBanner = String(localized: "common.connection_banner.preview.show_banner", defaultValue: "Show Banner")
+    static let previewShowBanner = "Show Banner"
 
     static func bannerText(peerCount: Int) -> String {
         if peerCount == 1 {

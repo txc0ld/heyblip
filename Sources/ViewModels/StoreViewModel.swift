@@ -117,13 +117,11 @@ final class StoreViewModel {
     /// Start listening for transaction updates and load products.
     func start() async {
         if hasStarted {
-            await refreshBalance()
             return
         }
         hasStarted = true
         startTransactionListener()
         await loadProducts()
-        await refreshBalance()
         await loadPurchaseHistory()
     }
 
@@ -183,13 +181,11 @@ final class StoreViewModel {
                 // Verify receipt with backend
                 await verifyReceipt(transaction: transaction)
 
-                // Credit the purchase (message packs disabled — placeholder for future monetization)
                 logger.info("Purchase completed: \(productInfo.displayName)")
 
                 await transaction.finish()
 
                 successMessage = "\(productInfo.displayName) purchased!"
-                await refreshBalance()
                 await loadPurchaseHistory()
 
             case .userCancelled:
@@ -233,7 +229,6 @@ final class StoreViewModel {
                 }
             }
 
-            await refreshBalance()
             await loadPurchaseHistory()
             successMessage = "Purchases restored"
 
@@ -243,14 +238,6 @@ final class StoreViewModel {
 
         isRestoring = false
     }
-
-    // MARK: - Balance (disabled — messaging is free during testing)
-
-    func refreshBalance() async {}
-
-    var balanceDisplay: String { "Unlimited" }
-
-    var canSendMessage: Bool { true }
 
     // MARK: - Purchase History
 
@@ -270,7 +257,6 @@ final class StoreViewModel {
                         self.logger.info("Transaction update: \(transaction.productID)")
                     }
                     await transaction.finish()
-                    await self.refreshBalance()
                 } catch {
                     await MainActor.run {
                         self.logger.error("Transaction verification failed: \(error.localizedDescription)")

@@ -9,12 +9,12 @@ private enum ScheduleViewL10n {
     static let all = String(localized: "common.all", defaultValue: "All")
     static let saved = String(localized: "common.saved", defaultValue: "Saved")
     static let liveNow = String(localized: "events.schedule.filter.live_now", defaultValue: "Live Now")
-    static let previewPyramidStage = String(localized: "events.schedule.preview.pyramid_stage", defaultValue: "Pyramid Stage")
-    static let previewBicep = String(localized: "events.schedule.preview.bicep", defaultValue: "Bicep")
-    static let previewHeadliner = String(localized: "events.schedule.preview.headliner", defaultValue: "Headliner TBA")
-    static let previewWestHolts = String(localized: "events.schedule.preview.west_holts", defaultValue: "West Holts")
-    static let previewFloatingPoints = String(localized: "events.schedule.preview.floating_points", defaultValue: "Floating Points")
-    static let previewBonobo = String(localized: "events.schedule.preview.bonobo", defaultValue: "Bonobo")
+    static let previewPyramidStage = "Pyramid Stage"
+    static let previewBicep = "Bicep"
+    static let previewHeadliner = "Headliner TBA"
+    static let previewWestHolts = "West Holts"
+    static let previewFloatingPoints = "Floating Points"
+    static let previewBonobo = "Bonobo"
 
     static func stageAccessibility(_ name: String, _ count: Int) -> String {
         String(format: String(localized: "events.schedule.stage.accessibility_label", defaultValue: "%@, %d acts"), locale: Locale.current, name, count)

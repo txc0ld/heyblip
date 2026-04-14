@@ -10,12 +10,12 @@ private enum SetTimeCellL10n {
     static let currentlyLiveState = String(localized: "events.schedule.accessibility.currently_live", defaultValue: "currently live")
     static let saved = String(localized: "events.schedule.accessibility.saved", defaultValue: "saved")
     static let reminderSet = String(localized: "events.schedule.accessibility.reminder_set", defaultValue: "reminder set")
-    static let previewPyramidStage = String(localized: "events.schedule.preview.pyramid_stage", defaultValue: "Pyramid Stage")
-    static let previewBicep = String(localized: "events.schedule.preview.bicep", defaultValue: "Bicep")
-    static let previewWestHolts = String(localized: "events.schedule.preview.west_holts", defaultValue: "West Holts")
-    static let previewFloatingPoints = String(localized: "events.schedule.preview.floating_points", defaultValue: "Floating Points")
-    static let previewHeadliner = String(localized: "events.schedule.preview.headliner", defaultValue: "Headliner TBA")
-    static let previewOtherStage = String(localized: "events.schedule.preview.other_stage", defaultValue: "Other Stage")
+    static let previewPyramidStage = "Pyramid Stage"
+    static let previewBicep = "Bicep"
+    static let previewWestHolts = "West Holts"
+    static let previewFloatingPoints = "Floating Points"
+    static let previewHeadliner = "Headliner TBA"
+    static let previewOtherStage = "Other Stage"
 
     static func shareGoing(artistName: String) -> String {
         String(

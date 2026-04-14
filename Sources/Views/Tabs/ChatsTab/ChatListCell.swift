@@ -7,14 +7,14 @@ private enum ChatListCellL10n {
     static let unpin = String(localized: "chat.list_cell.unpin", defaultValue: "Unpin")
     static let pin = String(localized: "chat.list_cell.pin", defaultValue: "Pin")
     static let yesterday = String(localized: "common.time.yesterday", defaultValue: "Yesterday")
-    static let previewAlice = String(localized: "chat.list_cell.preview.alice", defaultValue: "Alice")
-    static let previewPyramidQuestion = String(localized: "chat.list_cell.preview.pyramid_question", defaultValue: "Are you at the Pyramid Stage?")
-    static let previewEventSquad = String(localized: "chat.list_cell.preview.event_squad", defaultValue: "Event Squad")
-    static let previewVoiceNote = String(localized: "chat.list_cell.preview.voice_note", defaultValue: "Voice note")
-    static let previewBob = String(localized: "chat.list_cell.preview.bob", defaultValue: "Bob")
-    static let previewPhoto = String(localized: "chat.list_cell.preview.photo", defaultValue: "Photo")
-    static let previewCharlie = String(localized: "chat.list_cell.preview.charlie", defaultValue: "Charlie")
-    static let previewFoodCourt = String(localized: "chat.list_cell.preview.food_court", defaultValue: "Let's meet at the food court")
+    static let previewAlice = "Alice"
+    static let previewPyramidQuestion = "Are you at the Pyramid Stage?"
+    static let previewEventSquad = "Event Squad"
+    static let previewVoiceNote = "Voice note"
+    static let previewBob = "Bob"
+    static let previewPhoto = "Photo"
+    static let previewCharlie = "Charlie"
+    static let previewFoodCourt = "Let's meet at the food court"
 
     static func unreadCount(_ count: Int) -> String {
         String(format: String(localized: "chat.list_cell.unread_count", defaultValue: "%d unread messages"), locale: Locale.current, count)

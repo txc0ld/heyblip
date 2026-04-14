@@ -13,10 +13,10 @@ private enum ProfileSheetL10n {
     static let message = String(localized: "common.message", defaultValue: "Message")
     static let addFriend = String(localized: "common.add_friend", defaultValue: "Add Friend")
     static let unblock = String(localized: "common.unblock", defaultValue: "Unblock")
-    static let previewSarahChen = String(localized: "profile.sheet.preview.sarah_chen", defaultValue: "Sarah Chen")
-    static let previewSarahBio = String(localized: "profile.sheet.preview.sarah_bio", defaultValue: "Music and mountains. Always at the front row.")
-    static let previewJakeMorrison = String(localized: "profile.sheet.preview.jake_morrison", defaultValue: "Jake Morrison")
-    static let previewJakeBio = String(localized: "profile.sheet.preview.jake_bio", defaultValue: "Event photographer")
+    static let previewSarahChen = "Sarah Chen"
+    static let previewSarahBio = "Music and mountains. Always at the front row."
+    static let previewJakeMorrison = "Jake Morrison"
+    static let previewJakeBio = "Event photographer"
 
     static func mutualFriends(_ count: Int) -> String {
         String(

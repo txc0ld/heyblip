@@ -41,17 +41,17 @@ private enum NearbyL10n {
     static let bluetoothNotActive = String(localized: "nearby.empty.bluetooth_not_active", defaultValue: "Bluetooth discovery is not active yet.")
     static let friendRequestPending = String(localized: "nearby.peer.friend_request_pending", defaultValue: "friend request pending")
     static let openProfile = String(localized: "nearby.peer.open_profile", defaultValue: "open nearby profile")
-    static let previewSarahChen = String(localized: "nearby.preview.friend.sarah_chen", defaultValue: "Sarah Chen")
-    static let previewJakeMorrison = String(localized: "nearby.preview.friend.jake_morrison", defaultValue: "Jake Morrison")
-    static let previewPriyaPatel = String(localized: "nearby.preview.friend.priya_patel", defaultValue: "Priya Patel")
-    static let previewAlex = String(localized: "nearby.preview.peer.alex", defaultValue: "Alex")
-    static let previewMainField = String(localized: "nearby.preview.channel.main_field", defaultValue: "Main Field")
-    static let previewCampingAreaB = String(localized: "nearby.preview.channel.camping_area_b", defaultValue: "Camping Area B")
-    static let previewCarPark3 = String(localized: "nearby.preview.channel.car_park_3", defaultValue: "Car Park 3")
-    static let previewFoodTruckMessage = String(localized: "nearby.preview.channel.food_trucks_message", defaultValue: "Anyone know where the food trucks moved?")
-    static let previewShowersMessage = String(localized: "nearby.preview.channel.showers_message", defaultValue: "Showers open until midnight")
-    static let previewSarah = String(localized: "nearby.preview.pin.sarah", defaultValue: "Sarah")
-    static let previewJake = String(localized: "nearby.preview.pin.jake", defaultValue: "Jake")
+    static let previewSarahChen = "Sarah Chen"
+    static let previewJakeMorrison = "Jake Morrison"
+    static let previewPriyaPatel = "Priya Patel"
+    static let previewAlex = "Alex"
+    static let previewMainField = "Main Field"
+    static let previewCampingAreaB = "Camping Area B"
+    static let previewCarPark3 = "Car Park 3"
+    static let previewFoodTruckMessage = "Anyone know where the food trucks moved?"
+    static let previewShowersMessage = "Showers open until midnight"
+    static let previewSarah = "Sarah"
+    static let previewJake = "Jake"
 
     static func headerAccessibility(peerCount: Int, transportState: String) -> String {
         String(format: String(localized: "nearby.header.accessibility", defaultValue: "%1$d people nearby. Transport: %2$@."), locale: Locale.current, peerCount, transportState)
