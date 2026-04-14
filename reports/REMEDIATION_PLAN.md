@@ -11,7 +11,7 @@
    - Fix strategy: inject coordinator-owned view models/services and centralize teardown/startup
    - Dependencies: none
    - Validation: native build, chat tests
-   - Linear update: yes, because it explains why multiple surface bugs shared one cause
+   - Bugasura update: yes, because it explains why multiple surface bugs shared one cause
 
 2. Harden auth worker trust boundary
    - Why it matters: client-controlled privilege fields and dev bypass are release-blocking
@@ -20,7 +20,7 @@
    - Fix strategy: sanitize inputs, ignore privileged client fields, default bypass off, fail receipt verification closed
    - Dependencies: none
    - Validation: auth Vitest suite
-   - Linear update: yes
+   - Bugasura update: yes
 
 ### B. Functional breakage
 
@@ -31,7 +31,7 @@
    - Fix strategy: inject shared view model, create DMs from persisted users, keep previews aligned
    - Dependencies: item 1
    - Validation: `ChatViewModelTests`
-   - Linear update: yes
+   - Bugasura update: yes
 
 4. Replace event demo behavior with honest runtime state
    - Why it matters: event mode is a headline feature and must not masquerade as live when data is missing
@@ -40,7 +40,7 @@
    - Fix strategy: drive from injected view model, show empty/error/sync state, keep tab visible but truthful
    - Dependencies: item 1
    - Validation: native build and source inspection
-   - Linear update: yes
+   - Bugasura update: yes
 
 ### C. Security / trust / data integrity
 
@@ -51,7 +51,7 @@
    - Fix strategy: route through real profile view model, disable unsupported actions, present accurate copy
    - Dependencies: item 1
    - Validation: native build
-   - Linear update: yes
+   - Bugasura update: yes
 
 6. Align docs with actual privacy posture
    - Why it matters: release readiness cannot be judged correctly while README overclaims E2E encryption
@@ -60,7 +60,7 @@
    - Fix strategy: describe packet signing as live and Noise confidentiality wiring as incomplete
    - Dependencies: none
    - Validation: diff review
-   - Linear update: optional, but recommended in summary comment
+   - Bugasura update: optional, but recommended in summary comment
 
 ### D. Reliability and observability gaps
 
@@ -71,7 +71,7 @@
    - Fix strategy: delete identity, clear local SwiftData models, reset onboarding state, stop transports/geofencing
    - Dependencies: item 1
    - Validation: native build and code inspection
-   - Linear update: yes
+   - Bugasura update: yes
 
 ### E. Architecture corrections
 
@@ -82,7 +82,7 @@
    - Fix strategy: create `UserPreferences` when absent, bridge legacy defaults, write through profile VM bindings
    - Dependencies: item 1
    - Validation: native build
-   - Linear update: optional
+   - Bugasura update: optional
 
 ### F. Performance improvements
 
@@ -97,7 +97,7 @@ No dedicated performance changes were required for this batch. Performance remai
    - Fix strategy: add creation/reuse tests
    - Dependencies: item 3
    - Validation: `BlipTests/ChatViewModelTests`
-   - Linear update: no
+   - Bugasura update: no
 
 ### H. Maintainability / DX cleanup with leverage
 
@@ -108,7 +108,7 @@ No dedicated performance changes were required for this batch. Performance remai
    - Fix strategy: document and follow up separately
    - Dependencies: none
    - Validation: baseline verification logs
-   - Linear update: yes
+   - Bugasura update: yes
 
 ## Immediate vs Structural Work Split
 

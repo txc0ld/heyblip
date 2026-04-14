@@ -4,9 +4,9 @@
 
 Blip/FezChat is a BLE-first event communication app intended to provide nearby discovery, DMs, friend coordination, event map/schedule workflows, SOS/medical escalation, and lightweight monetization when normal mobile infrastructure is unreliable.
 
-## What Linear Indicated
+## What Bugasura Indicated
 
-Linear showed a product team focused on transport correctness and real-device behavior more than raw feature breadth. Recent work concentrated on BLE advertising, gossip relay, signing, peer lifecycle, and DM/nearby stability. Open work still points at real-device validation, Swift 6 cleanup, and incomplete critical flows such as Nearby-to-DM reliability.
+Bugasura showed a product team focused on transport correctness and real-device behavior more than raw feature breadth. Recent work concentrated on BLE advertising, gossip relay, signing, peer lifecycle, and DM/nearby stability. Open work still points at real-device validation, Swift 6 cleanup, and incomplete critical flows such as Nearby-to-DM reliability.
 
 ## What The Repo Actually Contained
 

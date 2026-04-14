@@ -63,4 +63,4 @@ These failures were not introduced by this branch; they were visible during base
 1. Track real-device BLE discovery, DM creation, and delivery latency across two phones before release.
 2. Monitor auth-worker requests for rejected/sanitized payload fields after deploying the hardening change.
 3. Treat any user-facing encryption/compliance messaging as blocked until Noise transport is fully wired and verified end-to-end.
-4. Open follow-up Linear work for package-baseline cleanup and Swift 6 warning reduction before any production-readiness claim.
+4. Open follow-up Bugasura tickets for package-baseline cleanup and Swift 6 warning reduction before any production-readiness claim.

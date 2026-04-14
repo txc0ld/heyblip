@@ -1,4 +1,4 @@
-# Linear Reality Map
+# Issue Tracker Reality Map
 
 ## Workspace Snapshot
 
@@ -8,7 +8,7 @@
 - Dominant labels visible in workspace: `Infra`, `Protocol`, plus feature-area labels from the issue stream
 - Human contributors visible in workspace: two active users
 
-## What Linear Says The Product Is
+## What Bugasura Says The Product Is
 
 Blip/FezChat is intended to be a BLE-first event communication app with:
 
@@ -31,7 +31,7 @@ The strongest product signal is not "social chat app." It is "event coordination
 4. Trigger urgent SOS / medical responder flows with reliable packet delivery.
 5. Buy message packs or verified status without undermining user trust.
 
-### Product promises implied by Linear
+### Product promises implied by Bugasura
 
 - BLE advertising and discovery must work on real devices, not just simulator/test doubles.
 - Nearby and DM flows must behave live, not as mock/demo shells.
@@ -40,7 +40,7 @@ The strongest product signal is not "social chat app." It is "event coordination
 
 ## Delivery Reality Model
 
-Recent Linear activity shows rapid stacked delivery, with several tickets already linked to merged or ready PRs:
+Recent Bugasura activity shows rapid stacked delivery, with several tickets already linked to merged or ready PRs:
 
 - `FEZ-69`: BLE advertising not starting
 - `FEZ-70`: gossip relay wired into production
@@ -54,7 +54,7 @@ Open / still-relevant tickets point to the remaining quality gap:
 - `FEZ-61`: Swift 6 concurrency cleanup outstanding
 - `FEZ-17`: medical dashboard remains high-priority product work
 
-Linear comments also indicate a pattern of "top 12 fixed" / "PR ready" notes that consolidate many issues into branch-local remediation batches. That is useful velocity, but it also increases risk that repo/main and ticket reality drift apart.
+Bugasura comments also indicate a pattern of "top 12 fixed" / "PR ready" notes that consolidate many issues into branch-local remediation batches. That is useful velocity, but it also increases risk that repo/main and ticket reality drift apart.
 
 ## Priority Areas
 
@@ -74,7 +74,7 @@ Linear comments also indicate a pattern of "top 12 fixed" / "PR ready" notes tha
 
 ## Issue Density Zones
 
-Linear clusters issues most heavily around:
+Bugasura clusters issues most heavily around:
 
 - BLE advertising and peer discovery
 - DM creation and nearby-peer rendering
@@ -99,7 +99,7 @@ That clustering strongly suggests shared root causes in composition, transport i
 | Transport trust/security | 5 | Product/docs claim strong privacy while app wiring is incomplete |
 | Event-mode activation | 4 | Feature breadth exists, but runtime truth vs sample state drifts |
 | Profile/settings/store trust | 4 | Unsupported actions and fake commerce affordances damage trust |
-| Release safety / stacked branches | 4 | Linear comments reference PR chains and branch-local readiness |
+| Release safety / stacked branches | 4 | Bugasura comments reference PR chains and branch-local readiness |
 | Swift 6 readiness | 3 | Not an immediate outage, but warnings are systemic debt |
 
 ## Priority Matrix
@@ -125,11 +125,11 @@ That clustering strongly suggests shared root causes in composition, transport i
 
 ## Contradictions / Ambiguities
 
-- Linear suggests private messaging and signing are actively being fixed, but does not guarantee that private-message confidentiality is truly wired end-to-end on `main`.
+- Bugasura indicates private messaging and signing are actively being fixed, but does not guarantee that private-message confidentiality is truly wired end-to-end on `main`.
 - Some issues/comments describe work as "ready" or "done" while open tickets still indicate broken adjacent flows.
 - Product messaging implies production-like encryption and verification, but ticket history suggests these systems remain partially integrated.
 
-## Linear-to-Code Audit Checklist
+## Issue Tracker-to-Code Audit Checklist
 
 - Verify the coordinator is the real composition root.
 - Verify nearby discovery cards reflect live peer data.

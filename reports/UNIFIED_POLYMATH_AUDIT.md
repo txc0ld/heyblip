@@ -125,16 +125,16 @@
 3. Trust-sensitive areas mixed aspirational architecture with development shortcuts.
 4. Test coverage is good enough to reveal problems, but not yet enough to make every release green by default.
 
-## Linear-to-Code Drift Analysis
+## Issue Tracker-to-Code Drift Analysis
 
-### Tracked in Linear, under-realized in code
+### Tracked in Bugasura, under-realized in code
 
 - Nearby-to-DM end-to-end reliability
 - real-device BLE validation
 - verified commerce/trust surfaces
 - final event-mode activation behavior
 
-### Implemented in code, underrepresented in Linear confidence
+### Implemented in code, underrepresented in Bugasura confidence
 
 - large protocol/crypto/mesh test surface
 - signing implementation and packet-level infrastructure

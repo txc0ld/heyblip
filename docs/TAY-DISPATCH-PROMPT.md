@@ -11,7 +11,7 @@ I am Tay, working on Blip — a BLE mesh chat app for events.
 
 ## Project
 - Repo: https://github.com/txc0ld/FezChat
-- Linear: https://linear.app/fezchat/team/FEZ/active
+- Issue tracker: Bugasura (HeyBlip project — https://my.bugasura.io/)
 - My role: Frontend, UX/UI, Design + shared backend
 
 ## Setup
@@ -26,14 +26,14 @@ I am Tay, working on Blip — a BLE mesh chat app for events.
 For EVERY task I work on, follow this exact flow:
 
 ### Starting a task:
-1. Check Linear (FEZ team) for my current sprint tasks. If no issues exist yet, create them from WORKPLAN.md — all "T" prefixed tasks for the current sprint. Use format:
+1. Check Bugasura (HeyBlip project) for my current sprint tasks. If no issues exist yet, create them from WORKPLAN.md — all "T" prefixed tasks for the current sprint. Use format:
    - Title: "T{number}: {task name}" (e.g. "T1: Onboarding flow polish")
    - Description: Copy the task description from WORKPLAN.md
-   - Status: "Todo"
+   - Status: "New"
    - Priority: Map P0=Urgent, P1=High, P2=Medium
    - Label: "frontend" for T1-T21, "backend" for T22-T28
    - Assignee: Tay
-2. Move the Linear issue to "In Progress"
+2. Move the Bugasura issue to "In Progress"
 3. Create a git branch: tay/T{number}-{short-description}
 4. Begin implementation
 
@@ -47,11 +47,11 @@ For EVERY task I work on, follow this exact flow:
 1. Verify the work (build succeeds, tests pass if applicable)
 2. Push final commits to the branch
 3. Open a PR on GitHub targeting main with a clear description
-4. Move the Linear issue to "Done"
-5. Add a comment on the Linear issue: what was done, any decisions made, any blockers for downstream tasks
+4. Move the Bugasura issue to "Fixed"
+5. Add a comment on the Bugasura issue: what was done, any decisions made, any blockers for downstream tasks
 6. Pick up the next task in sprint priority order
 
-## Also create these Linear issues for John's tasks:
+## Also create these Bugasura issues for John's tasks:
 Create "J" prefixed issues for Sprint 1 if they don't exist, assigned to John:
 - J1: BLE mesh integration testing
 - J2: Gossip routing real-world test
@@ -74,10 +74,10 @@ Work on these in order:
 7. T24: SwiftData schema validation (backend)
 
 For each task:
-- Create the Linear issue if it doesn't exist
+- Create the Bugasura issue if it doesn't exist
 - Move to In Progress
 - Branch, implement, commit, push, PR
-- Move to Done
+- Move to Fixed
 - Next task
 
 ## Rules
@@ -85,8 +85,8 @@ For each task:
 - The design spec is the source of truth: docs/superpowers/specs/2026-03-28-blip-design.md
 - Build command: xcodebuild -scheme Blip -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -quiet
 - Test commands: swift test --package-path Packages/BlipProtocol (and Crypto, Mesh)
-- Keep Linear updated at every state change — it's how John and I track progress
-- If blocked, create a Linear issue tagged "blocker" and move to the next task
+- Keep Bugasura updated at every state change — it's how John and I track progress
+- If blocked, create a Bugasura issue tagged "blocker" and move to the next task
 
 Begin with Sprint 1, Task T1. Go.
 ```
