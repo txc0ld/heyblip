@@ -9,6 +9,17 @@ build/
 # Swift Package Manager
 .build/
 Packages/*/Package.resolved
+Packages/*/.swiftpm/
+**/xcuserdata/
+
+# Agent / IDE caches
+.claude/
+.xcodebuildmcp/
+screenshots/
+
+# Node (for Cloudflare Workers in server/)
+**/node_modules/
+**/package-lock.json
 
 # macOS
 .DS_Store

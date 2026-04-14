@@ -263,7 +263,7 @@ Note: Delete uses `issue_key` (numeric like 1605380), NOT `issue_id` (like HEY-2
 2. PR opened on GitHub
 3. Message posted in `#blip-dev` that the PR is up
 
-Cowork (the AI orchestrator) owns all PR reviews and merges. Do not merge, do not approve, do not squash — just notify and stop.
+John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Bugasura updates, merge routing), but the merge click is John's.
 
 **NEVER update Bugasura ticket status.** Cowork manages all ticket transitions (New → In Progress → Fixed → Closed). Do not touch ticket status at any point during your work.
 
