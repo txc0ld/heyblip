@@ -457,7 +457,7 @@ private struct ExportPasswordPrompt: View {
 
                 Button(action: onExport) {
                     Text(SettingsL10n.exportButton)
-                        .font(theme.typography.bodyMedium)
+                        .font(theme.typography.body)
                         .frame(maxWidth: .infinity)
                         .padding(BlipSpacing.sm)
                 }

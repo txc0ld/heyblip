@@ -192,8 +192,8 @@ struct KeyManagerTests {
 
         let encrypted = try km.encryptData(originalData, password: password)
 
-        // Encrypted data should be larger: salt(32) + nonce(12) + ciphertext + tag(16)
-        #expect(encrypted.count == 32 + 12 + originalData.count + 16)
+        // Encrypted data should be larger: magic(4) + version(1) + salt(16) + nonce(12) + ciphertext + tag(16)
+        #expect(encrypted.count == 4 + 1 + 16 + 12 + originalData.count + 16)
 
         let decrypted = try km.decryptData(encrypted, password: password)
         #expect(decrypted == originalData)
@@ -235,6 +235,57 @@ struct KeyManagerTests {
 
         #expect(decrypted == originalData)
         #expect(String(data: decrypted, encoding: .utf8) == jsonString)
+    }
+
+    // MARK: - Export Format Validation
+
+    @Test("Encrypt data produces BLIP magic header and version byte")
+    func testEncryptDataMagicHeader() throws {
+        let km = KeyManager()
+        let password = "header-test-pw"
+        let originalData = Data("round-trip test".utf8)
+
+        let encrypted = try km.encryptData(originalData, password: password)
+
+        // First 4 bytes must be "BLIP"
+        #expect(encrypted[0] == 0x42) // B
+        #expect(encrypted[1] == 0x4C) // L
+        #expect(encrypted[2] == 0x49) // I
+        #expect(encrypted[3] == 0x50) // P
+        // Version byte
+        #expect(encrypted[4] == 0x01)
+
+        // Round-trip must succeed
+        let decrypted = try km.decryptData(encrypted, password: password)
+        #expect(decrypted == originalData)
+    }
+
+    @Test("Decrypt data without BLIP magic header throws notABlipExport")
+    func testDecryptWithoutMagicHeader() throws {
+        let km = KeyManager()
+        // Craft data that is long enough but has wrong magic
+        var fakeData = Data(repeating: 0xAA, count: 100)
+        fakeData[0] = 0x00
+        fakeData[1] = 0x00
+        fakeData[2] = 0x00
+        fakeData[3] = 0x00
+
+        #expect(throws: KeyManagerError.notABlipExport) {
+            _ = try km.decryptData(fakeData, password: "password")
+        }
+    }
+
+    @Test("Decrypt data with unsupported version throws unsupportedExportVersion")
+    func testDecryptUnsupportedVersion() throws {
+        let km = KeyManager()
+        // Craft data with correct magic but bad version 0xFF
+        var fakeData = Data([0x42, 0x4C, 0x49, 0x50, 0xFF])
+        // Pad with enough bytes to pass minimum size check
+        fakeData.append(Data(repeating: 0x00, count: 100))
+
+        #expect(throws: KeyManagerError.unsupportedExportVersion(0xFF)) {
+            _ = try km.decryptData(fakeData, password: "password")
+        }
     }
 
     // MARK: - Phone Salt
