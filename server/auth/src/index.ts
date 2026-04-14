@@ -1240,8 +1240,9 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    console.error("[auth] handleDeviceRegister error:", error);
-    return json({ error: "Device registration failed" }, 500, env);
+    const detail = error?.message ?? String(error);
+    console.error("[auth] handleDeviceRegister error:", detail, error?.stack);
+    return json({ error: "Device registration failed", detail }, 500, env);
   }
 }
 
@@ -1275,8 +1276,9 @@ async function handleDeviceUnregister(request: Request, env: Env): Promise<Respo
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
-    console.error("[auth] handleDeviceUnregister error:", error);
-    return json({ error: "Device unregistration failed" }, 500, env);
+    const detail = error?.message ?? String(error);
+    console.error("[auth] handleDeviceUnregister error:", detail, error?.stack);
+    return json({ error: "Device unregistration failed", detail }, 500, env);
   }
 }
 
