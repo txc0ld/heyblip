@@ -212,13 +212,15 @@ final class EventsViewModel {
         // Always load bundled events first for instant content
         await loadBundledEvents()
 
-        // The live CDN worker currently serves discovery payloads only.
-        // Keep geofencing/event storage on the bundled full manifest for now.
+        // Refresh from the CDN in the background; bundled data remains the offline-first fallback.
+        Task { await fetchRemoteEventsWithRetry() }
     }
 
     /// Reset retry state and fetch again (called on pull-to-refresh).
     func refreshEvents() async {
-        await fetchEvents()
+        discoveryState = .fetching
+        await loadBundledEvents()
+        await fetchRemoteEventsWithRetry()
     }
 
     /// Load events from the bundled events.json in Resources/.
@@ -736,7 +738,7 @@ final class EventsViewModel {
                     id: message.id,
                     title: title,
                     message: body,
-                    severity: .info,
+                    severity: announcementSeverity(title: title, body: body),
                     timestamp: message.createdAt,
                     source: activeEvent?.name,
                     isPinned: false
@@ -745,6 +747,37 @@ final class EventsViewModel {
         } catch {
             DebugLogger.shared.log("EVENT", "Failed to fetch announcements: \(error.localizedDescription)")
             announcements = []
+        }
+    }
+
+    /// Organizer announcements currently persist only UTF-8 payload text; the
+    /// protocol/TLV announcement fields are peer metadata, not feed severity.
+    /// Until the wire payload carries explicit severity, infer from known title/body prefixes.
+    private func announcementSeverity(title: String, body: String) -> AnnouncementSeverity {
+        let candidates = [title, body]
+
+        if candidates.contains(where: { hasSeverityPrefix($0, keywords: ["EMERGENCY", "CRITICAL"]) }) {
+            return .emergency
+        }
+        if candidates.contains(where: { hasSeverityPrefix($0, keywords: ["URGENT"]) }) {
+            return .urgent
+        }
+        if candidates.contains(where: { hasSeverityPrefix($0, keywords: ["WARNING", "CAUTION", "ALERT"]) }) {
+            return .warning
+        }
+
+        return .info
+    }
+
+    private func hasSeverityPrefix(_ text: String, keywords: [String]) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+
+        return keywords.contains { keyword in
+            normalized == keyword ||
+                normalized.hasPrefix("\(keyword):") ||
+                normalized.hasPrefix("\(keyword) -") ||
+                normalized.hasPrefix("\(keyword) ") ||
+                normalized.hasPrefix("[\(keyword)]")
         }
     }
 
@@ -868,7 +901,7 @@ final class EventsViewModel {
                 existingChannel.name = "Lost & Found"
                 existingChannel.event = event
                 existingChannel.isAutoJoined = true
-                existingChannel.maxRetention = max(event.endDate.timeIntervalSince(event.startDate), 300)
+                existingChannel.maxRetention = max(event.endDate.timeIntervalSince(event.startDate), 86400)
                 return
             }
 
@@ -877,7 +910,7 @@ final class EventsViewModel {
                 type: .lostAndFound,
                 name: "Lost & Found",
                 event: event,
-                maxRetention: max(event.endDate.timeIntervalSince(event.startDate), 300),
+                maxRetention: max(event.endDate.timeIntervalSince(event.startDate), 86400),
                 isAutoJoined: true
             )
             context.insert(channel)
