@@ -47,7 +47,7 @@ public struct RecoveryKit: Sendable {
 
 // MARK: - Errors
 
-public enum KeyManagerError: Error, Sendable {
+public enum KeyManagerError: Error, Sendable, Equatable {
     case keychainWriteFailed(OSStatus)
     case keychainReadFailed(OSStatus)
     case keychainDeleteFailed(OSStatus)
