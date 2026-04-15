@@ -221,6 +221,7 @@ extension MessageService {
     @MainActor
     func onSessionEstablished(with peerID: PeerID) {
         let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("NOISE", "✅ E2E session established with \(peerHex)")
         lock.lock()
         let pending = pendingHandshakeMessages.removeValue(forKey: peerID.bytes) ?? []
         let pendingControls = pendingHandshakeControlMessages.removeValue(forKey: peerID.bytes) ?? []

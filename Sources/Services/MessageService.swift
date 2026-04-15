@@ -141,15 +141,20 @@ final class MessageService: @unchecked Sendable {
     private var lastBroadcastTime: Date?
     private let broadcastDebounceInterval: TimeInterval = 1.0
 
-    // MARK: - Sender Binding (BDEV-86)
-
-    /// Maps a delivering transport PeerID → the first claimed sender PeerID from that connection.
-    /// Once bound, any packet from that transport PeerID claiming a different sender is dropped.
-    private var senderBindings: [Data: Data] = [:]
+    // MARK: - Unverified Packet Tracking
 
     /// Counts unverified packets per sender (no signing key yet). Drop after threshold.
     private var unverifiedPacketCounts: [Data: Int] = [:]
-    private static let maxUnverifiedPackets = 5
+
+    /// Timestamps for when each sender's unverified counter was first incremented, for periodic cleanup.
+    private var unverifiedPacketTimestamps: [Data: Date] = [:]
+    private static let maxUnverifiedPackets = 50
+
+    /// Stale unverified entries are cleaned up after this interval.
+    private static let unverifiedCleanupInterval: TimeInterval = 120
+
+    /// Last time we ran unverified counter cleanup.
+    private var lastUnverifiedCleanup: Date = Date()
 
     /// Consecutive Noise decrypt failures per sender PeerID bytes.
     var decryptFailureCounts: [Data: Int] = [:]
@@ -660,15 +665,8 @@ final class MessageService: @unchecked Sendable {
                 return
             }
 
-            // BDEV-86: Sender binding check
             let claimedSender = packet.senderID.bytes
             let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-            let boundSender = self.lock.withLock { self.senderBindings[transportData] }
-            if let boundSender, boundSender != claimedSender {
-                let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.emit("RX", "⚠️ SENDER MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
-                return
-            }
 
             // Verify Ed25519 signature (crypto-bound, off main)
             if packet.flags.contains(.hasSignature) {
@@ -692,7 +690,10 @@ final class MessageService: @unchecked Sendable {
                             return
                         }
                         DebugLogger.emit("RX", "SIG OK from \(senderHex) key=\(keyPrefix)", level: .verbose)
-                        self.lock.withLock { _ = self.unverifiedPacketCounts.removeValue(forKey: senderData) }
+                        self.lock.withLock {
+                            _ = self.unverifiedPacketCounts.removeValue(forKey: senderData)
+                            _ = self.unverifiedPacketTimestamps.removeValue(forKey: senderData)
+                        }
                     } catch {
                         DebugLogger.emit("RX", "SIG CHECK ERROR from \(senderHex): \(error) — accepting", isError: true)
                     }
@@ -709,9 +710,26 @@ final class MessageService: @unchecked Sendable {
                         || hasNoiseSession
 
                     if !isExempt {
+                        // Periodic cleanup: evict stale unverified entries so counters don't accumulate forever
+                        let now = Date()
+                        self.lock.withLock {
+                            if now.timeIntervalSince(self.lastUnverifiedCleanup) > Self.unverifiedCleanupInterval {
+                                let cutoff = now.addingTimeInterval(-Self.unverifiedCleanupInterval)
+                                let staleKeys = self.unverifiedPacketTimestamps.filter { $0.value < cutoff }.map(\.key)
+                                for key in staleKeys {
+                                    self.unverifiedPacketCounts.removeValue(forKey: key)
+                                    self.unverifiedPacketTimestamps.removeValue(forKey: key)
+                                }
+                                self.lastUnverifiedCleanup = now
+                            }
+                        }
+
                         let count: Int = self.lock.withLock {
                             let c = (self.unverifiedPacketCounts[senderData] ?? 0) + 1
                             self.unverifiedPacketCounts[senderData] = c
+                            if self.unverifiedPacketTimestamps[senderData] == nil {
+                                self.unverifiedPacketTimestamps[senderData] = now
+                            }
                             return c
                         }
                         if count > Self.maxUnverifiedPackets {
@@ -1134,25 +1152,15 @@ final class MessageService: @unchecked Sendable {
         let peerTransportType = ingressTransport.peerTransportType
         let hopCount = ingressTransport == .bluetooth ? 1 : max(2, 8 - Int(packet.ttl))
 
-        // BDEV-86: Bind transport PeerID → claimed sender on first DIRECT announce.
-        // Direct = TTL still at max (7), meaning not decremented by a relay hop.
-        let transportData = peerID.bytes
+        // Accept announces at any TTL — gossip-relayed announces have TTL < 7
+        // and must still be processed so we learn signing keys for relay peers.
         let claimedSender = packet.senderID.bytes
-        if packet.ttl == 7 {
-            if let boundSender = senderBindings[transportData] {
-                if boundSender != claimedSender {
-                    let boundHex = boundSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-                    let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-                    DebugLogger.shared.log("RX", "⚠️ ANNOUNCE BINDING MISMATCH: transport=\(peerHex) bound=\(boundHex) claimed=\(claimedHex) — DROPPED", isError: true)
-                    return
-                }
-            } else {
-                senderBindings[transportData] = claimedSender
-                let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.shared.log("RX", "SENDER BOUND: transport=\(peerHex) → sender=\(claimedHex) (\(DebugLogger.redact(username)))")
-                // Announce carries the signing key — reset unverified counter
-                unverifiedPacketCounts.removeValue(forKey: claimedSender)
-            }
+        let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("RX", "ANNOUNCE from \(claimedHex) via \(peerHex) TTL=\(packet.ttl) (\(DebugLogger.redact(username)))")
+        // Announce carries the signing key — reset unverified counter
+        lock.withLock {
+            unverifiedPacketCounts.removeValue(forKey: claimedSender)
+            unverifiedPacketTimestamps.removeValue(forKey: claimedSender)
         }
 
         // Upsert into PeerStore
@@ -1790,12 +1798,7 @@ extension MessageService: TransportDelegate {
         peerStore.markDisconnected(peerID: peerData)
 
         Task { @MainActor in
-            // BDEV-86: Clean up sender binding for this transport PeerID
-            if self.senderBindings.removeValue(forKey: peerData) != nil {
-                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (binding cleared, peer marked disconnected)")
-            } else {
-                DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (peer marked disconnected)")
-            }
+            DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (peer marked disconnected)")
         }
     }
 
