@@ -244,6 +244,36 @@ public final class NoiseSessionManager: @unchecked Sendable {
         return pending.handshake.role == .responder
     }
 
+    /// Find an active session where the remote static key matches the given public key.
+    /// Handles PeerID rotation — the session was established under an old PeerID but
+    /// the remote Noise key is stable.
+    public func getSession(byRemoteKey key: Curve25519.KeyAgreement.PublicKey) -> (PeerID, NoiseSession)? {
+        lock.lock()
+        defer { lock.unlock() }
+        for (peerID, session) in sessions {
+            if session.remoteStaticKey.rawRepresentation == key.rawRepresentation {
+                if session.isExpired() {
+                    continue
+                }
+                return (peerID, session)
+            }
+        }
+        return nil
+    }
+
+    /// Migrate a session from an old PeerID to a new one (after BLE address rotation).
+    @discardableResult
+    public func migrateSession(from oldPeerID: PeerID, to newPeerID: PeerID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let session = sessions.removeValue(forKey: oldPeerID) else { return false }
+        sessions[newPeerID] = session
+        if let pending = pendingHandshakes.removeValue(forKey: oldPeerID) {
+            pendingHandshakes[newPeerID] = pending
+        }
+        return true
+    }
+
     // MARK: - Handshake initiation
 
     /// Begin a new XX handshake as the initiator.

@@ -312,6 +312,17 @@ final class AppCoordinator {
         self.modelContainer = modelContainer
         setupPeerPersistence(bleService: ble)
 
+        // Clean up duplicate DM channels from prior builds with PeerID instability.
+        do {
+            let cleanupContext = ModelContext(modelContainer)
+            let removed = try DuplicateChannelCleaner.cleanDuplicateDMChannels(context: cleanupContext)
+            if removed > 0 {
+                DebugLogger.shared.log("APP", "Cleaned \(removed) duplicate DM channels from prior builds")
+            }
+        } catch {
+            DebugLogger.shared.log("APP", "Duplicate channel cleanup failed: \(error)", isError: true)
+        }
+
         // Re-check Bluetooth permission when app returns from Settings.
         setupForegroundObserver(bleService: ble)
         Task { @MainActor [weak self] in

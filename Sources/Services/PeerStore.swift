@@ -99,6 +99,23 @@ final class PeerStore: @unchecked Sendable {
     /// Rejects stale replay: if the new announce timestamp is older than stored, the upsert is skipped.
     func upsert(peer info: PeerInfo) {
         queue.async(flags: .barrier) { [self] in
+            // Deduplicate by noisePublicKey: if a peer with this key already exists
+            // under a DIFFERENT peerID, remove the old entry and migrate to the new
+            // peerID. This handles BLE address rotation where the same user gets a
+            // new transport PeerID.
+            if !info.noisePublicKey.isEmpty {
+                let existingByKey = peers.first { (key, value) in
+                    key != info.peerID && value.noisePublicKey == info.noisePublicKey
+                }
+                if let (oldPeerID, oldInfo) = existingByKey {
+                    let shortOld = oldPeerID.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    let shortNew = info.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    let name = oldInfo.username ?? info.username ?? "unknown"
+                    logger.info("PeerID rotation for \(name): \(shortOld) → \(shortNew) — migrating")
+                    peers.removeValue(forKey: oldPeerID)
+                }
+            }
+
             if var existing = peers[info.peerID] {
                 // Reject stale replay: newer timestamp wins
                 if info.lastAnnounceTimestamp > 0 && existing.lastAnnounceTimestamp > 0
