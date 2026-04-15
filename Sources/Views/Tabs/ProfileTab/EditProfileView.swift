@@ -27,6 +27,9 @@ private enum EditProfileL10n {
         String(format: String(localized: "profile.edit.bio.accessibility_label", defaultValue: "Bio, %d of %d characters"), locale: Locale.current, count, max)
     }
 
+    static let choosePhotoHint = String(localized: "profile.edit.avatar.choose_photo_hint", defaultValue: "Opens your photo library to select a profile picture")
+    static let takePhotoHint = String(localized: "profile.edit.avatar.take_photo_hint", defaultValue: "Opens the camera to take a profile picture")
+
     static func usernameMax(_ max: Int) -> String {
         String(format: String(localized: "profile.edit.username.error.maximum", defaultValue: "Maximum %d characters"), locale: Locale.current, max)
     }
@@ -165,6 +168,7 @@ struct EditProfileView: View {
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .frame(minHeight: BlipSizing.minTapTarget)
+                    .accessibilityHint(EditProfileL10n.choosePhotoHint)
 
                     Button(action: { showCameraPicker = true }) {
                         Label(EditProfileL10n.takePhoto, systemImage: "camera")
@@ -172,6 +176,7 @@ struct EditProfileView: View {
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .frame(minHeight: BlipSizing.minTapTarget)
+                    .accessibilityHint(EditProfileL10n.takePhotoHint)
                     .disabled(!SystemImagePicker.isAvailable(.camera))
                 }
             }

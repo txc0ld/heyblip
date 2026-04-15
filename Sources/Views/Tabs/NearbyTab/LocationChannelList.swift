@@ -12,8 +12,11 @@ private enum LocationChannelListL10n {
     static let previewShowers = "The showers are open until midnight"
     static let previewCarPark3 = "Car Park 3"
 
+    static let person = String(localized: "common.person", defaultValue: "person")
+    static let people = String(localized: "common.people", defaultValue: "people")
+
     static func memberCount(_ count: Int) -> String {
-        String(format: String(localized: "nearby.location_channels.member_count", defaultValue: "%d %@"), locale: Locale.current, count, count == 1 ? "person" : "people")
+        String(format: String(localized: "nearby.location_channels.member_count", defaultValue: "%d %@"), locale: Locale.current, count, count == 1 ? person : people)
     }
 
     static func channelAccessibility(_ name: String, _ count: Int) -> String {

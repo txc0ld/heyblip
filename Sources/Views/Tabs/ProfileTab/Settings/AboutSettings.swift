@@ -13,6 +13,7 @@ private enum AboutSettingsL10n {
     static let termsOfService = String(localized: "settings.about.terms", defaultValue: "Terms of Service")
     static let openSourceLicenses = String(localized: "settings.about.open_source", defaultValue: "Open Source Licenses")
     static let acknowledgementsUnavailable = String(localized: "settings.about.open_source_unavailable", defaultValue: "Unavailable until the in-app acknowledgements screen is wired")
+    static let copyBuildInfo = String(localized: "settings.about.copy_build_info", defaultValue: "Copy build info")
 }
 
 // MARK: - AboutSettings
@@ -31,6 +32,7 @@ struct AboutSettings: View {
                 SettingsComponents.settingsInfoRow(title: AboutSettingsL10n.build, value: BuildInfo.buildNumber, theme: theme)
 
                 SettingsComponents.settingsInfoRow(title: AboutSettingsL10n.commit, value: BuildInfo.gitHash, theme: theme)
+                    .accessibilityLabel(AboutSettingsL10n.copyBuildInfo)
                     .onTapGesture {
                         UIPasteboard.general.string = BuildInfo.fullBuildString
                         buildStringCopied = true

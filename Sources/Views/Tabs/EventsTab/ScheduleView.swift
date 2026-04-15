@@ -16,6 +16,10 @@ private enum ScheduleViewL10n {
     static let previewFloatingPoints = "Floating Points"
     static let previewBonobo = "Bonobo"
 
+    static func actCount(_ count: Int) -> String {
+        String(format: String(localized: "events.schedule.act_count", defaultValue: "%d acts"), locale: Locale.current, count)
+    }
+
     static func stageAccessibility(_ name: String, _ count: Int) -> String {
         String(format: String(localized: "events.schedule.stage.accessibility_label", defaultValue: "%@, %d acts"), locale: Locale.current, name, count)
     }
@@ -140,7 +144,7 @@ struct ScheduleView: View {
 
                 Spacer()
 
-                Text("\(stage.acts.count) acts")
+                Text(ScheduleViewL10n.actCount(stage.acts.count))
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
 

@@ -24,6 +24,12 @@ private enum NearbyPeerCardL10n {
         String(format: String(localized: "nearby.peer.signal_strength", defaultValue: "Signal strength: %@"), locale: Locale.current, description)
     }
 
+    static let oneHop = String(localized: "nearby.peer.hops.one", defaultValue: "1 hop")
+
+    static func hops(_ count: Int) -> String {
+        String(format: String(localized: "nearby.peer.hops.count", defaultValue: "%d hops"), locale: Locale.current, count)
+    }
+
     static func addAccessibility(_ name: String) -> String {
         String(format: String(localized: "nearby.peer.add_accessibility_label", defaultValue: "Add %@ as friend"), locale: Locale.current, name)
     }
@@ -302,8 +308,8 @@ struct NearbyPeerCard: View {
     private var hopDescription: String {
         switch hopCount {
         case 0: return NearbyPeerCardL10n.direct
-        case 1: return "1 hop"
-        default: return "\(hopCount) hops"
+        case 1: return NearbyPeerCardL10n.oneHop
+        default: return NearbyPeerCardL10n.hops(hopCount)
         }
     }
 
