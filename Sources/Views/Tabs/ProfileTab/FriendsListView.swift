@@ -211,26 +211,24 @@ struct FriendsListView: View {
                 LazyVStack(spacing: BlipSpacing.sm) {
                     ForEach(Array(filteredFriends.enumerated()), id: \.element.id) { index, friend in
                         FriendRow(friend: friend, onTap: { selectedFriend = friend })
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            .contextMenu {
                                 if friend.status == .accepted {
                                     Button(role: .destructive) {
                                         removeFriend(friend)
                                     } label: {
                                         Label(FriendsListL10n.remove, systemImage: "person.badge.minus")
                                     }
-                                    Button {
+                                    Button(role: .destructive) {
                                         blockFriend(friend)
                                     } label: {
                                         Label(FriendsListL10n.block, systemImage: "hand.raised")
                                     }
-                                    .tint(.orange)
                                 } else if friend.status == .blocked {
                                     Button {
                                         unblockFriend(friend)
                                     } label: {
                                         Label(FriendsListL10n.unblock, systemImage: "hand.raised.slash")
                                     }
-                                    .tint(.green)
                                 } else if friend.status == .pending {
                                     Button(role: .destructive) {
                                         declineFriend(friend)

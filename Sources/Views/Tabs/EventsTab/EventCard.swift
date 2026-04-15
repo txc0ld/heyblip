@@ -61,13 +61,10 @@ struct EventCard: View {
             .scaleEffect(isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(EventCardPressStyle(isPressed: $isPressed))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(event.name), \(event.location), \(EventCardL10n.attendees(event.attendeeCount))")
         .accessibilityAddTraits(.isButton)
-        ._onButtonGesture { pressing in
-            isPressed = pressing
-        } perform: {}
     }
 
     // MARK: - Header
@@ -176,6 +173,21 @@ struct EventCard: View {
         let start = event.startDate.formatted(date: .abbreviated, time: .omitted)
         let end = event.endDate.formatted(date: .abbreviated, time: .omitted)
         return "\(start) – \(end)"
+    }
+}
+
+// MARK: - EventCardPressStyle
+
+/// Custom ButtonStyle that forwards press state to a binding,
+/// replacing the private `_onButtonGesture` API.
+private struct EventCardPressStyle: ButtonStyle {
+    @Binding var isPressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, newValue in
+                isPressed = newValue
+            }
     }
 }
 

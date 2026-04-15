@@ -282,10 +282,18 @@ struct PaywallSheet: View {
     // MARK: - Purchase Button
 
     private var purchaseButton: some View {
-        GlassButton(
-            purchaseSuccess
-                ? PaywallSheetL10n.purchased
-                : (selectedProduct != nil ? PaywallSheetL10n.buyButton(productName: selectedProduct!.displayName, productPrice: selectedProduct!.displayPrice) : PaywallSheetL10n.selectPack),
+        let buttonTitle: String = {
+            if purchaseSuccess {
+                return PaywallSheetL10n.purchased
+            }
+            guard let product = selectedProduct else {
+                return PaywallSheetL10n.selectPack
+            }
+            return PaywallSheetL10n.buyButton(productName: product.displayName, productPrice: product.displayPrice)
+        }()
+
+        return GlassButton(
+            buttonTitle,
             icon: purchaseSuccess ? "checkmark" : "cart.fill",
             isLoading: resolvedStoreViewModel?.isPurchasing == true
         ) {

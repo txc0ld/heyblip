@@ -156,9 +156,12 @@ struct SettingsView: View {
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
             Button(SettingsL10n.deleteAccountButton, role: .destructive) {
+                guard deleteConfirmationText.trimmingCharacters(in: .whitespaces).uppercased() == "DELETE" else {
+                    actionErrorMessage = SettingsL10n.deleteConfirmMessage
+                    return
+                }
                 Task { await deleteAccount() }
             }
-            .disabled(deleteConfirmationText.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() != "DELETE")
             Button(SettingsL10n.cancel, role: .cancel) {
                 deleteConfirmationText = ""
             }

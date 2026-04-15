@@ -97,7 +97,7 @@ struct ResponderMapView: View {
 
             // SOS alert pins
             ForEach(alerts) { alert in
-                Annotation(ResponderMapL10n.sos, coordinate: alert.coordinate) {
+                Annotation(ResponderMapL10n.sos, coordinate: alert.coordinate(relativeTo: eventCenter)) {
                     SOSPinView(alert: alert) {
                         selectedAlert = alert
                         onAlertTap?(alert)
@@ -375,10 +375,25 @@ struct ResponderPin: Identifiable {
 }
 
 extension SOSAlertItem {
-    var coordinate: CLLocationCoordinate2D {
-        // In production, derived from the alert's GPS data
-        CLLocationCoordinate2D(latitude: 51.0043 + Double.random(in: -0.003...0.003),
-                               longitude: -2.5856 + Double.random(in: -0.003...0.003))
+    /// Returns a stable coordinate derived deterministically from the alert's UUID.
+    /// Without real GPS lat/lng fields on SOSAlertItem, we use the UUID bytes
+    /// to produce a repeatable offset so pins never jump between re-renders.
+    func coordinate(relativeTo center: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        let uuidBytes = withUnsafeBytes(of: id.uuid) { Array($0) }
+        // Use first 8 bytes for latitude offset, next 8 for longitude offset
+        let latSeed = uuidBytes.prefix(8).enumerated().reduce(0.0) { acc, pair in
+            acc + Double(pair.element) / pow(256.0, Double(pair.offset + 1))
+        }
+        let lonSeed = uuidBytes.suffix(8).enumerated().reduce(0.0) { acc, pair in
+            acc + Double(pair.element) / pow(256.0, Double(pair.offset + 1))
+        }
+        // Map [0,1) range to [-0.003, 0.003) for ~300m spread
+        let latOffset = (latSeed - 0.5) * 0.006
+        let lonOffset = (lonSeed - 0.5) * 0.006
+        return CLLocationCoordinate2D(
+            latitude: center.latitude + latOffset,
+            longitude: center.longitude + lonOffset
+        )
     }
 
     var severityColor: Color {
