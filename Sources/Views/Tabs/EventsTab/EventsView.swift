@@ -194,7 +194,7 @@ struct EventsView: View {
                 eventStatusBanner(
                     icon: "exclamationmark.triangle.fill",
                     title: error,
-                    tint: BlipColors.darkColors.statusAmber
+                    tint: theme.colors.statusAmber
                 )
             }
 
@@ -427,7 +427,7 @@ struct EventsView: View {
             icon: "location.slash.fill",
             title: EventsViewL10n.outOfRangeTitle,
             trailingText: EventsViewL10n.limitedAccess,
-            tint: BlipColors.darkColors.statusAmber
+            tint: theme.colors.statusAmber
         )
     }
 

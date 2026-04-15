@@ -206,7 +206,7 @@ struct ProfileView: View {
                     // Verified ring
                     if user.isVerified {
                         Circle()
-                            .stroke(Color.blue, lineWidth: 3)
+                            .stroke(Color.blipAccentPurple, lineWidth: 3)
                             .frame(width: BlipSizing.avatarLarge + 8, height: BlipSizing.avatarLarge + 8)
 
                         // Verified badge (Meta/Instagram style — blue seal, white tick)

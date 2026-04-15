@@ -138,7 +138,7 @@ enum SettingsComponents {
                     .fontWeight(.medium)
                     .foregroundStyle(
                         isDestructive
-                            ? BlipColors.darkColors.statusRed.opacity(0.55)
+                            ? theme.colors.statusRed.opacity(0.55)
                             : theme.colors.mutedText
                     )
 
