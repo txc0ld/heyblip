@@ -228,6 +228,22 @@ public final class NoiseSessionManager: @unchecked Sendable {
         return pendingHandshakes[peerID] != nil
     }
 
+    /// Returns true if there's a pending handshake in the initiator role for this peer.
+    public func hasPendingInitiatorHandshake(for peerID: PeerID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let pending = pendingHandshakes[peerID] else { return false }
+        return pending.handshake.role == .initiator
+    }
+
+    /// Returns true if there's a pending handshake in the responder role for this peer.
+    public func hasPendingResponderHandshake(for peerID: PeerID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let pending = pendingHandshakes[peerID] else { return false }
+        return pending.handshake.role == .responder
+    }
+
     // MARK: - Handshake initiation
 
     /// Begin a new XX handshake as the initiator.
@@ -271,7 +287,9 @@ public final class NoiseSessionManager: @unchecked Sendable {
                 // Our PeerID >= remote → we keep initiator role, discard incoming msg1
                 return nil
             }
-            // Our PeerID < remote → we yield, cancel initiator, become responder below
+            // Our PeerID < remote → we yield initiator role
+            // Explicitly remove the old initiator handshake before creating responder
+            pendingHandshakes.removeValue(forKey: peerID)
         }
 
         let handshake = NoiseHandshake(

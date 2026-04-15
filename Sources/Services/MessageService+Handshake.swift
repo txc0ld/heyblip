@@ -52,32 +52,55 @@ extension MessageService {
         case 0x02:
             // We are initiator — receive msg2, send msg3 (completes handshake)
             DebugLogger.shared.log("NOISE", "← handshake msg2 from \(peerHex)")
-            let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
-            if session == nil {
-                // Need to send msg3
-                let (msg3, _) = try sessionManager.completeHandshake(with: peerID)
-                var response = Data([0x03])
-                response.append(msg3)
-                let responsePacket = MessagePayloadBuilder.buildPacket(
-                    type: .noiseHandshake,
-                    payload: response,
-                    flags: [.hasRecipient],
-                    senderID: identity.peerID,
-                    recipientID: peerID
-                )
-                try await sendPacket(responsePacket)
-                DebugLogger.shared.log("NOISE", "→ handshake msg3 to \(peerHex)")
+
+            // Guard: only process msg2 if we have a pending initiator handshake for this peer.
+            // If we're a responder (sent msg2, waiting for msg3), ignore stale/duplicate msg2.
+            guard sessionManager.hasPendingInitiatorHandshake(for: peerID) else {
+                DebugLogger.shared.log("NOISE", "⚠️ Ignoring msg2 from \(peerHex) — no initiator handshake pending")
+                return
             }
-            // Session should now be established (after msg3 was written)
-            onSessionEstablished(with: peerID)
+
+            do {
+                let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
+                if session == nil {
+                    // Need to send msg3
+                    let (msg3, _) = try sessionManager.completeHandshake(with: peerID)
+                    var response = Data([0x03])
+                    response.append(msg3)
+                    let responsePacket = MessagePayloadBuilder.buildPacket(
+                        type: .noiseHandshake,
+                        payload: response,
+                        flags: [.hasRecipient],
+                        senderID: identity.peerID,
+                        recipientID: peerID
+                    )
+                    try await sendPacket(responsePacket)
+                    DebugLogger.shared.log("NOISE", "→ handshake msg3 to \(peerHex)")
+                }
+                onSessionEstablished(with: peerID)
+            } catch {
+                DebugLogger.shared.log("NOISE", "⚠️ Handshake msg2 failed from \(peerHex): \(error) — destroying and will retry", isError: true)
+                sessionManager.destroySession(for: peerID)
+            }
 
         case 0x03:
             // We are responder — receive msg3 (completes handshake)
             DebugLogger.shared.log("NOISE", "← handshake msg3 from \(peerHex)")
-            let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
-            if session != nil {
-                DebugLogger.shared.log("NOISE", "Session established with \(peerHex)")
-                onSessionEstablished(with: peerID)
+
+            guard sessionManager.hasPendingResponderHandshake(for: peerID) else {
+                DebugLogger.shared.log("NOISE", "⚠️ Ignoring msg3 from \(peerHex) — no responder handshake pending")
+                return
+            }
+
+            do {
+                let (_, session) = try sessionManager.processHandshakeMessage(from: peerID, message: handshakeData)
+                if session != nil {
+                    DebugLogger.shared.log("NOISE", "✅ E2E session established with \(peerHex)")
+                    onSessionEstablished(with: peerID)
+                }
+            } catch {
+                DebugLogger.shared.log("NOISE", "⚠️ Handshake msg3 failed from \(peerHex): \(error) — destroying and will retry", isError: true)
+                sessionManager.destroySession(for: peerID)
             }
 
         default:
@@ -189,6 +212,11 @@ extension MessageService {
                     DebugLogger.shared.log("NOISE", "Handshake retry \(attempt + 1)/\(retryDelays.count - 1) for \(peerHex)")
                     if let sessionManager = self.noiseSessionManager,
                        let identity = self.getIdentity() {
+                        // Don't destroy if we're now a responder (tiebreaker yielded)
+                        if sessionManager.hasPendingResponderHandshake(for: retryPeerID) {
+                            DebugLogger.shared.log("NOISE", "Skipping retry — now responder for \(peerHex), waiting for msg3")
+                            continue
+                        }
                         do {
                             sessionManager.destroySession(for: retryPeerID)
                             let (_, retryMsg1) = try sessionManager.initiateHandshake(with: retryPeerID)
@@ -348,7 +376,14 @@ extension MessageService {
         }
 
         // Addressed (has recipient) → Noise session encrypted DM
-        guard let session = noiseSessionManager?.getSession(for: peerID) else {
+        // Try twice: a session may have been established between packet arrival and decrypt attempt
+        var session = noiseSessionManager?.getSession(for: peerID)
+        if session == nil {
+            // Brief yield to allow a concurrent handshake completion to land
+            try? await Task.sleep(for: .milliseconds(50))
+            session = noiseSessionManager?.getSession(for: peerID)
+        }
+        guard let session else {
             DebugLogger.shared.log("NOISE", "Dropped .noiseEncrypted packet from \(senderHex): no active Noise session", isError: true)
             return
         }
