@@ -55,6 +55,7 @@ targets:
         BLIP_AUTH_BASE_URL: https://blip-auth.john-mckean.workers.dev/v1
         BLIP_RELAY_BASE_URL: https://blip-relay.john-mckean.workers.dev
         BLIP_CDN_BASE_URL: https://blip-cdn.john-mckean.workers.dev
+        SENTRY_DSN: https://981fc5cd21b47caa50c86a0084f6680b@o4511222169337856.ingest.us.sentry.io/4511222171303936
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: true
         SUPPORTS_MACCATALYST: true
