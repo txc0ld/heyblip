@@ -376,7 +376,7 @@ struct MessageBubble: View {
     }
 
     private var borderColor: Color {
-        Color.white.opacity(0.20)
+        colorScheme == .dark ? Color.white.opacity(0.20) : Color.black.opacity(0.08)
     }
 
     private var bubbleAccessibilityLabel: String {

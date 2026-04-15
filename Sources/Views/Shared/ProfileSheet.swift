@@ -130,7 +130,7 @@ struct ProfileSheet: View {
             // Online indicator
             if isOnline {
                 Circle()
-                    .fill(.green)
+                    .fill(Color.blipElectricCyan)
                     .frame(width: 16, height: 16)
                     .overlay(
                         Circle()
@@ -175,7 +175,7 @@ struct ProfileSheet: View {
                 }
 
                 if isOnline {
-                    badge(icon: "wifi", text: ProfileSheetL10n.online, color: BlipColors.darkColors.statusGreen)
+                    badge(icon: "wifi", text: ProfileSheetL10n.online, color: theme.colors.statusGreen)
                 }
 
                 if mutualFriendsCount > 0 {

@@ -262,7 +262,7 @@ struct EditProfileView: View {
                 if let error = usernameError {
                     Text(error)
                         .font(theme.typography.caption)
-                        .foregroundStyle(BlipColors.darkColors.statusRed)
+                        .foregroundStyle(theme.colors.statusRed)
                 }
 
                 Text("\(username.count)/\(maxUsernameLength)")
@@ -301,7 +301,7 @@ struct EditProfileView: View {
 
                 Text("\(bio.count)/\(maxBioLength)")
                     .font(theme.typography.caption)
-                    .foregroundStyle(bio.count >= maxBioLength ? BlipColors.darkColors.statusAmber : theme.colors.mutedText)
+                    .foregroundStyle(bio.count >= maxBioLength ? theme.colors.statusAmber : theme.colors.mutedText)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }

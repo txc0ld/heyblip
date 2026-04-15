@@ -430,9 +430,9 @@ private struct FriendRow: View {
 
                     if friend.isOnline {
                         Circle()
-                            .fill(.green)
+                            .fill(Color.blipElectricCyan)
                             .frame(width: 10, height: 10)
-                            .overlay(Circle().stroke(.black, lineWidth: 1.5))
+                            .overlay(Circle().stroke(theme.colors.background, lineWidth: 1.5))
                             .offset(x: 14, y: 14)
                     }
                 }
@@ -463,10 +463,10 @@ private struct FriendRow: View {
                 } else if friend.status == .blocked {
                     Text(FriendsListL10n.blocked)
                         .font(theme.typography.caption)
-                        .foregroundStyle(BlipColors.darkColors.statusRed)
+                        .foregroundStyle(theme.colors.statusRed)
                         .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, BlipSpacing.xs)
-                        .background(Capsule().fill(BlipColors.darkColors.statusRed.opacity(0.12)))
+                        .background(Capsule().fill(theme.colors.statusRed.opacity(0.12)))
                 }
 
                 Image(systemName: "chevron.right")
@@ -493,10 +493,10 @@ private struct FriendRow: View {
         } else {
             Text(FriendsListL10n.accept)
                 .font(theme.typography.caption)
-                .foregroundStyle(BlipColors.darkColors.statusAmber)
+                .foregroundStyle(theme.colors.statusAmber)
                 .padding(.horizontal, BlipSpacing.sm)
                 .padding(.vertical, BlipSpacing.xs)
-                .background(Capsule().fill(BlipColors.darkColors.statusAmber.opacity(0.12)))
+                .background(Capsule().fill(theme.colors.statusAmber.opacity(0.12)))
         }
     }
 

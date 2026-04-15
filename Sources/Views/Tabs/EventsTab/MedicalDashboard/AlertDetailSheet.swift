@@ -324,9 +324,9 @@ struct AlertDetailSheet: View {
 
     private var severityColor: Color {
         switch alert.severity {
-        case .green: return BlipColors.darkColors.statusGreen
-        case .amber: return BlipColors.darkColors.statusAmber
-        case .red: return BlipColors.darkColors.statusRed
+        case .green: return theme.colors.statusGreen
+        case .amber: return theme.colors.statusAmber
+        case .red: return theme.colors.statusRed
         }
     }
 

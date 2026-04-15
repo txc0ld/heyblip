@@ -160,7 +160,7 @@ struct SOSConfirmationSheet: View {
             if let sendError {
                 Text(sendError)
                     .font(theme.typography.caption)
-                    .foregroundStyle(BlipColors.darkColors.statusRed)
+                    .foregroundStyle(theme.colors.statusRed)
                     .multilineTextAlignment(.center)
             }
 
@@ -247,7 +247,7 @@ struct SOSConfirmationSheet: View {
         ZStack(alignment: .leading) {
             // Track
             RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
-                .fill(BlipColors.darkColors.statusAmber.opacity(0.15))
+                .fill(theme.colors.statusAmber.opacity(0.15))
                 .frame(height: 56)
                 .overlay(
                     Text(SOSConfirmationL10n.amberSlide)
@@ -256,17 +256,17 @@ struct SOSConfirmationSheet: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
-                        .stroke(BlipColors.darkColors.statusAmber.opacity(0.3), lineWidth: 1)
+                        .stroke(theme.colors.statusAmber.opacity(0.3), lineWidth: 1)
                 )
 
             // Fill progress
             RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
-                .fill(BlipColors.darkColors.statusAmber.opacity(0.3))
+                .fill(theme.colors.statusAmber.opacity(0.3))
                 .frame(width: amberSlideOffset + 56, height: 56)
 
             // Slider knob
             Circle()
-                .fill(BlipColors.darkColors.statusAmber)
+                .fill(theme.colors.statusAmber)
                 .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: "chevron.right.2")
@@ -302,13 +302,13 @@ struct SOSConfirmationSheet: View {
             ZStack {
                 // Background circle
                 Circle()
-                    .stroke(BlipColors.darkColors.statusRed.opacity(0.2), lineWidth: 6)
+                    .stroke(theme.colors.statusRed.opacity(0.2), lineWidth: 6)
                     .frame(width: 80, height: 80)
 
                 // Progress ring
                 Circle()
                     .trim(from: 0, to: redHoldProgress)
-                    .stroke(BlipColors.darkColors.statusRed, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(theme.colors.statusRed, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .frame(width: 80, height: 80)
                     .rotationEffect(.degrees(-90))
                     .animation(redIsHolding ? .linear(duration: redHoldDuration) : .easeOut(duration: 0.3), value: redHoldProgress)
@@ -317,12 +317,12 @@ struct SOSConfirmationSheet: View {
                 VStack(spacing: 2) {
                     Image(systemName: "cross.fill")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(BlipColors.darkColors.statusRed)
+                        .foregroundStyle(theme.colors.statusRed)
 
                     if redIsHolding {
                         Text("\(Int((1.0 - redHoldProgress) * redHoldDuration) + 1)s")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(BlipColors.darkColors.statusRed)
+                            .foregroundStyle(theme.colors.statusRed)
                             .contentTransition(.numericText())
                     }
                 }
@@ -343,7 +343,7 @@ struct SOSConfirmationSheet: View {
 
             Text(redIsHolding ? SOSConfirmationL10n.redHolding : SOSConfirmationL10n.redPrompt)
                 .font(theme.typography.secondary)
-                .foregroundStyle(BlipColors.darkColors.statusRed)
+                .foregroundStyle(theme.colors.statusRed)
         }
         .accessibilityLabel(SOSConfirmationL10n.redAccessibility)
     }
@@ -381,12 +381,12 @@ struct SOSConfirmationSheet: View {
                         Text(SOSConfirmationL10n.cancelSOS)
                             .font(theme.typography.body)
                             .fontWeight(.semibold)
-                            .foregroundStyle(BlipColors.darkColors.statusRed)
+                            .foregroundStyle(theme.colors.statusRed)
                             .padding(.horizontal, BlipSpacing.md)
                             .padding(.vertical, BlipSpacing.sm)
                             .background(
                                 Capsule()
-                                    .fill(BlipColors.darkColors.statusRed.opacity(0.15))
+                                    .fill(theme.colors.statusRed.opacity(0.15))
                             )
                     }
                     .frame(minHeight: BlipSizing.minTapTarget)
@@ -420,7 +420,7 @@ struct SOSConfirmationSheet: View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(BlipColors.darkColors.statusAmber)
+                .foregroundStyle(theme.colors.statusAmber)
 
             Text(SOSConfirmationL10n.captchaTitle)
                 .font(theme.typography.headline)
@@ -592,9 +592,9 @@ struct SOSConfirmationSheet: View {
 
     private func severityColor(_ severity: SOSSeverity) -> Color {
         switch severity {
-        case .green: return BlipColors.darkColors.statusGreen
-        case .amber: return BlipColors.darkColors.statusAmber
-        case .red: return BlipColors.darkColors.statusRed
+        case .green: return theme.colors.statusGreen
+        case .amber: return theme.colors.statusAmber
+        case .red: return theme.colors.statusRed
         }
     }
 

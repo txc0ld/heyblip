@@ -398,9 +398,9 @@ extension SOSAlertItem {
 
     var severityColor: Color {
         switch severity {
-        case .green: return BlipColors.darkColors.statusGreen
-        case .amber: return BlipColors.darkColors.statusAmber
-        case .red: return BlipColors.darkColors.statusRed
+        case .green: return BlipColors.adaptive.statusGreen
+        case .amber: return BlipColors.adaptive.statusAmber
+        case .red: return BlipColors.adaptive.statusRed
         }
     }
 

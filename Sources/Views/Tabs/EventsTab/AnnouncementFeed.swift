@@ -224,10 +224,10 @@ private struct AnnouncementCard: View {
 
     private var severityColor: Color {
         switch announcement.severity {
-        case .info: return .blue
-        case .warning: return BlipColors.darkColors.statusAmber
-        case .urgent: return .orange
-        case .emergency: return BlipColors.darkColors.statusRed
+        case .info: return .blipAccentPurple
+        case .warning: return theme.colors.statusAmber
+        case .urgent: return theme.colors.statusAmber
+        case .emergency: return theme.colors.statusRed
         }
     }
 }

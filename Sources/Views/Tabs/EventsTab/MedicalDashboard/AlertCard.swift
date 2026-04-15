@@ -261,12 +261,12 @@ struct AlertCard: View {
                     Label(AlertCardL10n.resolve, systemImage: "checkmark.seal.fill")
                         .font(theme.typography.secondary)
                         .fontWeight(.medium)
-                        .foregroundStyle(BlipColors.darkColors.statusGreen)
+                        .foregroundStyle(theme.colors.statusGreen)
                         .padding(.horizontal, BlipSpacing.md)
                         .padding(.vertical, BlipSpacing.sm)
                         .background(
                             Capsule()
-                                .fill(BlipColors.darkColors.statusGreen.opacity(0.12))
+                                .fill(theme.colors.statusGreen.opacity(0.12))
                         )
                 }
                 .frame(minHeight: BlipSizing.minTapTarget)
@@ -279,9 +279,9 @@ struct AlertCard: View {
 
     private var severityColor: Color {
         switch alert.severity {
-        case .green: return BlipColors.darkColors.statusGreen
-        case .amber: return BlipColors.darkColors.statusAmber
-        case .red: return BlipColors.darkColors.statusRed
+        case .green: return theme.colors.statusGreen
+        case .amber: return theme.colors.statusAmber
+        case .red: return theme.colors.statusRed
         }
     }
 
@@ -346,9 +346,9 @@ enum LocationAccuracy {
 
     var color: Color {
         switch self {
-        case .precise: return BlipColors.darkColors.statusGreen
-        case .estimated: return BlipColors.darkColors.statusAmber
-        case .lastKnown: return BlipColors.darkColors.statusRed
+        case .precise: return BlipColors.adaptive.statusGreen
+        case .estimated: return BlipColors.adaptive.statusAmber
+        case .lastKnown: return BlipColors.adaptive.statusRed
         }
     }
 }
