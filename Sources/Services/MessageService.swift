@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import CryptoKit
 import os.log
 import BlipProtocol
 import BlipMesh
@@ -1331,7 +1332,7 @@ final class MessageService: @unchecked Sendable {
                 }
             }
 
-            // 2. Noise session fallback — the handshake completed so we have the remote static key
+            // 2a. Noise session by PeerID — the handshake completed with this exact PeerID
             if senderUser == nil, let session = noiseSessionManager?.getSession(for: senderPeerID) {
                 let noiseKeyData = session.remoteStaticKey.rawRepresentation
                 let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.noisePublicKey == noiseKeyData })
@@ -1342,6 +1343,29 @@ final class MessageService: @unchecked Sendable {
                     }
                 } catch {
                     DebugLogger.emit("DM", "resolveChannel: Noise session user lookup failed: \(error.localizedDescription)", isError: true)
+                }
+            }
+
+            // 2b. Noise session by PeerStore noiseKey — handles BLE PeerID rotation where
+            // session was established under an old PeerID but PeerStore has the key mapping
+            if senderUser == nil,
+               let peerInfo = peerStore.findPeer(byPeerIDBytes: peerData),
+               !peerInfo.noisePublicKey.isEmpty,
+               let noiseKey = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: peerInfo.noisePublicKey),
+               let (oldPeerID, _) = noiseSessionManager?.getSession(byRemoteKey: noiseKey) {
+                // Migrate session to current PeerID
+                noiseSessionManager?.migrateSession(from: oldPeerID, to: senderPeerID)
+                let noiseKeyData = peerInfo.noisePublicKey
+                let userDesc = FetchDescriptor<User>(predicate: #Predicate { $0.noisePublicKey == noiseKeyData })
+                do {
+                    senderUser = try context.fetch(userDesc).first
+                    if senderUser != nil {
+                        let oldHex = oldPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                        let newHex = peerData.prefix(4).map { String(format: "%02x", $0) }.joined()
+                        DebugLogger.emit("DM", "resolveChannel: found sender via session migration \(oldHex)→\(newHex)")
+                    }
+                } catch {
+                    DebugLogger.emit("DM", "resolveChannel: session migration user lookup failed: \(error.localizedDescription)", isError: true)
                 }
             }
 
@@ -1500,23 +1524,28 @@ final class MessageService: @unchecked Sendable {
                 continue
             }
 
-            // Look up PeerStore by noisePublicKey to get BLE transport PeerID
             let userKey = user.noisePublicKey
+
+            // Priority 1: Active Noise session — authoritative, matches handshake PeerID
+            if let noiseKey = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: userKey),
+               let (sessionPeerID, _) = noiseSessionManager?.getSession(byRemoteKey: noiseKey) {
+                let peerHex = sessionPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.emit("DM", "resolveRecipient: found=\(peerHex) via=activeSession (\(DebugLogger.redact(user.username)))")
+                return sessionPeerID
+            }
+
+            // Priority 2: PeerStore lookup by noisePublicKey
             if let recipientPeer = peerStore.peer(byNoisePublicKey: userKey) {
                 let peerHex = recipientPeer.peerID.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.emit("DM", "resolveRecipient: found=\(peerHex) via=ble (\(DebugLogger.redact(user.username)))")
+                DebugLogger.emit("DM", "resolveRecipient: found=\(peerHex) via=peerStore (\(DebugLogger.redact(user.username)))")
                 return PeerID(bytes: recipientPeer.peerID)
             }
 
-            // Fallback: construct PeerID from stored key
-            if user.noisePublicKey.count == PeerID.length {
-                let keyHex = user.noisePublicKey.prefix(4).map { String(format: "%02x", $0) }.joined()
-                DebugLogger.emit("DM", "resolveRecipient: found=\(keyHex) via=cache (raw key, \(DebugLogger.redact(user.username)))")
-                return PeerID(bytes: user.noisePublicKey)
-            }
-            let derivedHex = user.noisePublicKey.prefix(4).map { String(format: "%02x", $0) }.joined()
-            DebugLogger.emit("DM", "resolveRecipient: found=\(derivedHex) via=relay (derived, \(DebugLogger.redact(user.username)))")
-            return PeerID(noisePublicKey: user.noisePublicKey)
+            // Priority 3: Derive PeerID from noise public key
+            let derivedPeerID = PeerID(noisePublicKey: userKey)
+            let derivedHex = derivedPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+            DebugLogger.emit("DM", "resolveRecipient: found=\(derivedHex) via=derived (\(DebugLogger.redact(user.username)))")
+            return derivedPeerID
         }
 
         DebugLogger.emit("DM", "resolveRecipient FAILED: no valid remote user in channel \(channelID)", isError: true)
