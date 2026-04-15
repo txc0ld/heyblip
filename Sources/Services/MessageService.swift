@@ -668,6 +668,12 @@ final class MessageService: @unchecked Sendable {
             let claimedSender = packet.senderID.bytes
             let claimedHex = claimedSender.prefix(4).map { String(format: "%02x", $0) }.joined()
 
+            // Drop our own packets that echoed back via relay or gossip
+            if let localID = self.getIdentity()?.peerID, localID == packet.senderID {
+                DebugLogger.emit("RX", "Dropping own packet (echo) type=\(packet.type)", level: .debug)
+                return
+            }
+
             // Verify Ed25519 signature (crypto-bound, off main)
             if packet.flags.contains(.hasSignature) {
                 let senderData = packet.senderID.bytes
