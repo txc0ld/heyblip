@@ -224,8 +224,8 @@ struct PaywallSheet: View {
                             Text(PaywallSheetL10n.bestValue)
                                 .font(.custom(BlipFontName.bold, size: 9, relativeTo: .caption2))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
+                                .padding(.horizontal, BlipSpacing.sm)
+                                .padding(.vertical, BlipSpacing.xxs)
                                 .background(
                                     Capsule()
                                         .fill(Color.blipAccentPurple)

@@ -271,7 +271,7 @@ struct AvatarView: View {
     private func startPulse() {
         guard !SpringConstants.isReduceMotionEnabled else { return }
         withAnimation(
-            .easeInOut(duration: 1.5)
+            SpringConstants.gentleAnimation
             .repeatForever(autoreverses: true)
         ) {
             pulseScale = 1.15

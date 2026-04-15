@@ -107,7 +107,7 @@ struct QRCodeSheet: View {
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.sm + 2)
+                    .padding(.vertical, BlipSpacing.sm)
                     .background(
                         Capsule()
                             .fill(LinearGradient.blipAccent)
@@ -128,7 +128,7 @@ struct QRCodeSheet: View {
                 }
                 .foregroundStyle(theme.colors.text)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, BlipSpacing.sm + 2)
+                .padding(.vertical, BlipSpacing.sm)
                 .background(
                     Capsule()
                         .fill(.ultraThinMaterial)

@@ -300,7 +300,7 @@ struct MessagePackStore: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, BlipSpacing.sm)
-                        .padding(.vertical, 3)
+                        .padding(.vertical, BlipSpacing.xxs)
                         .background(Capsule().fill(LinearGradient.blipAccent))
                 }
             }

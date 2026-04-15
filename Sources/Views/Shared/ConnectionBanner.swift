@@ -69,7 +69,7 @@ struct ConnectionBanner: View {
                 .foregroundStyle(theme.colors.text)
         }
         .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm + 2)
+        .padding(.vertical, BlipSpacing.sm)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)

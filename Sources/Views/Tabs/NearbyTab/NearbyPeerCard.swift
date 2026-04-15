@@ -184,7 +184,7 @@ struct NearbyPeerCard: View {
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
                     .padding(.horizontal, BlipSpacing.sm)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, BlipSpacing.xxs)
                     .background(
                         Capsule()
                             .fill(theme.colors.hover)
@@ -194,7 +194,7 @@ struct NearbyPeerCard: View {
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
                     .padding(.horizontal, BlipSpacing.sm)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, BlipSpacing.xxs)
                     .background(
                         Capsule()
                             .fill(theme.colors.hover)

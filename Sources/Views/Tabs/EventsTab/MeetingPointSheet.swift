@@ -110,8 +110,8 @@ struct MeetingPointSheet: View {
                                 Text(label)
                                     .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(.white)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
+                                    .padding(.horizontal, BlipSpacing.sm)
+                                    .padding(.vertical, BlipSpacing.xxs)
                                     .background(Capsule().fill(.blipAccentPurple))
                             }
                         }

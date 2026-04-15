@@ -187,8 +187,8 @@ struct ChatListCell: View {
         Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
             .font(.custom(BlipFontName.bold, size: 11, relativeTo: .caption2))
             .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, BlipSpacing.sm)
+            .padding(.vertical, BlipSpacing.xxs)
             .background(
                 Capsule()
                     .fill(Color.blipAccentPurple)

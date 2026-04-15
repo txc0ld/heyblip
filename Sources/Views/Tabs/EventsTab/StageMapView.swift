@@ -125,8 +125,8 @@ struct StageMapView: View {
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                                 .frame(maxWidth: 96)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
+                                .padding(.horizontal, BlipSpacing.xs)
+                                .padding(.vertical, BlipSpacing.xxs)
                                 .background(Capsule().fill(.blipAccentPurple))
                         }
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
@@ -190,8 +190,8 @@ private struct StageHotspotView: View {
                     .foregroundStyle(theme.colors.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xxs)
                     .background(
                         Capsule()
                             .fill(.thickMaterial)

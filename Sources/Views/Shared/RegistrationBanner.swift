@@ -48,7 +48,7 @@ struct RegistrationBanner: View {
             .accessibilityLabel(RegistrationBannerL10n.retryHint)
         }
         .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm + 2)
+        .padding(.vertical, BlipSpacing.sm)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)

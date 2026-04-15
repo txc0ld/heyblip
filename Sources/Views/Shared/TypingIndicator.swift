@@ -35,7 +35,7 @@ struct TypingIndicator: View {
             dot(isAnimating: animatingDot2)
         }
         .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm + 2)
+        .padding(.vertical, BlipSpacing.sm)
         .background(bubbleBackground)
         .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
         .overlay(

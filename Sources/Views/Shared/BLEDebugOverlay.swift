@@ -206,7 +206,7 @@ struct BLEDebugOverlay: View {
                         }
                         .font(.system(size: 9, design: .monospaced))
                     }
-                    .padding(.vertical, 3)
+                    .padding(.vertical, BlipSpacing.xxs)
                 }
             }
         }

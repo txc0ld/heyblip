@@ -284,7 +284,7 @@ private struct SOSPinView: View {
         .onAppear {
             guard alert.severity != .green, !SpringConstants.isReduceMotionEnabled else { return }
             let duration = alert.severity == .red ? 1.0 : 2.0
-            withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: false)) {
+            withAnimation(SpringConstants.gentleAnimation.repeatForever(autoreverses: false)) {
                 isPulsing = true
             }
         }

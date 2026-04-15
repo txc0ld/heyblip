@@ -6,6 +6,9 @@ import SwiftUI
 /// Based on a 4pt base unit with common multipliers.
 enum BlipSpacing {
 
+    /// 2pt — Double extra small. Tight badge padding, fine optical tweaks.
+    static let xxs: CGFloat = 2
+
     /// 4pt — Extra small. Icon gaps, tight inline spacing.
     static let xs: CGFloat = 4
 

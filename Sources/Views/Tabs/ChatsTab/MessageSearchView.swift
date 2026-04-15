@@ -120,7 +120,7 @@ struct MessageSearchView: View {
                     lineWidth: BlipSizing.hairline
                 )
         )
-        .animation(.easeInOut(duration: 0.2), value: isFieldFocused)
+        .animation(SpringConstants.gentleAnimation, value: isFieldFocused)
     }
 
     // MARK: - Content Area

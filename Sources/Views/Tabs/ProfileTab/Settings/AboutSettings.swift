@@ -44,7 +44,7 @@ struct AboutSettings: View {
                                 .transition(.opacity)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.2), value: buildStringCopied)
+                    .animation(SpringConstants.gentleAnimation, value: buildStringCopied)
 
                 SettingsComponents.settingsInfoRow(title: AboutSettingsL10n.branch, value: BuildInfo.gitBranch, theme: theme)
                 SettingsComponents.settingsInfoRow(title: AboutSettingsL10n.built, value: BuildInfo.buildDate, theme: theme)

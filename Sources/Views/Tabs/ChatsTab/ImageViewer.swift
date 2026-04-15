@@ -186,11 +186,11 @@ struct ImageViewer: View {
         if SpringConstants.isReduceMotionEnabled {
             isPresented = false
         } else {
-            withAnimation(.easeOut(duration: 0.25)) {
+            withAnimation(SpringConstants.gentleAnimation) {
                 backgroundOpacity = 0
                 dragOffset = 300
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 isPresented = false
             }
         }

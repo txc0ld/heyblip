@@ -241,7 +241,7 @@ struct FriendFinderMapView: View {
 
     private func startSharingPulse() {
         guard !SpringConstants.isReduceMotionEnabled else { return }
-        withAnimation(.easeOut(duration: 2.0).repeatForever(autoreverses: false)) {
+        withAnimation(SpringConstants.gentleAnimation.repeatForever(autoreverses: false)) {
             sharingPulse = true
         }
     }
@@ -815,8 +815,8 @@ private struct FriendFinderPinView: View {
                             }
                         }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, BlipSpacing.sm)
+                        .padding(.vertical, BlipSpacing.xxs)
                         .background(Capsule().fill(friend.color))
                     }
                 }
@@ -827,6 +827,7 @@ private struct FriendFinderPinView: View {
         .accessibilityLabel(FriendFinderMapViewL10n.friendRowAccessibility(name: friend.displayName, detail: friend.lastSeenText))
         .onAppear {
             guard !SpringConstants.isReduceMotionEnabled, friend.accuracyMeters > 0 else { return }
+            // Ambient loop — easeInOut intentional
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 ringPulsing = true
             }
@@ -864,13 +865,14 @@ private struct BeaconAnnotationView: View {
                 Text(beacon.label)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, BlipSpacing.xs)
+                    .padding(.vertical, BlipSpacing.xxs)
                     .background(Capsule().fill(.blipAccentPurple))
             }
         }
         .onAppear {
             guard !SpringConstants.isReduceMotionEnabled else { return }
+            // Ambient loop — easeInOut intentional
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
                 isPulsing = true
             }

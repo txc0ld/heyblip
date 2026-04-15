@@ -149,8 +149,8 @@ struct VoiceNotePlayer: View {
             Text(playbackSpeed.label)
                 .font(.custom(BlipFontName.bold, size: 10, relativeTo: .caption2))
                 .foregroundStyle(foregroundColor.opacity(0.6))
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.horizontal, BlipSpacing.xs)
+                .padding(.vertical, BlipSpacing.xxs)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
                         .fill(foregroundColor.opacity(0.1))

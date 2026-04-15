@@ -105,7 +105,7 @@ enum AddFriendSheetComponents {
                     .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .body))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.sm + 2)
+                    .padding(.vertical, BlipSpacing.sm)
                     .background(
                         LinearGradient.blipAccent,
                         in: RoundedRectangle(cornerRadius: BlipCornerRadius.lg)

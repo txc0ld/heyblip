@@ -79,7 +79,7 @@ struct EventDetailView: View {
                 .font(.custom(BlipFontName.medium, size: 13, relativeTo: .caption))
                 .foregroundStyle(.blipAccentPurple)
                 .padding(.horizontal, BlipSpacing.sm)
-                .padding(.vertical, 3)
+                .padding(.vertical, BlipSpacing.xxs)
                 .background(Capsule().fill(.blipAccentPurple.opacity(0.15)))
 
             Text(event.name)

@@ -307,8 +307,8 @@ private struct FriendPinView: View {
                             Text(friend.displayName)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
+                                .padding(.horizontal, BlipSpacing.sm)
+                                .padding(.vertical, BlipSpacing.xxs)
                                 .background(Capsule().fill(friend.color))
                         }
                     }
@@ -324,6 +324,7 @@ private struct FriendPinView: View {
         .accessibilityLabel("\(friend.displayName), \(friend.precisionDescription)")
         .onAppear {
             guard !SpringConstants.isReduceMotionEnabled, friend.accuracyMeters > 0 else { return }
+            // Ambient loop — easeInOut intentional
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 ringPulsing = true
             }
@@ -366,8 +367,8 @@ private struct BeaconPinView: View {
                 Text(beacon.label)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, BlipSpacing.xs)
+                    .padding(.vertical, BlipSpacing.xxs)
                     .background(
                         Capsule()
                             .fill(.blipAccentPurple)
@@ -376,6 +377,7 @@ private struct BeaconPinView: View {
         }
         .onAppear {
             guard !SpringConstants.isReduceMotionEnabled else { return }
+            // Ambient loop — easeInOut intentional
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
                 isPulsing = true
             }

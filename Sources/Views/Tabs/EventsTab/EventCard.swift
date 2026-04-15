@@ -93,7 +93,7 @@ struct EventCard: View {
             .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
             .foregroundStyle(.blipAccentPurple)
             .padding(.horizontal, BlipSpacing.sm)
-            .padding(.vertical, 2)
+            .padding(.vertical, BlipSpacing.xxs)
             .background(
                 Capsule().fill(.blipAccentPurple.opacity(0.15))
             )
