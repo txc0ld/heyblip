@@ -580,22 +580,25 @@ final class EventsViewModel {
         isInsideEvent = true
 
         ensureLostAndFoundChannel(for: event, context: context)
+        createStageChannels(for: event)
 
         // Update preferences
         let prefsDescriptor = FetchDescriptor<UserPreferences>()
         do {
             if let prefs = try context.fetch(prefsDescriptor).first {
                 prefs.lastEventID = eventID
-                do {
-                    try context.save()
-                } catch {
-                    logger.error("Failed to save user preferences: \(error.localizedDescription)")
-                    errorMessage = "Failed to save user preferences: \(error.localizedDescription)"
-                }
             }
         } catch {
             logger.error("Failed to fetch user preferences: \(error.localizedDescription)")
             errorMessage = "Failed to fetch user preferences: \(error.localizedDescription)"
+        }
+
+        do {
+            try context.save()
+            NotificationCenter.default.post(name: .channelListDidChange, object: nil)
+        } catch {
+            logger.error("Failed to persist event entry state: \(error.localizedDescription)")
+            errorMessage = "Failed to persist event entry state: \(error.localizedDescription)"
         }
 
         await loadStages(for: event)
@@ -886,7 +889,15 @@ final class EventsViewModel {
     }
 
     private func preferredAnnouncementChannel(from channels: [Channel]) -> Channel? {
-        channels.sorted(by: announcementChannelSort).first
+        let scopedChannels: [Channel]
+        if let activeEventID = activeEvent?.id {
+            let matches = channels.filter { $0.event?.id == activeEventID }
+            scopedChannels = matches.isEmpty ? channels : matches
+        } else {
+            scopedChannels = channels
+        }
+
+        return scopedChannels.sorted(by: announcementChannelSort).first
     }
 
     private func announcementChannelSort(_ lhs: Channel, _ rhs: Channel) -> Bool {

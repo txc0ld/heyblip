@@ -924,15 +924,47 @@ extension MessageService {
     private func resolveAnnouncementChannel(context: ModelContext) throws -> Channel {
         let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.typeRaw == "stageChannel" })
         let stageChannels = try context.fetch(descriptor)
-            .sorted(by: announcementChannelSort)
+        let sortedStageChannels = stageChannels.sorted(by: announcementChannelSort)
 
-        if let existing = stageChannels.first {
+        if let activeEventID = try currentEventID(context: context),
+           let scopedChannel = sortedStageChannels.first(where: { $0.event?.id == activeEventID }) {
+            return scopedChannel
+        }
+
+        if let existing = sortedStageChannels.first {
             return existing
         }
 
-        let fallback = Channel(type: .stageChannel, name: "Announcements", isAutoJoined: true)
+        let fallbackEvent = try currentEvent(context: context)
+        let fallbackRetention: TimeInterval
+        if let fallbackEvent {
+            fallbackRetention = max(fallbackEvent.endDate.timeIntervalSince(fallbackEvent.startDate), 300)
+        } else {
+            fallbackRetention = .infinity
+        }
+
+        let fallback = Channel(
+            type: .stageChannel,
+            name: "Announcements",
+            event: fallbackEvent,
+            maxRetention: fallbackRetention,
+            isAutoJoined: true
+        )
         context.insert(fallback)
         return fallback
+    }
+
+    @MainActor
+    private func currentEvent(context: ModelContext) throws -> Event? {
+        guard let eventID = try currentEventID(context: context) else { return nil }
+        let descriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.id == eventID })
+        return try context.fetch(descriptor).first
+    }
+
+    @MainActor
+    private func currentEventID(context: ModelContext) throws -> UUID? {
+        let descriptor = FetchDescriptor<UserPreferences>()
+        return try context.fetch(descriptor).first?.lastEventID
     }
 
     private func announcementChannelSort(_ lhs: Channel, _ rhs: Channel) -> Bool {
