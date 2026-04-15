@@ -483,11 +483,11 @@ final class ChatViewModel {
         let names = Array(typers)
         switch names.count {
         case 1:
-            return "\(names[0]) is typing..."
+            return ChatViewModelL10n.singleTyping(names[0])
         case 2:
-            return "\(names[0]) and \(names[1]) are typing..."
+            return ChatViewModelL10n.twoTyping(names[0], names[1])
         default:
-            return "\(names.count) people are typing..."
+            return ChatViewModelL10n.manyTyping(names.count)
         }
     }
 
@@ -593,7 +593,7 @@ final class ChatViewModel {
 
             if !channel.isMuted {
                 notificationService.notifyNewMessage(
-                    senderName: message.sender?.resolvedDisplayName ?? "Someone",
+                    senderName: message.sender?.resolvedDisplayName ?? ChatViewModelL10n.someone,
                     messagePreview: String(data: message.rawPayload, encoding: .utf8) ?? "",
                     channelID: channel.id,
                     channelName: channel.type == .group ? channel.name : nil,
@@ -790,5 +790,23 @@ extension ChatViewModel: MessageServiceDelegate {
         Task { @MainActor in
             self.handleReadReceipt(for: messageID)
         }
+    }
+}
+
+// MARK: - Localization
+
+private enum ChatViewModelL10n {
+    static let someone = String(localized: "chat.notification.sender.fallback", defaultValue: "Someone")
+
+    static func singleTyping(_ name: String) -> String {
+        String(format: String(localized: "chat.typing.single", defaultValue: "%@ is typing..."), locale: Locale.current, name)
+    }
+
+    static func twoTyping(_ name1: String, _ name2: String) -> String {
+        String(format: String(localized: "chat.typing.two", defaultValue: "%@ and %@ are typing..."), locale: Locale.current, name1, name2)
+    }
+
+    static func manyTyping(_ count: Int) -> String {
+        String(format: String(localized: "chat.typing.many", defaultValue: "%d people are typing..."), locale: Locale.current, count)
     }
 }

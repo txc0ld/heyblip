@@ -20,6 +20,22 @@ private enum FriendFinderMapL10n {
     static let previewJake = "Jake"
     static let previewMeetHere = "Meet here!"
 
+    static func minutesAgo(_ minutes: Int) -> String {
+        String(format: String(localized: "common.time.minutes_ago", defaultValue: "%dm ago"), locale: Locale.current, minutes)
+    }
+
+    static func hoursAgo(_ hours: Int) -> String {
+        String(format: String(localized: "common.time.hours_ago", defaultValue: "%dh ago"), locale: Locale.current, hours)
+    }
+
+    static func metersAway(_ meters: Int) -> String {
+        String(format: String(localized: "nearby.friend_finder.distance.meters", defaultValue: "%dm away"), locale: Locale.current, meters)
+    }
+
+    static func kmAway(_ km: Double) -> String {
+        String(format: String(localized: "nearby.friend_finder.distance.km", defaultValue: "%.1f km away"), locale: Locale.current, km)
+    }
+
     static func navigateToFriend(_ name: String) -> String {
         String(format: String(localized: "nearby.friend_finder.map.navigate_accessibility_label", defaultValue: "Navigate to %@"), locale: Locale.current, name)
     }
@@ -413,15 +429,15 @@ struct FriendMapPin: Identifiable, Hashable {
     var lastSeenText: String {
         let interval = Date().timeIntervalSince(lastUpdated)
         if interval < 60 { return FriendFinderMapL10n.justNow }
-        if interval < 3600 { return "\(Int(interval / 60))m ago" }
-        if interval < 86400 { return "\(Int(interval / 3600))h ago" }
+        if interval < 3600 { return FriendFinderMapL10n.minutesAgo(Int(interval / 60)) }
+        if interval < 86400 { return FriendFinderMapL10n.hoursAgo(Int(interval / 3600)) }
         return FriendFinderMapL10n.overDayAgo
     }
 
     var distanceText: String? {
         guard let d = distanceFromUser else { return nil }
-        if d < 1000 { return "\(Int(d))m away" }
-        return String(format: "%.1f km away", d / 1000)
+        if d < 1000 { return FriendFinderMapL10n.metersAway(Int(d)) }
+        return FriendFinderMapL10n.kmAway(d / 1000)
     }
 
     /// Color for accuracy radius ring.

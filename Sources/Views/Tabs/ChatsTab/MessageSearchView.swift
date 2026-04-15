@@ -17,7 +17,25 @@ private enum MessageSearchL10n {
     }
 
     static func resultCount(_ count: Int) -> String {
-        String(format: String(localized: "chat.search.result_count", defaultValue: "%d results"), locale: Locale.current, count)
+        if count == 1 {
+            return String(localized: "chat.search.result_count.singular", defaultValue: "1 result")
+        }
+        return String(format: String(localized: "chat.search.result_count.plural", defaultValue: "%d results"), locale: Locale.current, count)
+    }
+
+    static func resultAccessibility(sender: String?, channel: String, message: String, date: String) -> String {
+        if let sender {
+            return String(
+                format: String(localized: "chat.search.result.accessibility_label.with_sender", defaultValue: "%@ in %@: %@, %@"),
+                locale: Locale.current,
+                sender, channel, message, date
+            )
+        }
+        return String(
+            format: String(localized: "chat.search.result.accessibility_label", defaultValue: "In %@: %@, %@"),
+            locale: Locale.current,
+            channel, message, date
+        )
     }
 }
 
@@ -212,6 +230,12 @@ struct MessageSearchView: View {
                         MessageSearchResultRow(result: result, query: searchText)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(MessageSearchL10n.resultAccessibility(
+                        sender: result.senderName,
+                        channel: result.channelName,
+                        message: result.messageText,
+                        date: result.formattedDate
+                    ))
                     .staggeredReveal(index: index)
                 }
             }

@@ -249,7 +249,9 @@ struct CreateProfileStep: View {
                 .foregroundStyle(theme.colors.mutedText)
                 .accessibilityHidden(true)
 
-            TextField("", text: $username)
+            TextField("", text: $username, prompt: Text(CreateProfileL10n.usernamePlaceholder)
+                .font(theme.typography.body)
+                .foregroundStyle(theme.colors.mutedText.opacity(0.6)))
                 .font(theme.typography.body)
                 .foregroundStyle(theme.colors.text)
                 .textContentType(.username)
@@ -259,14 +261,6 @@ struct CreateProfileStep: View {
                 .frame(minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel(CreateProfileL10n.usernameLabel)
                 .accessibilityHint(CreateProfileL10n.usernameHint)
-                .overlay(alignment: .leading) {
-                    if username.isEmpty {
-                        Text(CreateProfileL10n.usernamePlaceholder)
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.mutedText.opacity(0.6))
-                            .allowsHitTesting(false)
-                    }
-                }
                 .onChange(of: username) { _, newValue in
                     validateUsername(newValue)
                 }
@@ -289,7 +283,9 @@ struct CreateProfileStep: View {
                 .accessibilityHidden(true)
 
             HStack {
-                TextField("", text: $email)
+                TextField("", text: $email, prompt: Text(CreateProfileL10n.emailPlaceholder)
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.mutedText.opacity(0.6)))
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.text)
                     .textContentType(.emailAddress)
@@ -300,14 +296,6 @@ struct CreateProfileStep: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                     .accessibilityLabel(CreateProfileL10n.emailAccessibilityLabel)
                     .accessibilityHint(CreateProfileL10n.emailHint)
-                    .overlay(alignment: .leading) {
-                        if email.isEmpty {
-                            Text(CreateProfileL10n.emailPlaceholder)
-                                .font(theme.typography.body)
-                                .foregroundStyle(theme.colors.mutedText.opacity(0.6))
-                                .allowsHitTesting(false)
-                        }
-                    }
                     .disabled(isEmailVerified)
 
                 if !showOTPField && !email.isEmpty && !isEmailVerified {
@@ -349,7 +337,9 @@ struct CreateProfileStep: View {
                 .accessibilityHidden(true)
 
             HStack {
-                TextField("", text: $otpCode)
+                TextField("", text: $otpCode, prompt: Text(CreateProfileL10n.otpPlaceholder)
+                    .font(.custom(BlipFontName.semiBold, size: 20, relativeTo: .title3))
+                    .foregroundStyle(theme.colors.mutedText.opacity(0.4)))
                     .font(.custom(BlipFontName.semiBold, size: 20, relativeTo: .title3))
                     .foregroundStyle(theme.colors.text)
                     .textContentType(.oneTimeCode)
@@ -358,14 +348,6 @@ struct CreateProfileStep: View {
                     .frame(minHeight: BlipSizing.minTapTarget)
                     .accessibilityLabel(CreateProfileL10n.otpLabel)
                     .accessibilityHint(CreateProfileL10n.otpHint)
-                    .overlay(alignment: .leading) {
-                        if otpCode.isEmpty {
-                            Text(CreateProfileL10n.otpPlaceholder)
-                                .font(.custom(BlipFontName.semiBold, size: 20, relativeTo: .title3))
-                                .foregroundStyle(theme.colors.mutedText.opacity(0.4))
-                                .allowsHitTesting(false)
-                        }
-                    }
                     .onChange(of: otpCode) { _, code in
                         if code.count == 6 {
                             Task { await verifyOTP(code) }

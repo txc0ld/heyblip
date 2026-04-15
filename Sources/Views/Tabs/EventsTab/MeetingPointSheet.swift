@@ -285,10 +285,10 @@ enum ExpiryOption: CaseIterable {
 
     var displayString: String {
         switch self {
-        case .fifteenMinutes: return "15 min"
-        case .thirtyMinutes: return "30 min"
-        case .oneHour: return "1 hour"
-        case .twoHours: return "2 hours"
+        case .fifteenMinutes: return ExpiryOptionL10n.fifteenMin
+        case .thirtyMinutes: return ExpiryOptionL10n.thirtyMin
+        case .oneHour: return ExpiryOptionL10n.oneHour
+        case .twoHours: return ExpiryOptionL10n.twoHours
         }
     }
 
@@ -300,6 +300,13 @@ enum ExpiryOption: CaseIterable {
         case .twoHours: return 7200
         }
     }
+}
+
+private enum ExpiryOptionL10n {
+    static let fifteenMin = String(localized: "events.meeting_point.expiry.fifteen_min", defaultValue: "15 min")
+    static let thirtyMin = String(localized: "events.meeting_point.expiry.thirty_min", defaultValue: "30 min")
+    static let oneHour = String(localized: "events.meeting_point.expiry.one_hour", defaultValue: "1 hour")
+    static let twoHours = String(localized: "events.meeting_point.expiry.two_hours", defaultValue: "2 hours")
 }
 
 enum ShareTarget {

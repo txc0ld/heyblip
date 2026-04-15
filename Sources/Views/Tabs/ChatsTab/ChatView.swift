@@ -108,6 +108,8 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, BlipSpacing.md)
                 .padding(.vertical, BlipSpacing.xs)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ChatViewL10n.recordingVoiceNote)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
