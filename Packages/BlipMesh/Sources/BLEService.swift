@@ -564,7 +564,7 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
         let backoffSeconds = min(base * pow(2.0, Double(count - 1)), BLEConstants.reconnectBackoffMax)
         backoffUntil[uuid] = Date().addingTimeInterval(backoffSeconds)
         let shortUUID = uuid.uuidString.prefix(8)
-        logger.info("Backoff for \(shortUUID): \(count) failures, next attempt in \(Int(backoffSeconds))s")
+        logger.warning("Backoff for \(shortUUID): \(count) failures, next attempt in \(Int(backoffSeconds))s")
         transportEventHandler?("BLE", "BACKOFF \(shortUUID) failures=\(count) wait=\(Int(backoffSeconds))s")
     }
 
@@ -704,8 +704,10 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
 
     /// Handle failed connection.
     func handleDidFailToConnect(peripheralUUID uuid: UUID) {
-        logger.error("Failed to connect to \(uuid)")
-        transportEventHandler?("BLE", "CONNECT FAILED peripheral \(uuid.uuidString.prefix(8))")
+        let failureCount = lock.withLock { (failureCounts[uuid] ?? 0) + 1 }
+        let shortUUID = uuid.uuidString.prefix(8)
+        logger.error("Failed to connect to \(shortUUID) (failure #\(failureCount))")
+        transportEventHandler?("BLE", "CONNECT FAILED peripheral \(shortUUID)")
 
         lock.withLock {
             connectingPeripherals.remove(uuid)
@@ -718,7 +720,6 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
     /// Handle disconnection.
     func handleDidDisconnect(peripheralUUID uuid: UUID) {
         let shortUUID = uuid.uuidString.prefix(8)
-        logger.info("Disconnected from \(shortUUID)")
         transportEventHandler?("BLE", "DISCONNECTED peripheral \(shortUUID)")
 
         let peerID: PeerID? = lock.withLock {
@@ -742,14 +743,23 @@ public final class BLEService: NSObject, Transport, @unchecked Sendable {
             if let pid = pid,
                let connectedAt = connectionEstablishedAt[pid],
                Date().timeIntervalSince(connectedAt) >= BLEConstants.stableConnectionThreshold {
+                let duration = Date().timeIntervalSince(connectedAt)
                 failureCounts.removeValue(forKey: uuid)
                 backoffUntil.removeValue(forKey: uuid)
                 timedOutPeripherals.removeValue(forKey: uuid)
                 connectionEstablishedAt.removeValue(forKey: pid)
+                logger.info("Stable disconnect from \(shortUUID) (peer \(pid.description.prefix(8)), connected \(Int(duration))s)")
             } else {
                 // Unstable connection — apply exponential backoff
                 timedOutPeripherals[uuid] = Date()
                 recordConnectionFailure(for: uuid)
+                let failures = failureCounts[uuid] ?? 1
+                let duration: TimeInterval = {
+                    guard let pid = pid, let connectedAt = connectionEstablishedAt[pid] else { return 0 }
+                    return Date().timeIntervalSince(connectedAt)
+                }()
+                let peerDesc = pid.map { String($0.description.prefix(8)) } ?? "unknown"
+                logger.error("Unstable disconnect from \(shortUUID) (peer \(peerDesc), connected \(Int(duration))s, failure #\(failures))")
                 if let pid = pid {
                     connectionEstablishedAt.removeValue(forKey: pid)
                 }

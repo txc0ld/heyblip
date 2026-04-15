@@ -94,6 +94,20 @@ final class PTTViewModel {
     /// Minimum recording duration to send (avoid accidental taps).
     private static let minimumDuration: TimeInterval = 0.3
 
+    /// Timeout for encoding state before auto-recovery (seconds).
+    private static let encodingTimeout: TimeInterval = 10.0
+
+    /// Timeout for sending state before auto-recovery (seconds).
+    private static let sendingTimeout: TimeInterval = 15.0
+
+    /// Delay before returning to idle after a timeout error (seconds).
+    private static let errorDisplayDuration: TimeInterval = 2.0
+
+    // MARK: - Timeout Tasks
+
+    /// Active timeout task for encoding/sending stuck recovery.
+    private var stateTimeoutTask: Task<Void, Never>?
+
     // MARK: - Init
 
     init(
@@ -166,6 +180,7 @@ final class PTTViewModel {
             }
 
             state = .encoding
+            startStateTimeout(for: "encoding", timeout: Self.encodingTimeout)
 
             // Send the complete audio
             Task {
@@ -180,6 +195,7 @@ final class PTTViewModel {
 
     /// Cancel recording without sending.
     func cancelRecording() {
+        cancelStateTimeout()
         audioService.cancelRecording()
         state = .idle
         recordingDuration = 0
@@ -248,6 +264,8 @@ final class PTTViewModel {
         }
 
         state = .sending(progress: 0)
+        cancelStateTimeout()
+        startStateTimeout(for: "sending", timeout: Self.sendingTimeout)
 
         do {
             _ = try await messageService.sendVoiceNote(
@@ -255,6 +273,7 @@ final class PTTViewModel {
                 duration: duration,
                 to: channel
             )
+            cancelStateTimeout()
             state = .sending(progress: 1.0)
 
             // Brief delay to show completion, then return to idle
@@ -265,6 +284,7 @@ final class PTTViewModel {
             }
             state = .idle
         } catch {
+            cancelStateTimeout()
             state = .error("Send failed: \(error.localizedDescription)")
             DebugLogger.shared.log("PTT", "Send failed: \(error.localizedDescription)")
 
@@ -350,10 +370,58 @@ final class PTTViewModel {
         }
     }
 
+    // MARK: - Private: Timeout Recovery
+
+    /// Start a timeout watchdog for the current encoding/sending state.
+    private func startStateTimeout(for targetState: String, timeout: TimeInterval) {
+        stateTimeoutTask?.cancel()
+        stateTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(timeout))
+            } catch {
+                return // Cancelled — state moved on normally
+            }
+
+            guard let self else { return }
+
+            // Verify we're still stuck in the expected state
+            let isStuck: Bool
+            switch (targetState, self.state) {
+            case ("encoding", .encoding):
+                isStuck = true
+            case ("sending", .sending):
+                isStuck = true
+            default:
+                isStuck = false
+            }
+
+            guard isStuck else { return }
+
+            DebugLogger.shared.log("PTT", "\(targetState.capitalized) stuck — timed out after \(Int(timeout))s")
+            self.state = .error("\(targetState.capitalized) timed out")
+
+            do {
+                try await Task.sleep(for: .seconds(Self.errorDisplayDuration))
+            } catch {
+                // Cancelled
+            }
+            if case .error = self.state {
+                self.state = .idle
+            }
+        }
+    }
+
+    /// Cancel any active state timeout watchdog.
+    private func cancelStateTimeout() {
+        stateTimeoutTask?.cancel()
+        stateTimeoutTask = nil
+    }
+
     // MARK: - Reset
 
     /// Reset all PTT state.
     func reset() {
+        cancelStateTimeout()
         if audioService.isRecording {
             audioService.cancelRecording()
         }
