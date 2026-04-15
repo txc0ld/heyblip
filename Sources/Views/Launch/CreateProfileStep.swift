@@ -67,6 +67,7 @@ struct CreateProfileStep: View {
     @State private var identityError: String? = nil
     @State private var contentVisible = false
     @State private var resendCooldown: Int = 0
+    @State private var cooldownTask: Task<Void, Never>?
     @State private var showRegistrationError = false
     @State private var registrationErrorMessage: String?
     @State private var pendingRegistrationRetry: (() async -> Void)?
@@ -155,6 +156,9 @@ struct CreateProfileStep: View {
             withAnimation(SpringConstants.accessiblePageEntrance) {
                 contentVisible = true
             }
+        }
+        .onDisappear {
+            cooldownTask?.cancel()
         }
         .alert(
             String(localized: "onboarding.profile.registration_error.title", defaultValue: "Registration Failed"),
@@ -446,14 +450,16 @@ struct CreateProfileStep: View {
     }
 
     private func startResendCooldown() {
+        cooldownTask?.cancel()
         resendCooldown = 60
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            Task { @MainActor [weak timer] in
-                if resendCooldown > 0 {
-                    resendCooldown -= 1
-                } else {
-                    timer?.invalidate()
+        cooldownTask = Task { @MainActor in
+            while resendCooldown > 0 {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
                 }
+                resendCooldown -= 1
             }
         }
     }

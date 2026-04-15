@@ -97,26 +97,29 @@ struct ImageViewer: View {
 
     // MARK: - Share Button
 
+    @ViewBuilder
     private var shareButton: some View {
-        Button {
-            guard let imageData, let uiImage = UIImage(data: imageData) else { return }
-            let activityVC = UIActivityViewController(activityItems: [uiImage], applicationActivities: nil)
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                rootVC.present(activityVC, animated: true)
-            }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
-                .background(
-                    Circle()
-                        .fill(.ultraThinMaterial)
+        if let data = imageData, let uiImage = UIImage(data: data) {
+            let transferable = Image(uiImage: uiImage)
+            ShareLink(
+                item: transferable,
+                preview: SharePreview(
+                    ImageViewerL10n.share,
+                    image: transferable
                 )
+            ) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
+                    .background(
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ImageViewerL10n.share)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(ImageViewerL10n.share)
     }
 
     // MARK: - Gestures

@@ -61,53 +61,60 @@ struct AlertCard: View {
     var onNavigate: (() -> Void)?
     var onResolve: (() -> Void)?
 
-    @State private var elapsedText: String = ""
     @State private var isPulsing = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
-            VStack(alignment: .leading, spacing: BlipSpacing.md) {
-                // Header: severity + time
-                headerRow
+        TimelineView(.periodic(every: 1)) { context in
+            let elapsed = elapsedString(at: context.date)
+            GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
+                VStack(alignment: .leading, spacing: BlipSpacing.md) {
+                    // Header: severity + time
+                    headerRow(elapsed: elapsed)
 
-                // Location
-                locationRow
+                    // Location
+                    locationRow
 
-                // Description
-                if let description = alert.description {
-                    Text(description)
-                        .font(theme.typography.secondary)
-                        .foregroundStyle(theme.colors.mutedText)
-                        .lineLimit(2)
+                    // Description
+                    if let description = alert.description {
+                        Text(description)
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .lineLimit(2)
+                    }
+
+                    // Status badge
+                    if let acceptedBy = alert.acceptedBy {
+                        acceptedBadge(callsign: acceptedBy)
+                    }
+
+                    // Actions
+                    actionButtons
                 }
-
-                // Status badge
-                if let acceptedBy = alert.acceptedBy {
-                    acceptedBadge(callsign: acceptedBy)
-                }
-
-                // Actions
-                actionButtons
             }
+            .overlay(
+                RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
+                    .stroke(severityColor.opacity(0.3), lineWidth: 1.5)
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                AlertCardL10n.accessibilityDescription(
+                    severity: severityLabel,
+                    elapsed: elapsed,
+                    location: alert.locationDescription
+                )
+            )
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: BlipCornerRadius.xl, style: .continuous)
-                .stroke(severityColor.opacity(0.3), lineWidth: 1.5)
-        )
         .onAppear {
-            updateElapsed()
             startPulseIfCritical()
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityDescription)
     }
 
     // MARK: - Header Row
 
-    private var headerRow: some View {
+    private func headerRow(elapsed: String) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             // Severity indicator
             ZStack {
@@ -143,7 +150,7 @@ struct AlertCard: View {
 
             // Elapsed time
             VStack(alignment: .trailing, spacing: 1) {
-                Text(elapsedText)
+                Text(elapsed)
                     .font(theme.typography.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(theme.colors.text)
@@ -286,11 +293,11 @@ struct AlertCard: View {
         }
     }
 
-    private func updateElapsed() {
-        let interval = Date().timeIntervalSince(alert.createdAt)
+    private func elapsedString(at now: Date) -> String {
+        let interval = now.timeIntervalSince(alert.createdAt)
         let minutes = Int(interval / 60)
         let seconds = Int(interval.truncatingRemainder(dividingBy: 60))
-        elapsedText = String(format: "%02d:%02d", minutes, seconds)
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     private func startPulseIfCritical() {
@@ -300,9 +307,6 @@ struct AlertCard: View {
         }
     }
 
-    private var accessibilityDescription: String {
-        AlertCardL10n.accessibilityDescription(severity: severityLabel, elapsed: elapsedText, location: alert.locationDescription)
-    }
 }
 
 // MARK: - SOSAlertItem

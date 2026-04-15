@@ -37,8 +37,15 @@ struct ConnectionBanner: View {
         if isVisible {
             bannerContent
                 .transition(bannerTransition)
-                .onAppear {
-                    scheduleAutoDismiss()
+                .task {
+                    do {
+                        try await Task.sleep(for: .seconds(dismissDelay))
+                    } catch {
+                        return
+                    }
+                    withAnimation(SpringConstants.accessiblePageEntrance) {
+                        isVisible = false
+                    }
                 }
         }
     }
@@ -101,13 +108,6 @@ struct ConnectionBanner: View {
         }
     }
 
-    private func scheduleAutoDismiss() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + dismissDelay) {
-            withAnimation(SpringConstants.accessiblePageEntrance) {
-                isVisible = false
-            }
-        }
-    }
 }
 
 // MARK: - ConnectionBanner Modifier

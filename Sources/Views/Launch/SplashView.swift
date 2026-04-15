@@ -13,7 +13,6 @@ struct SplashView: View {
     @State private var logoOpacity: Double = 0.0
     @State private var logoScale: CGFloat = 0.8
     @State private var taglineOpacity: Double = 0.0
-    @State private var isFinished = false
 
     /// Called when the splash animation completes.
     var onComplete: () -> Void = {}
@@ -47,6 +46,14 @@ struct SplashView: View {
         .onAppear {
             startAnimation()
         }
+        .task {
+            do {
+                try await Task.sleep(for: .seconds(totalDuration))
+            } catch {
+                return
+            }
+            onComplete()
+        }
     }
 
     // MARK: - Animation
@@ -70,12 +77,6 @@ struct SplashView: View {
             withAnimation(.easeOut(duration: 0.5).delay(0.4)) {
                 taglineOpacity = 1.0
             }
-        }
-
-        // Transition after hold
-        DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) {
-            isFinished = true
-            onComplete()
         }
     }
 }
