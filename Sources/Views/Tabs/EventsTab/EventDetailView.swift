@@ -118,7 +118,7 @@ struct EventDetailView: View {
     private func detailRow(icon: String, label: String, value: String) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                 .foregroundStyle(.blipAccentPurple)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
@@ -141,7 +141,7 @@ struct EventDetailView: View {
         GlassCard(thickness: .ultraThin) {
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "map")
-                    .font(.system(size: 32))
+                    .font(.custom(BlipFontName.regular, size: 32, relativeTo: .largeTitle))
                     .foregroundStyle(theme.colors.mutedText.opacity(0.5))
                 Text(EventDetailL10n.mapUnavailable)
                     .font(theme.typography.caption)

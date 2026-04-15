@@ -115,7 +115,7 @@ struct SetTimeCell: View {
 
                 if isLive {
                     Text(SetTimeCellL10n.live)
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.custom(BlipFontName.bold, size: 9, relativeTo: .caption2))
                         .foregroundStyle(.white)
                         .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, BlipSpacing.xxs)
@@ -129,7 +129,7 @@ struct SetTimeCell: View {
 
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "music.note.house")
-                    .font(.system(size: 10))
+                    .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
                     .foregroundStyle(theme.colors.mutedText)
 
                 Text(stageName)
@@ -150,7 +150,7 @@ struct SetTimeCell: View {
             // Save/star button
             Button(action: { onSave?() }) {
                 Image(systemName: isSaved ? "star.fill" : "star")
-                    .font(.system(size: 16))
+                    .font(.custom(BlipFontName.regular, size: 16, relativeTo: .callout))
                     .foregroundStyle(isSaved ? .blipAccentPurple : theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
@@ -161,7 +161,7 @@ struct SetTimeCell: View {
             // Reminder toggle
             Button(action: { onToggleReminder?() }) {
                 Image(systemName: hasReminder ? "bell.fill" : "bell")
-                    .font(.system(size: 14))
+                    .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                     .foregroundStyle(hasReminder ? .blipAccentPurple : theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
@@ -172,7 +172,7 @@ struct SetTimeCell: View {
             // "I'm going" share
             Button(action: { onShareGoing?() }) {
                 Image(systemName: "hand.thumbsup.fill")
-                    .font(.system(size: 14))
+                    .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                     .foregroundStyle(theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())

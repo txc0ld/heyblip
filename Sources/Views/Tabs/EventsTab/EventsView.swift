@@ -278,7 +278,7 @@ struct EventsView: View {
         }) {
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: section.iconName)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.custom(BlipFontName.medium, size: 12, relativeTo: .caption))
 
                 Text(section.displayName)
                     .font(theme.typography.caption)
@@ -363,7 +363,7 @@ struct EventsView: View {
                     withAnimation { showCrowdPulse.toggle() }
                 }) {
                     Image(systemName: showCrowdPulse ? "eye.fill" : "eye.slash.fill")
-                        .font(.system(size: 14))
+                        .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
@@ -372,7 +372,7 @@ struct EventsView: View {
                 // Drop meeting point
                 Button(action: { showMeetingPointSheet = true }) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 14))
+                        .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                         .foregroundStyle(.blipAccentPurple)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
@@ -475,7 +475,7 @@ struct EventsView: View {
     ) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                 .foregroundStyle(tint)
 
             Text(title)

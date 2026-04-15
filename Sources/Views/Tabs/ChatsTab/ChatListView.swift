@@ -80,7 +80,7 @@ struct ChatListView: View {
                         showMessageSearch = true
                     } label: {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .subheadline))
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .accessibilityLabel(ChatListL10n.searchMessages)
@@ -90,7 +90,7 @@ struct ChatListView: View {
                         showAddFriend = true
                     } label: {
                         Image(systemName: "person.badge.plus")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .subheadline))
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .accessibilityLabel(ChatListL10n.addFriend)
@@ -189,7 +189,7 @@ struct ChatListView: View {
                 .frame(height: BlipSpacing.xxl * 2)
 
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
+                .font(.custom(BlipFontName.regular, size: 48, relativeTo: .largeTitle))
                 .foregroundStyle(theme.colors.mutedText.opacity(0.5))
 
             if searchText.isEmpty {
@@ -226,7 +226,7 @@ struct ChatListView: View {
             showNewMessage = true
         } label: {
             Image(systemName: "plus.bubble.fill")
-                .font(.system(size: 22, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: 22, relativeTo: .headline))
                 .foregroundStyle(.white)
                 .frame(width: 56, height: 56)
                 .background(
@@ -253,7 +253,7 @@ struct ChatListView: View {
                 if availableFriends.isEmpty {
                     VStack(spacing: BlipSpacing.lg) {
                         Image(systemName: "person.2.slash")
-                            .font(.system(size: 48))
+                            .font(.custom(BlipFontName.regular, size: 48, relativeTo: .largeTitle))
                             .foregroundStyle(theme.colors.mutedText)
 
                         Text(ChatListL10n.noFriendsTitle)
@@ -310,7 +310,7 @@ struct ChatListView: View {
                                         Spacer()
 
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .semibold))
+                                            .font(.custom(BlipFontName.semiBold, size: 12, relativeTo: .caption2))
                                             .foregroundStyle(theme.colors.mutedText)
                                     }
                                     .padding(BlipSpacing.md)
@@ -347,7 +347,7 @@ struct ChatListView: View {
                 .frame(height: BlipSpacing.xxl * 2)
 
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.custom(BlipFontName.regular, size: 48, relativeTo: .largeTitle))
                 .foregroundStyle(theme.colors.mutedText.opacity(0.5))
 
             Text(ChatListL10n.errorTitle)
@@ -654,7 +654,7 @@ extension ConversationPreview: Hashable {
                     VStack(spacing: BlipSpacing.lg) {
                         Spacer().frame(height: BlipSpacing.xxl * 2)
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 48))
+                            .font(.custom(BlipFontName.regular, size: 48, relativeTo: .largeTitle))
                             .foregroundStyle(Color.white.opacity(0.3))
                         Text(ChatListL10n.emptyTitle)
                             .font(Theme.shared.typography.headline)

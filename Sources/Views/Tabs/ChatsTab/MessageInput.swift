@@ -105,7 +105,7 @@ struct MessageInput: View {
     private var editBar: some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "pencil")
-                .font(.system(size: 14, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: 14, relativeTo: .footnote))
                 .foregroundStyle(Color.blipAccentPurple)
 
             Text(MessageInputL10n.editing)
@@ -119,7 +119,7 @@ struct MessageInput: View {
                 onCancelEdit()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.custom(BlipFontName.medium, size: 12, relativeTo: .caption2))
                     .foregroundStyle(theme.colors.mutedText)
             }
             .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
@@ -160,7 +160,7 @@ struct MessageInput: View {
                 onClearReply()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.custom(BlipFontName.medium, size: 12, relativeTo: .caption2))
                     .foregroundStyle(theme.colors.mutedText)
             }
             .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
@@ -184,7 +184,7 @@ struct MessageInput: View {
             showAttachmentMenu = true
         } label: {
             Image(systemName: "plus.circle.fill")
-                .font(.system(size: 24, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: 24, relativeTo: .title3))
                 .foregroundStyle(theme.colors.mutedText)
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
         }
@@ -283,7 +283,7 @@ struct MessageInput: View {
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .overlay(
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.custom(BlipFontName.medium, size: 18, relativeTo: .body))
                         .foregroundStyle(
                             isPTTActive ? .white : theme.colors.mutedText
                         )

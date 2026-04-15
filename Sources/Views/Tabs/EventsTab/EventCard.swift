@@ -104,7 +104,7 @@ struct EventCard: View {
     private var dateRow: some View {
         HStack(spacing: BlipSpacing.xs) {
             Image(systemName: "calendar")
-                .font(.system(size: 12))
+                .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption))
                 .foregroundStyle(theme.colors.mutedText)
             Text(formattedDateRange)
                 .font(theme.typography.caption)
@@ -117,7 +117,7 @@ struct EventCard: View {
     private var locationRow: some View {
         HStack(spacing: BlipSpacing.xs) {
             Image(systemName: "mappin.and.ellipse")
-                .font(.system(size: 12))
+                .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption))
                 .foregroundStyle(theme.colors.mutedText)
             Text(event.location)
                 .font(theme.typography.caption)
@@ -132,7 +132,7 @@ struct EventCard: View {
         HStack {
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "person.2.fill")
-                    .font(.system(size: 12))
+                    .font(.custom(BlipFontName.regular, size: 12, relativeTo: .caption))
                     .foregroundStyle(theme.colors.mutedText)
                 Text("\(event.attendeeCount)")
                     .font(theme.typography.caption)

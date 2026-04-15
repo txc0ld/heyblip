@@ -113,7 +113,7 @@ struct StatusBadge: View {
 
     private var queuedIcon: some View {
         Image(systemName: "clock")
-            .font(.system(size: size, weight: .medium))
+            .font(.custom(BlipFontName.medium, size: size, relativeTo: .footnote))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -124,7 +124,7 @@ struct StatusBadge: View {
 
     private var encryptingIcon: some View {
         Image(systemName: "lock")
-            .font(.system(size: size, weight: .medium))
+            .font(.custom(BlipFontName.medium, size: size, relativeTo: .footnote))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -133,7 +133,7 @@ struct StatusBadge: View {
 
     private var failedIcon: some View {
         Image(systemName: "exclamationmark.circle.fill")
-            .font(.system(size: size, weight: .semibold))
+            .font(.custom(BlipFontName.semiBold, size: size, relativeTo: .footnote))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -144,7 +144,7 @@ struct StatusBadge: View {
 
     private var sentIcon: some View {
         Image(systemName: "checkmark")
-            .font(.system(size: size, weight: .medium))
+            .font(.custom(BlipFontName.medium, size: size, relativeTo: .footnote))
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -156,12 +156,12 @@ struct StatusBadge: View {
     private var deliveredIcon: some View {
         ZStack {
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: size, relativeTo: .footnote))
                 .foregroundStyle(resolvedColor)
                 .offset(x: -size * 0.15)
 
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: size, relativeTo: .footnote))
                 .foregroundStyle(resolvedColor)
                 .offset(x: size * 0.15)
         }
@@ -175,12 +175,12 @@ struct StatusBadge: View {
     private var readIcon: some View {
         ZStack {
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .bold))
+                .font(.custom(BlipFontName.bold, size: size, relativeTo: .footnote))
                 .foregroundStyle(readColor)
                 .offset(x: -size * 0.15)
 
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .bold))
+                .font(.custom(BlipFontName.bold, size: size, relativeTo: .footnote))
                 .foregroundStyle(readColor)
                 .offset(x: size * 0.15)
         }
@@ -244,7 +244,7 @@ struct StatusBadge: View {
         ) { status in
             HStack {
                 Text("\(String(describing: status))")
-                    .font(.system(size: 14))
+                    .font(.custom(BlipFontName.regular, size: 14, relativeTo: .footnote))
                     .foregroundStyle(.white)
                     .frame(width: 100, alignment: .leading)
                 StatusBadge(status: status)

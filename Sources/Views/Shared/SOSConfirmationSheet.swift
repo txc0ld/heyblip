@@ -135,7 +135,7 @@ struct SOSConfirmationSheet: View {
             // Title
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "cross.circle.fill")
-                    .font(.system(size: 40))
+                    .font(theme.typography.display)
                     .foregroundStyle(.red)
 
                 Text(SOSConfirmationL10n.title)
@@ -205,7 +205,7 @@ struct SOSConfirmationSheet: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(theme.typography.title3)
                         .foregroundStyle(severityColor(severity))
                 }
             }
@@ -275,7 +275,7 @@ struct SOSConfirmationSheet: View {
                 .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: "chevron.right.2")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.custom(BlipFontName.bold, size: 16, relativeTo: .callout))
                         .foregroundStyle(.white)
                 )
                 .offset(x: amberSlideOffset + 4)
@@ -321,12 +321,12 @@ struct SOSConfirmationSheet: View {
                 // Center content
                 VStack(spacing: 2) {
                     Image(systemName: "cross.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.custom(BlipFontName.bold, size: 20, relativeTo: .title3))
                         .foregroundStyle(theme.colors.statusRed)
 
                     if redIsHolding {
                         Text("\(Int((1.0 - redHoldProgress) * redHoldDuration) + 1)s")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.custom(BlipFontName.bold, size: 12, relativeTo: .caption2))
                             .foregroundStyle(theme.colors.statusRed)
                             .contentTransition(.numericText())
                     }
@@ -358,7 +358,7 @@ struct SOSConfirmationSheet: View {
     private var sentConfirmation: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
+                .font(.custom(BlipFontName.regular, size: 60, relativeTo: .largeTitle))
                 .foregroundStyle(severityColor(selectedSeverity))
 
             Text(SOSConfirmationL10n.helpRequested)
@@ -409,7 +409,7 @@ struct SOSConfirmationSheet: View {
     private var proximityWarning: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "iphone.gen3.slash")
-                .font(.system(size: 48))
+                .font(.custom(BlipFontName.regular, size: 48, relativeTo: .largeTitle))
                 .foregroundStyle(theme.colors.mutedText)
 
             Text(SOSConfirmationL10n.pickUpPhone)
@@ -449,7 +449,7 @@ struct SOSConfirmationSheet: View {
     private var falseAlarmCaptcha: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
+                .font(theme.typography.display)
                 .foregroundStyle(theme.colors.statusAmber)
 
             Text(SOSConfirmationL10n.captchaTitle)
@@ -477,7 +477,7 @@ struct SOSConfirmationSheet: View {
                     .frame(width: 48, height: 48)
                     .overlay(
                         Image(systemName: "chevron.right.2")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.custom(BlipFontName.bold, size: 16, relativeTo: .callout))
                             .foregroundStyle(.white)
                     )
                     .offset(x: captchaDragOffset + 4)

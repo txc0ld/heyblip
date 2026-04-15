@@ -162,7 +162,7 @@ struct ResponderMapView: View {
                     onNavigateToAlert?(alert)
                 }) {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                        .font(.system(size: 18))
+                        .font(.custom(BlipFontName.regular, size: 18, relativeTo: .body))
                         .foregroundStyle(.white)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                         .background(Circle().fill(alert.severityColor))
@@ -171,7 +171,7 @@ struct ResponderMapView: View {
 
                 Button(action: { selectedAlert = nil }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.custom(BlipFontName.bold, size: 12, relativeTo: .caption2))
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 }
@@ -185,7 +185,7 @@ struct ResponderMapView: View {
     private var recenterButton: some View {
         Button(action: recenter) {
             Image(systemName: "scope")
-                .font(.system(size: 16, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: 16, relativeTo: .callout))
                 .foregroundStyle(.blipAccentPurple)
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
@@ -214,7 +214,7 @@ struct ResponderMapView: View {
             }
         } label: {
             Image(systemName: "info.circle")
-                .font(.system(size: 16, weight: .medium))
+                .font(.custom(BlipFontName.medium, size: 16, relativeTo: .callout))
                 .foregroundStyle(theme.colors.mutedText)
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
@@ -273,7 +273,7 @@ private struct SOSPinView: View {
                     .frame(width: 16, height: 16)
                     .overlay(
                         Image(systemName: "cross.fill")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.custom(BlipFontName.bold, size: 8, relativeTo: .caption2))
                             .foregroundStyle(.white)
                     )
                     .shadow(color: alert.severityColor.opacity(0.5), radius: 4)
@@ -317,7 +317,7 @@ private struct MedicalTentPinView: View {
     var body: some View {
         VStack(spacing: 0) {
             Image(systemName: "cross.case.fill")
-                .font(.system(size: 18))
+                .font(.custom(BlipFontName.regular, size: 18, relativeTo: .body))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(
@@ -326,7 +326,7 @@ private struct MedicalTentPinView: View {
                 )
 
             Text(tent.name)
-                .font(.system(size: 8, weight: .bold))
+                .font(.custom(BlipFontName.bold, size: 8, relativeTo: .caption2))
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
@@ -345,11 +345,11 @@ private struct ResponderPinView: View {
     var body: some View {
         VStack(spacing: 0) {
             Image(systemName: "person.badge.shield.checkmark.fill")
-                .font(.system(size: 16))
+                .font(.custom(BlipFontName.regular, size: 16, relativeTo: .callout))
                 .foregroundStyle(.blipAccentPurple)
 
             Text(responder.callsign)
-                .font(.system(size: 8, weight: .bold))
+                .font(.custom(BlipFontName.bold, size: 8, relativeTo: .caption2))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
