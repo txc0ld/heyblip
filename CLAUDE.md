@@ -135,8 +135,11 @@ Database: Neon Postgres (managed by Tay). `blip-auth` and `blip-relay` connect v
 These files are touched by multiple features and PRs simultaneously. Before making changes, check if anyone else has an open PR touching the same file:
 
 - **`Sources/Services/AppCoordinator.swift`** — app lifecycle, service initialization, key sync. Highest conflict risk.
-- **`Sources/Services/MessageService.swift`** — core message send/receive, encryption routing, relay transport (~1,490 lines after decomposition). Extensions in `MessageService+FriendRequests.swift` and `MessageService+Handshake.swift`. Still a hot file but conflict risk is reduced.
-- **`Sources/Services/BLEService.swift`** — BLE peripheral/central management, connection state
+- **`Sources/Services/MessageService.swift`** — core message send/receive, encryption routing, relay transport. Extensions in `MessageService+FriendRequests.swift` and `MessageService+Handshake.swift`. Still a hot file but conflict risk is reduced.
+- **`Packages/BlipMesh/Sources/BLEService.swift`** — BLE peripheral/central management, connection state, broadcast backpressure queues. Note: lives in `Packages/BlipMesh/`, not `Sources/Services/`.
+- **`Packages/BlipMesh/Sources/WebSocketTransport.swift`** — relay client, reconnection, token refresh.
+- **`Packages/BlipCrypto/Sources/NoiseSessionManager.swift`** — handshake state machine, tiebreaker, session cache.
+- **`Packages/BlipProtocol/Sources/FragmentAssembler.swift`** — fragment reassembly; public API now takes `(fragment, from: PeerID)` to avoid cross-peer contamination.
 - **`Sources/Models/` shared models** — any SwiftData model changes affect multiple views
 
 If your task touches a hot file and you're rebasing against main, expect merge conflicts in these files. Resolve carefully — don't drop other people's changes.
@@ -208,10 +211,15 @@ The debug overlay (accessible in-app) displays these logs in real time — usefu
 - **Byte order:** All multi-byte integers are big-endian (network byte order)
 - **Packet header:** 16 bytes fixed (see spec Section 6.1)
 - **Fragmentation threshold:** 416 bytes (worst case: addressed + signed)
+- **Fragment reassembly:** keyed by `(senderPeerID, fragmentID)` — never by `fragmentID` alone. Two peers picking the same random 4-byte fragmentID must not cross-contaminate. Public API: `FragmentAssembler.receive(_ fragment: Fragment, from senderID: PeerID)`.
+- **Media payload format:** `buildMediaPayload`/`parseMediaPayload` symmetric pair — `[UUID UTF-8 (36B)][0x00][duration 8B, voice notes only][mediaBytes]`. The parser is *not* self-describing for duration; callers pass `hasDuration:` matching the subType (voice notes yes, images no).
 - **Encryption:** Noise_XX_25519_ChaChaPoly_SHA256 via CryptoKit + swift-sodium for Ed25519
 - **BLE Service UUID:** `FC000001-0000-1000-8000-00805F9B34FB`
 - **BLE Characteristic UUID:** `FC000002-0000-1000-8000-00805F9B34FB`
-- **WebSocket relay:** `WebSocketTransport` in BlipMesh handles off-mesh delivery via `blip-relay` worker. Messages route through the relay when BLE peers aren't directly reachable. The relay uses Durable Objects for store-and-forward — queued packets drain automatically when the recipient connects via per-peer serialized drain (promise chaining prevents duplicate delivery on rapid reconnect). Sender PeerID is verified against the authenticated WebSocket connection (bytes 16-23 of packet header must match). Non-addressed packets are broadcast to all other connected peers via fan-out. JWT authentication required (legacy base64 key fallback supported).
+- **BLE backpressure:** `BLEService.broadcast` honours `bleUpdateValue` return value and `canSendWriteWithoutResponse`. Deferred broadcasts are queued (bounded to `maxPendingBroadcasts = 32`) and flushed on `peripheralManagerIsReady(toUpdateSubscribers:)` / `peripheralIsReady(toSendWriteWithoutResponse:)`. Addressed sends surface notify-path backpressure via `TransportError.unavailable` rather than pretending success.
+- **WebSocket client send:** `state` + `webSocketTask` are captured in a single `lock.withLock` to avoid a TOCTOU race that previously caused addressed DMs to throw `.unavailable` → the mesh layer would fall back to *broadcast*. That fallback has been removed; send errors are now surfaced via `TransportDelegate.transport(_:didFailDelivery:to:)` so the mesh layer can re-route instead of silently leaking DMs.
+- **WebSocket relay:** `WebSocketTransport` in BlipMesh handles off-mesh delivery via `blip-relay` worker. Messages route through the relay when BLE peers aren't directly reachable. The relay uses Durable Objects for store-and-forward — queued packets drain automatically when the recipient connects via per-peer serialized drain (promise chaining prevents duplicate delivery on rapid reconnect). Sender PeerID is verified against the authenticated WebSocket connection (bytes 16-23 of packet header must match). Non-addressed packets are broadcast to every peer whose **PeerID hex** differs from the sender (not by WebSocket object identity — that breaks under rapid reconnect). JWT authentication required; legacy base64-key auth is gated behind the server-side `ALLOW_LEGACY_AUTH` env flag and must not be set in production.
+- **Noise handshake Task lifecycle:** timeout + retry Tasks are stored in `handshakeTimeoutTasks` / `handshakeRetryTasks` on `MessageService` and are deterministically cancelled on session establishment, timeout, and `deinit`. Never spawn an unstored `Task {}` for handshake work.
 
 ## Dependencies (4 only)
 
