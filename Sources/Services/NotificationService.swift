@@ -68,6 +68,24 @@ final class NotificationService: NSObject, @unchecked Sendable {
     /// Whether notifications are enabled in user preferences.
     var notificationsEnabled = true
 
+    /// The currently visible chat channel, set by `ChatViewModel.openConversation` and
+    /// cleared on `closeConversation`. While the user is staring at a thread, foreground
+    /// banners for that thread are noise; we still play sound + bump the badge so the
+    /// system continues to feel "alive" but we suppress the visual interruption.
+    private var activeChannelID: UUID?
+
+    func setActiveChannel(_ channelID: UUID?) {
+        lock.lock()
+        defer { lock.unlock() }
+        activeChannelID = channelID
+    }
+
+    fileprivate func currentActiveChannelID() -> UUID? {
+        lock.lock()
+        defer { lock.unlock() }
+        return activeChannelID
+    }
+
     /// Tracks recently shown notification IDs to prevent duplicates within a short window.
     private var recentNotifications: [String: Date] = [:]
     private let deduplicationWindow: TimeInterval = 5.0
@@ -510,11 +528,25 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // Show notifications even when app is in foreground (banners only, no sound for messages)
         let category = notification.request.content.categoryIdentifier
+
+        // SOS is always interruptive — that's the point.
         if category == BlipNotificationCategory.sosAssist.rawValue {
             return [.banner, .sound, .badge]
         }
+
+        // Suppress the foreground banner if the user is already inside the relevant chat.
+        // Without this the user sees a duplicate "Alice sent: hi" banner while Alice's
+        // bubble is materialising directly under their thumb. Badge still updates so any
+        // OTHER channel's count stays accurate; sound is dropped because the bubble itself
+        // already provides feedback.
+        if category == BlipNotificationCategory.newMessage.rawValue,
+           let channelString = notification.request.content.userInfo["channelID"] as? String,
+           let channelID = UUID(uuidString: channelString),
+           currentActiveChannelID() == channelID {
+            return [.badge]
+        }
+
         return [.banner, .badge]
     }
 
@@ -530,6 +562,14 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             delegate?.notificationService(self, didReceiveAction: action, with: info)
         } else if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
             delegate?.notificationService(self, didReceiveAction: .openConversation, with: info)
+        }
+
+        // Clear lingering banners for the channel that was just tapped/swiped — leaving
+        // them queued in Notification Centre after the user has already opened the
+        // conversation is the kind of detail users notice in a "godmode" app.
+        if let channelString = info["channelID"] as? String,
+           let channelID = UUID(uuidString: channelString) {
+            clearNotifications(forChannel: channelID)
         }
     }
 }

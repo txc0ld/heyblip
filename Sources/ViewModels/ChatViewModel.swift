@@ -341,8 +341,13 @@ final class ChatViewModel {
             let preferredChannelID = preferredConversationChannel(from: conversationChannels, fallback: channel).id
             activeChannel = channels.first(where: { $0.id == preferredChannelID }) ?? channel
             activeMessages = try loadMessages(for: conversationChannels, context: context)
-            markChannelAsRead(activeChannel ?? channel)
-            notificationService.clearNotifications(forChannel: (activeChannel ?? channel).id)
+            let resolvedChannel = activeChannel ?? channel
+            markChannelAsRead(resolvedChannel)
+            notificationService.clearNotifications(forChannel: resolvedChannel.id)
+            // Tell NotificationService which thread is on screen so foreground banners
+            // for it get suppressed (sound-only) instead of duplicating the bubble that
+            // is literally about to render.
+            notificationService.setActiveChannel(resolvedChannel.id)
         } catch {
             errorMessage = "Failed to load messages: \(error.localizedDescription)"
         }
@@ -356,6 +361,7 @@ final class ChatViewModel {
         activeMessages = []
         replyTarget = nil
         composingText = ""
+        notificationService.setActiveChannel(nil)
     }
 
     /// Clear only transient composer state (reply target, composing text) when
@@ -367,6 +373,12 @@ final class ChatViewModel {
         // Intentionally keep `composingText` so the user's in-progress draft
         // survives a brief back-and-forth. ChatView also mirrors composingText
         // into a local @State, so losing it here would surprise the user.
+
+        // Resume normal foreground notification behavior — the user has stepped
+        // out of the thread. We deliberately leave `activeChannel` set so the
+        // cached message list survives back-and-forth navigation; only the
+        // notification suppression flag is cleared.
+        notificationService.setActiveChannel(nil)
     }
 
     // MARK: - Send Messages
@@ -594,12 +606,17 @@ final class ChatViewModel {
     }
 
     /// Handle a newly received message (called by delegate or notification).
+    ///
+    /// Updates `lastActivityAt`, optionally bumps `unreadCount`, and persists both to the
+    /// shared SwiftData context so the chat list ordering and the unread badge survive an
+    /// app restart. Without the explicit save the in-memory channel object reflects the new
+    /// state but the on-disk row does not, so the next cold launch rolls the counters back.
     func handleReceivedMessage(_ message: Message, in channel: Channel) {
-        // Add to active messages if this is the open channel
-        if isActiveConversation(channel) {
+        let wasActive = isActiveConversation(channel)
+
+        if wasActive {
             activeMessages.append(message)
         } else {
-            // Increment stored and in-memory unread count
             channel.unreadCount += 1
             unreadCounts[channel.id] = channel.unreadCount
             totalUnreadCount += 1
@@ -615,28 +632,72 @@ final class ChatViewModel {
             }
         }
 
-        // Update channel activity and re-sort
         channel.lastActivityAt = Date()
         moveChannelToSortedPosition(channel)
-    }
 
-    /// Handle a delivery acknowledgement.
-    func handleDeliveryAck(for messageID: UUID) {
-        if let idx = activeMessages.firstIndex(where: { $0.id == messageID }) {
-            activeMessages[idx].status = .delivered
-            do { try context.save() } catch {
-                DebugLogger.shared.log("DM", "Failed to persist delivery ack: \(error.localizedDescription)")
-            }
+        do {
+            try context.save()
+        } catch {
+            DebugLogger.shared.log(
+                "DM",
+                "Failed to persist channel state after receive: \(error.localizedDescription)",
+                isError: true
+            )
         }
     }
 
-    /// Handle a read receipt.
+    /// Handle a delivery acknowledgement. Updates the persisted Message row and the active
+    /// list snapshot, then re-sorts the channel list so the freshly-acknowledged thread
+    /// bubbles up like other status-change events.
+    func handleDeliveryAck(for messageID: UUID) {
+        applyStatusChange(.delivered, for: messageID, category: "delivery ack")
+    }
+
+    /// Handle a read receipt. Same persistence + re-sort discipline as delivery ack.
     func handleReadReceipt(for messageID: UUID) {
+        applyStatusChange(.read, for: messageID, category: "read receipt")
+    }
+
+    /// Persist a status change for a message regardless of whether it's currently in
+    /// `activeMessages` and bump the channel's position in the sorted list. The previous
+    /// implementation only mutated `activeMessages[idx]` which (a) silently dropped the
+    /// update for status changes that arrived while the user was on a different channel and
+    /// (b) left the chat-list cell stale until the next reload.
+    private func applyStatusChange(_ newStatus: MessageStatus, for messageID: UUID, category: String) {
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
+
+        let persistedMessage: Message?
+        do {
+            persistedMessage = try context.fetch(descriptor).first
+        } catch {
+            DebugLogger.shared.log(
+                "DM",
+                "Failed to fetch message for \(category): \(error.localizedDescription)",
+                isError: true
+            )
+            return
+        }
+
+        guard let message = persistedMessage else { return }
+        message.statusRaw = newStatus.rawValue
+
         if let idx = activeMessages.firstIndex(where: { $0.id == messageID }) {
-            activeMessages[idx].status = .read
-            do { try context.save() } catch {
-                DebugLogger.shared.log("DM", "Failed to persist read receipt: \(error.localizedDescription)")
-            }
+            activeMessages[idx] = message
+        }
+
+        if let owningChannel = message.channel {
+            moveChannelToSortedPosition(owningChannel)
+        }
+
+        do {
+            try context.save()
+        } catch {
+            DebugLogger.shared.log(
+                "DM",
+                "Failed to persist \(category): \(error.localizedDescription)",
+                isError: true
+            )
         }
     }
 
@@ -778,9 +839,7 @@ extension ChatViewModel: MessageServiceDelegate {
 
     nonisolated func messageService(_ service: MessageService, didUpdateStatus status: MessageStatus, for messageID: UUID) {
         Task { @MainActor in
-            if let activeIndex = self.activeMessages.firstIndex(where: { $0.id == messageID }) {
-                self.activeMessages[activeIndex].status = status
-            }
+            self.applyStatusChange(status, for: messageID, category: "status update")
         }
     }
 

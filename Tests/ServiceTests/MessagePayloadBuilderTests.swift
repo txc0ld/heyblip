@@ -131,6 +131,24 @@ final class MessagePayloadBuilderTests: XCTestCase {
         let parsed = MessagePayloadBuilder.parseMediaPayload(garbage, hasDuration: false)
         XCTAssertEqual(parsed.media.count, 0)
         XCTAssertNil(parsed.duration)
+        // Regression for the "malformed payload silently dedups against a fresh UUID
+        // every time" bug: when the parser can't recover a real ID, it must surface
+        // `nil` so the receive pipeline can drop the message instead of indexing it
+        // under an ID that will never collide.
+        XCTAssertNil(parsed.messageID, "missing UUID prefix must surface as nil, not a synthesised UUID")
+    }
+
+    func testMediaPayloadParserDoesNotSynthesizeMessageIDForUndecodableUTF8() {
+        // The leading bytes are non-UTF-8 garbage followed by a 0x00 separator.
+        // The parser must NOT manufacture a UUID — that would defeat the dedup
+        // path, since every retransmit would surface as a new "unique" message.
+        var payload = Data([0xFF, 0xFE, 0xFD, 0xFC])
+        payload.append(0x00)
+        payload.append(Data([0xAA, 0xBB]))
+
+        let parsed = MessagePayloadBuilder.parseMediaPayload(payload, hasDuration: false)
+        XCTAssertNil(parsed.messageID)
+        XCTAssertEqual(parsed.media, Data([0xAA, 0xBB]))
     }
 
     func testMediaPayloadParserHandlesTruncatedDuration() {

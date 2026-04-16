@@ -596,7 +596,10 @@ struct ChatView: View {
             index: index,
             onReply: { findOriginal(messageID) { chatViewModel?.setReplyTarget($0) } },
             onImageTap: {
-                selectedImageData = message.imageData
+                // Pull the full-resolution attachment from SwiftData on tap so the chat
+                // scroll itself only ever holds thumbnails. Falls back to whatever the
+                // bubble had (thumbnail) if the persisted message can't be located.
+                selectedImageData = imageDataForViewer(messageID: messageID) ?? message.imageData
                 showImageViewer = true
             },
             onEdit: { findOriginal(messageID) { chatViewModel?.startEditing($0) } },
@@ -610,6 +613,18 @@ struct ChatView: View {
         if let original = chatViewModel?.activeMessages.first(where: { $0.id == id }) {
             action(original)
         }
+    }
+
+    /// Return the highest-fidelity image bytes for a message, preferring `fullData`
+    /// when present. Used by the viewer presentation path so we only materialise
+    /// the full image when the user actually opens it.
+    private func imageDataForViewer(messageID: UUID) -> Data? {
+        guard let original = chatViewModel?.activeMessages.first(where: { $0.id == messageID }) else {
+            return nil
+        }
+        let attachment = original.attachments.first(where: { $0.type == .image })
+            ?? original.attachments.first
+        return attachment?.fullData ?? attachment?.thumbnail
     }
 
     // MARK: - Date Header
@@ -713,7 +728,11 @@ struct ChatView: View {
                 replyPreview: message.replyTo.flatMap {
                     String(data: $0.rawPayload, encoding: .utf8)
                 },
-                imageData: message.attachments.first?.fullData ?? message.attachments.first?.thumbnail,
+                // Render the lightweight thumbnail in the scroll. Loading every full-res
+                // image (often 500KB+) into a long chat scroll inflates memory linearly
+                // with history and OOMs on long sessions. The viewer fetches `fullData`
+                // on tap via `imageDataForViewer(messageID:)`.
+                imageData: message.attachments.first?.thumbnail ?? message.attachments.first?.fullData,
                 voiceNoteDuration: message.attachments.first(where: { $0.isAudio })?.duration,
                 waveformSamples: [],
                 audioData: message.attachments.first(where: { $0.isAudio })?.fullData,

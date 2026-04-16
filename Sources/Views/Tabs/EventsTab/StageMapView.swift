@@ -42,6 +42,9 @@ struct StageMapView: View {
 
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var selectedStage: StageMapItem?
+    /// True after the very first `onAppear` recenter; used to skip the recenter
+    /// when the user navigates back to this view, so we preserve their pan/zoom.
+    @State private var didInitialCenter = false
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -69,7 +72,15 @@ struct StageMapView: View {
             .padding(BlipSpacing.md)
             .accessibilityLabel(StageMapViewL10n.recenter)
         }
-        .onAppear { recenter() }
+        .onAppear {
+            // Only recenter on the very first appearance. Re-appearing (after the
+            // user pushes a stage detail and pops back) used to reset the map back
+            // to the event boundary, throwing away their pan/zoom — frustrating
+            // behaviour if they were studying a specific stage.
+            guard !didInitialCenter else { return }
+            didInitialCenter = true
+            recenter()
+        }
     }
 
     // MARK: - Map

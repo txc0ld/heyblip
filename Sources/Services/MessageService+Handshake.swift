@@ -735,11 +735,23 @@ extension MessageService {
         // string (not raw 16 bytes), a 0x00 terminator, optional 8-byte duration for
         // voice notes only, then the media bytes.
         let parsed = MessagePayloadBuilder.parseMediaPayload(data, hasDuration: type == .voiceNote)
-        let messageID = parsed.messageID
         let mediaData = parsed.media
+        let senderHex = senderPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        // Drop malformed payloads early. Previously the parser fabricated a fresh UUID
+        // when the leading ID couldn't be decoded, which meant every retransmit landed
+        // as a new row instead of being deduped — visible to the user as repeated
+        // images/voice notes after a flaky reconnect.
+        guard let messageID = parsed.messageID else {
+            DebugLogger.shared.log(
+                "RX",
+                "Dropped media message from \(senderHex): malformed messageID prefix",
+                isError: true
+            )
+            return
+        }
 
         guard !mediaData.isEmpty else {
-            let senderHex = senderPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
             DebugLogger.shared.log(
                 "RX",
                 "Dropped media message from \(senderHex): empty media payload",

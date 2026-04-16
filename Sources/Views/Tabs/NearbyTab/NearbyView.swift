@@ -451,7 +451,14 @@ struct NearbyView: View {
                     rssi: friend.rssi,
                     isOnline: friend.isOnline,
                     hasSignalData: friend.hasSignalData,
-                    friendState: .friends
+                    friendState: .friends,
+                    onTap: {
+                        // Tap a friend → drop the user straight into the DM with them.
+                        // The card was previously a "no-op button" — visually a button
+                        // but tapping did nothing, which feels broken in a chat app.
+                        guard let username = friend.username else { return }
+                        Task { await coordinator.openDM(withUsername: username) }
+                    }
                 )
                 .padding(.horizontal, BlipSpacing.md)
                 .staggeredReveal(index: index)

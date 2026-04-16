@@ -1092,12 +1092,46 @@ extension AppCoordinator: NotificationServiceDelegate {
     private func fetchChannel(by id: UUID) -> Channel? {
         guard let context = modelContainer?.mainContext else { return nil }
         let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == id })
-        return (try? context.fetch(descriptor))?.first
+        do {
+            return try context.fetch(descriptor).first
+        } catch {
+            DebugLogger.shared.log("DB", "fetchChannel failed: \(error.localizedDescription)", isError: true)
+            return nil
+        }
     }
 
     private func fetchFriend(by id: UUID) -> Friend? {
         guard let context = modelContainer?.mainContext else { return nil }
         let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == id })
-        return (try? context.fetch(descriptor))?.first
+        do {
+            return try context.fetch(descriptor).first
+        } catch {
+            DebugLogger.shared.log("DB", "fetchFriend failed: \(error.localizedDescription)", isError: true)
+            return nil
+        }
+    }
+
+    /// Open (or create) a DM thread with the user behind `username` and route the UI to
+    /// the Chats tab so the conversation is on screen. This is the navigation primitive
+    /// surfaces like the Nearby tab use to deliver "tap on a friend, land in their DM"
+    /// without needing direct access to ChatViewModel internals.
+    func openDM(withUsername username: String) async {
+        guard let chatViewModel else {
+            DebugLogger.shared.log("CHAT", "openDM: ChatViewModel not ready", isError: true)
+            return
+        }
+        guard let context = modelContainer?.mainContext else { return }
+        let target = username
+        let descriptor = FetchDescriptor<User>(predicate: #Predicate<User> { $0.username == target })
+        do {
+            guard let user = try context.fetch(descriptor).first else {
+                DebugLogger.shared.log("CHAT", "openDM: no user for username \(DebugLogger.redact(username))")
+                return
+            }
+            guard let channel = await chatViewModel.createDMChannel(with: user) else { return }
+            pendingNotificationNavigation = .conversation(channelID: channel.id)
+        } catch {
+            DebugLogger.shared.log("CHAT", "openDM failed: \(error.localizedDescription)", isError: true)
+        }
     }
 }

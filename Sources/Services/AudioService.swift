@@ -154,10 +154,115 @@ final class AudioService: NSObject, @unchecked Sendable {
     private var pendingPTTPCMData = Data()
     private let lock = NSLock()
 
+    private var systemObservers: [NSObjectProtocol] = []
+    private var didConfigureObservers = false
+
+    // MARK: - System Lifecycle Observers
+
+    /// Subscribe to the system events that can corrupt or strand a recording session:
+    /// phone call interruptions, headphone unplugs, and app backgrounding. Called lazily
+    /// on the first session configuration so unit tests can construct an AudioService
+    /// without fighting AVAudioSession.
+    private func installSystemObservers() {
+        guard !didConfigureObservers else { return }
+        didConfigureObservers = true
+
+        let center = NotificationCenter.default
+
+        let interruption = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] note in
+            self?.handleInterruption(note)
+        }
+
+        let routeChange = center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] note in
+            self?.handleRouteChange(note)
+        }
+
+        #if os(iOS)
+        let background = center.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            self?.handleEnteredBackground()
+        }
+        systemObservers = [interruption, routeChange, background]
+        #else
+        systemObservers = [interruption, routeChange]
+        #endif
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard
+            let info = notification.userInfo,
+            let typeRaw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let type = AVAudioSession.InterruptionType(rawValue: typeRaw)
+        else { return }
+
+        switch type {
+        case .began:
+            // Phone call / Siri / alarm grabbed the session. Discard the in-flight
+            // recording — half a voice note isn't worth keeping — and stop playback.
+            if isRecording {
+                cancelRecording()
+                delegate?.audioService(self, didFailWithError: .recordingFailed("Recording interrupted"))
+            }
+            if isPlaying {
+                stopPlayback()
+            }
+        case .ended:
+            // Only resume playback if the system explicitly tells us we should.
+            // Mid-recording resumption is intentionally NOT supported — partial
+            // resumption would produce a Frankenstein clip.
+            if let optionsRaw = info[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw)
+                if options.contains(.shouldResume), let player = audioPlayer, !player.isPlaying {
+                    player.play()
+                    isPlaying = true
+                }
+            }
+        @unknown default:
+            return
+        }
+    }
+
+    private func handleRouteChange(_ notification: Notification) {
+        guard
+            let info = notification.userInfo,
+            let reasonRaw = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+            let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw)
+        else { return }
+
+        // Headphones (or any output route) disappeared — pause so audio doesn't
+        // suddenly blast through the speaker. The user can hit play again.
+        if reason == .oldDeviceUnavailable, isPlaying {
+            stopPlayback()
+        }
+    }
+
+    private func handleEnteredBackground() {
+        // Recording in the background isn't part of the product yet — and leaving
+        // an active recording running drains battery + holds the mic. Cancel cleanly
+        // so the next foreground session starts from a known state.
+        if isRecording {
+            cancelRecording()
+            delegate?.audioService(self, didFailWithError: .recordingFailed("Recording cancelled by app backgrounding"))
+        }
+    }
+
     // MARK: - Audio Session
 
     /// Configure the audio session for recording and playback alongside BLE.
     func configureAudioSession() throws {
+        installSystemObservers()
+
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playAndRecord, mode: .default, options: [
@@ -204,7 +309,21 @@ final class AudioService: NSObject, @unchecked Sendable {
     ///
     /// - Parameter maxDuration: Maximum recording duration. Defaults to 30 seconds.
     func startRecording(maxDuration: TimeInterval = AudioService.maxVoiceNoteDuration) throws {
-        guard !isRecording else { throw AudioServiceError.alreadyRecording }
+        // The lock guards the small "is anything live?" decision and tears down any
+        // stale timer left over from a racy cancel-then-start sequence. Without this
+        // a second `startRecording` call could observe `isRecording == false` while a
+        // background timer block was still firing into the previous session.
+        lock.lock()
+        guard !isRecording else {
+            lock.unlock()
+            throw AudioServiceError.alreadyRecording
+        }
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        pttChunkTimer?.invalidate()
+        pttChunkTimer = nil
+        lock.unlock()
+
         guard hasMicrophonePermission else { throw AudioServiceError.microphonePermissionDenied }
 
         try configureAudioSession()
@@ -292,30 +411,42 @@ final class AudioService: NSObject, @unchecked Sendable {
 
     /// Cancel an in-progress recording without saving.
     func cancelRecording() {
-        audioRecorder?.stop()
-        audioRecorder?.deleteRecording()
-
+        lock.lock()
+        let recorderToStop = audioRecorder
+        audioRecorder = nil
         recordingTimer?.invalidate()
         recordingTimer = nil
         pttChunkTimer?.invalidate()
         pttChunkTimer = nil
-
         isRecording = false
         recordingDuration = 0
-        audioRecorder = nil
         accumulatedPCMData = Data()
         pendingPTTPCMData = Data()
+        let urlToRemove = recordingURL
+        recordingURL = nil
+        lock.unlock()
 
-        if let url = recordingURL {
+        recorderToStop?.stop()
+        recorderToStop?.deleteRecording()
+
+        if let urlToRemove {
             do {
-                try FileManager.default.removeItem(at: url)
+                try FileManager.default.removeItem(at: urlToRemove)
             } catch {
                 logger.warning("Failed to remove temporary recording file on cancel: \(error.localizedDescription)")
             }
-            recordingURL = nil
         }
 
         deactivateAudioSession()
+    }
+
+    deinit {
+        for observer in systemObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        recordingTimer?.invalidate()
+        playbackTimer?.invalidate()
+        pttChunkTimer?.invalidate()
     }
 
     // MARK: - PTT Recording
@@ -893,7 +1024,13 @@ final class AudioService: NSObject, @unchecked Sendable {
             guard !encoded.isEmpty else { return }
             delegate?.audioService(self, didRecordChunk: encoded, duration: recordingDuration)
         } catch {
+            // Tell the delegate (PTTViewModel) so the UI can surface a real error
+            // instead of getting stuck in "sending" forever. Logging alone wasn't
+            // enough — the operator never saw the failure.
             logger.warning("Failed to encode PTT audio chunk: \(error.localizedDescription)")
+            let serviceError: AudioServiceError = (error as? AudioServiceError)
+                ?? .encodingFailed(error.localizedDescription)
+            delegate?.audioService(self, didFailWithError: serviceError)
         }
     }
 

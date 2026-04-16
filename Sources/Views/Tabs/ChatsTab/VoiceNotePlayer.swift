@@ -35,8 +35,13 @@ struct VoiceNotePlayer: View {
     @State private var playbackSpeed: PlaybackSpeed = .normal
     @State private var playbackTimer: Timer?
     @State private var playerService = AudioService()
+    /// Token issued by `VoiceNotePlaybackCoordinator` while THIS player owns
+    /// the audio session. When the coordinator's active token changes to
+    /// anything else (another bubble started playing), we observe and stop.
+    @State private var playbackToken: UUID?
 
     @Environment(\.theme) private var theme
+    @State private var coordinator = VoiceNotePlaybackCoordinator.shared
 
     private enum PlaybackSpeed: Double, CaseIterable {
         case normal = 1.0
@@ -78,10 +83,21 @@ struct VoiceNotePlayer: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(VoiceNotePlayerL10n.accessibilityLabel(formattedDuration(duration)))
         .accessibilityHint(isPlaying ? VoiceNotePlayerL10n.pauseHint : VoiceNotePlayerL10n.playHint)
+        .onChange(of: coordinator.activePlayerToken) { _, newValue in
+            // Another bubble (or the coordinator itself) took over playback. Stop
+            // ours immediately so we don't emit overlapping audio.
+            if let token = playbackToken, token != newValue {
+                stopPlayback()
+            }
+        }
         .onDisappear {
             playbackTimer?.invalidate()
             playbackTimer = nil
             playerService.stopPlayback()
+            if let token = playbackToken {
+                coordinator.release(token)
+                playbackToken = nil
+            }
         }
     }
 
@@ -203,12 +219,20 @@ struct VoiceNotePlayer: View {
             return
         }
 
+        // Claim the shared audio session BEFORE starting playback so any other
+        // VoiceNotePlayer currently driving audio sees the token change and stops.
+        playbackToken = coordinator.claim()
+
         do {
             try playerService.play(data: data)
             isPlaying = true
             startProgressTimer()
         } catch {
             DebugLogger.shared.log("AUDIO", "Playback failed: \(error)", isError: true)
+            if let token = playbackToken {
+                coordinator.release(token)
+                playbackToken = nil
+            }
             simulateFallback()
         }
     }
@@ -218,6 +242,10 @@ struct VoiceNotePlayer: View {
         playbackTimer?.invalidate()
         playbackTimer = nil
         isPlaying = false
+        if let token = playbackToken {
+            coordinator.release(token)
+            playbackToken = nil
+        }
     }
 
     private func startProgressTimer() {

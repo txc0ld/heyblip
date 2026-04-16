@@ -124,12 +124,20 @@ enum MessagePayloadBuilder {
 
     /// Parsed media payload.
     struct ParsedMediaPayload {
-        /// UUID decoded from the leading UTF-8 string, or a fresh UUID if decoding fails.
-        let messageID: UUID
+        /// UUID decoded from the leading UTF-8 string. `parseMediaPayload` returns
+        /// `nil` rather than fabricating one when the wire is malformed — see the
+        /// dedup discussion in `parseMediaPayload`.
+        let messageID: UUID?
         /// Duration in seconds (voice notes only), or `nil` for images.
         let duration: TimeInterval?
         /// Raw media bytes (Opus frames or JPEG data).
         let media: Data
+
+        /// Backwards-compatible accessor: a synthesised UUID for callers that
+        /// previously expected a non-optional `messageID`. New callers should
+        /// branch on `messageID` directly so they can drop malformed packets
+        /// instead of indexing them under a never-deduplicable random UUID.
+        var resolvedMessageID: UUID { messageID ?? UUID() }
     }
 
     /// Parse a media payload produced by ``buildMediaPayload(data:messageID:duration:)``.
@@ -138,25 +146,33 @@ enum MessagePayloadBuilder {
     /// leading UTF-8 UUID string, optionally read 8 bytes of duration, and return the
     /// remaining bytes as the media payload.
     ///
+    /// **Malformed-input contract**: when the leading UUID is missing, truncated, or
+    /// non-UTF-8, `messageID` is `nil`. The previous implementation manufactured a fresh
+    /// UUID in that case, which broke the receive-side dedup: every retransmit got its
+    /// own ID and was inserted as a duplicate row. Callers should now drop the message
+    /// when `messageID == nil`.
+    ///
     /// - Parameters:
     ///   - data: Full decrypted media payload.
     ///   - hasDuration: Whether the payload was built with a duration (voice notes = true,
     ///     images = false). The wire format gives no self-describing flag, so the caller
     ///     must know the message type from the `EncryptedSubType` envelope.
-    /// - Returns: Parsed components. If the wire format is malformed, `messageID` is a
-    ///   freshly generated UUID and `media` is empty.
     static func parseMediaPayload(_ data: Data, hasDuration: Bool) -> ParsedMediaPayload {
         let bytes = [UInt8](data)
         guard let separatorIndex = bytes.firstIndex(of: 0x00) else {
-            // No separator found — treat entire payload as malformed.
-            return ParsedMediaPayload(messageID: UUID(), duration: nil, media: Data())
+            return ParsedMediaPayload(messageID: nil, duration: nil, media: Data())
         }
         let idBytes = Data(bytes[0 ..< separatorIndex])
-        let messageID = String(data: idBytes, encoding: .utf8).flatMap(UUID.init) ?? UUID()
+        let messageID = String(data: idBytes, encoding: .utf8).flatMap(UUID.init)
         var cursor = separatorIndex + 1
 
         let duration: TimeInterval?
-        if hasDuration, cursor + 8 <= bytes.count {
+        if hasDuration {
+            // Strict bounds check — without it a truncated payload (cursor + n where n < 8)
+            // would either crash on the unsafe load or read uninitialised stack bytes.
+            guard cursor + 8 <= bytes.count else {
+                return ParsedMediaPayload(messageID: messageID, duration: nil, media: Data())
+            }
             let durationBytes = Data(bytes[cursor ..< cursor + 8])
             duration = durationBytes.withUnsafeBytes { raw -> TimeInterval in
                 raw.load(as: TimeInterval.self)
