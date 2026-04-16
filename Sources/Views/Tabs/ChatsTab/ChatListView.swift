@@ -9,6 +9,9 @@ private enum ChatListL10n {
     static let emptySubtitle = String(localized: "chat.list.empty.subtitle", defaultValue: "Add a friend to start chatting.")
     static let searchEmptySubtitle = String(localized: "chat.list.empty.search_subtitle", defaultValue: "Try a different search term.")
     static let newMessage = String(localized: "chat.list.new_message", defaultValue: "New message")
+    static let newMessageHint = String(localized: "chat.list.new_message.hint", defaultValue: "Start a direct message or group chat")
+    static let menuNewDM = String(localized: "chat.list.new_message.menu.dm", defaultValue: "New Direct Message")
+    static let menuNewGroup = String(localized: "chat.list.new_message.menu.group", defaultValue: "New Group Chat")
     static let newMessageTitle = String(localized: "chat.list.new_message.title", defaultValue: "New Message")
     static let cancel = String(localized: "common.cancel", defaultValue: "Cancel")
     static let noFriendsTitle = String(localized: "chat.list.new_message.empty.title", defaultValue: "No friends ready to message")
@@ -38,6 +41,7 @@ struct ChatListView: View {
     @State private var searchText: String = ""
     @State private var isRefreshing = false
     @State private var showNewMessage = false
+    @State private var showNewGroup = false
     @State private var showAddFriend = false
     @State private var showMessageSearch = false
     @State private var selectedConversation: ConversationPreview? = nil
@@ -108,6 +112,18 @@ struct ChatListView: View {
             }
             .sheet(isPresented: $showNewMessage) {
                 newMessageSheet
+            }
+            .sheet(isPresented: $showNewGroup) {
+                NewGroupChatSheet(
+                    chatViewModel: chatViewModel,
+                    onCreated: { channel in
+                        showNewGroup = false
+                        Task { @MainActor in
+                            await chatViewModel?.loadChannels()
+                            selectedConversation = makeConversationPreview(for: channel)
+                        }
+                    }
+                )
             }
             .navigationDestination(item: $selectedConversation) { conversation in
                 ChatView(conversation: conversation, chatViewModel: chatViewModel)
@@ -221,9 +237,24 @@ struct ChatListView: View {
 
     // MARK: - New Message FAB
 
+    /// Floating compose button. Tapping opens a Menu that lets the user pick
+    /// between a new Direct Message and a new Group Chat — mirrors how any
+    /// major chat app (WhatsApp, iMessage, Signal) surfaces the +-menu.
     private var newMessageFAB: some View {
-        Button {
-            showNewMessage = true
+        Menu {
+            Button {
+                BlipHaptics.lightImpact()
+                showNewMessage = true
+            } label: {
+                Label(ChatListL10n.menuNewDM, systemImage: "person.fill")
+            }
+
+            Button {
+                BlipHaptics.lightImpact()
+                showNewGroup = true
+            } label: {
+                Label(ChatListL10n.menuNewGroup, systemImage: "person.3.fill")
+            }
         } label: {
             Image(systemName: "plus.bubble.fill")
                 .font(.system(size: 22, weight: .medium))
@@ -235,10 +266,10 @@ struct ChatListView: View {
                 )
                 .shadow(color: Color.blipAccentPurple.opacity(0.4), radius: 12, y: 4)
         }
-        .buttonStyle(.plain)
         .padding(.trailing, BlipSpacing.lg)
         .padding(.bottom, BlipSpacing.sm)
         .accessibilityLabel(ChatListL10n.newMessage)
+        .accessibilityHint(ChatListL10n.newMessageHint)
         .accessibilityAddTraits(.isButton)
     }
 

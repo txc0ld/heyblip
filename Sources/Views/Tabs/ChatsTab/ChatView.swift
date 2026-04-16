@@ -291,8 +291,21 @@ struct ChatView: View {
                 pttAudioLevels.removeFirst(pttAudioLevels.count - 16)
             }
         }
+        .onAppear {
+            // Hide the root tab bar while this conversation is mounted so the
+            // floating glass bar doesn't overlay the chat.
+            coordinator.isInImmersiveView = true
+        }
         .onDisappear {
-            chatViewModel?.closeConversation()
+            // Show the tab bar again but DON'T clear activeMessages. Previously
+            // `closeConversation()` fired here and wiped `activeMessages = []`;
+            // when the user returned there was an async gap with no messages
+            // on screen (the "messages disappear when exiting chat" symptom).
+            // `openConversation` already replaces active state when the user
+            // opens a different conversation, so clearing here is unnecessary
+            // and actively harmful.
+            coordinator.isInImmersiveView = false
+            chatViewModel?.clearTransientConversationState()
         }
     }
 
@@ -481,15 +494,22 @@ struct ChatView: View {
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: BlipSpacing.sm) {
-                    // Date headers + messages
+                LazyVStack(spacing: BlipSpacing.xs) {
+                    // Date headers + messages with iMessage-style cluster
+                    // separators (time chip between messages that are more
+                    // than `timeClusterThreshold` apart within the same day).
                     ForEach(Array(groupedMessages.enumerated()), id: \.offset) { sectionIndex, section in
-                        // Date header
                         dateHeader(for: section.date)
                             .id("header-\(sectionIndex)")
 
-                        // Messages in this date group
                         ForEach(Array(section.messages.enumerated()), id: \.element.id) { messageIndex, message in
+                            if messageIndex > 0,
+                               Self.shouldInsertTimeSeparator(
+                                   before: message,
+                                   previous: section.messages[messageIndex - 1]
+                               ) {
+                                timeClusterSeparator(for: message.timestamp)
+                            }
                             messageBubble(for: message, at: messageIndex)
                         }
                     }
@@ -606,6 +626,34 @@ struct ChatView: View {
             )
             .frame(maxWidth: .infinity)
             .padding(.vertical, BlipSpacing.sm)
+    }
+
+    // MARK: - Time Cluster Separator
+
+    /// Threshold for inserting a time separator between two messages within
+    /// the same day. WhatsApp uses roughly 15 minutes; feels right for an
+    /// event app too where bursts of activity alternate with quiet gaps.
+    private static let timeClusterThreshold: TimeInterval = 15 * 60
+
+    /// Decide whether a time chip should be emitted above `message` given the
+    /// previous message in the same date section.
+    private static func shouldInsertTimeSeparator(
+        before message: ChatMessage,
+        previous: ChatMessage
+    ) -> Bool {
+        message.timestamp.timeIntervalSince(previous.timestamp) >= timeClusterThreshold
+    }
+
+    /// Small centered time label used between message clusters. Deliberately
+    /// unobtrusive so it fades into the background on scan reading.
+    private func timeClusterSeparator(for date: Date) -> some View {
+        Text(date.formatted(date: .omitted, time: .shortened))
+            .font(.custom(BlipFontName.regular, size: 11, relativeTo: .caption2))
+            .foregroundStyle(theme.colors.mutedText.opacity(0.7))
+            .padding(.top, BlipSpacing.sm)
+            .padding(.bottom, BlipSpacing.xs)
+            .frame(maxWidth: .infinity)
+            .accessibilityHidden(true) // Inline bubble time covers this
     }
 
     // MARK: - Grouped Messages

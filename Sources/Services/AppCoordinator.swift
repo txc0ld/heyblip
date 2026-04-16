@@ -48,6 +48,12 @@ final class AppCoordinator {
     /// Navigation target set by notification taps — views observe this to route.
     var pendingNotificationNavigation: NotificationDestination?
 
+    /// Set by immersive screens (chat conversation, full-screen media, SOS) to
+    /// tell the root `MainTabView` to hide the floating tab bar. Without this
+    /// the glass tab bar draws on top of pushed destinations and sits visibly
+    /// "halfway in the screen" over chat content.
+    var isInImmersiveView: Bool = false
+
     // MARK: - Services
 
     private(set) var bleService: BLEService?

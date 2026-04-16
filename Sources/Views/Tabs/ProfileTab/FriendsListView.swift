@@ -11,6 +11,28 @@ private enum FriendsListL10n {
     static let unblock = String(localized: "friends.action.unblock", defaultValue: "Unblock")
     static let cancelRequest = String(localized: "friends.action.cancel_request", defaultValue: "Cancel Request")
     static let decline = String(localized: "friends.action.decline", defaultValue: "Decline")
+    static let cancel = String(localized: "common.cancel", defaultValue: "Cancel")
+
+    static let removeConfirmTitle = String(localized: "friends.confirm.remove.title", defaultValue: "Remove friend?")
+    static let blockConfirmTitle = String(localized: "friends.confirm.block.title", defaultValue: "Block this user?")
+    static let cancelConfirmTitle = String(localized: "friends.confirm.cancel.title", defaultValue: "Cancel friend request?")
+    static let declineConfirmTitle = String(localized: "friends.confirm.decline.title", defaultValue: "Decline friend request?")
+
+    static func removeConfirmMessage(_ name: String) -> String {
+        String(format: String(localized: "friends.confirm.remove.message", defaultValue: "%@ will no longer appear in your friends. You can add them again later."), locale: Locale.current, name)
+    }
+
+    static func blockConfirmMessage(_ name: String) -> String {
+        String(format: String(localized: "friends.confirm.block.message", defaultValue: "%@ won't be able to message you. You can unblock them any time."), locale: Locale.current, name)
+    }
+
+    static func cancelConfirmMessage(_ name: String) -> String {
+        String(format: String(localized: "friends.confirm.cancel.message", defaultValue: "Cancel your pending friend request to %@?"), locale: Locale.current, name)
+    }
+
+    static func declineConfirmMessage(_ name: String) -> String {
+        String(format: String(localized: "friends.confirm.decline.message", defaultValue: "Decline %@'s friend request?"), locale: Locale.current, name)
+    }
     static let notFound = String(localized: "friends.error.not_found", defaultValue: "Friend not found")
     static let blocked = String(localized: "friends.status.blocked", defaultValue: "Blocked")
     static let requested = String(localized: "friends.status.requested", defaultValue: "Requested")
@@ -36,6 +58,10 @@ private enum FriendsListL10n {
     static func sectionAccessibility(_ name: String, count: Int) -> String {
         String(format: String(localized: "friends.section.accessibility", defaultValue: "%1$@, %2$d friends"), locale: Locale.current, name, count)
     }
+
+    static func accessibilityMore(_ name: String) -> String {
+        String(format: String(localized: "friends.action.more.accessibility", defaultValue: "More options for %@"), locale: Locale.current, name)
+    }
 }
 
 // MARK: - FriendsListView
@@ -51,7 +77,7 @@ struct FriendsListView: View {
     @State private var selectedSection: FriendSection = .all
     @State private var showAddFriend = false
     @State private var selectedFriend: FriendListItem?
-    @State private var isLoaded = false
+    @State private var confirmingAction: PendingAction?
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -112,6 +138,94 @@ struct FriendsListView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .friendListDidChange)) { _ in
             loadFriends()
+        }
+        .alert(
+            confirmingAction?.title ?? "",
+            isPresented: Binding(
+                get: { confirmingAction != nil },
+                set: { if !$0 { confirmingAction = nil } }
+            ),
+            presenting: confirmingAction
+        ) { action in
+            Button(action.confirmTitle, role: .destructive) {
+                performConfirmedAction(action)
+                confirmingAction = nil
+            }
+            Button(FriendsListL10n.cancel, role: .cancel) {
+                confirmingAction = nil
+            }
+        } message: { action in
+            Text(action.message)
+        }
+    }
+
+    private func performConfirmedAction(_ action: PendingAction) {
+        switch action {
+        case .removeFriend(let friend):
+            removeFriend(friend)
+        case .blockFriend(let friend):
+            blockFriend(friend)
+        case .cancelRequest(let friend), .declineRequest(let friend):
+            declineFriend(friend)
+        }
+    }
+
+    // MARK: - Pending Action
+
+    /// A destructive action awaiting user confirmation before it runs. Surfaced
+    /// via the system alert so the user can't accidentally remove a friend or
+    /// cancel a pending request with a single errant tap.
+    enum PendingAction: Identifiable {
+        case removeFriend(FriendListItem)
+        case blockFriend(FriendListItem)
+        case cancelRequest(FriendListItem)
+        case declineRequest(FriendListItem)
+
+        var id: String {
+            switch self {
+            case .removeFriend(let f): return "remove-\(f.id)"
+            case .blockFriend(let f): return "block-\(f.id)"
+            case .cancelRequest(let f): return "cancel-\(f.id)"
+            case .declineRequest(let f): return "decline-\(f.id)"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .removeFriend: return FriendsListL10n.removeConfirmTitle
+            case .blockFriend: return FriendsListL10n.blockConfirmTitle
+            case .cancelRequest: return FriendsListL10n.cancelConfirmTitle
+            case .declineRequest: return FriendsListL10n.declineConfirmTitle
+            }
+        }
+
+        var message: String {
+            let displayName = friend.displayName
+            switch self {
+            case .removeFriend: return FriendsListL10n.removeConfirmMessage(displayName)
+            case .blockFriend: return FriendsListL10n.blockConfirmMessage(displayName)
+            case .cancelRequest: return FriendsListL10n.cancelConfirmMessage(displayName)
+            case .declineRequest: return FriendsListL10n.declineConfirmMessage(displayName)
+            }
+        }
+
+        var confirmTitle: String {
+            switch self {
+            case .removeFriend: return FriendsListL10n.remove
+            case .blockFriend: return FriendsListL10n.block
+            case .cancelRequest: return FriendsListL10n.cancelRequest
+            case .declineRequest: return FriendsListL10n.decline
+            }
+        }
+
+        private var friend: FriendListItem {
+            switch self {
+            case .removeFriend(let f),
+                 .blockFriend(let f),
+                 .cancelRequest(let f),
+                 .declineRequest(let f):
+                return f
+            }
         }
     }
 
@@ -210,42 +324,67 @@ struct FriendsListView: View {
             } else {
                 LazyVStack(spacing: BlipSpacing.sm) {
                     ForEach(Array(filteredFriends.enumerated()), id: \.element.id) { index, friend in
-                        FriendRow(friend: friend, onTap: { selectedFriend = friend })
-                            .contextMenu {
-                                if friend.status == .accepted {
-                                    Button(role: .destructive) {
-                                        removeFriend(friend)
-                                    } label: {
-                                        Label(FriendsListL10n.remove, systemImage: "person.badge.minus")
-                                    }
-                                    Button(role: .destructive) {
-                                        blockFriend(friend)
-                                    } label: {
-                                        Label(FriendsListL10n.block, systemImage: "hand.raised")
-                                    }
-                                } else if friend.status == .blocked {
-                                    Button {
-                                        unblockFriend(friend)
-                                    } label: {
-                                        Label(FriendsListL10n.unblock, systemImage: "hand.raised.slash")
-                                    }
-                                } else if friend.status == .pending {
-                                    Button(role: .destructive) {
-                                        declineFriend(friend)
-                                    } label: {
-                                        if friend.requestDirection == .outgoing {
-                                            Label(FriendsListL10n.cancelRequest, systemImage: "xmark.circle")
-                                        } else {
-                                            Label(FriendsListL10n.decline, systemImage: "xmark")
-                                        }
-                                    }
-                                }
-                            }
-                            .staggeredReveal(index: index)
+                        FriendRow(
+                            friend: friend,
+                            onTap: { selectedFriend = friend },
+                            onAcceptIncoming: friend.status == .pending && friend.requestDirection == .incoming
+                                ? { acceptFriendRequest(friend) }
+                                : nil,
+                            onCancelOutgoing: friend.status == .pending && friend.requestDirection == .outgoing
+                                ? { confirmingAction = .cancelRequest(friend) }
+                                : nil,
+                            onRemove: friend.status == .accepted
+                                ? { confirmingAction = .removeFriend(friend) }
+                                : nil,
+                            onBlock: friend.status == .accepted
+                                ? { confirmingAction = .blockFriend(friend) }
+                                : nil,
+                            onUnblock: friend.status == .blocked
+                                ? { unblockFriend(friend) }
+                                : nil
+                        )
+                        .contextMenu {
+                            contextMenuContent(for: friend)
+                        }
+                        .staggeredReveal(index: index)
                     }
                 }
                 .padding(.horizontal, BlipSpacing.md)
                 .padding(.bottom, BlipSpacing.xxl)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func contextMenuContent(for friend: FriendListItem) -> some View {
+        if friend.status == .accepted {
+            Button(role: .destructive) {
+                confirmingAction = .removeFriend(friend)
+            } label: {
+                Label(FriendsListL10n.remove, systemImage: "person.badge.minus")
+            }
+            Button(role: .destructive) {
+                confirmingAction = .blockFriend(friend)
+            } label: {
+                Label(FriendsListL10n.block, systemImage: "hand.raised")
+            }
+        } else if friend.status == .blocked {
+            Button {
+                unblockFriend(friend)
+            } label: {
+                Label(FriendsListL10n.unblock, systemImage: "hand.raised.slash")
+            }
+        } else if friend.status == .pending {
+            Button(role: .destructive) {
+                confirmingAction = friend.requestDirection == .outgoing
+                    ? .cancelRequest(friend)
+                    : .declineRequest(friend)
+            } label: {
+                if friend.requestDirection == .outgoing {
+                    Label(FriendsListL10n.cancelRequest, systemImage: "xmark.circle")
+                } else {
+                    Label(FriendsListL10n.decline, systemImage: "xmark")
+                }
             }
         }
     }
@@ -411,67 +550,26 @@ private struct FriendRow: View {
 
     let friend: FriendListItem
     let onTap: () -> Void
+    /// Tapping the inline "Accept" pill (incoming pending) runs this.
+    let onAcceptIncoming: (() -> Void)?
+    /// Tapping the inline "Cancel" pill (outgoing pending) runs this.
+    let onCancelOutgoing: (() -> Void)?
+    /// Tapping "Remove" in the row ellipsis menu (accepted friends).
+    let onRemove: (() -> Void)?
+    /// Tapping "Block" in the row ellipsis menu.
+    let onBlock: (() -> Void)?
+    /// Tapping "Unblock" on a blocked row.
+    let onUnblock: (() -> Void)?
 
     @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: BlipSpacing.md) {
-                // Avatar
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient.blipAccent.opacity(0.7))
-                        .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
-                        .overlay(
-                            Text(String(friend.displayName.prefix(1)).uppercased())
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(.white)
-                        )
-
-                    if friend.isOnline {
-                        Circle()
-                            .fill(Color.blipElectricCyan)
-                            .frame(width: 10, height: 10)
-                            .overlay(Circle().stroke(theme.colors.background, lineWidth: 1.5))
-                            .offset(x: 14, y: 14)
-                    }
-                }
-
-                // Info
-                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                    HStack {
-                        Text(friend.displayName)
-                            .font(theme.typography.body)
-                            .fontWeight(.medium)
-                            .foregroundStyle(theme.colors.text)
-
-                        if friend.isVerified {
-                            VerifiedBadge(size: 12)
-                        }
-                    }
-
-                    Text("@\(friend.username)")
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.mutedText)
-                }
-
+                avatar
+                info
                 Spacer()
-
-                // Status indicator
-                if friend.status == .pending {
-                    pendingStatusBadge
-                } else if friend.status == .blocked {
-                    Text(FriendsListL10n.blocked)
-                        .font(theme.typography.caption)
-                        .foregroundStyle(theme.colors.statusRed)
-                        .padding(.horizontal, BlipSpacing.sm)
-                        .padding(.vertical, BlipSpacing.xs)
-                        .background(Capsule().fill(theme.colors.statusRed.opacity(0.12)))
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.colors.mutedText)
+                trailingControls
             }
         }
         .buttonStyle(.plain)
@@ -481,30 +579,158 @@ private struct FriendRow: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    @ViewBuilder
-    private var pendingStatusBadge: some View {
-        if friend.requestDirection == .outgoing {
-            Text(FriendsListL10n.requested)
+    private var avatar: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient.blipAccent.opacity(0.7))
+                .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
+                .overlay(
+                    Text(String(friend.displayName.prefix(1)).uppercased())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                )
+
+            if friend.isOnline {
+                Circle()
+                    .fill(Color.blipElectricCyan)
+                    .frame(width: 10, height: 10)
+                    .overlay(Circle().stroke(theme.colors.background, lineWidth: 1.5))
+                    .offset(x: 14, y: 14)
+            }
+        }
+    }
+
+    private var info: some View {
+        VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+            HStack {
+                Text(friend.displayName)
+                    .font(theme.typography.body)
+                    .fontWeight(.medium)
+                    .foregroundStyle(theme.colors.text)
+
+                if friend.isVerified {
+                    VerifiedBadge(size: 12)
+                }
+            }
+
+            Text("@\(friend.username)")
                 .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
-                .padding(.horizontal, BlipSpacing.sm)
-                .padding(.vertical, BlipSpacing.xs)
-                .background(Capsule().fill(theme.colors.hover))
-        } else {
-            Text(FriendsListL10n.accept)
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.statusAmber)
-                .padding(.horizontal, BlipSpacing.sm)
-                .padding(.vertical, BlipSpacing.xs)
-                .background(Capsule().fill(theme.colors.statusAmber.opacity(0.12)))
         }
+    }
+
+    /// Row-specific trailing controls. Every state surfaces an explicit
+    /// tappable action — no long-press discovery required.
+    @ViewBuilder
+    private var trailingControls: some View {
+        if friend.status == .accepted {
+            acceptedMenu
+        } else if friend.status == .pending, friend.requestDirection == .incoming {
+            pendingPill(
+                label: FriendsListL10n.accept,
+                tint: theme.colors.statusAmber,
+                action: onAcceptIncoming
+            )
+        } else if friend.status == .pending, friend.requestDirection == .outgoing {
+            pendingPill(
+                label: FriendsListL10n.cancelRequest,
+                tint: theme.colors.mutedText,
+                action: onCancelOutgoing
+            )
+        } else if friend.status == .blocked {
+            blockedControl
+        } else {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.colors.mutedText)
+        }
+    }
+
+    @ViewBuilder
+    private var acceptedMenu: some View {
+        if onRemove != nil || onBlock != nil {
+            Menu {
+                if let onRemove {
+                    Button(role: .destructive) {
+                        onRemove()
+                    } label: {
+                        Label(FriendsListL10n.remove, systemImage: "person.badge.minus")
+                    }
+                }
+                if let onBlock {
+                    Button(role: .destructive) {
+                        onBlock()
+                    } label: {
+                        Label(FriendsListL10n.block, systemImage: "hand.raised")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(theme.colors.mutedText)
+                    .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(FriendsListL10n.accessibilityMore(friend.displayName))
+        } else {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.colors.mutedText)
+        }
+    }
+
+    @ViewBuilder
+    private var blockedControl: some View {
+        if let onUnblock {
+            Button {
+                onUnblock()
+            } label: {
+                Text(FriendsListL10n.unblock)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.text)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xs)
+                    .background(Capsule().fill(theme.colors.hover))
+            }
+            .buttonStyle(.plain)
+            .frame(minHeight: BlipSizing.minTapTarget)
+        } else {
+            Text(FriendsListL10n.blocked)
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.statusRed)
+                .padding(.horizontal, BlipSpacing.sm)
+                .padding(.vertical, BlipSpacing.xs)
+                .background(Capsule().fill(theme.colors.statusRed.opacity(0.12)))
+        }
+    }
+
+    /// Inline pill button (pending states). Because this sits inside the row
+    /// Button we intercept taps with a TapGesture so the row-level onTap
+    /// doesn't also fire and open the profile sheet.
+    private func pendingPill(label: String, tint: Color, action: (() -> Void)?) -> some View {
+        Text(label)
+            .font(theme.typography.caption)
+            .foregroundStyle(tint)
+            .padding(.horizontal, BlipSpacing.sm)
+            .padding(.vertical, BlipSpacing.xs)
+            .background(Capsule().fill(tint.opacity(0.12)))
+            .contentShape(Capsule())
+            .onTapGesture {
+                if let action {
+                    BlipHaptics.lightImpact()
+                    action()
+                }
+            }
+            .frame(minHeight: BlipSizing.minTapTarget)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(label)
     }
 
     private var accessibilityLabel: String {
         let onlineLabel = friend.isOnline ? ", online" : ""
         let pendingLabel: String
         if friend.status == .pending {
-            pendingLabel = friend.requestDirection == .outgoing ? ", requested" : ", incoming friend request"
+            pendingLabel = friend.requestDirection == .outgoing ? ", request sent, tap to cancel" : ", incoming friend request, tap to accept"
         } else if friend.status == .blocked {
             pendingLabel = ", blocked"
         } else {

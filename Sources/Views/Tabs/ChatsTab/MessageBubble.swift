@@ -147,17 +147,20 @@ struct MessageBubble: View {
     // MARK: - Bubble Content
 
     private var bubbleContent: some View {
-        VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: BlipSpacing.xs) {
+        VStack(alignment: message.isFromMe ? .trailing : .leading, spacing: BlipSpacing.xs - 2) {
             // Reply quote
             if let reply = message.replyPreview {
                 replyQuote(reply)
             }
 
-            // Message body
+            // Message body, with a subtle inline time in the bottom-right
+            // corner — WhatsApp-style. No transport icon (redundant with the
+            // nav bar indicator), no inline "edited" label (moved to
+            // accessibility + context menu metadata), tight padding.
             Group {
                 switch message.contentType {
                 case .text:
-                    textContent
+                    textWithTrailingTimestamp
                 case .voiceNote:
                     voiceNoteContent
                 case .image:
@@ -167,48 +170,14 @@ struct MessageBubble: View {
                 }
             }
 
-            // Timestamp + status row
-            HStack(spacing: BlipSpacing.xs) {
-                Image(systemName: message.isRelayed ? "cloud" : "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 8))
-                    .foregroundStyle(
-                        message.isFromMe
-                            ? Color.white.opacity(0.6)
-                            : theme.colors.mutedText.opacity(0.7)
-                    )
-                    .accessibilityLabel(message.isRelayed ? MessageBubbleL10n.viaRelay : MessageBubbleL10n.viaMesh)
-
-                Text(message.formattedTime)
-                    .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
-                    .foregroundStyle(
-                        message.isFromMe
-                            ? Color.white.opacity(0.6)
-                            : theme.colors.mutedText.opacity(0.7)
-                    )
-
-                if message.isEdited {
-                    Text(MessageBubbleL10n.edited)
-                        .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
-                        .foregroundStyle(
-                            message.isFromMe
-                                ? Color.white.opacity(0.5)
-                                : theme.colors.mutedText.opacity(0.5)
-                        )
-                }
-
-                if message.isFromMe {
-                    StatusBadge(
-                        status: message.deliveryStatus,
-                        size: 10,
-                        tintColor: message.deliveryStatus == .read
-                            ? .white.opacity(0.8)
-                            : .white.opacity(0.5)
-                    )
-                }
+            // Media/voice messages don't support inline trailing timestamps
+            // cleanly, so we emit a compact footer underneath instead.
+            if message.contentType != .text {
+                mediaFooter
             }
         }
-        .padding(.horizontal, BlipSpacing.md)
-        .padding(.vertical, BlipSpacing.sm + 2)
+        .padding(.horizontal, BlipSpacing.md - 2)
+        .padding(.vertical, BlipSpacing.sm - 2)
         .frame(maxWidth: maxBubbleWidth, alignment: message.isFromMe ? .trailing : .leading)
         .background(bubbleBackground)
         .clipShape(bubbleShape)
@@ -218,13 +187,69 @@ struct MessageBubble: View {
         )
     }
 
-    // MARK: - Text Content
-
-    private var textContent: some View {
-        Text(message.text)
+    /// Text bubble with the time and delivery status laid out trailing at the
+    /// baseline — WhatsApp's tight "time-in-corner" look. A transparent spacer
+    /// run reserves horizontal room inside the text layout for the overlayed
+    /// timestamp so long lines wrap correctly without the time colliding.
+    private var textWithTrailingTimestamp: some View {
+        let body = Text(message.text)
             .font(theme.typography.body)
             .foregroundStyle(message.isFromMe ? .white : theme.colors.text)
+        let gap = Text(reservedTimestampGap)
+            .font(theme.typography.body)
+            .foregroundStyle(.clear)
+
+        return (body + gap)
             .fixedSize(horizontal: false, vertical: true)
+            .overlay(alignment: .bottomTrailing) {
+                timestampRow
+                    .padding(.trailing, 2)
+                    .padding(.bottom, 1)
+            }
+    }
+
+    /// Footer shown under media (voice notes / images) since they can't host
+    /// an inline trailing timestamp cleanly.
+    private var mediaFooter: some View {
+        HStack(spacing: BlipSpacing.xs) {
+            Spacer(minLength: 0)
+            timestampRow
+        }
+        .padding(.top, 2)
+    }
+
+    /// Compact timestamp + delivery state row used as an overlay on text
+    /// bubbles and as a footer on media bubbles.
+    private var timestampRow: some View {
+        HStack(spacing: 3) {
+            Text(message.formattedTime)
+                .font(.custom(BlipFontName.regular, size: 10, relativeTo: .caption2))
+                .foregroundStyle(
+                    message.isFromMe
+                        ? Color.white.opacity(0.65)
+                        : theme.colors.mutedText.opacity(0.7)
+                )
+
+            if message.isFromMe {
+                StatusBadge(
+                    status: message.deliveryStatus,
+                    size: 11,
+                    tintColor: message.deliveryStatus == .read
+                        ? .white.opacity(0.9)
+                        : .white.opacity(0.55)
+                )
+            }
+        }
+    }
+
+    /// Invisible gap inside the text run so the overlay timestamp doesn't
+    /// collide with message characters. The exact width scales with the
+    /// expected "HH:MM" + check glyphs footprint.
+    private var reservedTimestampGap: String {
+        // Three or four non-breaking spaces give the overlay room without
+        // introducing a visible trailing space. More for me-messages because
+        // the status badge widens the footprint.
+        message.isFromMe ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : "\u{00A0}\u{00A0}\u{00A0}\u{00A0}"
     }
 
     // MARK: - Voice Note Content

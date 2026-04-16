@@ -28,22 +28,31 @@ struct MainTabView: View {
             GradientBackground()
                 .ignoresSafeArea()
 
-            // Tab content
+            // Tab content — only reserve bottom space for the tab bar when it's
+            // actually showing. Otherwise immersive screens (chat, full-screen
+            // media) get an unwanted gap at the bottom.
             tabContent
-                .padding(.bottom, tabBarHeight + BlipSpacing.sm)
+                .padding(.bottom, coordinator.isInImmersiveView ? 0 : tabBarHeight + BlipSpacing.sm)
 
-            // Custom glass tab bar
-            floatingTabBar
+            // Custom glass tab bar — hidden during immersive flows (chat etc.)
+            // so it doesn't overlay the pushed destination.
+            if !coordinator.isInImmersiveView {
+                floatingTabBar
+                    .transition(
+                        .move(edge: .bottom).combined(with: .opacity)
+                    )
+            }
         }
         .connectionBanner(peerCount: connectedPeerCount, isVisible: $showConnectionBanner)
         .overlay(alignment: .top) {
-            if coordinator.registrationSyncPending {
+            if coordinator.registrationSyncPending && !coordinator.isInImmersiveView {
                 RegistrationBanner(coordinator: coordinator)
                     .padding(.horizontal, BlipSpacing.md)
                     .padding(.top, BlipSpacing.sm)
             }
         }
         .animation(SpringConstants.accessiblePageEntrance, value: coordinator.registrationSyncPending)
+        .animation(SpringConstants.gentleAnimation, value: coordinator.isInImmersiveView)
         .onChange(of: coordinator.pendingNotificationNavigation) { _, destination in
             guard let destination else { return }
             switch destination {
@@ -182,7 +191,9 @@ struct MainTabView: View {
     // MARK: - Tab Configuration
 
     private var visibleTabs: [Tab] {
-        [.chats, .nearby, .event, .profile]
+        // Ordering matches the product direction: Events first so new users
+        // land on the event context, then Nearby / Chats / Profile.
+        [.event, .nearby, .chats, .profile]
     }
 
     private let tabBarHeight: CGFloat = 70

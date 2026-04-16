@@ -348,12 +348,25 @@ final class ChatViewModel {
         }
     }
 
-    /// Close the active conversation.
+    /// Fully close the active conversation. Clears both the identity of the
+    /// active channel and its cached messages. Use this when the conversation
+    /// is being deleted or the user signs out.
     func closeConversation() {
         activeChannel = nil
         activeMessages = []
         replyTarget = nil
         composingText = ""
+    }
+
+    /// Clear only transient composer state (reply target, composing text) when
+    /// the chat view disappears. `activeChannel` and `activeMessages` are left
+    /// intact so that returning to the same conversation renders immediately
+    /// from cache instead of flashing empty while `openConversation` reloads.
+    func clearTransientConversationState() {
+        replyTarget = nil
+        // Intentionally keep `composingText` so the user's in-progress draft
+        // survives a brief back-and-forth. ChatView also mirrors composingText
+        // into a local @State, so losing it here would surprise the user.
     }
 
     // MARK: - Send Messages
