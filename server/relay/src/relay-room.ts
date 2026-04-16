@@ -214,8 +214,10 @@ export class RelayRoom implements DurableObject {
         ? new Uint8Array(event.data)
         : new Uint8Array((event.data as ArrayBuffer));
 
-    // Drop undersized or oversized packets.
-    if (data.length < HEADER_SIZE || data.length > MAX_PACKET_SIZE) {
+    // Sender PeerID lives at bytes 16..23 — drop any frame too small to carry one.
+    // Previously only `HEADER_SIZE` (16) was enforced, which let us read past the
+    // end of the buffer during sender verification on malformed frames.
+    if (data.length < MIN_PACKET_SIZE || data.length > MAX_PACKET_SIZE) {
       return;
     }
 
@@ -234,25 +236,27 @@ export class RelayRoom implements DurableObject {
     }
 
     // Verify the sender PeerID in the packet matches the authenticated connection.
-    if (senderPeerIdHex) {
-      const packetSenderHex = bytesToHex(
-        data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH)
+    const packetSenderHex = bytesToHex(
+      data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH)
+    );
+    if (senderPeerIdHex && packetSenderHex !== senderPeerIdHex) {
+      console.warn(
+        `Sender mismatch: packet=${packetSenderHex} connection=${senderPeerIdHex} — dropping`
       );
-      if (packetSenderHex !== senderPeerIdHex) {
-        console.warn(
-          `Sender mismatch: packet=${packetSenderHex} connection=${senderPeerIdHex} — dropping`
-        );
-        return;
-      }
+      return;
     }
 
     const recipientHex = extractRecipient(data);
 
     if (!recipientHex) {
-      // No recipient — broadcast to all other connected peers.
-      // This enables presence/announce discovery over relay.
+      // No recipient — broadcast to all *other* peers by PeerID hex, not by
+      // WebSocket object identity. A sender that rapidly disconnects and
+      // reconnects gets a new socket stored in `this.peers[senderPeerIdHex]`
+      // before this broadcast loop runs; comparing `peerWs === senderWs`
+      // would then fail to suppress the echo and deliver the sender's own
+      // packet back to its new connection. Keying by hex fixes that.
       for (const [peerHex, peerWs] of this.peers) {
-        if (peerWs === senderWs) continue; // Don't echo back to sender.
+        if (peerHex === packetSenderHex) continue;
         try {
           // Allocate an independent ArrayBuffer per recipient. `data.buffer.slice(0)`
           // returns a slice of the underlying ArrayBuffer (not the view region) and
@@ -268,11 +272,15 @@ export class RelayRoom implements DurableObject {
       return;
     }
 
-    // Addressed packet — try direct delivery.
+    // Addressed packet — try direct delivery. Allocate a fresh buffer rather
+    // than sharing `data.buffer` with the handler's view, which prevents
+    // aliasing issues when the same bytes are later queued for offline
+    // delivery (queuePacket copies `Array.from(data)` but direct sends would
+    // otherwise hand the WebSocket the raw view buffer).
     const recipientWs = this.peers.get(recipientHex);
     if (recipientWs) {
       try {
-        recipientWs.send(data.buffer);
+        recipientWs.send(new Uint8Array(data).buffer);
         return;
       } catch (err) {
         console.warn(`[relay] addressed send failed for recipient ${recipientHex}, removing and queuing:`, err);

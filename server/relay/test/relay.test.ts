@@ -11,6 +11,7 @@ import {
   OFFSET_RECIPIENT_ID,
   bytesToHex,
   type Env,
+  type PeerIDHex,
 } from "../src/types";
 
 // --- Helpers ---
@@ -118,6 +119,11 @@ afterEach(() => {
 
 beforeEach(() => {
   (env as Record<string, unknown>).JWT_SECRET = "relay-test-secret";
+  // Most tests use legacy base64 auth for convenience (bypassing JWT). That
+  // path is now gated behind an explicit env flag to prevent it slipping into
+  // production. Enable it unconditionally for the test suite; dedicated tests
+  // below clear it to verify the guardrail.
+  (env as Record<string, unknown>).ALLOW_LEGACY_AUTH = "1";
 });
 
 async function connectPeer(key: Uint8Array): Promise<WebSocket> {
@@ -984,6 +990,169 @@ describe("Multiple concurrent connections", () => {
     expect(new Uint8Array(messages[2][0])).toEqual(p02);
     expect(messages[3].length).toBe(1);
     expect(new Uint8Array(messages[3][0])).toEqual(p13);
+  });
+});
+
+describe("Legacy auth guardrail", () => {
+  it("rejects base64 public key auth when ALLOW_LEGACY_AUTH is unset", async () => {
+    const previous = (env as Record<string, unknown>).ALLOW_LEGACY_AUTH;
+    delete (env as Record<string, unknown>).ALLOW_LEGACY_AUTH;
+    try {
+      const key = randomPublicKey();
+      const req = new Request("https://relay.heyblip.au/ws", {
+        headers: {
+          Upgrade: "websocket",
+          Authorization: `Bearer ${toBase64(key)}`,
+        },
+      });
+      const ctx = createExecutionContext();
+      const res = await worker.fetch(req, env, ctx);
+      await waitOnExecutionContext(ctx);
+      expect(res.status).toBe(401);
+      expect(await res.text()).toBe("Legacy auth disabled");
+    } finally {
+      if (previous !== undefined) {
+        (env as Record<string, unknown>).ALLOW_LEGACY_AUTH = previous;
+      }
+    }
+  });
+
+  it("accepts a valid JWT even when ALLOW_LEGACY_AUTH is unset", async () => {
+    const previous = (env as Record<string, unknown>).ALLOW_LEGACY_AUTH;
+    delete (env as Record<string, unknown>).ALLOW_LEGACY_AUTH;
+    try {
+      const publicKey = randomPublicKey();
+      const peerIdHex = await derivePeerIdHex(publicKey);
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = await signJWT(
+        {
+          sub: peerIdHex,
+          npk: toBase64(publicKey),
+          iat: nowSeconds,
+          exp: nowSeconds + 3600,
+        },
+        "relay-test-secret"
+      );
+
+      const auth = await validateAuthorizationHeader(`Bearer ${token}`, env);
+      expect(auth.peerIdHex).toBe(peerIdHex);
+      expect(auth.source).toBe("jwt");
+    } finally {
+      if (previous !== undefined) {
+        (env as Record<string, unknown>).ALLOW_LEGACY_AUTH = previous;
+      }
+    }
+  });
+});
+
+describe("Echo suppression (by PeerID, not by WebSocket identity)", () => {
+  // Regression: when a sender rapidly disconnects and reconnects mid-broadcast
+  // loop, the peer map's WebSocket for that PeerID changes. Comparing
+  // `peerWs === senderWs` would then fail to suppress the echo and deliver
+  // the sender's own packet back to its new connection. Keying suppression
+  // by the packet's sender PeerID hex fixes that.
+  it("does not echo a broadcast back to a reconnected sender", () => {
+    const senderPeerHex = "cafebabe01020304";
+    const otherPeerHex = "0102030405060708";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const reconnectedSenderSend = vi.fn<(payload: ArrayBuffer) => void>();
+    const reconnectedSenderWs = { send: reconnectedSenderSend } as unknown as WebSocket;
+    const otherSend = vi.fn<(payload: ArrayBuffer) => void>();
+    const otherWs = { send: otherSend } as unknown as WebSocket;
+
+    // The ORIGINAL sender socket the broadcast came from. The peer has since
+    // reconnected with a different socket, so this one is not in `peers`.
+    const originalSenderWs = {} as WebSocket;
+
+    const packet = buildPacket({ senderPeerId: hexToPeerID(senderPeerHex) });
+
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+      wsToPeer: Map<WebSocket, PeerIDHex>;
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).peers.set(senderPeerHex, reconnectedSenderWs);
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+      wsToPeer: Map<WebSocket, PeerIDHex>;
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).peers.set(otherPeerHex, otherWs);
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+      wsToPeer: Map<WebSocket, PeerIDHex>;
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).wsToPeer.set(originalSenderWs, senderPeerHex);
+
+    (room as unknown as {
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).handleMessage(originalSenderWs, { data: packet.buffer } as MessageEvent);
+
+    // Other peer receives the broadcast — but the reconnected sender does NOT.
+    expect(otherSend).toHaveBeenCalledTimes(1);
+    expect(reconnectedSenderSend).not.toHaveBeenCalled();
+  });
+
+  it("delivers broadcasts to every peer except the sender by PeerID", () => {
+    const senderPeerHex = "aaaaaaaaaaaaaaaa";
+    const peerBHex = "bbbbbbbbbbbbbbbb";
+    const peerCHex = "cccccccccccccccc";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const senderSend = vi.fn<(payload: ArrayBuffer) => void>();
+    const senderWs = { send: senderSend } as unknown as WebSocket;
+    const bSend = vi.fn<(payload: ArrayBuffer) => void>();
+    const bWs = { send: bSend } as unknown as WebSocket;
+    const cSend = vi.fn<(payload: ArrayBuffer) => void>();
+    const cWs = { send: cSend } as unknown as WebSocket;
+
+    const packet = buildPacket({ senderPeerId: hexToPeerID(senderPeerHex) });
+
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+      wsToPeer: Map<WebSocket, PeerIDHex>;
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).peers.set(senderPeerHex, senderWs);
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+    }).peers.set(peerBHex, bWs);
+    (room as unknown as {
+      peers: Map<PeerIDHex, WebSocket>;
+    }).peers.set(peerCHex, cWs);
+    (room as unknown as {
+      wsToPeer: Map<WebSocket, PeerIDHex>;
+    }).wsToPeer.set(senderWs, senderPeerHex);
+
+    (room as unknown as {
+      handleMessage(senderWs: WebSocket, event: MessageEvent): void;
+    }).handleMessage(senderWs, { data: packet.buffer } as MessageEvent);
+
+    expect(senderSend).not.toHaveBeenCalled();
+    expect(bSend).toHaveBeenCalledTimes(1);
+    expect(cSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Undersized packet guard", () => {
+  it("drops 16-byte frames before sender-ID extraction", async () => {
+    // A 16-byte frame satisfies the old `HEADER_SIZE` check but doesn't
+    // contain a full sender PeerID (bytes 16..23). The hardened guard now
+    // rejects anything smaller than MIN_PACKET_SIZE (header + sender).
+    const keyA = randomPublicKey();
+    const keyB = randomPublicKey();
+
+    const wsA = await connectPeer(keyA);
+    const wsB = await connectPeer(keyB);
+    const messagesB = collectBinaryMessages(wsB);
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const headerOnly = new Uint8Array(16);
+    wsA.send(headerOnly.buffer);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(messagesB.length).toBe(0);
   });
 });
 

@@ -272,6 +272,13 @@ export async function validateAuthorizationHeader(header: string | null, env: En
     };
   }
 
+  // Legacy auth (raw base64 Noise public key as bearer) has no expiry or
+  // rotation — it's strictly a dev convenience. Production deployments must
+  // unset `ALLOW_LEGACY_AUTH` so every session goes through the JWT path.
+  if (!env.ALLOW_LEGACY_AUTH) {
+    throw new RelayAuthError(401, "Legacy auth disabled");
+  }
+
   const publicKeyBytes = parseAuthHeader(header);
   if (!publicKeyBytes) {
     throw new RelayAuthError(401, "Unauthorized");

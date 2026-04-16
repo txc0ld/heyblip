@@ -46,6 +46,14 @@ export interface Env {
   JWT_SECRET?: string;
   AUTH_PUSH_URL: string;
   INTERNAL_API_KEY: string;
+  /**
+   * When set to a truthy string, the relay accepts raw base64-encoded Noise
+   * public keys as an "Authorization: Bearer <npk>" token. Intended for local
+   * dev only — legacy auth has no expiry and cannot be revoked, so production
+   * deployments must omit this flag so every session goes through the JWT
+   * path (which enforces expiry, rotation, and sub/npk binding).
+   */
+  ALLOW_LEGACY_AUTH?: string;
 }
 
 /** Convert raw bytes to hex-encoded PeerID. */
