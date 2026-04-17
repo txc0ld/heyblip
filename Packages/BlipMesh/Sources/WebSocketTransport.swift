@@ -34,7 +34,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     public static let maxReconnectAttempts = 10
 
     /// Relay keep-alive interval.
-    private static let pingInterval: TimeInterval = 30.0
+    private static let pingInterval: TimeInterval = 20.0
 
     // MARK: - Transport conformance
 

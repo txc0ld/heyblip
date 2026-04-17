@@ -34,6 +34,7 @@ struct BLEDebugOverlay: View {
         case dmTrace = "DM Trace"
         case peerLife = "Peer Life"
         case keys = "Keys"
+        case noise = "Noise"
     }
 
     var body: some View {
@@ -269,6 +270,8 @@ struct BLEDebugOverlay: View {
             peerLifecycleSection
         case .keys:
             keyStatusSection
+        case .noise:
+            noiseDebugSection
         }
     }
 
@@ -397,6 +400,39 @@ struct BLEDebugOverlay: View {
             .padding(BlipSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    // MARK: - Noise Debug
+
+    private var noiseDebugSection: some View {
+        let noiseEntries = DebugLogger.shared.entries
+            .filter { $0.category == "NOISE" || $0.category == "CRYPTO" }
+            .prefix(50)
+        let msgService = coordinator.messageService
+        let activeSessions = msgService?.noiseSessionManager?.activeSessionCount ?? 0
+        let pendingHandshakes = msgService?.noiseSessionManager?.pendingHandshakeCount ?? 0
+
+        return VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            sectionHeader("Noise Sessions")
+
+            HStack(spacing: BlipSpacing.lg) {
+                metricBlock(label: "Active", value: "\(activeSessions)")
+                metricBlock(label: "Pending", value: "\(pendingHandshakes)")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(BlipSpacing.sm)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+            sectionHeader("Noise / Crypto Log (\(noiseEntries.count))")
+
+            if noiseEntries.isEmpty {
+                Text("No NOISE/CRYPTO entries yet")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
+            } else {
+                logEntryList(entries: Array(noiseEntries))
+            }
         }
     }
 
