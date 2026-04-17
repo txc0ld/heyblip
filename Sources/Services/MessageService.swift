@@ -357,7 +357,12 @@ final class MessageService: @unchecked Sendable {
         }
         try context.save()
 
-        DebugLogger.shared.log("DM", "sendTextMessage: COMPLETE msgID=\(message.id)")
+        switch sendOutcome {
+        case .sent:
+            DebugLogger.shared.log("DM", "sendTextMessage: SENT msgID=\(message.id)")
+        case .deferred:
+            DebugLogger.shared.log("DM", "sendTextMessage: DEFERRED msgID=\(message.id)")
+        }
         return message
     }
 
@@ -1877,7 +1882,10 @@ extension MessageService: TransportDelegate {
     }
 
     func transport(_ transport: any Transport, didChangeState state: TransportState) {
-        // State changes handled by TransportCoordinator; no MessageService action needed.
+        guard transport is WebSocketTransport, state == .running else { return }
+        Task { @MainActor [weak self] in
+            self?.resendPendingHandshakesAfterRelayReconnect()
+        }
     }
 
     private func ingressTransport(for transport: any Transport) -> PeerIngressTransport {

@@ -374,6 +374,30 @@ extension MessageService {
         }
     }
 
+    /// Re-initiates handshakes for all peers that have queued messages but no active session.
+    /// Called when the relay reconnects so messages don't stay stuck behind a stale handshake.
+    @MainActor
+    func resendPendingHandshakesAfterRelayReconnect() {
+        let pendingPeerBytes: [Data] = lock.withLock {
+            Array(pendingHandshakeMessages.keys)
+        }
+        guard !pendingPeerBytes.isEmpty else { return }
+        DebugLogger.shared.log("NOISE", "Relay reconnected — re-initiating handshakes for \(pendingPeerBytes.count) pending peer(s)")
+        for peerBytes in pendingPeerBytes {
+            guard let peerID = PeerID(bytes: peerBytes) else { continue }
+            guard noiseSessionManager?.hasSession(for: peerID) == false else { continue }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.initiateHandshakeIfNeeded(with: peerID)
+                } catch {
+                    let hex = peerBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    DebugLogger.shared.log("NOISE", "Relay reconnect handshake retry failed for \(hex): \(error)", isError: true)
+                }
+            }
+        }
+    }
+
     /// Update a message's status in SwiftData.
     @MainActor
     func updateMessageStatus(messageID: UUID, to status: MessageStatus) {
