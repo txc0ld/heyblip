@@ -89,6 +89,7 @@ struct FriendsListView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Environment(AppCoordinator.self) private var coordinator
 
     var body: some View {
@@ -175,6 +176,18 @@ struct FriendsListView: View {
         case .cancelRequest(let friend), .declineRequest(let friend):
             declineFriend(friend)
         }
+    }
+
+    /// Pending / blocked rows have no chat to push yet, so they still open
+    /// the profile sheet. Accepted friends jump straight into the DM.
+    private func handleRowTap(_ friend: FriendListItem) {
+        guard friend.status == .accepted else {
+            selectedFriend = friend
+            return
+        }
+        let username = friend.username
+        dismiss()
+        Task { await coordinator.openDM(withUsername: username) }
     }
 
     // MARK: - Pending Action
@@ -333,7 +346,7 @@ struct FriendsListView: View {
                     ForEach(Array(filteredFriends.enumerated()), id: \.element.id) { index, friend in
                         FriendRow(
                             friend: friend,
-                            onTap: { selectedFriend = friend },
+                            onTap: { handleRowTap(friend) },
                             onAcceptIncoming: friend.status == .pending && friend.requestDirection == .incoming
                                 ? { acceptFriendRequest(friend) }
                                 : nil,
