@@ -34,6 +34,12 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showQRCode = false
 
+    /// Sheets with `.presentationBackground(.ultraThinMaterial)` create their own
+    /// presentation scene that doesn't always inherit the root window's
+    /// `preferredColorScheme` — so we re-apply it on the sheet content below to
+    /// keep the translucent material on the user's chosen theme.
+    @AppStorage("appTheme") private var appTheme: AppTheme = .system
+
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
 
@@ -75,6 +81,7 @@ struct ProfileView: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(.ultraThinMaterial)
+                    .preferredColorScheme(appTheme.colorScheme)
                 }
             }
             .sheet(isPresented: $showFriends) {
@@ -84,6 +91,7 @@ struct ProfileView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
+                .preferredColorScheme(appTheme.colorScheme)
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack {
@@ -95,6 +103,7 @@ struct ProfileView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
+                .preferredColorScheme(appTheme.colorScheme)
             }
             .sheet(isPresented: $showQRCode) {
                 if let user {
@@ -102,6 +111,7 @@ struct ProfileView: View {
                         .presentationDetents([.medium])
                         .presentationDragIndicator(.visible)
                         .presentationBackground(.ultraThinMaterial)
+                        .preferredColorScheme(appTheme.colorScheme)
                 }
             }
             .task {
