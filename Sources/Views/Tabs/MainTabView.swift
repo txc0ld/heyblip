@@ -32,11 +32,11 @@ struct MainTabView: View {
             // actually showing. Otherwise immersive screens (chat, full-screen
             // media) get an unwanted gap at the bottom.
             tabContent
-                .padding(.bottom, coordinator.isInImmersiveView ? 0 : tabBarHeight + BlipSpacing.sm)
+                .padding(.bottom, (coordinator.isInImmersiveView && selectedTab == .chats) ? 0 : tabBarHeight + BlipSpacing.sm)
 
             // Custom glass tab bar — hidden during immersive flows (chat etc.)
             // so it doesn't overlay the pushed destination.
-            if !coordinator.isInImmersiveView {
+            if !(coordinator.isInImmersiveView && selectedTab == .chats) {
                 floatingTabBar
                     .transition(
                         .move(edge: .bottom).combined(with: .opacity)
@@ -45,7 +45,7 @@ struct MainTabView: View {
         }
         .connectionBanner(peerCount: connectedPeerCount, isVisible: $showConnectionBanner)
         .overlay(alignment: .top) {
-            if coordinator.registrationSyncPending && !coordinator.isInImmersiveView {
+            if coordinator.registrationSyncPending && !(coordinator.isInImmersiveView && selectedTab == .chats) {
                 RegistrationBanner(coordinator: coordinator)
                     .padding(.horizontal, BlipSpacing.md)
                     .padding(.top, BlipSpacing.sm)

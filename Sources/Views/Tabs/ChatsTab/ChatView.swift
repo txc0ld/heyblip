@@ -291,20 +291,7 @@ struct ChatView: View {
                 pttAudioLevels.removeFirst(pttAudioLevels.count - 16)
             }
         }
-        .onAppear {
-            // Hide the root tab bar while this conversation is mounted so the
-            // floating glass bar doesn't overlay the chat.
-            coordinator.isInImmersiveView = true
-        }
         .onDisappear {
-            // Show the tab bar again but DON'T clear activeMessages. Previously
-            // `closeConversation()` fired here and wiped `activeMessages = []`;
-            // when the user returned there was an async gap with no messages
-            // on screen (the "messages disappear when exiting chat" symptom).
-            // `openConversation` already replaces active state when the user
-            // opens a different conversation, so clearing here is unnecessary
-            // and actively harmful.
-            coordinator.isInImmersiveView = false
             chatViewModel?.clearTransientConversationState()
         }
     }

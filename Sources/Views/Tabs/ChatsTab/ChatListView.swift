@@ -151,6 +151,9 @@ struct ChatListView: View {
                 await chatViewModel?.loadChannels()
             }
         }
+        .onChange(of: selectedConversation) { _, newValue in
+            coordinator.isInImmersiveView = newValue != nil
+        }
     }
 
     // MARK: - Scroll Content
