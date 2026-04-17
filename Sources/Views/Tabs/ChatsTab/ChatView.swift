@@ -63,6 +63,7 @@ struct ChatView: View {
     @State private var justSentMessage = false
     @State private var lastTypingIndicatorSent = Date.distantPast
     @State private var showPTTUnavailableToast = false
+    @State private var showGroupInfo = false
 
     @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.theme) private var theme
@@ -192,6 +193,14 @@ struct ChatView: View {
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showGroupInfo) {
+            if let channel = chatViewModel?.activeChannel, channel.isGroup {
+                GroupInfoView(channel: channel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(.ultraThinMaterial)
+            }
+        }
         .alert(
             ChatViewL10n.deleteTitle,
             isPresented: Binding(
@@ -368,6 +377,21 @@ struct ChatView: View {
     // MARK: - Navigation Title
 
     private var navigationTitleView: some View {
+        let isGroup = chatViewModel?.activeChannel?.isGroup ?? false
+        return Button {
+            guard isGroup else { return }
+            showGroupInfo = true
+        } label: {
+            navigationTitleContent
+        }
+        .buttonStyle(.plain)
+        .disabled(!isGroup)
+        .accessibilityLabel(isGroup
+            ? "\(conversation.displayName), tap to view members"
+            : conversation.displayName)
+    }
+
+    private var navigationTitleContent: some View {
         HStack(spacing: BlipSpacing.sm) {
             AvatarView(
                 imageData: conversation.avatarData,
