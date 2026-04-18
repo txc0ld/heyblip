@@ -84,7 +84,7 @@ struct ChatListView: View {
                         showMessageSearch = true
                     } label: {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(theme.typography.footnote)
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .accessibilityLabel(ChatListL10n.searchMessages)
@@ -94,7 +94,7 @@ struct ChatListView: View {
                         showAddFriend = true
                     } label: {
                         Image(systemName: "person.badge.plus")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(theme.typography.footnote)
                             .foregroundStyle(.blipAccentPurple)
                     }
                     .accessibilityLabel(ChatListL10n.addFriend)
@@ -260,7 +260,7 @@ struct ChatListView: View {
             }
         } label: {
             Image(systemName: "plus.bubble.fill")
-                .font(.system(size: 22, weight: .medium))
+                .font(theme.typography.headline)
                 .foregroundStyle(.white)
                 .frame(width: 56, height: 56)
                 .background(
@@ -344,7 +344,7 @@ struct ChatListView: View {
                                         Spacer()
 
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .semibold))
+                                            .font(theme.typography.caption)
                                             .foregroundStyle(theme.colors.mutedText)
                                     }
                                     .padding(BlipSpacing.md)

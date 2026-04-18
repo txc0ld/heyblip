@@ -18,7 +18,7 @@ struct BluetoothPermissionBanner: View {
         Button(action: openSettings) {
             HStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(theme.typography.title3)
                     .foregroundStyle(Color.blipAccentPurple)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -34,7 +34,7 @@ struct BluetoothPermissionBanner: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.mutedText)
             }
             .padding(BlipSpacing.md)

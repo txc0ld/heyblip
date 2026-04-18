@@ -204,7 +204,7 @@ struct CreateProfileStep: View {
                         )
                         .overlay(
                             Image(systemName: "camera.fill")
-                                .font(.system(size: 24))
+                                .font(theme.typography.title2)
                                 .foregroundStyle(theme.colors.mutedText)
                         )
                 }
@@ -214,7 +214,7 @@ struct CreateProfileStep: View {
                     .frame(width: 28, height: 28)
                     .overlay(
                         Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(theme.typography.caption)
                             .foregroundStyle(.white)
                     )
                     .offset(x: 28, y: 28)

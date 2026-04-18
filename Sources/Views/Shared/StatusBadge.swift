@@ -244,7 +244,7 @@ struct StatusBadge: View {
         ) { status in
             HStack {
                 Text("\(String(describing: status))")
-                    .font(.system(size: 14))
+                    .font(Theme.shared.typography.secondary)
                     .foregroundStyle(.white)
                     .frame(width: 100, alignment: .leading)
                 StatusBadge(status: status)

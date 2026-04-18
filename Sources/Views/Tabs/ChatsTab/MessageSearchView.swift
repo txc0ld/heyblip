@@ -100,7 +100,7 @@ struct MessageSearchView: View {
     private var searchBar: some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
+                .font(theme.typography.footnote)
                 .foregroundStyle(isFieldFocused ? Color.blipAccentPurple : theme.colors.mutedText)
 
             TextField(MessageSearchL10n.placeholder, text: $searchText)
@@ -116,7 +116,7 @@ struct MessageSearchView: View {
                     searchResults = []
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(theme.typography.callout)
                         .foregroundStyle(theme.colors.mutedText)
                 }
                 .buttonStyle(.plain)

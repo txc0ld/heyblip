@@ -119,7 +119,7 @@ struct EventDetailView: View {
     private func detailRow(icon: String, label: String, value: String) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(theme.typography.secondary)
                 .foregroundStyle(.blipAccentPurple)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
@@ -231,8 +231,8 @@ private enum EventDetailViewPreviewData {
                 id: "1",
                 name: EventDetailL10n.previewGlastonbury,
                 location: EventDetailL10n.previewPilton,
-                latitude: 51.1447,
-                longitude: -2.5827,
+                latitude: 51.1537,
+                longitude: -2.5875,
                 startDate: Date(),
                 endDate: Date().addingTimeInterval(3 * 86400),
                 description: EventDetailL10n.previewDescription,

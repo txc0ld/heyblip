@@ -77,7 +77,7 @@ enum AddFriendSheetComponents {
 
                             if result.isVerified {
                                 Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 12))
+                                    .font(theme.typography.caption)
                                     .foregroundStyle(.blipAccentPurple)
                             }
                         }

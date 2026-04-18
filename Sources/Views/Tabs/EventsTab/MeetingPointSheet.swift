@@ -108,8 +108,7 @@ struct MeetingPointSheet: View {
 
                             if !label.isEmpty {
                                 Text(label)
-                                    .font(theme.typography.captionSmall)
-                                    .fontWeight(.bold)
+                                    .font(theme.typography.micro)
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, BlipSpacing.sm)
                                     .padding(.vertical, BlipSpacing.xxs)
@@ -230,7 +229,7 @@ struct MeetingPointSheet: View {
         Button(action: { shareTarget = target }) {
             VStack(spacing: BlipSpacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(theme.typography.body)
                     .foregroundStyle(shareTarget == target ? .blipAccentPurple : theme.colors.mutedText)
 
                 Text(label)

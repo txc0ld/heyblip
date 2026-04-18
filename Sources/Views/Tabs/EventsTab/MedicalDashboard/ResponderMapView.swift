@@ -162,7 +162,7 @@ struct ResponderMapView: View {
                     onNavigateToAlert?(alert)
                 }) {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                        .font(.system(size: 18))
+                        .font(theme.typography.body)
                         .foregroundStyle(.white)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                         .background(Circle().fill(alert.severityColor))
@@ -171,7 +171,7 @@ struct ResponderMapView: View {
 
                 Button(action: { selectedAlert = nil }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 }
@@ -185,7 +185,7 @@ struct ResponderMapView: View {
     private var recenterButton: some View {
         Button(action: recenter) {
             Image(systemName: "scope")
-                .font(.system(size: 16, weight: .medium))
+                .font(theme.typography.callout)
                 .foregroundStyle(.blipAccentPurple)
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
@@ -214,7 +214,7 @@ struct ResponderMapView: View {
             }
         } label: {
             Image(systemName: "info.circle")
-                .font(.system(size: 16, weight: .medium))
+                .font(theme.typography.callout)
                 .foregroundStyle(theme.colors.mutedText)
                 .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 .background(
@@ -314,10 +314,12 @@ private struct MedicalTentPinView: View {
 
     let tent: MedicalTentPin
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         VStack(spacing: 0) {
             Image(systemName: "cross.case.fill")
-                .font(.system(size: 18))
+                .font(theme.typography.body)
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(
@@ -342,10 +344,12 @@ private struct ResponderPinView: View {
 
     let responder: ResponderPin
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         VStack(spacing: 0) {
             Image(systemName: "person.badge.shield.checkmark.fill")
-                .font(.system(size: 16))
+                .font(theme.typography.callout)
                 .foregroundStyle(.blipAccentPurple)
 
             Text(responder.callsign)

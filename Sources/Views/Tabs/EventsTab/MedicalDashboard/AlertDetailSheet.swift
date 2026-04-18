@@ -108,7 +108,7 @@ struct AlertDetailSheet: View {
                         .frame(width: 56, height: 56)
 
                     Image(systemName: "cross.fill")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(theme.typography.headline)
                         .foregroundStyle(severityColor)
                 }
 
@@ -160,7 +160,7 @@ struct AlertDetailSheet: View {
             VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 HStack {
                     Image(systemName: "location.fill")
-                        .font(.system(size: 14))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(severityColor)
 
                     Text(AlertDetailL10n.liveLocation)
@@ -173,7 +173,7 @@ struct AlertDetailSheet: View {
                     // Accuracy indicator
                     HStack(spacing: BlipSpacing.xs) {
                         Image(systemName: alert.accuracy.iconName)
-                            .font(.system(size: 10))
+                            .font(theme.typography.caption2)
                         Text(alert.accuracy.label)
                             .font(theme.typography.caption)
                     }
@@ -272,7 +272,7 @@ struct AlertDetailSheet: View {
         GlassCard(thickness: .ultraThin) {
             HStack {
                 Image(systemName: "timer")
-                    .font(.system(size: 16))
+                    .font(theme.typography.callout)
                     .foregroundStyle(theme.colors.mutedText)
 
                 Text(AlertDetailL10n.responseTime)

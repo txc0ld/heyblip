@@ -40,7 +40,7 @@ struct QRCodeSheet: View {
 
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
+                        .font(theme.typography.title2)
                         .foregroundStyle(theme.colors.mutedText)
                 }
                 .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
@@ -94,7 +94,7 @@ struct QRCodeSheet: View {
                 ) {
                     HStack(spacing: BlipSpacing.sm) {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(theme.typography.secondary)
                         Text(QRCodeSheetL10n.shareCTA)
                             .font(theme.typography.body)
                             .fontWeight(.medium)
@@ -115,7 +115,7 @@ struct QRCodeSheet: View {
             Button(action: { showScanner = true }) {
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(theme.typography.secondary)
                     Text(QRCodeSheetL10n.scanCTA)
                         .font(theme.typography.body)
                         .fontWeight(.medium)

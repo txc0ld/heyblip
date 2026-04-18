@@ -281,7 +281,7 @@ struct NearbyPeerCard: View {
                 .accessibilityLabel(NearbyPeerCardL10n.pendingAccessibility)
         case .friends:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 18))
+                .font(theme.typography.body)
                 .foregroundStyle(Color.blipMint)
                 .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 .accessibilityLabel(NearbyPeerCardL10n.alreadyFriends)

@@ -205,7 +205,7 @@ struct SOSConfirmationSheet: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(theme.typography.title3)
                         .foregroundStyle(severityColor(severity))
                 }
             }
@@ -275,7 +275,7 @@ struct SOSConfirmationSheet: View {
                 .frame(width: 48, height: 48)
                 .overlay(
                     Image(systemName: "chevron.right.2")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(theme.typography.callout)
                         .foregroundStyle(.white)
                 )
                 .offset(x: amberSlideOffset + 4)
@@ -321,7 +321,7 @@ struct SOSConfirmationSheet: View {
                 // Center content
                 VStack(spacing: 2) {
                     Image(systemName: "cross.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(theme.typography.title3)
                         .foregroundStyle(theme.colors.statusRed)
 
                     if redIsHolding {
@@ -477,7 +477,7 @@ struct SOSConfirmationSheet: View {
                     .frame(width: 48, height: 48)
                     .overlay(
                         Image(systemName: "chevron.right.2")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(theme.typography.callout)
                             .foregroundStyle(.white)
                     )
                     .offset(x: captchaDragOffset + 4)

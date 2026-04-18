@@ -125,7 +125,7 @@ extension SOSButton {
                 GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
                     HStack(spacing: BlipSpacing.md) {
                         Image(systemName: "cross.case.fill")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(theme.typography.headline)
                             .foregroundStyle(Color.blipWarmCoral)
 
                         VStack(alignment: .leading, spacing: BlipSpacing.xs) {

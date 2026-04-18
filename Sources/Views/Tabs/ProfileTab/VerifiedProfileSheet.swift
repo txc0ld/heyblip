@@ -103,7 +103,7 @@ struct VerifiedProfileSheet: View {
     private func benefitRow(icon: String, title: String, description: String) -> some View {
         HStack(alignment: .top, spacing: BlipSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(theme.typography.body)
                 .foregroundStyle(.blipAccentPurple)
                 .frame(width: 24)
 

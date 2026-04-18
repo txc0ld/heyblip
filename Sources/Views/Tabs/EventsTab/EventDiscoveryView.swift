@@ -67,7 +67,7 @@ struct EventDiscoveryView: View {
     private var searchBar: some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
+                .font(theme.typography.footnote)
                 .foregroundStyle(theme.colors.mutedText)
             TextField(EventDiscoveryL10n.searchPlaceholder, text: $searchText)
                 .textInputAutocapitalization(.never)

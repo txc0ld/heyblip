@@ -59,7 +59,7 @@ struct AnnouncementFeed: View {
     private var sectionHeader: some View {
         HStack {
             Image(systemName: "megaphone.fill")
-                .font(.system(size: 14, weight: .medium))
+                .font(theme.typography.secondary)
                 .foregroundStyle(.blipAccentPurple)
 
             Text(AnnouncementFeedL10n.title)
@@ -158,7 +158,7 @@ private struct AnnouncementCard: View {
 
                         if announcement.isPinned {
                             Image(systemName: "pin.fill")
-                                .font(.system(size: 10))
+                                .font(theme.typography.caption2)
                                 .foregroundStyle(severityColor)
                         }
                     }
@@ -212,7 +212,7 @@ private struct AnnouncementCard: View {
     private var severityBadge: some View {
         VStack {
             Image(systemName: announcement.severity.iconName)
-                .font(.system(size: 16, weight: .bold))
+                .font(theme.typography.callout)
                 .foregroundStyle(severityColor)
                 .frame(width: 32, height: 32)
                 .background(

@@ -108,7 +108,7 @@ struct VoiceNotePlayer: View {
             togglePlayback()
         } label: {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 16, weight: .medium))
+                .font(theme.typography.callout)
                 .foregroundStyle(foregroundColor)
                 .frame(width: 32, height: 32)
                 .contentShape(Circle())

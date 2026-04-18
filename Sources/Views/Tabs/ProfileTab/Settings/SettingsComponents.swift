@@ -22,7 +22,7 @@ enum SettingsComponents {
             VStack(alignment: .leading, spacing: BlipSpacing.md) {
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(.blipAccentPurple)
 
                     Text(title)
@@ -107,7 +107,7 @@ enum SettingsComponents {
 
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "clock")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(theme.typography.caption2)
                 Text(SettingsComponentsL10n.comingSoon)
                     .font(theme.typography.caption)
                     .fontWeight(.semibold)
@@ -151,7 +151,7 @@ enum SettingsComponents {
             Spacer()
 
             Image(systemName: icon)
-                .font(.system(size: 11))
+                .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText.opacity(0.55))
         }
         .accessibilityElement(children: .combine)

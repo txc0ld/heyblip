@@ -117,7 +117,7 @@ struct MessageBubble: View {
                                     .tint(theme.colors.statusRed)
                             } else {
                                 Image(systemName: "exclamationmark.circle")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(theme.typography.caption)
                                 Text(MessageBubbleL10n.retryText)
                                     .font(.custom(BlipFontName.medium, size: 11, relativeTo: .caption2))
                             }

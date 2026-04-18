@@ -278,7 +278,7 @@ struct EventsView: View {
         }) {
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: section.iconName)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(theme.typography.caption)
 
                 Text(section.displayName)
                     .font(theme.typography.caption)
@@ -363,7 +363,7 @@ struct EventsView: View {
                     withAnimation { showCrowdPulse.toggle() }
                 }) {
                     Image(systemName: showCrowdPulse ? "eye.fill" : "eye.slash.fill")
-                        .font(.system(size: 14))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
@@ -372,7 +372,7 @@ struct EventsView: View {
                 // Drop meeting point
                 Button(action: { showMeetingPointSheet = true }) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 14))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(.blipAccentPurple)
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
@@ -423,7 +423,7 @@ struct EventsView: View {
         GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
             HStack(spacing: BlipSpacing.md) {
                 Image(systemName: "person.3.fill")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(theme.typography.title3)
                     .foregroundStyle(.blipAccentPurple)
 
                 VStack(alignment: .leading, spacing: BlipSpacing.xxs) {
@@ -445,7 +445,7 @@ struct EventsView: View {
                     }
                 }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
                         .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                 }
@@ -475,7 +475,7 @@ struct EventsView: View {
     ) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(theme.typography.secondary)
                 .foregroundStyle(tint)
 
             Text(title)

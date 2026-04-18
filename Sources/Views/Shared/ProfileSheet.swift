@@ -189,7 +189,7 @@ struct ProfileSheet: View {
     private func badge(icon: String, text: String, color: Color) -> some View {
         HStack(spacing: BlipSpacing.xs) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(theme.typography.caption2)
                 .foregroundStyle(color)
 
             Text(text)

@@ -102,7 +102,7 @@ struct AccountSettings: View {
                         .tint(isDestructive ? theme.colors.statusRed : .blipAccentPurple)
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 14))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(
                             isDestructive ? theme.colors.statusRed : theme.colors.mutedText
                         )

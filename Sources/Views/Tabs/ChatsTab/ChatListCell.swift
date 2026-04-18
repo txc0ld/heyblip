@@ -59,7 +59,7 @@ struct ChatListCell: View {
                     HStack {
                         if conversation.isPinned {
                             Image(systemName: "pin.fill")
-                                .font(.system(size: 10))
+                                .font(theme.typography.caption2)
                                 .foregroundStyle(.blipAccentPurple)
                                 .rotationEffect(.degrees(45))
                         }
@@ -77,7 +77,7 @@ struct ChatListCell: View {
 
                         if conversation.isMuted {
                             Image(systemName: "bell.slash.fill")
-                                .font(.system(size: 10))
+                                .font(theme.typography.caption2)
                                 .foregroundStyle(theme.colors.tertiaryText)
                         }
 
@@ -102,7 +102,7 @@ struct ChatListCell: View {
 
                             if let messageIcon = conversation.messageTypeIcon {
                                 Image(systemName: messageIcon)
-                                    .font(.system(size: 12))
+                                    .font(theme.typography.caption)
                                     .foregroundStyle(theme.colors.mutedText)
                             }
 

@@ -224,7 +224,7 @@ struct NearbyView: View {
                     // Signal indicator
                     VStack(spacing: BlipSpacing.xs) {
                         Image(systemName: resolvedMeshViewModel?.isBLEActive == true ? "wave.3.right" : "wave.3.right.circle")
-                            .font(.system(size: 24, weight: .medium))
+                            .font(theme.typography.title2)
                             .foregroundStyle(.blipAccentPurple)
                             .symbolEffect(.pulse, options: .repeating)
 
@@ -242,7 +242,7 @@ struct NearbyView: View {
             Button(action: { toggleVisibility() }) {
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: isVisible ? "eye.fill" : "eye.slash.fill")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(theme.typography.secondary)
 
                     Text(isVisible ? NearbyL10n.visible : NearbyL10n.hidden)
                         .font(theme.typography.secondary)
@@ -294,7 +294,7 @@ struct NearbyView: View {
     private var sectionHeader: some View {
         HStack {
             Image(systemName: "person.2.fill")
-                .font(.system(size: 14, weight: .medium))
+                .font(theme.typography.secondary)
                 .foregroundStyle(.blipAccentPurple)
 
             Text(NearbyL10n.friendsNearbyTitle)
@@ -314,7 +314,7 @@ struct NearbyView: View {
 
             Button(action: { withAnimation(SpringConstants.gentleAnimation) { showMap.toggle() } }) {
                 Image(systemName: showMap ? "map.fill" : "map")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(theme.typography.secondary)
                     .foregroundStyle(.blipAccentPurple)
                     .padding(BlipSpacing.xs)
                     .background(Capsule().fill(.blipAccentPurple.opacity(0.12)))
@@ -425,7 +425,7 @@ struct NearbyView: View {
                 GlassCard(thickness: .ultraThin) {
                     VStack(spacing: BlipSpacing.sm) {
                         Image(systemName: "person.2.slash")
-                            .font(.system(size: 24))
+                            .font(theme.typography.title2)
                             .foregroundStyle(theme.colors.mutedText)
 
                         Text(NearbyL10n.noFriendsNearby)
@@ -530,7 +530,7 @@ struct NearbyView: View {
             VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(theme.typography.secondary)
                         .foregroundStyle(.blipAccentPurple)
 
                     Text(title)

@@ -409,7 +409,7 @@ struct ChatView: View {
 
                     if isEncrypted {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(theme.typography.caption2)
                             .foregroundStyle(Color.blipMint)
                             .accessibilityLabel(ChatViewL10n.endToEndEncrypted)
                             .transition(.scale.combined(with: .opacity))
@@ -454,7 +454,7 @@ struct ChatView: View {
 
                 if meshAvailable {
                     Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(theme.typography.micro)
                         .foregroundStyle(Color.blipAccentPurple)
                 }
 
@@ -466,7 +466,7 @@ struct ChatView: View {
 
                 if relayAvailable {
                     Image(systemName: "cloud.fill")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(theme.typography.micro)
                         .foregroundStyle(Color.blipAccentPurple)
                 }
             }
@@ -577,7 +577,7 @@ struct ChatView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(theme.typography.caption)
                 if unseenMessageCount > 0 {
                     Text("\(unseenMessageCount) new")
                         .font(.custom(BlipFontName.semiBold, size: 12, relativeTo: .caption2))

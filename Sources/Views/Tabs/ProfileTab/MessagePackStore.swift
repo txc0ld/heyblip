@@ -136,7 +136,7 @@ struct MessagePackStore: View {
             GlassCard(thickness: .regular) {
                 HStack(spacing: BlipSpacing.md) {
                     Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 28))
+                        .font(theme.typography.title1)
                         .foregroundStyle(.blipAccentPurple)
 
                     VStack(alignment: .leading, spacing: BlipSpacing.xs) {
@@ -228,7 +228,7 @@ struct MessagePackStore: View {
                 GlassCard(thickness: .ultraThin) {
                     VStack(spacing: BlipSpacing.md) {
                         Image(systemName: "cart.badge.questionmark")
-                            .font(.system(size: 28))
+                            .font(theme.typography.title1)
                             .foregroundStyle(theme.colors.mutedText)
 
                         Text(MessagePackStoreL10n.unavailableNow)
@@ -259,7 +259,7 @@ struct MessagePackStore: View {
         }) {
             VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "message.fill")
-                    .font(.system(size: 24))
+                    .font(theme.typography.title2)
                     .foregroundStyle(.blipAccentPurple)
 
                 Text(product.displayName)
@@ -284,8 +284,7 @@ struct MessagePackStore: View {
 
                 if isBestValue {
                     Text(MessagePackStoreL10n.bestValue)
-                        .font(theme.typography.captionSmall)
-                        .fontWeight(.bold)
+                        .font(theme.typography.micro)
                         .foregroundStyle(.white)
                         .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, BlipSpacing.xxs)
@@ -317,7 +316,7 @@ struct MessagePackStore: View {
             VStack(spacing: BlipSpacing.md) {
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: "infinity")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(theme.typography.title3)
                         .foregroundStyle(.blipAccentPurple)
 
                     Text(MessagePackStoreL10n.subscriptionTitle)
@@ -341,7 +340,7 @@ struct MessagePackStore: View {
 
                 HStack(spacing: BlipSpacing.sm) {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(theme.typography.caption)
                         .foregroundStyle(theme.colors.mutedText)
 
                     Text(MessagePackStoreL10n.subscriptionNotice)
@@ -405,7 +404,7 @@ struct MessagePackStore: View {
     private func infoRow(icon: String, text: String) -> some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(theme.typography.caption)
                 .foregroundStyle(theme.colors.mutedText)
                 .frame(width: 20)
 

@@ -115,8 +115,7 @@ struct SetTimeCell: View {
 
                 if isLive {
                     Text(SetTimeCellL10n.live)
-                        .font(theme.typography.captionSmall)
-                        .fontWeight(.bold)
+                        .font(theme.typography.micro)
                         .foregroundStyle(.white)
                         .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, BlipSpacing.xxs)
@@ -130,7 +129,7 @@ struct SetTimeCell: View {
 
             HStack(spacing: BlipSpacing.xs) {
                 Image(systemName: "music.note.house")
-                    .font(.system(size: 10))
+                    .font(theme.typography.caption2)
                     .foregroundStyle(theme.colors.mutedText)
 
                 Text(stageName)
@@ -151,7 +150,7 @@ struct SetTimeCell: View {
             // Save/star button
             Button(action: { onSave?() }) {
                 Image(systemName: isSaved ? "star.fill" : "star")
-                    .font(.system(size: 16))
+                    .font(theme.typography.callout)
                     .foregroundStyle(isSaved ? .blipAccentPurple : theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
@@ -162,7 +161,7 @@ struct SetTimeCell: View {
             // Reminder toggle
             Button(action: { onToggleReminder?() }) {
                 Image(systemName: hasReminder ? "bell.fill" : "bell")
-                    .font(.system(size: 14))
+                    .font(theme.typography.secondary)
                     .foregroundStyle(hasReminder ? .blipAccentPurple : theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
@@ -173,7 +172,7 @@ struct SetTimeCell: View {
             // "I'm going" share
             Button(action: { onShareGoing?() }) {
                 Image(systemName: "hand.thumbsup.fill")
-                    .font(.system(size: 14))
+                    .font(theme.typography.secondary)
                     .foregroundStyle(theme.colors.mutedText)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())

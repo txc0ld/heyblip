@@ -194,7 +194,7 @@ struct NewGroupChatSheet: View {
                 Spacer()
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .regular))
+                    .font(theme.typography.headline)
                     .foregroundStyle(
                         isSelected
                             ? Color.blipAccentPurple

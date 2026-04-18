@@ -337,7 +337,7 @@ struct MedicalDashboardView: View {
     private func infoRow(icon: String, text: String) -> some View {
         HStack(alignment: .top, spacing: BlipSpacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
                 .frame(width: 18)
             Text(text)

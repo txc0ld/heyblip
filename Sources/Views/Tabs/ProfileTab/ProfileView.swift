@@ -63,7 +63,7 @@ struct ProfileView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16))
+                            .font(theme.typography.callout)
                             .foregroundStyle(theme.colors.mutedText)
                     }
                     .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
@@ -232,7 +232,7 @@ struct ProfileView: View {
                     // Edit button
                     Button(action: { showEditProfile = true }) {
                         Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 24))
+                            .font(theme.typography.title2)
                             .foregroundStyle(.blipAccentPurple)
                             .background(Circle().fill(colorScheme == .dark ? .black : .white).frame(width: 22, height: 22))
                     }
@@ -313,7 +313,7 @@ struct ProfileView: View {
             GlassCard(elevation: .raised, cornerRadius: BlipCornerRadius.xl) {
                 VStack(alignment: .leading, spacing: BlipSpacing.sm) {
                     Image(systemName: icon)
-                        .font(.system(size: 22))
+                        .font(theme.typography.headline)
                         .foregroundStyle(.blipAccentPurple)
 
                     Text(title)
@@ -336,7 +336,7 @@ struct ProfileView: View {
     private var verificationUnavailableNote: some View {
         HStack(spacing: BlipSpacing.xs) {
             Image(systemName: "clock")
-                .font(.system(size: 10, weight: .medium))
+                .font(theme.typography.caption2)
             Text(ProfileViewL10n.verificationSoon)
                 .font(theme.typography.caption)
         }

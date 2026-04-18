@@ -23,7 +23,7 @@ struct RegistrationBanner: View {
     var body: some View {
         HStack(spacing: BlipSpacing.sm) {
             Image(systemName: "exclamationmark.icloud")
-                .font(.system(size: 14, weight: .medium))
+                .font(theme.typography.secondary)
                 .foregroundStyle(Color.blipWarmCoral)
 
             Text(isRetrying ? RegistrationBannerL10n.retrying : RegistrationBannerL10n.message)

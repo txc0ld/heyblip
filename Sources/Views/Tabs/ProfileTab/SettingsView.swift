@@ -585,7 +585,7 @@ private struct ResponderSettingsRow: View {
                         Spacer()
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(theme.typography.caption)
                             .foregroundStyle(theme.colors.mutedText)
                     }
                 }

@@ -68,7 +68,7 @@ struct GroupInfoView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(theme.typography.secondary)
                             .foregroundStyle(theme.colors.text)
                     }
                     .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)

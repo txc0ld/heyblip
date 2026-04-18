@@ -56,7 +56,7 @@ struct StageMapView: View {
             // Recenter control
             Button(action: recenter) {
                 Image(systemName: "scope")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(theme.typography.callout)
                     .foregroundStyle(.blipAccentPurple)
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .background(
@@ -127,7 +127,7 @@ struct StageMapView: View {
                     Button(action: { onMeetingPointTap?(point) }) {
                         VStack(spacing: 0) {
                             Image(systemName: "flag.fill")
-                                .font(.system(size: 18))
+                                .font(theme.typography.body)
                                 .foregroundStyle(.blipAccentPurple)
 
                             Text(point.label)
@@ -198,7 +198,6 @@ private struct StageHotspotView: View {
 
                 Text(stage.name)
                     .font(theme.typography.caption)
-                    .fontWeight(.bold)
                     .foregroundStyle(theme.colors.text)
                     .lineLimit(1)
                     .truncationMode(.tail)

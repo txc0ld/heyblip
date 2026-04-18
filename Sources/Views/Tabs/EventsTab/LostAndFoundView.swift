@@ -114,7 +114,7 @@ struct LostAndFoundView: View {
         VStack(alignment: .leading, spacing: BlipSpacing.sm) {
             HStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(theme.typography.secondary)
                     .foregroundStyle(.blipAccentPurple)
 
                 Text(LostAndFoundL10n.title)
@@ -310,8 +310,7 @@ private struct LostFoundMessageBubble: View {
                     .frame(width: 28, height: 28)
                     .overlay(
                         Text(senderInitials)
-                            .font(theme.typography.captionSmall)
-                            .fontWeight(.bold)
+                            .font(theme.typography.caption2)
                             .foregroundStyle(.white)
                     )
             }
