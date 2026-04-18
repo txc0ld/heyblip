@@ -271,7 +271,8 @@ final class PTTViewModel {
             _ = try await messageService.sendVoiceNote(
                 audioData: data,
                 duration: duration,
-                to: channel
+                to: channel,
+                isPTT: true
             )
             cancelStateTimeout()
             state = .sending(progress: 1.0)
@@ -340,26 +341,25 @@ final class PTTViewModel {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let packet = notification.userInfo?["packet"] as? Packet else { return }
+            guard
+                let audioData = notification.userInfo?["audioData"] as? Data,
+                let senderName = notification.userInfo?["senderName"] as? String,
+                let receivedAt = notification.userInfo?["receivedAt"] as? Date
+            else { return }
 
             Task { @MainActor in
-                self?.handleReceivedPTT(packet)
+                self?.handleReceivedPTT(audioData: audioData, senderName: senderName, receivedAt: receivedAt)
             }
         }
     }
 
-    private func handleReceivedPTT(_ packet: Packet) {
-        let audioData = packet.payload
-
-        // Resolve sender name from peer
-        let senderName = "Peer \(packet.senderID.description.prefix(8))"
-
+    private func handleReceivedPTT(audioData: Data, senderName: String, receivedAt: Date) {
         let item = PTTPlaybackItem(
             id: UUID(),
             senderName: senderName,
             audioData: audioData,
             duration: 0, // Duration determined on playback
-            receivedAt: packet.date
+            receivedAt: receivedAt
         )
 
         // If nothing is playing, start immediately

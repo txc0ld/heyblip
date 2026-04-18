@@ -54,6 +54,8 @@ public enum EncryptedSubType: UInt8, Sendable, Codable, CaseIterable {
 
     /// Hashed user ID for mesh-level reputation (sent to direct peers).
     case blockVote              = 0x16
+    /// Opus-encoded push-to-talk audio (DM, addressed packet).
+    case pttAudio               = 0x17
 }
 
 // MARK: - CustomStringConvertible
@@ -80,6 +82,7 @@ extension EncryptedSubType: CustomStringConvertible {
         case .groupMemberRemove:    return "groupMemberRemove"
         case .groupAdminChange:     return "groupAdminChange"
         case .blockVote:            return "blockVote"
+        case .pttAudio:             return "pttAudio"
         }
     }
 

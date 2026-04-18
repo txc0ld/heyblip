@@ -537,6 +537,13 @@ extension MessageService {
                 timestamp: packet.date,
                 ingressTransport: ingressTransport
             )
+        case .pttAudio:
+            try await handleIncomingPTTAudio(
+                data: Data(contentData),
+                senderPeerID: packet.senderID,
+                timestamp: packet.date,
+                ingressTransport: ingressTransport
+            )
         case .imageMessage:
             try await handleIncomingMedia(
                 data: Data(contentData),
@@ -969,6 +976,88 @@ extension MessageService {
     }
 
     @MainActor
+    /// Handles an incoming PTT audio packet that was encrypted as `.pttAudio` subType
+    /// inside a `.noiseEncrypted` packet. Parses the media payload, stores the message,
+    /// and triggers PTTViewModel playback via notification.
+    @MainActor
+    func handleIncomingPTTAudio(
+        data: Data,
+        senderPeerID: PeerID,
+        timestamp: Date,
+        ingressTransport: PeerIngressTransport
+    ) async throws {
+        let context = self.context
+        let senderHex = senderPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+
+        let parsed = MessagePayloadBuilder.parseMediaPayload(data, hasDuration: true)
+        let audioData = parsed.media
+
+        guard let messageID = parsed.messageID else {
+            DebugLogger.shared.log("PTT", "Dropped PTT from \(senderHex): malformed messageID prefix", isError: true)
+            return
+        }
+
+        guard !audioData.isEmpty else {
+            DebugLogger.shared.log("PTT", "Dropped PTT from \(senderHex): empty audio payload", isError: true)
+            return
+        }
+
+        let (channel, senderUser) = try resolveChannel(
+            for: .privateMessage,
+            senderPeerID: senderPeerID,
+            context: context
+        )
+
+        let targetID = messageID
+        let duplicateDescriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
+        if !(try context.fetch(duplicateDescriptor)).isEmpty {
+            DebugLogger.shared.log("PTT", "DUPLICATE PTT msgID=\(messageID) — skipping")
+            return
+        }
+
+        let message = Message(
+            id: messageID,
+            sender: senderUser,
+            channel: channel,
+            type: .voiceNote,
+            rawPayload: Data(),
+            status: .delivered,
+            isRelayed: ingressTransport == .relay,
+            createdAt: timestamp
+        )
+
+        let attachment = Attachment(
+            message: message,
+            type: .voiceNote,
+            fullData: audioData,
+            sizeBytes: audioData.count,
+            mimeType: "audio/opus"
+        )
+
+        context.insert(message)
+        context.insert(attachment)
+
+        channel.lastActivityAt = Date()
+        try context.save()
+
+        delegate?.messageService(self, didReceiveMessageID: message.id, channelID: channel.id)
+
+        let senderName = senderUser?.username ?? "Peer \(senderHex)"
+        NotificationCenter.default.post(
+            name: .didReceivePTTAudio,
+            object: nil,
+            userInfo: [
+                "audioData": audioData,
+                "senderName": senderName,
+                "receivedAt": timestamp
+            ]
+        )
+    }
+
+    /// Handles a raw (unencrypted) `MessageType.pttAudio` packet.
+    /// This path is reserved for future real-time streaming; current PTT uses the
+    /// encrypted `.pttAudio` EncryptedSubType path via `handleIncomingPTTAudio`.
+    @MainActor
     func handlePTTAudio(_ packet: Packet, from peerID: PeerID, ingressTransport: PeerIngressTransport) async throws {
         let context = self.context
         let audioData = packet.payload
@@ -976,7 +1065,7 @@ extension MessageService {
         guard !audioData.isEmpty else { return }
 
         let (channel, senderUser) = try resolveChannel(
-            for: .voiceNote,
+            for: .privateMessage,
             senderPeerID: packet.senderID,
             context: context
         )
@@ -1007,11 +1096,16 @@ extension MessageService {
 
         delegate?.messageService(self, didReceiveMessageID: message.id, channelID: channel.id)
 
-        // Also post notification for PTTViewModel real-time playback queue
+        let senderHex = packet.senderID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let senderName = senderUser?.username ?? "Peer \(senderHex)"
         NotificationCenter.default.post(
             name: .didReceivePTTAudio,
             object: nil,
-            userInfo: ["packet": packet, "peerID": peerID]
+            userInfo: [
+                "audioData": audioData,
+                "senderName": senderName,
+                "receivedAt": packet.date
+            ]
         )
     }
 
