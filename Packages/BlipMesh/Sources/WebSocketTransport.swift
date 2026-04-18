@@ -231,7 +231,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
                 self.logger.error("WebSocket auth token unavailable: \(error.localizedDescription)")
                 if self.autoReconnect {
                     self.scheduleReconnect()
-                } else {
+                } else if self.state != .stopped {
+                    // A concurrent stop() has the final word — don't stomp .stopped
+                    // with a late .failed from the detached tokenProvider Task.
                     self.state = .failed("Authentication failed")
                 }
             }
