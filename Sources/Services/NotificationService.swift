@@ -80,10 +80,36 @@ final class NotificationService: NSObject, @unchecked Sendable {
         activeChannelID = channelID
     }
 
-    fileprivate func currentActiveChannelID() -> UUID? {
+    func currentActiveChannelID() -> UUID? {
         lock.lock()
         defer { lock.unlock() }
         return activeChannelID
+    }
+
+    /// Decide the presentation options for an incoming notification based on
+    /// its category and the currently active channel. Extracted from
+    /// `willPresent` so it can be unit-tested without constructing a
+    /// `UNNotification` (which has no public initializer).
+    func presentationOptions(
+        forCategory category: String,
+        channelID: UUID?
+    ) -> UNNotificationPresentationOptions {
+        // SOS is always interruptive — that's the point.
+        if category == BlipNotificationCategory.sosAssist.rawValue {
+            return [.banner, .sound, .badge]
+        }
+
+        // Suppress the foreground banner if the user is already inside the
+        // relevant chat. Badge still updates so other channels' counts stay
+        // accurate; sound is dropped because the bubble itself already
+        // provides feedback.
+        if category == BlipNotificationCategory.newMessage.rawValue,
+           let channelID,
+           currentActiveChannelID() == channelID {
+            return [.badge]
+        }
+
+        return [.banner, .badge]
     }
 
     /// Tracks recently shown notification IDs to prevent duplicates within a short window.
@@ -528,26 +554,12 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        let category = notification.request.content.categoryIdentifier
-
-        // SOS is always interruptive — that's the point.
-        if category == BlipNotificationCategory.sosAssist.rawValue {
-            return [.banner, .sound, .badge]
-        }
-
-        // Suppress the foreground banner if the user is already inside the relevant chat.
-        // Without this the user sees a duplicate "Alice sent: hi" banner while Alice's
-        // bubble is materialising directly under their thumb. Badge still updates so any
-        // OTHER channel's count stays accurate; sound is dropped because the bubble itself
-        // already provides feedback.
-        if category == BlipNotificationCategory.newMessage.rawValue,
-           let channelString = notification.request.content.userInfo["channelID"] as? String,
-           let channelID = UUID(uuidString: channelString),
-           currentActiveChannelID() == channelID {
-            return [.badge]
-        }
-
-        return [.banner, .badge]
+        let content = notification.request.content
+        let channelID = (content.userInfo["channelID"] as? String).flatMap(UUID.init(uuidString:))
+        return presentationOptions(
+            forCategory: content.categoryIdentifier,
+            channelID: channelID
+        )
     }
 
     func userNotificationCenter(

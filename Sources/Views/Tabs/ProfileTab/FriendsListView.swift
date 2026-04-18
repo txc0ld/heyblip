@@ -79,12 +79,10 @@ struct FriendsListView: View {
     @State private var selectedFriend: FriendListItem?
     @State private var confirmingAction: PendingAction?
 
-    /// Friend IDs whose async accept/decline/remove/block is currently in flight.
-    /// Used to debounce double-taps so we never send two `acceptFriendRequest`
-    /// packets for the same row, or fire `acceptFriendRequest` and `declineFriend`
-    /// against the same Friend record concurrently (which produces SwiftData
-    /// "trying to mutate a deleted object" assertions in practice).
-    @State private var actionsInFlight: Set<UUID> = []
+    /// Double-tap debounce for async friend actions. See
+    /// `FriendActionGuard` for the full contract; the short version is
+    /// "one claim per Friend row at a time".
+    @State private var actionsGuard = FriendActionGuard()
 
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
@@ -452,9 +450,9 @@ struct FriendsListView: View {
     }
 
     private func acceptFriendRequest(_ item: FriendListItem) {
-        guard claimAction(for: item.id) else { return }
+        guard actionsGuard.claim(for: item.id) else { return }
         guard let messageService = coordinator.messageService else {
-            releaseAction(for: item.id)
+            actionsGuard.release(for: item.id)
             return
         }
         let context = ModelContext(modelContext.container)
@@ -463,7 +461,7 @@ struct FriendsListView: View {
         do {
             let friend = try resolveFriend(id: itemID, context: context)
             Task {
-                defer { releaseAction(for: itemID) }
+                defer { actionsGuard.release(for: itemID) }
                 do {
                     try await messageService.acceptFriendRequest(from: friend)
                     loadFriends()
@@ -472,14 +470,14 @@ struct FriendsListView: View {
                 }
             }
         } catch {
-            releaseAction(for: itemID)
+            actionsGuard.release(for: itemID)
             DebugLogger.shared.log("DB", "Failed to resolve friend \(itemID) for accept: \(error.localizedDescription)", isError: true)
         }
     }
 
     private func removeFriend(_ item: FriendListItem) {
-        guard claimAction(for: item.id) else { return }
-        defer { releaseAction(for: item.id) }
+        guard actionsGuard.claim(for: item.id) else { return }
+        defer { actionsGuard.release(for: item.id) }
         let context = ModelContext(modelContext.container)
         do {
             let friend = try resolveFriend(id: item.id, context: context)
@@ -493,8 +491,8 @@ struct FriendsListView: View {
     }
 
     private func blockFriend(_ item: FriendListItem) {
-        guard claimAction(for: item.id) else { return }
-        defer { releaseAction(for: item.id) }
+        guard actionsGuard.claim(for: item.id) else { return }
+        defer { actionsGuard.release(for: item.id) }
         let context = ModelContext(modelContext.container)
         do {
             let friend = try resolveFriend(id: item.id, context: context)
@@ -508,8 +506,8 @@ struct FriendsListView: View {
     }
 
     private func unblockFriend(_ item: FriendListItem) {
-        guard claimAction(for: item.id) else { return }
-        defer { releaseAction(for: item.id) }
+        guard actionsGuard.claim(for: item.id) else { return }
+        defer { actionsGuard.release(for: item.id) }
         let context = ModelContext(modelContext.container)
         do {
             let friend = try resolveFriend(id: item.id, context: context)
@@ -523,8 +521,8 @@ struct FriendsListView: View {
     }
 
     private func declineFriend(_ item: FriendListItem) {
-        guard claimAction(for: item.id) else { return }
-        defer { releaseAction(for: item.id) }
+        guard actionsGuard.claim(for: item.id) else { return }
+        defer { actionsGuard.release(for: item.id) }
         let context = ModelContext(modelContext.container)
         do {
             let friend = try resolveFriend(id: item.id, context: context)
@@ -537,19 +535,6 @@ struct FriendsListView: View {
         }
     }
 
-    /// Returns true if the caller is the first to start work for `friendID`.
-    /// Subsequent callers (e.g. a double-tap on Accept, or Accept-then-Decline
-    /// before the first finishes) get `false` and bail out, preventing the two
-    /// flows from racing against the same Friend record.
-    private func claimAction(for friendID: UUID) -> Bool {
-        if actionsInFlight.contains(friendID) { return false }
-        actionsInFlight.insert(friendID)
-        return true
-    }
-
-    private func releaseAction(for friendID: UUID) {
-        actionsInFlight.remove(friendID)
-    }
 
     private func loadFriends() {
         let context = ModelContext(modelContext.container)
