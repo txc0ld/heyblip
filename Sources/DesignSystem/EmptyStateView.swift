@@ -79,7 +79,7 @@ struct ErrorStateView: View {
         GlassCard(thickness: .regular) {
             VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 28))
+                    .blipTextStyle(.title2)
                     .foregroundStyle(BlipColors.adaptive.statusAmber)
 
                 Text(title)

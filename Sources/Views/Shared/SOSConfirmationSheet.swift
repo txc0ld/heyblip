@@ -135,7 +135,7 @@ struct SOSConfirmationSheet: View {
             // Title
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "cross.circle.fill")
-                    .font(.system(size: 40))
+                    .blipTextStyle(.display)
                     .foregroundStyle(.red)
 
                 Text(SOSConfirmationL10n.title)
@@ -205,7 +205,7 @@ struct SOSConfirmationSheet: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .blipTextStyle(.title3)
                         .foregroundStyle(severityColor(severity))
                 }
             }
@@ -449,7 +449,7 @@ struct SOSConfirmationSheet: View {
     private var falseAlarmCaptcha: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
+                .blipTextStyle(.display)
                 .foregroundStyle(theme.colors.statusAmber)
 
             Text(SOSConfirmationL10n.captchaTitle)

@@ -136,7 +136,7 @@ struct PaywallSheet: View {
     private var headerSection: some View {
         VStack(spacing: BlipSpacing.sm) {
             Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                .font(.system(size: 40))
+                .blipTextStyle(.display)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
@@ -182,7 +182,7 @@ struct PaywallSheet: View {
                 GlassCard(thickness: .ultraThin) {
                     VStack(spacing: BlipSpacing.sm) {
                         Image(systemName: "cart.badge.questionmark")
-                            .font(.system(size: 28))
+                            .blipTextStyle(.title2)
                             .foregroundStyle(theme.colors.mutedText)
 
                         Text(PaywallSheetL10n.unavailableTitle)

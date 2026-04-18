@@ -454,7 +454,7 @@ struct ChatView: View {
 
                 if meshAvailable {
                     Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 9, weight: .medium))
+                        .blipTextStyle(.captionSmall)
                         .foregroundStyle(Color.blipAccentPurple)
                 }
 
@@ -466,7 +466,7 @@ struct ChatView: View {
 
                 if relayAvailable {
                     Image(systemName: "cloud.fill")
-                        .font(.system(size: 9, weight: .medium))
+                        .blipTextStyle(.captionSmall)
                         .foregroundStyle(Color.blipAccentPurple)
                 }
             }
