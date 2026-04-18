@@ -306,7 +306,8 @@ struct FriendsListView: View {
 
                 if count > 0 {
                     Text("\(count)")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(theme.typography.captionSmall)
+                        .fontWeight(.bold)
                         .foregroundStyle(selectedSection == section ? .white : theme.colors.mutedText)
                 }
             }
@@ -648,7 +649,8 @@ private struct FriendRow: View {
                 .frame(width: BlipSizing.avatarSmall, height: BlipSizing.avatarSmall)
                 .overlay(
                     Text(String(friend.displayName.prefix(1)).uppercased())
-                        .font(.system(size: 16, weight: .bold))
+                        .font(theme.typography.callout)
+                        .fontWeight(.bold)
                         .foregroundStyle(.white)
                 )
 

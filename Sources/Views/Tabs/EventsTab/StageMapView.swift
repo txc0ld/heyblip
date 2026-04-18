@@ -197,7 +197,8 @@ private struct StageHotspotView: View {
                     .shadow(color: .blipAccentPurple.opacity(0.5), radius: isSelected ? 6 : 2)
 
                 Text(stage.name)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(theme.typography.caption)
+                    .fontWeight(.bold)
                     .foregroundStyle(theme.colors.text)
                     .lineLimit(1)
                     .truncationMode(.tail)

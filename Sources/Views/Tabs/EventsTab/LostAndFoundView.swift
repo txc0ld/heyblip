@@ -310,7 +310,8 @@ private struct LostFoundMessageBubble: View {
                     .frame(width: 28, height: 28)
                     .overlay(
                         Text(senderInitials)
-                            .font(.system(size: 10, weight: .bold))
+                            .font(theme.typography.captionSmall)
+                            .fontWeight(.bold)
                             .foregroundStyle(.white)
                     )
             }

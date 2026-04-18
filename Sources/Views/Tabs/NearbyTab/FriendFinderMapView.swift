@@ -761,6 +761,7 @@ private struct FriendFinderPinView: View {
     let onTap: () -> Void
 
     @State private var ringPulsing = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         let baseSize: CGFloat = {
@@ -807,11 +808,13 @@ private struct FriendFinderPinView: View {
                     if isSelected {
                         VStack(spacing: 1) {
                             Text(friend.displayName)
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(theme.typography.captionSmall)
+                                .fontWeight(.semibold)
 
                             if let distance = friend.distanceText {
                                 Text(distance)
-                                    .font(.system(size: 9, weight: .regular))
+                                    .font(theme.typography.captionSmall)
+                                    .fontWeight(.regular)
                             }
                         }
                         .foregroundStyle(.white)
@@ -846,6 +849,7 @@ private struct BeaconAnnotationView: View {
 
     let beacon: BeaconPin
     @State private var isPulsing = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         ZStack {
@@ -863,7 +867,8 @@ private struct BeaconAnnotationView: View {
                     .foregroundStyle(.blipAccentPurple)
 
                 Text(beacon.label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(theme.typography.captionSmall)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.white)
                     .padding(.horizontal, BlipSpacing.xs)
                     .padding(.vertical, BlipSpacing.xxs)

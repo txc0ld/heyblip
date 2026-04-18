@@ -279,6 +279,7 @@ private struct FriendPinView: View {
     let onTap: () -> Void
 
     @State private var ringPulsing = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: onTap) {
@@ -321,7 +322,8 @@ private struct FriendPinView: View {
                         // Name label when selected
                         if isSelected {
                             Text(friend.displayName)
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(theme.typography.captionSmall)
+                                .fontWeight(.semibold)
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, BlipSpacing.sm)
                                 .padding(.vertical, BlipSpacing.xxs)
@@ -362,6 +364,7 @@ private struct BeaconPinView: View {
     let beacon: BeaconPin
 
     @State private var isPulsing = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -384,7 +387,8 @@ private struct BeaconPinView: View {
                         .foregroundStyle(.blipAccentPurple)
 
                     Text(beacon.label)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(theme.typography.captionSmall)
+                        .fontWeight(.semibold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, BlipSpacing.xs)
                         .padding(.vertical, BlipSpacing.xxs)

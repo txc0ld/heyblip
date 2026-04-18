@@ -231,6 +231,8 @@ private enum EventDetailViewPreviewData {
                 id: "1",
                 name: EventDetailL10n.previewGlastonbury,
                 location: EventDetailL10n.previewPilton,
+                latitude: 51.1447,
+                longitude: -2.5827,
                 startDate: Date(),
                 endDate: Date().addingTimeInterval(3 * 86400),
                 description: EventDetailL10n.previewDescription,

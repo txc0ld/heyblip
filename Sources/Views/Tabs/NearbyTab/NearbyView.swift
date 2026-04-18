@@ -210,7 +210,7 @@ struct NearbyView: View {
                     // Animated friend count (friends reachable on mesh)
                     VStack(alignment: .leading, spacing: BlipSpacing.xs) {
                         Text("\(friendsNearbyCount)")
-                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .font(theme.typography.display)
                             .foregroundStyle(.blipAccentPurple)
                             .contentTransition(.numericText())
 
@@ -251,7 +251,8 @@ struct NearbyView: View {
                     Spacer()
 
                     Text(isVisible ? NearbyL10n.on : NearbyL10n.off)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(theme.typography.caption)
+                        .fontWeight(.bold)
                         .foregroundStyle(isVisible ? .white : theme.colors.mutedText)
                         .padding(.horizontal, BlipSpacing.sm)
                         .padding(.vertical, BlipSpacing.xs)

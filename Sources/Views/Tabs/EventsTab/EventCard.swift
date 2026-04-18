@@ -199,6 +199,7 @@ private struct EventCardPressStyle: ButtonStyle {
         EventCard(
             event: .init(
                 id: "1", name: "Glastonbury 2026", location: "Pilton, Somerset",
+                latitude: 51.1447, longitude: -2.5827,
                 startDate: Date(), endDate: Date().addingTimeInterval(3 * 86400),
                 description: "The world's largest greenfield festival.",
                 imageURL: nil, attendeeCount: 12450, category: .festival, isJoined: false

@@ -108,7 +108,8 @@ struct MeetingPointSheet: View {
 
                             if !label.isEmpty {
                                 Text(label)
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(theme.typography.captionSmall)
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, BlipSpacing.sm)
                                     .padding(.vertical, BlipSpacing.xxs)
