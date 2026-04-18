@@ -101,6 +101,13 @@ struct FriendFinderMapView: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @Query private var userPreferences: [UserPreferences]
+
+    private var breadcrumbsEnabled: Bool {
+        userPreferences.first?.breadcrumbsEnabled ?? false
+    }
+
+
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -157,6 +164,19 @@ struct FriendFinderMapView: View {
             if let resolvedUserLocation {
                 Annotation(FriendFinderMapViewL10n.you, coordinate: resolvedUserLocation) {
                     userPinView
+                }
+            }
+
+            // Breadcrumb trails
+            if breadcrumbsEnabled {
+                ForEach(displayFriends.filter { !$0.breadcrumbs.isEmpty }) { friend in
+                    ForEach(Array(friend.trailSegments().enumerated()), id: \.offset) { idx, segment in
+                        MapPolyline(coordinates: segment)
+                            .stroke(
+                                friend.color.opacity(0.2 + Double(idx + 1) * 0.27),
+                                lineWidth: 2.5
+                            )
+                    }
                 }
             }
 
@@ -582,14 +602,15 @@ struct FriendFinderMapView: View {
                 displayName: friend.name,
                 coordinate: friend.coordinate,
                 precision: mapPrecision(friend.precision),
-                color: .blue,
+                color: FriendMapPin.trailColor(for: friend.friendID),
                 lastUpdated: friend.lastUpdated,
                 accuracyMeters: friend.precision == .precise ? 12 : 60,
                 distanceFromUser: userCoordinate.map {
                     CLLocation(latitude: $0.latitude, longitude: $0.longitude)
                         .distance(from: CLLocation(latitude: friend.coordinate.latitude, longitude: friend.coordinate.longitude))
                 },
-                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800
+                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800,
+                breadcrumbs: friend.breadcrumbs
             )
         }
     }

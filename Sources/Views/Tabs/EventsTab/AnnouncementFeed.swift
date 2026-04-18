@@ -111,7 +111,7 @@ struct AnnouncementFeed: View {
         GlassCard(thickness: .ultraThin) {
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "checkmark.circle")
-                    .font(.system(size: 28))
+                    .blipTextStyle(.title2)
                     .foregroundStyle(theme.colors.mutedText)
 
                 Text(AnnouncementFeedL10n.emptyTitle)

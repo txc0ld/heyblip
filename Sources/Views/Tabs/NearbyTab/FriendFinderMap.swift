@@ -61,6 +61,7 @@ struct FriendFinderMap: View {
     let friends: [FriendMapPin]
     let userLocation: CLLocationCoordinate2D?
     let beacons: [BeaconPin]
+    var breadcrumbsEnabled: Bool = false
 
     var onDropBeacon: ((CLLocationCoordinate2D) -> Void)?
     var onNavigateToFriend: ((FriendMapPin) -> Void)?
@@ -107,6 +108,19 @@ struct FriendFinderMap: View {
                             .frame(width: 14, height: 14)
                     }
                     .accessibilityLabel(FriendFinderMapL10n.yourLocation)
+                }
+            }
+
+            // Breadcrumb trails
+            if breadcrumbsEnabled {
+                ForEach(friends.filter { !$0.breadcrumbs.isEmpty }) { friend in
+                    ForEach(Array(friend.trailSegments().enumerated()), id: \.offset) { idx, segment in
+                        MapPolyline(coordinates: segment)
+                            .stroke(
+                                friend.color.opacity(0.2 + Double(idx + 1) * 0.27),
+                                lineWidth: 2.5
+                            )
+                    }
                 }
             }
 
@@ -433,6 +447,20 @@ struct FriendMapPin: Identifiable, Hashable {
     var distanceFromUser: Double? = nil
     var rssiMeters: Double? = nil
     var isOutOfRange: Bool = false
+    var breadcrumbs: [CLLocationCoordinate2D] = []
+
+    /// Splits breadcrumbs into `count` overlapping segments for fading opacity rendering.
+    /// Oldest segment first (index 0), newest last.
+    func trailSegments(count: Int = 3) -> [[CLLocationCoordinate2D]] {
+        guard breadcrumbs.count >= 2 else { return [] }
+        let total = breadcrumbs.count
+        let size = max(1, (total - 1) / count)
+        return (0..<count).compactMap { i in
+            let start = i * size
+            guard start < total - 1 else { return nil }
+            return Array(breadcrumbs[start..<min(start + size + 1, total)])
+        }
+    }
 
     var precisionDescription: String {
         switch precision {
@@ -454,6 +482,14 @@ struct FriendMapPin: Identifiable, Hashable {
         guard let d = distanceFromUser else { return nil }
         if d < 1000 { return FriendFinderMapL10n.metersAway(Int(d)) }
         return FriendFinderMapL10n.kmAway(d / 1000)
+    }
+
+    /// Deterministic per-friend color derived from their UUID, used for trail and ring tinting.
+    static func trailColor(for id: UUID) -> Color {
+        let palette: [Color] = [
+            .blue, .green, .orange, .purple, .pink, .cyan, .mint, .indigo, .teal, .yellow,
+        ]
+        return palette[abs(id.hashValue) % palette.count]
     }
 
     /// Color for accuracy radius ring.

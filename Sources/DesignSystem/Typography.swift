@@ -6,43 +6,49 @@ import SwiftUI
 /// Supports Dynamic Type scaling for accessibility.
 struct BlipTypography: Sendable {
 
-    /// Display numerals / hero counters — Bold 40pt, rounded
+    /// Hero / splash text — Bold 40pt
     let display: Font
 
     /// Large titles — Bold 34pt
     let largeTitle: Font
 
-    /// Primary titles — SemiBold 28pt
+    /// Primary titles — SemiBold 28pt (alias for title2, kept for legacy callers)
     let title1: Font
 
-    /// Secondary titles — SemiBold 24pt
+    /// Modal / sheet titles — SemiBold 28pt
     let title2: Font
 
-    /// Section headers — SemiBold 22pt
+    /// Section headers — SemiBold 20pt
+    let title3: Font
+
+    /// Card headers — SemiBold 22pt
     let headline: Font
 
-    /// Tertiary titles / prominent labels — Medium 20pt
-    let title3: Font
+    /// Action labels, callouts — SemiBold 16pt
+    let callout: Font
+
+    /// Secondary labels — Medium 15pt
+    let subheadline: Font
 
     /// Body / chat text — Regular 17pt
     let body: Font
 
-    /// Prominent body text / button labels — Medium 16pt
-    let callout: Font
-
-    /// Footnote / list items — Regular 15pt
-    let footnote: Font
-
     /// Secondary / metadata — Regular 13pt
     let secondary: Font
+
+    /// Footnote labels — Regular 13pt
+    let footnote: Font
 
     /// Captions — Medium 11pt
     let caption: Font
 
-    /// Small captions — Medium 10pt
+    /// Tiny labels / timestamps — Medium 9pt
+    let captionSmall: Font
+
+    /// Small captions — Medium 10pt (alias kept for legacy callers, maps to captionSmall)
     let caption2: Font
 
-    /// Micro labels / status indicators — Medium 9pt
+    /// Micro labels / status indicators — Medium 9pt (alias kept for legacy callers)
     let micro: Font
 
     // MARK: - Default instance
@@ -53,31 +59,35 @@ struct BlipTypography: Sendable {
         display: .custom(BlipFontName.bold, size: 40, relativeTo: .largeTitle),
         largeTitle: .custom(BlipFontName.bold, size: 34, relativeTo: .largeTitle),
         title1: .custom(BlipFontName.semiBold, size: 28, relativeTo: .title),
-        title2: .custom(BlipFontName.semiBold, size: 24, relativeTo: .title2),
+        title2: .custom(BlipFontName.semiBold, size: 28, relativeTo: .title2),
+        title3: .custom(BlipFontName.semiBold, size: 20, relativeTo: .title3),
         headline: .custom(BlipFontName.semiBold, size: 22, relativeTo: .headline),
-        title3: .custom(BlipFontName.medium, size: 20, relativeTo: .title3),
+        callout: .custom(BlipFontName.semiBold, size: 16, relativeTo: .callout),
+        subheadline: .custom(BlipFontName.medium, size: 15, relativeTo: .subheadline),
         body: .custom(BlipFontName.regular, size: 17, relativeTo: .body),
-        callout: .custom(BlipFontName.medium, size: 16, relativeTo: .callout),
-        footnote: .custom(BlipFontName.regular, size: 15, relativeTo: .footnote),
         secondary: .custom(BlipFontName.regular, size: 13, relativeTo: .footnote),
+        footnote: .custom(BlipFontName.regular, size: 13, relativeTo: .footnote),
         caption: .custom(BlipFontName.medium, size: 11, relativeTo: .caption2),
+        captionSmall: .custom(BlipFontName.medium, size: 9, relativeTo: .caption2),
         caption2: .custom(BlipFontName.medium, size: 10, relativeTo: .caption2),
         micro: .custom(BlipFontName.medium, size: 9, relativeTo: .caption2)
     )
 
     /// System font fallback if custom fonts are not available.
     static let system = BlipTypography(
-        display: .system(size: 40, weight: .bold, design: .rounded),
+        display: .system(size: 40, weight: .bold, design: .default),
         largeTitle: .system(size: 34, weight: .bold, design: .rounded),
         title1: .system(size: 28, weight: .semibold, design: .rounded),
-        title2: .system(size: 24, weight: .semibold, design: .rounded),
+        title2: .system(size: 28, weight: .semibold, design: .default),
+        title3: .system(size: 20, weight: .semibold, design: .default),
         headline: .system(size: 22, weight: .semibold, design: .rounded),
-        title3: .system(size: 20, weight: .medium, design: .default),
+        callout: .system(size: 16, weight: .semibold, design: .default),
+        subheadline: .system(size: 15, weight: .medium, design: .default),
         body: .system(size: 17, weight: .regular, design: .default),
-        callout: .system(size: 16, weight: .medium, design: .default),
-        footnote: .system(size: 15, weight: .regular, design: .default),
         secondary: .system(size: 13, weight: .regular, design: .default),
+        footnote: .system(size: 13, weight: .regular, design: .default),
         caption: .system(size: 11, weight: .medium, design: .default),
+        captionSmall: .system(size: 9, weight: .medium, design: .default),
         caption2: .system(size: 10, weight: .medium, design: .default),
         micro: .system(size: 9, weight: .medium, design: .default)
     )
@@ -128,13 +138,15 @@ struct BlipTextStyle: ViewModifier {
         case largeTitle
         case title1
         case title2
-        case headline
         case title3
-        case body
+        case headline
         case callout
-        case footnote
+        case subheadline
+        case body
         case secondary
+        case footnote
         case caption
+        case captionSmall
         case caption2
         case micro
     }
@@ -152,20 +164,24 @@ struct BlipTextStyle: ViewModifier {
             content.font(theme.typography.title1)
         case .title2:
             content.font(theme.typography.title2)
-        case .headline:
-            content.font(theme.typography.headline)
         case .title3:
             content.font(theme.typography.title3)
-        case .body:
-            content.font(theme.typography.body)
+        case .headline:
+            content.font(theme.typography.headline)
         case .callout:
             content.font(theme.typography.callout)
-        case .footnote:
-            content.font(theme.typography.footnote)
+        case .subheadline:
+            content.font(theme.typography.subheadline)
+        case .body:
+            content.font(theme.typography.body)
         case .secondary:
             content.font(theme.typography.secondary)
+        case .footnote:
+            content.font(theme.typography.footnote)
         case .caption:
             content.font(theme.typography.caption)
+        case .captionSmall:
+            content.font(theme.typography.captionSmall)
         case .caption2:
             content.font(theme.typography.caption2)
         case .micro:

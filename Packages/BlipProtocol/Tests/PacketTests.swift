@@ -336,11 +336,12 @@ struct EncryptedSubTypeTests {
         #expect(EncryptedSubType.groupMemberRemove.rawValue == 0x14)
         #expect(EncryptedSubType.groupAdminChange.rawValue == 0x15)
         #expect(EncryptedSubType.blockVote.rawValue == 0x16)
+        #expect(EncryptedSubType.pttAudio.rawValue == 0x17)
     }
 
-    @Test("All cases count is 18")
+    @Test("All cases count is 19")
     func allCasesCount() {
-        #expect(EncryptedSubType.allCases.count == 18)
+        #expect(EncryptedSubType.allCases.count == 19)
     }
 
     @Test("Group management sub-types identified")
@@ -361,6 +362,7 @@ struct EncryptedSubTypeTests {
         #expect(EncryptedSubType.friendAccept.isFreeAction)
         #expect(!EncryptedSubType.privateMessage.isFreeAction)
         #expect(!EncryptedSubType.voiceNote.isFreeAction)
+        #expect(!EncryptedSubType.pttAudio.isFreeAction)
     }
 }
 

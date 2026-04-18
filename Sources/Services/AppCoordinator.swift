@@ -731,7 +731,15 @@ final class AppCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handlePushWakeUp()
+            let handler = (UIApplication.shared.delegate as? AppDelegate)?.consumePushCompletion()
+            self?.handlePushWakeUp(completionHandler: handler)
+        }
+
+        // Consume any push that arrived before start() was called (killed-app relaunch).
+        // The push fires didReceiveRemoteNotification early in the process lifecycle,
+        // before SwiftUI renders MainTabView and this start() is invoked.
+        if let pendingHandler = (UIApplication.shared.delegate as? AppDelegate)?.consumePushCompletion() {
+            handlePushWakeUp(completionHandler: pendingHandler)
         }
 
         // Reset badge count when the app becomes active.
@@ -748,18 +756,37 @@ final class AppCoordinator {
         logger.info("Transports started")
     }
 
-    /// Called when a remote push notification arrives.
-    /// Reconnects the WebSocket if it is not already running, so store-and-forward
-    /// packets can drain immediately rather than waiting for the next scheduled reconnect.
-    private func handlePushWakeUp() {
-        guard let ws = webSocketTransport else { return }
-        guard ws.state != .running else {
-            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected — no action needed")
+    /// Called when a remote push notification arrives (foreground, background, or killed-app relaunch).
+    /// Reconnects the WebSocket so store-and-forward relay packets drain immediately,
+    /// then triggers a message retry scan and calls the fetch completion handler.
+    ///
+    /// - Parameter completionHandler: The `fetchCompletionHandler` from `didReceiveRemoteNotification`.
+    ///   Held open until the relay has had ~10 seconds to drain, then called with `.newData`.
+    private func handlePushWakeUp(completionHandler: ((UIBackgroundFetchResult) -> Void)? = nil) {
+        guard let ws = webSocketTransport else {
+            DebugLogger.shared.log("PUSH", "Push wake-up: no WebSocket transport — skipping")
+            completionHandler?(.noData)
             return
         }
-        DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(ws.state)) — reconnecting")
-        ws.stop()
-        ws.start()
+
+        if ws.state != .running {
+            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(ws.state)) — reconnecting")
+            ws.stop()
+            ws.start()
+        } else {
+            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected")
+        }
+
+        guard let completionHandler else { return }
+
+        // Give the relay ~10 seconds to drain buffered store-and-forward packets,
+        // then flush the retry queue and signal iOS that fetch is complete.
+        // iOS grants ~30 seconds total; the 25-second fallback in AppDelegate is the outer bound.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            await self?.messageRetryService?.triggerScan()
+            completionHandler(.newData)
+        }
     }
 
     /// Stop all transports and clean up.

@@ -366,12 +366,14 @@ final class MessageService: @unchecked Sendable {
         return message
     }
 
-    /// Send a voice note message.
+    /// Send a voice note message. Pass `isPTT: true` when sending push-to-talk audio
+    /// so the receiver dispatches it to the PTT playback overlay instead of the chat list.
     @MainActor
     func sendVoiceNote(
         audioData: Data,
         duration: TimeInterval,
-        to channel: Channel
+        to channel: Channel,
+        isPTT: Bool = false
     ) async throws -> Message {
         guard let identity = getIdentity() else {
             throw MessageServiceError.senderNotFound
@@ -409,7 +411,7 @@ final class MessageService: @unchecked Sendable {
         let payload = MessagePayloadBuilder.buildMediaPayload(data: audioData, messageID: message.id, duration: duration)
         let sendOutcome = try await encryptAndSend(
             payload: payload,
-            subType: .voiceNote,
+            subType: isPTT ? .pttAudio : .voiceNote,
             channel: channel,
             identity: identity,
             messageID: message.id
@@ -902,7 +904,7 @@ final class MessageService: @unchecked Sendable {
         let taggedPayload = MessagePayloadBuilder.prependSubType(subType, to: payload)
 
         // Determine compression: skip for pre-compressed types
-        let isPreCompressed = (subType == .voiceNote || subType == .imageMessage)
+        let isPreCompressed = (subType == .voiceNote || subType == .imageMessage || subType == .pttAudio)
         let compressed = PayloadCompressor.compressIfNeeded(taggedPayload, isPreCompressed: isPreCompressed)
 
         let ratio = taggedPayload.count > 0 ? Double(compressed.data.count) / Double(taggedPayload.count) : 1.0
@@ -1786,7 +1788,7 @@ final class MessageService: @unchecked Sendable {
         case .groupMessage:
             let (_, scopedContent) = MessagePayloadBuilder.parseChannelScopedPayload(body)
             return MessagePayloadBuilder.parseLeadingMessageID(scopedContent)
-        case .privateMessage, .voiceNote, .imageMessage:
+        case .privateMessage, .voiceNote, .imageMessage, .pttAudio:
             return MessagePayloadBuilder.parseLeadingMessageID(body)
         default:
             return nil

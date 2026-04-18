@@ -136,7 +136,7 @@ struct PaywallSheet: View {
     private var headerSection: some View {
         VStack(spacing: BlipSpacing.sm) {
             Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                .font(.system(size: 40))
+                .blipTextStyle(.display)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [

@@ -58,6 +58,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     // MARK: - Remote Notifications
 
+    /// Stored completion handler from the most recent silent push.
+    /// AppCoordinator consumes this via `consumePushCompletion()` once transports
+    /// are running. A 25-second fallback fires if nobody consumes it in time.
+    private var pendingPushCompletion: ((UIBackgroundFetchResult) -> Void)?
+
+    /// Returns and clears the pending push completion handler.
+    /// Called by AppCoordinator after it reconnects the relay.
+    func consumePushCompletion() -> ((UIBackgroundFetchResult) -> Void)? {
+        let handler = pendingPushCompletion
+        pendingPushCompletion = nil
+        return handler
+    }
+
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
@@ -77,8 +90,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        // Store so AppCoordinator can hold it open while the relay drains.
+        // The notification wakes an already-running coordinator; for a killed-app
+        // relaunch the coordinator picks up pendingPushCompletion inside start().
+        pendingPushCompletion = completionHandler
         NotificationCenter.default.post(name: .remotePushReceived, object: nil, userInfo: userInfo)
-        completionHandler(.newData)
+
+        // Safety net: iOS requires the handler within ~30 seconds.
+        // AppCoordinator calls it after relay drain; this fires only if it never does.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) { [weak self] in
+            guard let self, let handler = self.pendingPushCompletion else { return }
+            self.pendingPushCompletion = nil
+            DebugLogger.emit("PUSH", "Push completion handler timed out — calling fallback")
+            handler(.newData)
+        }
     }
 
     // MARK: - BLE State Restoration

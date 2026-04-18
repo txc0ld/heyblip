@@ -172,14 +172,15 @@ struct NearbyView: View {
                 displayName: friend.name,
                 coordinate: friend.coordinate,
                 precision: mapPrecision(friend.precision),
-                color: .blue,
+                color: FriendMapPin.trailColor(for: friend.friendID),
                 lastUpdated: friend.lastUpdated,
                 accuracyMeters: friend.precision == .precise ? 12 : 60,
                 distanceFromUser: userCoordinate.map {
                     CLLocation(latitude: $0.latitude, longitude: $0.longitude)
                         .distance(from: CLLocation(latitude: friend.coordinate.latitude, longitude: friend.coordinate.longitude))
                 },
-                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800
+                isOutOfRange: Date().timeIntervalSince(friend.lastUpdated) > 1_800,
+                breadcrumbs: friend.breadcrumbs
             )
         }
     }

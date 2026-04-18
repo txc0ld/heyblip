@@ -1,9 +1,11 @@
 # Blip — Design Specification
 
-**Version:** 1.0
-**Date:** 2026-03-28
+**Version:** 1.1
+**Date:** 2026-04-18 (HEY1260 email-auth update)
 **Status:** Approved
-**Platform:** iOS 16.0+ / macOS 13.0+ (iOS-first, Android planned)
+**Platform:** iOS 17.0+ / macOS 13.0+ (iOS-first, Android planned)
+
+> **Note (HEY1260, April 2026):** This spec originally called for phone/SMS OTP identity verification. That was replaced with email verification via the `blip-auth` Cloudflare Worker (Resend backend). Sections 2.4, 3.1, 3.3, and 3.4 have been updated. Some deeper protocol sections (e.g. §6.2 packet types, §7.4 friend verification hash, §10 data model) still describe the old phone-hash friend-request flow — these are historical and should be rewritten when that flow is formally migrated. Current `Sources/` code uses email-only.
 
 ---
 
@@ -107,12 +109,13 @@ A thin backend is required for four specific functions. Everything else is P2P.
 
 | Service | Purpose | Implementation |
 |---|---|---|
-| Phone verification | SMS OTP for identity confirmation | Twilio Verify API or Firebase Auth |
-| Event manifest | JSON list of registered events, stages, schedules | Static JSON on GitHub Pages / CDN |
-| StoreKit validation | Server-side receipt verification for IAP | Lightweight API (Cloudflare Workers / Vercel Edge) |
-| Push notifications | Wake app for internet-side messages when backgrounded | APNs via lightweight relay |
+| Email verification | Email OTP for identity confirmation (HEY1260 — replaced phone/SMS) | `blip-auth` Cloudflare Worker + Resend |
+| Event manifest | JSON list of registered events, stages, schedules | `blip-cdn` Cloudflare Worker (R2-backed) |
+| WebSocket relay | Off-mesh packet delivery with store-and-forward | `blip-relay` Cloudflare Worker (Durable Objects) |
+| StoreKit validation | Server-side receipt verification for IAP | Lightweight API (Cloudflare Workers) |
+| Push notifications | Wake app for internet-side messages when backgrounded | APNs via `blip-relay` |
 
-**Design principle:** The backend is stateless where possible, zero-knowledge about message content, and the app functions fully without it (except phone verification and IAP).
+**Design principle:** The backend is stateless where possible, zero-knowledge about message content, and the app functions fully without it (except email verification and IAP).
 
 ---
 
@@ -120,9 +123,10 @@ A thin backend is required for four specific functions. Everything else is P2P.
 
 ### 3.1 Identity model
 
-- Username-based identity with phone number verification
-- Cryptographic keypair generated on first launch
-- No email, no social login, no password
+- Username-based identity with email verification (HEY1260 — replaced phone/SMS in Apr 2026)
+- Optional social login (Apple, Google) for convenience; email OTP is the canonical flow
+- Cryptographic keypair generated on first launch, signed challenge-response registration
+- No SMS, no password
 
 ### 3.2 Key generation (first launch)
 
@@ -138,25 +142,25 @@ A thin backend is required for four specific functions. Everything else is P2P.
 |---|---|---|---|
 | Username | Yes | Yes | SwiftData + announced on mesh |
 | Display name | No | Yes | SwiftData + announced on mesh |
-| Phone number | Yes | **Never** | Keychain (raw), SwiftData (hash only) |
+| Email address | Yes | **Never** (verification only) | `blip-auth` server (never on mesh), SwiftData (hash only for recovery) |
 | Profile picture | No | Yes (thumbnail) | SwiftData (thumbnail 64x64 + full-res cached) |
 | Bio | No | Yes | SwiftData (140 chars max) |
 | Noise public key | Auto | Yes (in announcements) | Keychain |
 | Signing public key | Auto | Yes (in announcements) | Keychain |
 
-### 3.4 Phone verification
+### 3.4 Email verification (HEY1260 — replaced phone/SMS)
 
-- SMS OTP via Twilio Verify (or Firebase Auth)
-- Phone number stored as `SHA256(phone + app_salt)` in SwiftData
-- Raw phone number stored ONLY in Keychain for re-verification
-- Phone hash shared during friend requests for mutual verification
-- Phone number NEVER displayed in UI, NEVER sent in plaintext over mesh
+- Email OTP via `blip-auth` Cloudflare Worker (Resend backend, FROM: verify@heyblip.au)
+- Registration flow: Ed25519-signed challenge-response (`POST /v1/auth/challenge` → `POST /v1/users/register`), email OTP follow-up
+- JWT session token issued on verification (`POST /v1/auth/token`), refreshed via `/v1/auth/refresh`
+- Email address NEVER displayed in UI beyond account settings, NEVER sent over mesh
+- Social login (Apple, Google) is optional; email is canonical for account recovery
 
 ### 3.5 Account recovery
 
 - **Keychain backup via iCloud Keychain:** Keys survive device migration if user has iCloud Keychain enabled
 - **Manual backup:** Settings > Export Recovery Kit — generates encrypted backup of keypair (password-protected, AES-256-GCM)
-- **New device without backup:** New keypair generated, re-verify phone number, friends see "Username has a new device" — must re-accept to re-establish Noise sessions
+- **New device without backup:** New keypair generated, re-verify email, friends see "Username has a new device" — must re-accept to re-establish Noise sessions
 - **No server-side key storage.** Ever.
 
 ---
@@ -953,7 +957,7 @@ Theme follows system preference with manual override in settings.
 ### 13.1 Onboarding (3 screens)
 
 1. **Welcome:** "Chat at events, even without signal" + animated gradient hero
-2. **Create profile:** Username, phone (SMS OTP), optional avatar. Single screen.
+2. **Create profile:** Username, email (verification code), optional avatar. Single screen.
 3. **Permissions:** "Blip needs Bluetooth to connect with people nearby." One tap.
 
 No mention of mesh, nodes, protocols, encryption, or transport. Ever.
@@ -1022,7 +1026,7 @@ All technical details hidden from user:
 - Block votes reset per event (no permanent reputation score)
 - SOS packets are NEVER affected by block votes — safety overrides moderation
 
-**Privacy nutrition labels:** Accurate App Store privacy disclosure. Data collected: phone number (verification only), approximate location (when in use), usage data (message counts for billing). Data NOT collected: message content, contacts, browsing history, precise location (except during SOS).
+**Privacy nutrition labels:** Accurate App Store privacy disclosure. Data collected: email address (verification and recovery only), approximate location (when in use), usage data (message counts for billing). Data NOT collected: message content, contacts, browsing history, precise location (except during SOS).
 
 ### 13.8 Offline message queue limits
 
