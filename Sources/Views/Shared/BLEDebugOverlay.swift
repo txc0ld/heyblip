@@ -21,6 +21,7 @@ struct BLEDebugOverlay: View {
     @State private var copiedDebugToast = false
     @State private var showShareSheet = false
     @State private var selectedTab: DebugTab = .log
+    @State private var pendingHandshakes: [(peerHex: String, queuedMsgs: Int, isResponder: Bool)] = []
 
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -33,8 +34,8 @@ struct BLEDebugOverlay: View {
         case log = "Log"
         case dmTrace = "DM Trace"
         case peerLife = "Peer Life"
-        case keys = "Keys"
         case noise = "Noise"
+        case keys = "Keys"
     }
 
     var body: some View {
@@ -268,10 +269,10 @@ struct BLEDebugOverlay: View {
             dmTraceSection
         case .peerLife:
             peerLifecycleSection
+        case .noise:
+            noiseStatusSection
         case .keys:
             keyStatusSection
-        case .noise:
-            noiseDebugSection
         }
     }
 
@@ -331,6 +332,53 @@ struct BLEDebugOverlay: View {
                     .foregroundStyle(.gray)
             } else {
                 logEntryList(entries: Array(peerEntries))
+            }
+        }
+    }
+
+    // MARK: - Noise Handshake Status
+
+    private var noiseStatusSection: some View {
+        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+            let noiseEntries = DebugLogger.shared.entries
+                .filter { $0.category == "NOISE" || $0.category == "CRYPTO" }
+                .prefix(30)
+
+            sectionHeader("Noise Sessions")
+
+            if pendingHandshakes.isEmpty {
+                Text("No pending handshakes")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
+            } else {
+                ForEach(pendingHandshakes, id: \.peerHex) { hs in
+                    HStack(spacing: BlipSpacing.sm) {
+                        statusDot(hs.isResponder ? .yellow : .orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(hs.peerHex)
+                                .foregroundStyle(.white)
+                            Text(hs.isResponder ? "responder — waiting msg3" : "initiator — waiting msg2")
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(hs.queuedMsgs) msg(s)")
+                                .foregroundStyle(hs.queuedMsgs > 0 ? .orange : .gray)
+                        }
+                    }
+                    .font(.system(.caption, design: .monospaced))
+                    .padding(.vertical, BlipSpacing.xxs)
+                }
+            }
+
+            sectionHeader("Noise Log (\(noiseEntries.count))")
+
+            if noiseEntries.isEmpty {
+                Text("No NOISE/CRYPTO entries yet")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.gray)
+            } else {
+                logEntryList(entries: Array(noiseEntries))
             }
         }
     }
@@ -400,39 +448,6 @@ struct BLEDebugOverlay: View {
             .padding(BlipSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
-    // MARK: - Noise Debug
-
-    private var noiseDebugSection: some View {
-        let noiseEntries = DebugLogger.shared.entries
-            .filter { $0.category == "NOISE" || $0.category == "CRYPTO" }
-            .prefix(50)
-        let msgService = coordinator.messageService
-        let activeSessions = msgService?.noiseSessionManager?.activeSessionCount ?? 0
-        let pendingHandshakes = msgService?.noiseSessionManager?.pendingHandshakeCount ?? 0
-
-        return VStack(alignment: .leading, spacing: BlipSpacing.sm) {
-            sectionHeader("Noise Sessions")
-
-            HStack(spacing: BlipSpacing.lg) {
-                metricBlock(label: "Active", value: "\(activeSessions)")
-                metricBlock(label: "Pending", value: "\(pendingHandshakes)")
-            }
-            .frame(maxWidth: .infinity)
-            .padding(BlipSpacing.sm)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-
-            sectionHeader("Noise / Crypto Log (\(noiseEntries.count))")
-
-            if noiseEntries.isEmpty {
-                Text("No NOISE/CRYPTO entries yet")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.gray)
-            } else {
-                logEntryList(entries: Array(noiseEntries))
-            }
         }
     }
 
@@ -601,6 +616,19 @@ struct BLEDebugOverlay: View {
         }
 
         storePeers = coordinator.peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
+
+        if let msgService = coordinator.messageService {
+            // Snapshot pending entries under lock, then check responder state outside.
+            let snapshot: [(Data, Int)] = msgService.lock.withLock {
+                msgService.pendingHandshakeMessages.map { ($0.key, $0.value.count) }
+            }
+            pendingHandshakes = snapshot.map { (peerBytes, count) in
+                let hex = peerBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                let isResponder = PeerID(bytes: peerBytes)
+                    .map { msgService.noiseSessionManager?.hasPendingResponderHandshake(for: $0) == true } ?? false
+                return (peerHex: hex, queuedMsgs: count, isResponder: isResponder)
+            }
+        }
     }
 }
 
