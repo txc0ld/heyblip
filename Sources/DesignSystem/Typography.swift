@@ -6,6 +6,9 @@ import SwiftUI
 /// Supports Dynamic Type scaling for accessibility.
 struct BlipTypography: Sendable {
 
+    /// Display numerals / hero counters — Bold 40pt, rounded
+    let display: Font
+
     /// Large titles — Bold 34pt
     let largeTitle: Font
 
@@ -47,6 +50,7 @@ struct BlipTypography: Sendable {
     /// Standard typography set using Plus Jakarta Sans with system fallback.
     /// Fonts scale automatically with Dynamic Type via `.relativeTo`.
     static let standard = BlipTypography(
+        display: .custom(BlipFontName.bold, size: 40, relativeTo: .largeTitle),
         largeTitle: .custom(BlipFontName.bold, size: 34, relativeTo: .largeTitle),
         title1: .custom(BlipFontName.semiBold, size: 28, relativeTo: .title),
         title2: .custom(BlipFontName.semiBold, size: 24, relativeTo: .title2),
@@ -63,6 +67,7 @@ struct BlipTypography: Sendable {
 
     /// System font fallback if custom fonts are not available.
     static let system = BlipTypography(
+        display: .system(size: 40, weight: .bold, design: .rounded),
         largeTitle: .system(size: 34, weight: .bold, design: .rounded),
         title1: .system(size: 28, weight: .semibold, design: .rounded),
         title2: .system(size: 24, weight: .semibold, design: .rounded),
@@ -119,6 +124,7 @@ enum BlipFontRegistration {
 struct BlipTextStyle: ViewModifier {
 
     enum Style {
+        case display
         case largeTitle
         case title1
         case title2
@@ -138,6 +144,8 @@ struct BlipTextStyle: ViewModifier {
 
     func body(content: Content) -> some View {
         switch style {
+        case .display:
+            content.font(theme.typography.display)
         case .largeTitle:
             content.font(theme.typography.largeTitle)
         case .title1:
