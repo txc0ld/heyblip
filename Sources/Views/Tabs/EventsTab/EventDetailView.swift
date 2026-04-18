@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 private enum EventDetailL10n {
@@ -48,7 +49,7 @@ struct EventDetailView: View {
                     headerSection(event)
                     descriptionSection(event)
                     detailsCard(event)
-                    mapPlaceholder
+                    mapSection(event)
                     joinSection(event)
                 }
                 .padding(BlipSpacing.md)
@@ -135,7 +136,25 @@ struct EventDetailView: View {
         .accessibilityLabel(EventDetailL10n.detailAccessibility(label, value))
     }
 
-    // MARK: - Map Placeholder
+    // MARK: - Map
+
+    @ViewBuilder
+    private func mapSection(_ event: EventsViewModel.DiscoverableEvent) -> some View {
+        if event.isJoined {
+            let coordinate = CLLocationCoordinate2D(latitude: event.latitude, longitude: event.longitude)
+            Map(initialPosition: .region(MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            ))) {
+                Marker(event.name, coordinate: coordinate)
+            }
+            .frame(height: 200)
+            .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.lg))
+            .accessibilityLabel(EventDetailL10n.location)
+        } else {
+            mapPlaceholder
+        }
+    }
 
     private var mapPlaceholder: some View {
         GlassCard(thickness: .ultraThin) {
