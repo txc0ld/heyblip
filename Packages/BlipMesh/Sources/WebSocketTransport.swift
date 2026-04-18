@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import CryptoKit
 import BlipProtocol
 import os.log
@@ -107,6 +108,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// reconnections when both didCloseWith and receiveNextMessage fire.
     private var isReconnectScheduled = false
 
+    /// Network path monitor — triggers immediate disconnect/reconnect on path changes
+    /// (WiFi→LTE, flight mode, etc.) rather than waiting up to 20s for ping failure.
+    private var pathMonitor: NWPathMonitor?
+    private var lastKnownPathStatus: NWPath.Status = .requiresConnection
+
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "com.blip.websocket", qos: .userInitiated)
     private let logger = Logger(subsystem: "com.blip", category: "WebSocket")
@@ -142,6 +148,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
         let config = URLSessionConfiguration.default
         config.waitsForConnectivity = true
+        // Prevent URLSession from killing the WebSocket after 60s of no data frames.
+        // WebSocket PING control frames do not reset URLSession's idle timer — only
+        // binary/text data messages do. Without this override the connection drops
+        // at exactly timeoutIntervalForRequest (default 60s) regardless of ping cadence.
+        config.timeoutIntervalForRequest = 300
         self.urlSession = URLSession(
             configuration: config,
             delegate: self,
@@ -154,6 +165,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     public func start() {
         guard state == .idle || state == .stopped else { return }
         autoReconnect = true
+        startPathMonitor()
         connect()
     }
 
@@ -162,6 +174,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         lock.withLock {
             isReconnectScheduled = false
         }
+        stopPathMonitor()
         disconnect()
         state = .stopped
     }
@@ -212,6 +225,35 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             // mesh layer can log and, if desired, re-queue.
             self.delegate?.transport(self, didFailDelivery: data, to: nil)
         }
+    }
+
+    // MARK: - Network path monitoring
+
+    private func startPathMonitor() {
+        let monitor = NWPathMonitor()
+        pathMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            let previousStatus = self.lastKnownPathStatus
+            self.lastKnownPathStatus = path.status
+            // Only react to transitions to a satisfiable path or outright loss.
+            // Ignore redundant updates (same status) and the initial satisfied→satisfied
+            // delivery that fires immediately after start().
+            guard path.status != previousStatus else { return }
+            if path.status == .unsatisfied {
+                self.logger.info("Network path lost — triggering relay disconnect")
+                self.handleConnectionLost(error: nil)
+            } else if path.status == .satisfied, self.autoReconnect, self.state != .running {
+                self.logger.info("Network path restored — reconnecting relay")
+                self.scheduleReconnect()
+            }
+        }
+        monitor.start(queue: queue)
+    }
+
+    private func stopPathMonitor() {
+        pathMonitor?.cancel()
+        pathMonitor = nil
     }
 
     // MARK: - Connection management

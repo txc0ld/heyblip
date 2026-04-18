@@ -182,8 +182,24 @@ class FakeStorage {
 }
 
 function makeRelayRoom(storage: FakeStorage): RelayRoom {
+  // Minimal hibernation API stubs so handleSession (acceptWebSocket) and
+  // post-hibernation rebuild (getWebSockets/getTags) work in unit tests.
+  const wsTagMap = new Map<WebSocket, string[]>();
   const state = {
     storage,
+    acceptWebSocket(ws: WebSocket, tags: string[] = []): void {
+      ws.accept(); // mirrors real CF hibernation API which accepts the socket internally
+      wsTagMap.set(ws, tags);
+    },
+    getWebSockets(tag?: string): WebSocket[] {
+      if (tag === undefined) return [...wsTagMap.keys()];
+      return [...wsTagMap.entries()]
+        .filter(([, tags]) => tags.includes(tag))
+        .map(([ws]) => ws);
+    },
+    getTags(ws: WebSocket): string[] {
+      return wsTagMap.get(ws) ?? [];
+    },
   } as unknown as DurableObjectState;
 
   return new RelayRoom(state, {

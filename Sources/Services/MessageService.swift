@@ -1853,6 +1853,13 @@ extension MessageService: TransportDelegate {
         Task { @MainActor in
             DebugLogger.shared.log("PEER", "CONNECTED: \(shortID)")
 
+            // Skip presence broadcast if identity isn't ready yet — relay connects
+            // can race the registration/auth flow that sets localIdentity.
+            guard self.getIdentity() != nil else {
+                DebugLogger.shared.log("PRESENCE", "Skipping broadcast on connect — identity not ready")
+                return
+            }
+
             // Debounce: skip broadcast if one was sent less than 1s ago
             if let last = self.lastBroadcastTime,
                Date().timeIntervalSince(last) < self.broadcastDebounceInterval {

@@ -3,6 +3,11 @@
  * and routes binary protocol packets by recipient PeerID.
  *
  * Zero-knowledge: never decrypts, logs, or persists packet content.
+ *
+ * WebSocket Hibernation API: the DO uses this.state.acceptWebSocket() so
+ * Cloudflare can hibernate it between events without evicting it. peerIdHex
+ * is stored as a WebSocket tag so it survives hibernation and can be
+ * recovered via this.state.getTags(ws) on wake-up.
  */
 import {
   bytesToHex,
@@ -44,10 +49,10 @@ const QUEUE_TTL_MS = 3600_000;
 const QUEUE_PREFIX = "q:";
 
 export class RelayRoom implements DurableObject {
-  /** Connected peers indexed by hex PeerID. */
+  /** Connected peers indexed by hex PeerID. Rebuilt lazily after hibernation. */
   private peers: Map<PeerIDHex, WebSocket> = new Map();
 
-  /** Reverse lookup: WebSocket -> PeerID (for cleanup on close). */
+  /** Reverse lookup: WebSocket -> PeerID (for cleanup on close). Rebuilt lazily. */
   private wsToPeer: Map<WebSocket, PeerIDHex> = new Map();
 
   /** Per-peer message timestamps for rate limiting. */
@@ -156,7 +161,10 @@ export class RelayRoom implements DurableObject {
   }
 
   private handleSession(ws: WebSocket, peerIdHex: PeerIDHex): void {
-    ws.accept();
+    // Hibernation API: DO can sleep between events without being evicted by
+    // Cloudflare. peerIdHex is stored as a tag so it survives hibernation and
+    // is recovered via this.state.getTags(ws) in webSocketMessage/Close/Error.
+    this.state.acceptWebSocket(ws, [peerIdHex]);
 
     // Register this peer.
     // If a peer reconnects, close the old socket.
@@ -182,64 +190,79 @@ export class RelayRoom implements DurableObject {
     // Drain any store-and-forward packets queued while this peer was offline.
     // Serialized via scheduleDrain so concurrent drains for the same peer
     // (rapid disconnect/reconnect) cannot duplicate-deliver or double-delete.
-    // Incoming messages are deferred until drain completes — provides backpressure
-    // and ensures queued packets are delivered before new inbound traffic.
-    const drainPromise = this.scheduleDrain(peerIdHex, ws);
+    // drainInProgress is in-memory; after hibernation wake-up it is empty and
+    // the drain re-runs from DO storage state, which is correct.
+    this.scheduleDrain(peerIdHex, ws);
 
-    ws.addEventListener("message", (event: MessageEvent) => {
-      drainPromise.then(() => {
-        if (this.wsToPeer.has(ws)) {
-          this.handleMessage(ws, event);
-        }
-      });
-    });
-
-    ws.addEventListener("close", () => {
-      this.removePeer(ws);
-    });
-
-    ws.addEventListener("error", () => {
-      this.removePeer(ws);
-    });
+    // Message/close/error events are handled by the hibernation API methods
+    // below (webSocketMessage, webSocketClose, webSocketError) — no addEventListener.
   }
 
+  // MARK: - Hibernation API event handlers
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    // Ignore text frames (only binary protocol packets are expected).
+    if (typeof message === "string") return;
+
+    const peerIdHex = this.peerIdForSocket(ws);
+    if (!peerIdHex) return;
+
+    // Defer message processing until any in-progress drain settles, preserving
+    // the ordering guarantee from the previous addEventListener approach.
+    const drain = this.drainInProgress.get(peerIdHex) ?? Promise.resolve();
+    await drain;
+
+    if (!this.wsToPeer.has(ws)) return; // Peer was removed while drain ran.
+
+    const data = message instanceof ArrayBuffer
+      ? new Uint8Array(message)
+      : new Uint8Array(message as ArrayBuffer);
+
+    this.handleMessageData(ws, peerIdHex, data);
+  }
+
+  webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+    this.removePeer(ws);
+  }
+
+  webSocketError(ws: WebSocket, _error: unknown): void {
+    this.removePeer(ws);
+  }
+
+  // MARK: - Message routing
+
+  /** Shim so existing unit tests calling handleMessage(ws, MessageEvent) continue to work. */
   private handleMessage(senderWs: WebSocket, event: MessageEvent): void {
-    // Only handle binary packets.
-    if (typeof event.data === "string") {
-      return;
-    }
+    if (typeof event.data === "string") return;
+    const peerIdHex = this.peerIdForSocket(senderWs);
+    if (!peerIdHex) return;
+    const data = event.data instanceof ArrayBuffer
+      ? new Uint8Array(event.data)
+      : new Uint8Array(event.data as ArrayBuffer);
+    this.handleMessageData(senderWs, peerIdHex, data);
+  }
 
-    const data =
-      event.data instanceof ArrayBuffer
-        ? new Uint8Array(event.data)
-        : new Uint8Array((event.data as ArrayBuffer));
-
-    // Sender PeerID lives at bytes 16..23 — drop any frame too small to carry one.
-    // Previously only `HEADER_SIZE` (16) was enforced, which let us read past the
-    // end of the buffer during sender verification on malformed frames.
+  private handleMessageData(senderWs: WebSocket, senderPeerIdHex: PeerIDHex, data: Uint8Array): void {
     if (data.length < MIN_PACKET_SIZE || data.length > MAX_PACKET_SIZE) {
       return;
     }
 
     // Per-peer rate limiting.
-    const senderPeerIdHex = this.wsToPeer.get(senderWs);
-    if (senderPeerIdHex) {
-      const now = Date.now();
-      const timestamps = this.messageTimestamps.get(senderPeerIdHex) ?? [];
-      const recentTimestamps = timestamps.filter(t => now - t < 1000);
-      if (recentTimestamps.length >= RATE_LIMIT_PER_SECOND) {
-        console.warn(`[relay] rate limit hit for peer ${senderPeerIdHex} - packet dropped`);
-        return; // Rate limited — drop silently.
-      }
-      recentTimestamps.push(now);
-      this.messageTimestamps.set(senderPeerIdHex, recentTimestamps);
+    const now = Date.now();
+    const timestamps = this.messageTimestamps.get(senderPeerIdHex) ?? [];
+    const recentTimestamps = timestamps.filter(t => now - t < 1000);
+    if (recentTimestamps.length >= RATE_LIMIT_PER_SECOND) {
+      console.warn(`[relay] rate limit hit for peer ${senderPeerIdHex} - packet dropped`);
+      return;
     }
+    recentTimestamps.push(now);
+    this.messageTimestamps.set(senderPeerIdHex, recentTimestamps);
 
     // Verify the sender PeerID in the packet matches the authenticated connection.
     const packetSenderHex = bytesToHex(
       data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH)
     );
-    if (senderPeerIdHex && packetSenderHex !== senderPeerIdHex) {
+    if (packetSenderHex !== senderPeerIdHex) {
       console.warn(
         `Sender mismatch: packet=${packetSenderHex} connection=${senderPeerIdHex} — dropping`
       );
@@ -247,6 +270,9 @@ export class RelayRoom implements DurableObject {
     }
 
     const recipientHex = extractRecipient(data);
+
+    // Rebuild peers Map if the DO woke up from hibernation before any routing.
+    this.rebuildPeersIfNeeded();
 
     if (!recipientHex) {
       // No recipient — broadcast to all *other* peers by PeerID hex, not by
@@ -290,6 +316,43 @@ export class RelayRoom implements DurableObject {
 
     // Recipient not connected — store for later delivery.
     this.queuePacket(recipientHex, data);
+  }
+
+  // MARK: - Hibernation helpers
+
+  /**
+   * Recover peerIdHex for a WebSocket. Checks the in-memory Map first; falls
+   * back to hibernation tags after a wake-up where Maps were reset.
+   */
+  private peerIdForSocket(ws: WebSocket): PeerIDHex | undefined {
+    const cached = this.wsToPeer.get(ws);
+    if (cached) return cached;
+
+    // After hibernation, in-memory Maps are empty. Recover from stored tags.
+    const tags = this.state.getTags(ws);
+    const peerHex = tags[0] as PeerIDHex | undefined;
+    if (peerHex) {
+      this.peers.set(peerHex, ws);
+      this.wsToPeer.set(ws, peerHex);
+    }
+    return peerHex;
+  }
+
+  /**
+   * Rebuild peers/wsToPeer Maps from hibernation state if they are empty.
+   * Called before any broadcast or addressed send to ensure all connected
+   * peers are visible after a hibernation wake-up.
+   */
+  private rebuildPeersIfNeeded(): void {
+    if (this.peers.size > 0) return;
+    for (const ws of this.state.getWebSockets()) {
+      const tags = this.state.getTags(ws);
+      const peerHex = tags[0] as PeerIDHex | undefined;
+      if (peerHex && !this.peers.has(peerHex)) {
+        this.peers.set(peerHex, ws);
+        this.wsToPeer.set(ws, peerHex);
+      }
+    }
   }
 
   // MARK: - Store-and-forward queue

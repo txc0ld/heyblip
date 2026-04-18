@@ -389,15 +389,18 @@ final class AppCoordinator {
         }
     }
 
-    /// Re-check Bluetooth authorization when the app returns to foreground.
-    /// If the user enabled Bluetooth in Settings, BLE starts automatically.
+    /// Re-check Bluetooth authorization and relay connection when the app returns to foreground.
     private func setupForegroundObserver(bleService: BLEService) {
         foregroundObservation = NotificationCenter.default.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
             object: nil,
             queue: .main
-        ) { [weak bleService] _ in
+        ) { [weak bleService, weak self] _ in
             bleService?.recheckAuthorization()
+            guard let ws = self?.webSocketTransport, ws.state != .running else { return }
+            DebugLogger.shared.log("APP", "Foreground: relay not running (state=\(ws.state)) — reconnecting")
+            ws.stop()
+            ws.start()
         }
     }
 
