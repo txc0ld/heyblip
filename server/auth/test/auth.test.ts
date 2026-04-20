@@ -351,11 +351,11 @@ beforeEach(async () => {
     await env.CODES.delete(key.name);
   }
   vi.restoreAllMocks();
-  (env as Record<string, unknown>).DEV_BYPASS = "false";
   (env as Record<string, unknown>).JWT_SECRET = "test-jwt-secret";
   (env as Record<string, unknown>).JWT_EXPIRY_SECONDS = "3600";
   (env as Record<string, unknown>).JWT_REFRESH_GRACE_SECONDS = "300";
   (env as Record<string, unknown>).CORS_ORIGIN = "http://localhost:3000";
+  (env as Record<string, unknown>).RESEND_API_KEY = "re_test_fake_key";
   delete (env as Record<string, unknown>).DATABASE_URL;
   delete (globalThis as Record<string, unknown>).__blipAuthMockWarmupError;
   resetMockUsers();
@@ -386,18 +386,13 @@ describe("POST /v1/auth/send-code", () => {
     expect(res.status).toBe(400);
   });
 
-  it("sends code successfully in DEV_BYPASS mode", async () => {
-    (env as Record<string, unknown>).DEV_BYPASS = "true";
+  it("fails closed when the email service is not configured", async () => {
+    delete (env as Record<string, unknown>).RESEND_API_KEY;
     const res = await request("POST", "/v1/auth/send-code", {
       email: "test@example.com",
     });
-    expect(res.status).toBe(200);
-    expect(await json(res)).toEqual({ sent: true });
-    // Code should be stored with bypass code
-    const raw = await env.CODES.get("code:test@example.com");
-    expect(raw).not.toBeNull();
-    const stored = JSON.parse(raw!);
-    expect(stored.code).toBe("000000");
+    expect(res.status).toBe(503);
+    expect(await json(res)).toEqual({ error: "Email service not configured" });
   });
 
   it("rate limits after max sends per hour", async () => {
@@ -432,7 +427,7 @@ describe("POST /v1/auth/challenge", () => {
     expect(stored).toBe("1");
   });
 
-  it("rejects requests without CF-Connecting-IP outside local dev bypass", async () => {
+  it("rejects requests without CF-Connecting-IP", async () => {
     const res = await request("POST", "/v1/auth/challenge", {});
     expect(res.status).toBe(400);
     expect(await json(res)).toEqual({
@@ -506,11 +501,6 @@ describe("POST /v1/auth/challenge", () => {
     expect(otherIP.status).toBe(200);
   });
 
-  it("allows missing CF-Connecting-IP in local dev bypass mode", async () => {
-    (env as Record<string, unknown>).DEV_BYPASS = "true";
-    const res = await request("POST", "/v1/auth/challenge", {});
-    expect(res.status).toBe(200);
-  });
 });
 
 // ─── Verify Code ─────────────────────────────────────────────
@@ -965,6 +955,21 @@ describe("POST /v1/users/keys", () => {
 // ─── Edge Cases ──────────────────────────────────────────────
 
 describe("edge cases", () => {
+  it("keeps canonical POST routes reachable", async () => {
+    const canonicalRoutes = [
+      "/v1/auth/challenge",
+      "/v1/auth/token",
+      "/v1/auth/refresh",
+      "/v1/users/register",
+      "/v1/users/keys",
+    ];
+
+    for (const route of canonicalRoutes) {
+      const res = await request("POST", route, {});
+      expect(res.status, `${route} should not 404`).not.toBe(404);
+    }
+  });
+
   it("returns 404 for unknown routes", async () => {
     const res = await request("POST", "/v1/auth/unknown");
     expect(res.status).toBe(404);

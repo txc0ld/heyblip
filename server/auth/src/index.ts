@@ -22,8 +22,6 @@ export interface Env {
   JWT_REFRESH_GRACE_SECONDS?: string;
   /** Set to e.g. "https://heyblip.au" in production and local dev. */
   CORS_ORIGIN?: string;
-  /** Set to "true" to skip Resend and use a fixed test code (000000). */
-  DEV_BYPASS?: string;
   /** Neon Postgres connection string. Set via `wrangler secret put DATABASE_URL`. */
   DATABASE_URL?: string;
   APNS_KEY_ID: string;
@@ -234,7 +232,7 @@ export default {
 // ─── Send Code ───────────────────────────────────────────────
 
 async function handleChallenge(request: Request, env: Env): Promise<Response> {
-  const ipAddress = request.headers.get("CF-Connecting-IP") ?? (env.DEV_BYPASS === "true" ? "dev-local" : null);
+  const ipAddress = request.headers.get("CF-Connecting-IP");
   if (!ipAddress) {
     return json({ error: "Unable to identify client" }, 400, env);
   }
@@ -274,30 +272,26 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
     return json({ error: "Too many requests. Try again later." }, 429, env);
   }
 
-  const devBypass = env.DEV_BYPASS === "true";
-  const code = devBypass ? "000000" : generateCode();
+  const code = generateCode();
   const ttl = parseInt(env.CODE_TTL_SECONDS, 10) || 600;
 
-  // In dev bypass mode, skip Resend entirely — use code 000000.
-  if (!devBypass) {
-    if (!env.RESEND_API_KEY) {
-      return json({ error: "Email service not configured" }, 503, env);
-    }
-    try {
-      const resend = new Resend(env.RESEND_API_KEY);
-      const { error } = await resend.emails.send({
-        from: env.FROM_EMAIL,
-        to: email,
-        subject: "Blip — Your verification code",
-        html: emailTemplate(code),
-      });
+  if (!env.RESEND_API_KEY) {
+    return json({ error: "Email service not configured" }, 503, env);
+  }
+  try {
+    const resend = new Resend(env.RESEND_API_KEY);
+    const { error } = await resend.emails.send({
+      from: env.FROM_EMAIL,
+      to: email,
+      subject: "Blip — Your verification code",
+      html: emailTemplate(code),
+    });
 
-      if (error) {
-        return json({ error: "Failed to send email" }, 502, env);
-      }
-    } catch (err: any) {
-      return json({ error: "Failed to send email", detail: err?.message ?? String(err) }, 502, env);
+    if (error) {
+      return json({ error: "Failed to send email" }, 502, env);
     }
+  } catch (err: any) {
+    return json({ error: "Failed to send email", detail: err?.message ?? String(err) }, 502, env);
   }
 
   // Store code in KV with TTL.
