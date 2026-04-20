@@ -95,6 +95,8 @@ final class AppCoordinator {
     private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
     private var modelContainer: ModelContainer?
     private var lifecycleController: AppLifecycleController?
+    private var registrationRecoveryService: RegistrationRecoveryService?
+    private var notificationRouter: NotificationActionRouter?
     @ObservationIgnored nonisolated(unsafe) private var transportDelegateBridge: (any TransportDelegate)?
 
     // MARK: - Init
@@ -156,6 +158,17 @@ final class AppCoordinator {
         )
         self.runtime = runtime
         self.lifecycleController = AppLifecycleController(runtime: runtime)
+        self.registrationRecoveryService = RegistrationRecoveryService(
+            modelContainer: modelContainer,
+            keyManager: keyManager,
+            refreshAuthSession: { [weak self] forceRefresh in
+                await self?.establishAuthSession(forceRefresh: forceRefresh)
+            }
+        )
+        self.notificationRouter = NotificationActionRouter(
+            modelContainer: modelContainer,
+            runtime: runtime
+        )
 
         // Notify app layer when a transport-level send fails so MessageRetryService
         // can pick up persisted messages. The message is already enqueued in SwiftData
@@ -190,41 +203,8 @@ final class AppCoordinator {
             await self.establishAuthSession()
         }
 
-        // Re-sync encryption keys to server for existing users (idempotent upsert).
-        // Ensures users who registered before key upload was added get their keys uploaded.
-        let keyMgr = keyManager
-        Task {
-            do {
-                let context = ModelContext(modelContainer)
-                let users = try context.fetch(FetchDescriptor<User>())
-                guard let user = users.min(by: { $0.createdAt < $1.createdAt }),
-                      !user.emailHash.isEmpty else {
-                    DebugLogger.shared.log("AUTH", "Key re-sync skipped — no local user or empty emailHash")
-                    return
-                }
-                guard let loadedIdentity = try keyMgr.loadIdentity() else {
-                    DebugLogger.shared.log("AUTH", "Key re-sync skipped — no identity in Keychain")
-                    return
-                }
-
-                let noiseKeyHex = loadedIdentity.noisePublicKey.rawRepresentation.map { String(format: "%02x", $0) }.joined()
-                let signingKeyHex = loadedIdentity.signingPublicKey.map { String(format: "%02x", $0) }.joined()
-                DebugLogger.shared.log("AUTH", "Key re-sync starting for \(DebugLogger.redact(user.username)) — noiseKey: \(DebugLogger.redactHex(String(noiseKeyHex.prefix(16))))…, signingKey: \(DebugLogger.redactHex(String(signingKeyHex.prefix(16))))…")
-
-                try await UserSyncService().registerUser(
-                    emailHash: user.emailHash,
-                    username: user.username,
-                    noisePublicKey: loadedIdentity.noisePublicKey.rawRepresentation,
-                    signingPublicKey: loadedIdentity.signingPublicKey
-                )
-
-                DebugLogger.shared.log("AUTH", "Key upload succeeded for \(DebugLogger.redact(user.username))")
-                Task { @MainActor [weak self] in
-                    await self?.establishAuthSession(forceRefresh: true)
-                }
-            } catch {
-                DebugLogger.shared.log("AUTH", "Key upload failed: \(error.localizedDescription)", isError: true)
-            }
+        Task { [weak registrationRecoveryService] in
+            await registrationRecoveryService?.resyncKeysIfNeeded()
         }
 
         // Wire background task service for BGTaskScheduler-based mesh sync.
@@ -237,9 +217,9 @@ final class AppCoordinator {
 
         // Self-check: verify local user is registered on the server.
         // Catches users who slipped through all registration retries.
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.verifyServerRegistration(modelContainer: modelContainer)
+        Task { @MainActor [weak self, weak registrationRecoveryService] in
+            guard let self, let registrationRecoveryService else { return }
+            self.registrationSyncPending = await registrationRecoveryService.verifyServerRegistration()
         }
     }
 
@@ -306,54 +286,10 @@ final class AppCoordinator {
 
     /// Verify that the local user exists on the auth server.
     /// If not found (404), re-register with retry to fix silent registration failures.
-    private func verifyServerRegistration(modelContainer: ModelContainer) async {
-        let context = ModelContext(modelContainer)
-        let syncService = UserSyncService()
-
-        do {
-            let users = try context.fetch(FetchDescriptor<User>())
-            guard let localUser = users.min(by: { $0.createdAt < $1.createdAt }) else {
-                logger.info("SELF_CHECK — no local user, skipping")
-                DebugLogger.shared.log("SELF_CHECK", "No local user found, skipping")
-                return
-            }
-
-            let result = try await syncService.lookupUser(username: localUser.username)
-
-            if result != nil {
-                logger.info("SELF_CHECK PASS — \(localUser.username, privacy: .private) found on server")
-                DebugLogger.shared.log("SELF_CHECK", "PASS — \(DebugLogger.redact(localUser.username)) found on server")
-                registrationSyncPending = false
-            } else {
-                logger.warning("SELF_CHECK FAIL — \(localUser.username, privacy: .private) not registered, re-registering")
-                DebugLogger.shared.log("SELF_CHECK", "FAIL — not registered, re-registering", isError: true)
-                registrationSyncPending = true
-
-                await syncService.registerUserWithRetry(
-                    emailHash: localUser.emailHash,
-                    username: localUser.username,
-                    noisePublicKey: localUser.noisePublicKey,
-                    signingPublicKey: localUser.signingPublicKey
-                )
-
-                // Check if retry succeeded
-                let retryResult = try? await syncService.lookupUser(username: localUser.username)
-                registrationSyncPending = (retryResult == nil)
-            }
-
-            await establishAuthSession(forceRefresh: true)
-        } catch {
-            logger.error("SELF_CHECK error: \(error.localizedDescription)")
-            DebugLogger.shared.log("SELF_CHECK", "Error: \(error.localizedDescription)", isError: true)
-            registrationSyncPending = true
-        }
-    }
-
     /// Retry server registration from the UI (e.g. the sync-pending banner).
     func retryRegistration() async {
-        guard let modelContainer else { return }
-        DebugLogger.shared.log("AUTH", "Manual registration retry triggered")
-        await verifyServerRegistration(modelContainer: modelContainer)
+        guard let registrationRecoveryService else { return }
+        registrationSyncPending = await registrationRecoveryService.retryRegistration()
     }
 
     // MARK: - Lifecycle
@@ -375,6 +311,8 @@ final class AppCoordinator {
     private func teardownRuntimeState() {
         lifecycleController?.tearDown()
         lifecycleController = nil
+        registrationRecoveryService = nil
+        notificationRouter = nil
         peerStore.removeAllSynchronously()
 
         runtime?.powerManager.stopMonitoring()
@@ -539,96 +477,18 @@ extension AppCoordinator: LocationServiceDelegate {
 
 extension AppCoordinator: NotificationServiceDelegate {
     nonisolated func notificationService(_ service: NotificationService, didReceiveAction action: BlipNotificationAction, with userInfo: [String: Any]) {
+        let payload = userInfo.compactMapValues { $0 as? String }
         Task { @MainActor [weak self] in
-            self?.handleNotificationAction(action, userInfo: userInfo)
+            guard let self else { return }
+            self.pendingNotificationNavigation = await self.notificationRouter?.handleAction(action, userInfo: payload)
+                ?? self.pendingNotificationNavigation
         }
     }
 
     nonisolated func notificationService(_ service: NotificationService, didReceiveReplyText text: String, with userInfo: [String: Any]) {
+        let payload = userInfo.compactMapValues { $0 as? String }
         Task { @MainActor [weak self] in
-            self?.handleNotificationReply(text: text, userInfo: userInfo)
-        }
-    }
-
-    private func handleNotificationAction(_ action: BlipNotificationAction, userInfo: [String: Any]) {
-        switch action {
-        case .openConversation:
-            guard let channelIDString = userInfo["channelID"] as? String,
-                  let channelID = UUID(uuidString: channelIDString) else { return }
-            pendingNotificationNavigation = .conversation(channelID: channelID)
-
-        case .markRead:
-            guard let channelIDString = userInfo["channelID"] as? String,
-                  let channelID = UUID(uuidString: channelIDString),
-                  let channel = fetchChannel(by: channelID) else { return }
-            chatViewModel?.markChannelAsRead(channel)
-
-        case .mute:
-            guard let channelIDString = userInfo["channelID"] as? String,
-                  let channelID = UUID(uuidString: channelIDString),
-                  let channel = fetchChannel(by: channelID) else { return }
-            chatViewModel?.toggleMute(for: channel)
-
-        case .acceptFriend:
-            guard let friendIDString = userInfo["friendID"] as? String,
-                  let friendID = UUID(uuidString: friendIDString),
-                  let friend = fetchFriend(by: friendID) else { return }
-            Task { try await messageService?.acceptFriendRequest(from: friend) }
-
-        case .declineFriend:
-            guard let friendIDString = userInfo["friendID"] as? String,
-                  let friendID = UUID(uuidString: friendIDString),
-                  let friend = fetchFriend(by: friendID) else { return }
-            friend.statusRaw = "declined"
-
-        case .respondSOS:
-            guard let alertIDString = userInfo["alertID"] as? String,
-                  let alertID = UUID(uuidString: alertIDString) else { return }
-            if let alert = sosViewModel?.visibleAlerts.first(where: { $0.id == alertID }) {
-                Task { await sosViewModel?.acceptAlert(alert) }
-            }
-
-        case .reply:
-            break
-
-        case .viewMap:
-            break
-        }
-    }
-
-    private func handleNotificationReply(text: String, userInfo: [String: Any]) {
-        guard !text.isEmpty,
-              let channelIDString = userInfo["channelID"] as? String,
-              let channelID = UUID(uuidString: channelIDString),
-              let channel = fetchChannel(by: channelID) else { return }
-        Task {
-            do {
-                try await messageService?.sendTextMessage(content: text, to: channel)
-            } catch {
-                logger.error("Notification reply failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func fetchChannel(by id: UUID) -> Channel? {
-        guard let context = modelContainer?.mainContext else { return nil }
-        let descriptor = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == id })
-        do {
-            return try context.fetch(descriptor).first
-        } catch {
-            DebugLogger.shared.log("DB", "fetchChannel failed: \(error.localizedDescription)", isError: true)
-            return nil
-        }
-    }
-
-    private func fetchFriend(by id: UUID) -> Friend? {
-        guard let context = modelContainer?.mainContext else { return nil }
-        let descriptor = FetchDescriptor<Friend>(predicate: #Predicate { $0.id == id })
-        do {
-            return try context.fetch(descriptor).first
-        } catch {
-            DebugLogger.shared.log("DB", "fetchFriend failed: \(error.localizedDescription)", isError: true)
-            return nil
+            await self?.notificationRouter?.handleReply(text: text, userInfo: payload)
         }
     }
 
@@ -637,22 +497,7 @@ extension AppCoordinator: NotificationServiceDelegate {
     /// surfaces like the Nearby tab use to deliver "tap on a friend, land in their DM"
     /// without needing direct access to ChatViewModel internals.
     func openDM(withUsername username: String) async {
-        guard let chatViewModel else {
-            DebugLogger.shared.log("CHAT", "openDM: ChatViewModel not ready", isError: true)
-            return
-        }
-        guard let context = modelContainer?.mainContext else { return }
-        let target = username
-        let descriptor = FetchDescriptor<User>(predicate: #Predicate<User> { $0.username == target })
-        do {
-            guard let user = try context.fetch(descriptor).first else {
-                DebugLogger.shared.log("CHAT", "openDM: no user for username \(DebugLogger.redact(username))")
-                return
-            }
-            guard let channel = await chatViewModel.createDMChannel(with: user) else { return }
-            pendingNotificationNavigation = .conversation(channelID: channel.id)
-        } catch {
-            DebugLogger.shared.log("CHAT", "openDM failed: \(error.localizedDescription)", isError: true)
-        }
+        guard let destination = await notificationRouter?.openDM(withUsername: username) else { return }
+        pendingNotificationNavigation = destination
     }
 }
