@@ -416,7 +416,11 @@ extension MessageService {
     }
 
     @MainActor
-    func handleEncryptedPacket(_ packet: Packet, from peerID: PeerID, ingressTransport: PeerIngressTransport) async throws {
+    func handleEncryptedPacket(
+        _ packet: Packet,
+        from peerID: PeerID,
+        ingressTransport: PeerIngressTransport = .unknown
+    ) async throws {
         let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         let peerBytes = peerID.bytes
 
@@ -631,7 +635,7 @@ extension MessageService {
         subType: EncryptedSubType,
         senderPeerID: PeerID,
         timestamp: Date,
-        ingressTransport: PeerIngressTransport
+        ingressTransport: PeerIngressTransport = .unknown
     ) async throws {
         let senderHex = senderPeerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
         DebugLogger.shared.log("DM", "handleIncomingMessage: \(data.count)B from \(senderHex) subType=\(subType)")
