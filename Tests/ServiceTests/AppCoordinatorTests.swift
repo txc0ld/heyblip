@@ -83,6 +83,51 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.chatViewModel, "ChatViewModel should not be created without identity")
     }
 
+    func testConfigureTwice_rebuildsRuntime() throws {
+        let keyManager = KeyManager(keyStore: InMemoryKeyManagerStore())
+        let identity = try keyManager.generateIdentity()
+        try keyManager.storeIdentity(identity)
+
+        let coordinator = AppCoordinator(keyManager: keyManager)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: BlipSchema.schema, configurations: [config])
+
+        coordinator.configure(modelContainer: container)
+        let firstRuntime = try XCTUnwrap(coordinator.runtime)
+        let firstMessageService = try XCTUnwrap(coordinator.messageService)
+
+        coordinator.configure(modelContainer: container)
+        let secondRuntime = try XCTUnwrap(coordinator.runtime)
+        let secondMessageService = try XCTUnwrap(coordinator.messageService)
+
+        XCTAssertTrue(coordinator.isReady, "Coordinator should remain ready after reconfigure")
+        XCTAssertFalse(firstRuntime === secondRuntime, "Runtime should be rebuilt on reconfigure")
+        XCTAssertFalse(firstMessageService === secondMessageService, "Runtime-owned services should be rebuilt on reconfigure")
+    }
+
+    func testResetToOnboarding_clearsRuntimeServices() throws {
+        let keyManager = KeyManager(keyStore: InMemoryKeyManagerStore())
+        let identity = try keyManager.generateIdentity()
+        try keyManager.storeIdentity(identity)
+
+        let coordinator = AppCoordinator(keyManager: keyManager)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: BlipSchema.schema, configurations: [config])
+
+        coordinator.configure(modelContainer: container)
+        XCTAssertNotNil(coordinator.runtime, "Runtime should exist after configure")
+
+        coordinator.resetToOnboarding()
+
+        XCTAssertNil(coordinator.runtime, "Runtime should be cleared during onboarding reset")
+        XCTAssertNil(coordinator.messageService, "MessageService should no longer be reachable after reset")
+        XCTAssertNil(coordinator.chatViewModel, "ChatViewModel should no longer be reachable after reset")
+        XCTAssertNil(coordinator.identity, "Identity should be cleared during onboarding reset")
+        XCTAssertNil(coordinator.localPeerID, "PeerID should be cleared during onboarding reset")
+        XCTAssertFalse(coordinator.isReady, "Coordinator should no longer be ready after reset")
+        XCTAssertTrue(coordinator.needsOnboarding, "Reset should return the app to onboarding")
+    }
+
     // MARK: - Reconfigure After Onboarding
 
     func testReconfigureAfterOnboarding_withIdentity_becomesReady() throws {
