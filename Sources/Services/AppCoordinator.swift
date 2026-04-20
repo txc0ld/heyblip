@@ -4,7 +4,6 @@ import SwiftData
 import BlipProtocol
 import BlipMesh
 import BlipCrypto
-import Combine
 import os.log
 #if canImport(UIKit)
 import UIKit
@@ -56,36 +55,34 @@ final class AppCoordinator {
 
     // MARK: - Services
 
-    private(set) var bleService: BLEService?
-    private(set) var webSocketTransport: WebSocketTransport?
-    private(set) var transportCoordinator: TransportCoordinator?
-    private(set) var meshRelayService: MeshRelayService?
-    private(set) var messageService: MessageService?
-    private(set) var messageRetryService: MessageRetryService?
+    private(set) var runtime: AppRuntime?
     private(set) var peerStore = PeerStore.shared
     private(set) var locationService = LocationService()
     private(set) var notificationService = NotificationService()
-    private(set) var proximityAlertService: ProximityAlertService?
     private(set) var backgroundTaskService: BackgroundTaskService?
     private(set) var authTokenManager = AuthTokenManager.shared
 
+    var bleService: BLEService? { runtime?.bleService }
+    var webSocketTransport: WebSocketTransport? { runtime?.webSocketTransport }
+    var transportCoordinator: TransportCoordinator? { runtime?.transportCoordinator }
+    var meshRelayService: MeshRelayService? { runtime?.meshRelayService }
+    var messageService: MessageService? { runtime?.messageService }
+    var messageRetryService: MessageRetryService? { runtime?.messageRetryService }
+    var proximityAlertService: ProximityAlertService? { runtime?.proximityAlertService }
+
     // MARK: - Feature View Models
 
-    private(set) var chatViewModel: ChatViewModel?
-    private(set) var meshViewModel: MeshViewModel?
-    private(set) var locationViewModel: LocationViewModel?
-    private(set) var friendFinderViewModel: FriendFinderViewModel?
-    private(set) var eventsViewModel: EventsViewModel?
-    private(set) var profileViewModel: ProfileViewModel?
-    private(set) var storeViewModel: StoreViewModel?
-    private(set) var sosViewModel: SOSViewModel?
-    private(set) var pttViewModel: PTTViewModel?
-
-    // MARK: - Shared Services
-
-    /// Shared AudioService for PTT recording/playback (owned by coordinator,
-    /// injected into PTTViewModel so the delegate lifecycle is stable).
-    private var pttAudioService: AudioService?
+    var chatViewModel: ChatViewModel? { runtime?.chatViewModel }
+    var meshViewModel: MeshViewModel? { runtime?.meshViewModel }
+    var locationViewModel: LocationViewModel? { runtime?.locationViewModel }
+    var friendFinderViewModel: FriendFinderViewModel? { runtime?.friendFinderViewModel }
+    var eventsViewModel: EventsViewModel? { runtime?.eventsViewModel }
+    var profileViewModel: ProfileViewModel? { runtime?.profileViewModel }
+    var storeViewModel: StoreViewModel? { runtime?.storeViewModel }
+    var sosViewModel: SOSViewModel? { runtime?.sosViewModel }
+    var pttViewModel: PTTViewModel? { runtime?.pttViewModel }
+    var powerManager: PowerManager? { runtime?.powerManager }
+    var messageCleanupService: MessageCleanupService? { runtime?.messageCleanupService }
 
     // MARK: - Identity
 
@@ -97,27 +94,8 @@ final class AppCoordinator {
     private let keyManager: KeyManager
     private let logger = Logger(subsystem: "com.blip", category: "AppCoordinator")
     private var modelContainer: ModelContainer?
-    @ObservationIgnored nonisolated(unsafe) private var broadcastObservation: NSObjectProtocol?
-    @ObservationIgnored nonisolated(unsafe) private var peerStateObservation: NSObjectProtocol?
-    @ObservationIgnored nonisolated(unsafe) private var foregroundObservation: NSObjectProtocol?
+    private var lifecycleController: AppLifecycleController?
     @ObservationIgnored nonisolated(unsafe) private var transportDelegateBridge: (any TransportDelegate)?
-    @ObservationIgnored nonisolated(unsafe) private var peerSyncTimer: Timer?
-    @ObservationIgnored nonisolated(unsafe) private var announceTimer: Timer?
-    @ObservationIgnored nonisolated(unsafe) private var peerPruneTimer: Timer?
-    @ObservationIgnored nonisolated(unsafe) private var authRefreshTimer: Timer?
-    @ObservationIgnored nonisolated(unsafe) private var pushWakeUpObservation: NSObjectProtocol?
-    @ObservationIgnored nonisolated(unsafe) private var badgeResetObservation: NSObjectProtocol?
-    private(set) var powerManager: PowerManager?
-    private(set) var messageCleanupService: MessageCleanupService?
-    @ObservationIgnored nonisolated(unsafe) private var powerTierCancellable: AnyCancellable?
-    private var currentPeerSyncInterval: TimeInterval?
-    private var lastSyncedPeerIDs = Set<Data>()
-    private var lastPostedTransportState: TransportStateSnapshot?
-
-    private struct TransportStateSnapshot: Equatable {
-        let bleActive: Bool
-        let wsConnected: Bool
-    }
 
     // MARK: - Init
 
@@ -130,20 +108,6 @@ final class AppCoordinator {
         }
 
         loadIdentityAndConfigure()
-    }
-
-    deinit {
-        // Clean up NotificationCenter observers that may outlive the coordinator.
-        // These are nonisolated(unsafe) so direct access from deinit is safe.
-        if let obs = broadcastObservation {
-            NotificationCenter.default.removeObserver(obs)
-        }
-        if let obs = peerStateObservation {
-            NotificationCenter.default.removeObserver(obs)
-        }
-        peerSyncTimer?.invalidate()
-        announceTimer?.invalidate()
-        peerPruneTimer?.invalidate()
     }
 
     // MARK: - Configuration
@@ -179,144 +143,36 @@ final class AppCoordinator {
         locationService.delegate = self
         notificationService.delegate = self
 
-        let peerID = identity.peerID
-
-        // Create transports
-        let ble = BLEService(localPeerID: peerID)
-        let ws = WebSocketTransport(
-            localPeerID: peerID,
-            pinnedCertHashes: ServerConfig.pinnedCertHashes,
-            pinnedDomains: ServerConfig.pinnedDomains,
-            tokenProvider: { @Sendable in
-                do {
-                    return try await AuthTokenManager.shared.validToken()
-                } catch {
-                    // JWT unavailable; fall back to legacy base64 noise key auth.
-                    // The relay server accepts both JWT and raw base64(noisePublicKey).
-                    guard let identity = try KeyManager.shared.loadIdentity() else {
-                        throw error
-                    }
-                    await DebugLogger.shared.log(
-                        "AUTH",
-                        "JWT unavailable, using legacy relay auth: \(error.localizedDescription)",
-                        isError: true
-                    )
-                    return identity.noisePublicKey.rawRepresentation.base64EncodedString()
-                }
-            },
-            tokenRefreshHandler: { @Sendable in
-                try await AuthTokenManager.shared.refreshIfNeeded(force: true)
-            },
-            relayURL: ServerConfig.relayWebSocketURL
+        let runtime = AppRuntimeFactory().makeRuntime(
+            modelContainer: modelContainer,
+            identity: identity,
+            dependencies: .init(
+                keyManager: keyManager,
+                peerStore: peerStore,
+                locationService: locationService,
+                notificationService: notificationService,
+                authTokenManager: authTokenManager
+            )
         )
-        let coordinator = TransportCoordinator(
-            bleTransport: ble,
-            webSocketTransport: ws
-        )
+        self.runtime = runtime
+        self.lifecycleController = AppLifecycleController(runtime: runtime)
 
         // Notify app layer when a transport-level send fails so MessageRetryService
         // can pick up persisted messages. The message is already enqueued in SwiftData
         // by MessageService; this callback triggers an immediate retry scan.
-        coordinator.onSendFailed = { [weak self] data, targetPeer in
+        let retryService = runtime.messageRetryService
+        runtime.transportCoordinator.onSendFailed = { data, targetPeer in
             let peerHex = targetPeer?.bytes.prefix(4).map { String(format: "%02x", $0) }.joined() ?? "broadcast"
             DebugLogger.emit("TX", "Transport send failed (\(data.count)B → \(peerHex)) — queued for retry")
-            Task { @MainActor [weak self] in
-                await self?.messageRetryService?.triggerScan()
-            }
-        }
-
-        // Wire BLE transport events to DebugLogger
-        ble.transportEventHandler = { category, message in
             Task { @MainActor in
-                DebugLogger.shared.log(category, message)
+                await retryService.triggerScan()
             }
         }
-
-        // Create PowerManager and wire tier changes to BLEService
-        let power = PowerManager()
-        power.startMonitoring()
-        self.powerManager = power
-        powerTierCancellable = power.tierPublisher
-            .removeDuplicates()
-            .sink { [weak ble] tier in
-                ble?.updatePowerTier(tier)
-            }
-
-        self.bleService = ble
-        self.webSocketTransport = ws
-        self.transportCoordinator = coordinator
-
-        // Create and configure MessageService with TransportCoordinator
-        // so messages route through the full BLE → WebSocket → local queue chain.
-        let msgService = MessageService(modelContainer: modelContainer, keyManager: keyManager, notificationService: notificationService)
-        msgService.configure(transport: coordinator, identity: identity)
-
-        // Wire gossip relay middleware between transport and message service.
-        // Data flow: BLE → TransportCoordinator → MeshRelayService → MessageService
-        // Relay flow: MeshRelayService → TransportCoordinator.broadcast(excluding:)
-        let relay = MeshRelayService(transport: coordinator)
-        relay.delegate = msgService
-        coordinator.delegate = self
-        transportDelegateBridge = relay
-        self.meshRelayService = relay
-        self.messageService = msgService
-
-        // Create retry service for queued messages (exponential backoff)
-        let retryService = MessageRetryService(modelContainer: modelContainer, messageService: msgService)
-        self.messageRetryService = retryService
-
-        self.messageCleanupService = MessageCleanupService(modelContainer: modelContainer)
-
-        self.chatViewModel = ChatViewModel(
-            messageService: msgService,
-            notificationService: notificationService
-        )
-        self.meshViewModel = MeshViewModel(modelContainer: modelContainer, peerStore: peerStore, notificationService: notificationService)
-        self.locationViewModel = LocationViewModel(
-            modelContainer: modelContainer,
-            locationService: locationService
-        )
-        let proximityAlerts = ProximityAlertService()
-        self.proximityAlertService = proximityAlerts
-        self.friendFinderViewModel = FriendFinderViewModel(
-            locationService: locationService,
-            modelContainer: modelContainer,
-            proximityAlertService: proximityAlerts
-        )
-        self.eventsViewModel = EventsViewModel(
-            modelContainer: modelContainer,
-            locationService: locationService,
-            notificationService: notificationService,
-            bleService: bleService
-        )
-        self.profileViewModel = ProfileViewModel(
-            modelContainer: modelContainer,
-            keyManager: keyManager
-        )
-        self.storeViewModel = StoreViewModel(modelContainer: modelContainer)
-        self.sosViewModel = SOSViewModel(
-            modelContainer: modelContainer,
-            bleService: ble,
-            locationService: locationService,
-            messageService: msgService,
-            notificationService: notificationService
-        )
-
-        // PTT: create a dedicated AudioService and view model
-        let pttAudio = AudioService()
-        self.pttAudioService = pttAudio
-        self.pttViewModel = PTTViewModel(
-            modelContainer: modelContainer,
-            audioService: pttAudio,
-            messageService: msgService
-        )
-
-        // Listen for broadcast requests from ViewModels (e.g. SOSViewModel).
-        setupBroadcastForwarding(coordinator: coordinator)
+        runtime.transportCoordinator.delegate = self
+        transportDelegateBridge = runtime.meshRelayService
 
         // Bridge BLE peer discovery to in-memory PeerStore.
         self.modelContainer = modelContainer
-        setupPeerPersistence(bleService: ble)
 
         // Clean up duplicate DM channels from prior builds with PeerID instability.
         do {
@@ -329,8 +185,6 @@ final class AppCoordinator {
             DebugLogger.shared.log("APP", "Duplicate channel cleanup failed: \(error)", isError: true)
         }
 
-        // Re-check Bluetooth permission when app returns from Settings.
-        setupForegroundObserver(bleService: ble)
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.establishAuthSession()
@@ -386,34 +240,6 @@ final class AppCoordinator {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.verifyServerRegistration(modelContainer: modelContainer)
-        }
-    }
-
-    /// Re-check Bluetooth authorization and relay connection when the app returns to foreground.
-    private func setupForegroundObserver(bleService: BLEService) {
-        foregroundObservation = NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak bleService, weak self] _ in
-            bleService?.recheckAuthorization()
-            guard let ws = self?.webSocketTransport, ws.state != .running else { return }
-            DebugLogger.shared.log("APP", "Foreground: relay not running (state=\(ws.state)) — reconnecting")
-            ws.stop()
-            ws.start()
-        }
-    }
-
-    /// Forward `.shouldBroadcastPacket` notifications to TransportCoordinator.
-    private func setupBroadcastForwarding(coordinator: TransportCoordinator) {
-        broadcastObservation = NotificationCenter.default.addObserver(
-            forName: .shouldBroadcastPacket,
-            object: nil,
-            queue: nil
-        ) { [weak coordinator, logger] notification in
-            guard let data = notification.userInfo?["data"] as? Data else { return }
-            coordinator?.broadcast(data: data)
-            logger.debug("Forwarded broadcast packet (\(data.count) bytes)")
         }
     }
 
@@ -476,116 +302,6 @@ final class AppCoordinator {
         return true
     }
 
-    // MARK: - Peer Persistence
-
-    /// Observe BLE peer state changes and sync to in-memory PeerStore.
-    private func setupPeerPersistence(bleService: BLEService) {
-        // Sync on every connect/disconnect notification
-        peerStateObservation = NotificationCenter.default.addObserver(
-            forName: .meshPeerStateChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.syncMeshPeers()
-            }
-        }
-
-        schedulePeerSyncTimer(forConnectedPeerCount: bleService.connectedPeers.count)
-    }
-
-    /// Keep RSSI refreshes frequent when peers are connected, but make the idle path cheap.
-    private func schedulePeerSyncTimer(forConnectedPeerCount count: Int) {
-        let interval: TimeInterval = count > 0 ? 5.0 : 15.0
-
-        guard peerSyncTimer == nil || currentPeerSyncInterval != interval else { return }
-
-        peerSyncTimer?.invalidate()
-
-        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.syncMeshPeers()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        peerSyncTimer = timer
-        currentPeerSyncInterval = interval
-    }
-
-    private func currentTransportStateSnapshot() -> TransportStateSnapshot {
-        TransportStateSnapshot(
-            bleActive: bleService?.state == .running,
-            wsConnected: webSocketTransport?.state == .running
-        )
-    }
-
-    private func postTransportStateIfNeeded(_ snapshot: TransportStateSnapshot) {
-        guard snapshot != lastPostedTransportState else { return }
-
-        NotificationCenter.default.post(
-            name: .meshTransportStateChanged,
-            object: nil,
-            userInfo: [
-                "bleActive": snapshot.bleActive,
-                "wsConnected": snapshot.wsConnected,
-            ]
-        )
-        lastPostedTransportState = snapshot
-    }
-
-    /// Sync connected BLE peers into the in-memory PeerStore.
-    private func syncMeshPeers() {
-        guard let bleService else { return }
-
-        let connectedPeerIDs = bleService.connectedPeers
-        let localID = localPeerID
-
-        let connectedSet = Set(connectedPeerIDs.map(\.bytes))
-        let transportState = currentTransportStateSnapshot()
-        let peerSetChanged = connectedSet != lastSyncedPeerIDs
-
-        schedulePeerSyncTimer(forConnectedPeerCount: connectedPeerIDs.count)
-
-        guard !connectedPeerIDs.isEmpty || peerSetChanged else {
-            postTransportStateIfNeeded(transportState)
-            return
-        }
-
-        // Upsert connected peers
-        for peerID in connectedPeerIDs {
-            if let localID, peerID == localID { continue }
-
-            let peerData = peerID.bytes
-            let existingPeer = peerStore.peer(for: peerData)
-            let hasSignalData = bleService.hasConnectedPeripheral(for: peerID)
-            let info = PeerInfo(
-                peerID: peerData,
-                noisePublicKey: existingPeer?.noisePublicKey ?? peerData,
-                signingPublicKey: existingPeer?.signingPublicKey ?? Data(),
-                username: existingPeer?.username,
-                rssi: hasSignalData ? (bleService.rssi(for: peerID) ?? PeerInfo.noSignalRSSI) : PeerInfo.noSignalRSSI,
-                isConnected: true,
-                lastSeenAt: Date(),
-                hopCount: 1,
-                transportType: .bluetooth
-            )
-            peerStore.upsert(peer: info)
-        }
-
-        // Mark disconnected peers immediately — no delay
-        peerStore.markDisconnectedExcept(activePeerIDs: connectedSet)
-
-        // Prune stale disconnected peers (>5 min)
-        peerStore.pruneStale(olderThan: 300)
-
-        postTransportStateIfNeeded(transportState)
-        lastSyncedPeerIDs = connectedSet
-
-        if !connectedPeerIDs.isEmpty {
-            DebugLogger.shared.log("SYNC", "Peer sync: \(connectedPeerIDs.count) connected")
-        }
-    }
-
     // MARK: - Server Registration Self-Check
 
     /// Verify that the local user exists on the auth server.
@@ -644,263 +360,38 @@ final class AppCoordinator {
 
     /// Start BLE scanning and WebSocket connection.
     func start() {
-        announceTimer?.invalidate() // Prevent timer stacking if start() called twice
         guard isReady else {
             logger.warning("start() called before coordinator is ready")
             return
         }
-        transportCoordinator?.start()
-        DebugLogger.shared.log("LIFECYCLE", "TransportCoordinator started")
-
-        locationService.requestAuthorization()
-        locationService.startUpdating(accuracy: .geohash)
-        DebugLogger.shared.log("LIFECYCLE", "LocationService started (geohash accuracy)")
-
-        // Start message retry queue processor
-        messageRetryService?.start()
-        DebugLogger.shared.log("LIFECYCLE", "MessageRetryService started")
-
-        Task { @MainActor in
-            // Request notification permissions
-            let notifGranted = await notificationService.requestAuthorization()
-            DebugLogger.shared.log("LIFECYCLE", "NotificationService authorization: \(notifGranted ? "granted" : "denied")")
-            if notifGranted {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
-            // Re-upload token on each launch in case it changed since last run.
-            Task { await PushTokenManager.shared.uploadTokenIfNeeded() }
-
-            await profileViewModel?.loadProfile()
-
-            // Set Sentry user context after profile loads
-            if let user = profileViewModel?.currentUser {
-                CrashReportingService.shared.setUser(
-                    id: user.id.uuidString,
-                    username: user.username
-                )
-            }
-
-            await chatViewModel?.loadChannels()
-            meshViewModel?.startMonitoring()
-            locationViewModel?.startMonitoring()
-            await eventsViewModel?.loadEvents()
-            await eventsViewModel?.startGeofencing()
-            await storeViewModel?.start()
-            DebugLogger.shared.log("LIFECYCLE", "StoreViewModel started (products + transaction listener)")
-            await sosViewModel?.loadResponderStatus()
-            await sosViewModel?.refreshVisibleAlerts()
-        }
-
-        // Broadcast presence after a short delay to let connections establish
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
-            do {
-                try await messageService?.broadcastPresence()
-            } catch {
-                DebugLogger.shared.log("PRESENCE", "Failed to broadcast presence: \(error.localizedDescription)", isError: true)
-            }
-        }
-
-        // Re-broadcast presence every 30s so late-joining peers see our username
-        let aTimer = Timer(timeInterval: 30.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                do {
-                    try await self?.messageService?.broadcastPresence()
-                } catch {
-                    DebugLogger.emit("PRESENCE", "Failed to re-broadcast presence: \(error.localizedDescription)", isError: true)
-                }
-            }
-        }
-        RunLoop.main.add(aTimer, forMode: .common)
-        announceTimer = aTimer
-
-        // Prune peers not seen in 2 minutes (separate from announce staleness)
-        let pruneTimer = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.peerStore.pruneStale(olderThan: 120)
-            }
-        }
-        RunLoop.main.add(pruneTimer, forMode: .common)
-        peerPruneTimer = pruneTimer
-
-        messageCleanupService?.start()
-
-        // Wake up WebSocket on push notification if not already connected.
-        pushWakeUpObservation = NotificationCenter.default.addObserver(
-            forName: .remotePushReceived,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            let handler = (UIApplication.shared.delegate as? AppDelegate)?.consumePushCompletion()
-            self?.handlePushWakeUp(completionHandler: handler)
-        }
-
-        // Consume any push that arrived before start() was called (killed-app relaunch).
-        // The push fires didReceiveRemoteNotification early in the process lifecycle,
-        // before SwiftUI renders MainTabView and this start() is invoked.
-        if let pendingHandler = (UIApplication.shared.delegate as? AppDelegate)?.consumePushCompletion() {
-            handlePushWakeUp(completionHandler: pendingHandler)
-        }
-
-        // Reset badge count when the app becomes active.
-        badgeResetObservation = NotificationCenter.default.addObserver(
-            forName: UIApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task {
-                try? await UNUserNotificationCenter.current().setBadgeCount(0)
-            }
-        }
-
-        logger.info("Transports started")
-    }
-
-    /// Called when a remote push notification arrives (foreground, background, or killed-app relaunch).
-    /// Reconnects the WebSocket so store-and-forward relay packets drain immediately,
-    /// then triggers a message retry scan and calls the fetch completion handler.
-    ///
-    /// - Parameter completionHandler: The `fetchCompletionHandler` from `didReceiveRemoteNotification`.
-    ///   Held open until the relay has had ~10 seconds to drain, then called with `.newData`.
-    private func handlePushWakeUp(completionHandler: ((UIBackgroundFetchResult) -> Void)? = nil) {
-        guard let ws = webSocketTransport else {
-            DebugLogger.shared.log("PUSH", "Push wake-up: no WebSocket transport — skipping")
-            completionHandler?(.noData)
-            return
-        }
-
-        if ws.state != .running {
-            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(ws.state)) — reconnecting")
-            ws.stop()
-            ws.start()
-        } else {
-            DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected")
-        }
-
-        guard let completionHandler else { return }
-
-        // Give the relay ~10 seconds to drain buffered store-and-forward packets,
-        // then flush the retry queue and signal iOS that fetch is complete.
-        // iOS grants ~30 seconds total; the 25-second fallback in AppDelegate is the outer bound.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(10))
-            await self?.messageRetryService?.triggerScan()
-            completionHandler(.newData)
-        }
+        lifecycleController?.start()
     }
 
     /// Stop all transports and clean up.
     func stop() {
-        transportCoordinator?.stop()
-        authRefreshTimer?.invalidate()
-        authRefreshTimer = nil
-        peerSyncTimer?.invalidate()
-        peerSyncTimer = nil
-        currentPeerSyncInterval = nil
-        announceTimer?.invalidate()
-        announceTimer = nil
-        peerPruneTimer?.invalidate()
-        peerPruneTimer = nil
-        lastSyncedPeerIDs.removeAll()
-        lastPostedTransportState = nil
-        messageCleanupService?.stop()
-        logger.info("Transports stopped")
+        lifecycleController?.stop()
     }
 
     private func teardownRuntimeState() {
-        stop()
+        lifecycleController?.tearDown()
+        lifecycleController = nil
         peerStore.removeAllSynchronously()
 
-        if let observation = broadcastObservation {
-            NotificationCenter.default.removeObserver(observation)
-            broadcastObservation = nil
-        }
-
-        if let observation = peerStateObservation {
-            NotificationCenter.default.removeObserver(observation)
-            peerStateObservation = nil
-        }
-
-        if let observation = foregroundObservation {
-            NotificationCenter.default.removeObserver(observation)
-            foregroundObservation = nil
-        }
-
-        if let observation = pushWakeUpObservation {
-            NotificationCenter.default.removeObserver(observation)
-            pushWakeUpObservation = nil
-        }
-
-        if let observation = badgeResetObservation {
-            NotificationCenter.default.removeObserver(observation)
-            badgeResetObservation = nil
-        }
-
-        powerTierCancellable?.cancel()
-        powerTierCancellable = nil
-        powerManager?.stopMonitoring()
-        powerManager = nil
+        runtime?.powerManager.stopMonitoring()
         transportDelegateBridge = nil
-        messageService?.delegate = nil
-        messageRetryService?.stop()
-        meshViewModel?.stopMonitoring()
-        locationViewModel?.stopMonitoring()
-        bleService = nil
-        webSocketTransport = nil
-        transportCoordinator = nil
-        meshRelayService = nil
-        messageService = nil
-        messageRetryService = nil
-        chatViewModel = nil
-        meshViewModel = nil
-        locationViewModel = nil
-        friendFinderViewModel = nil
-        proximityAlertService = nil
-        eventsViewModel = nil
-        profileViewModel = nil
-        storeViewModel = nil
-        sosViewModel = nil
-        pttViewModel?.reset()
-        pttViewModel = nil
-        pttAudioService = nil
+        runtime?.messageService.delegate = nil
+        runtime?.messageRetryService.stop()
+        runtime?.meshViewModel.stopMonitoring()
+        runtime?.locationViewModel.stopMonitoring()
+        runtime?.pttViewModel.reset()
         locationService.stopUpdating()
         locationService.stopMonitoringAllEvents()
         locationService.delegate = nil
+        runtime = nil
     }
 
     private func establishAuthSession(forceRefresh: Bool = false) async {
-        do {
-            if forceRefresh {
-                if authTokenManager.currentToken == nil {
-                    _ = try await authTokenManager.validToken()
-                } else {
-                    try await authTokenManager.refreshIfNeeded(force: true)
-                }
-            } else {
-                _ = try await authTokenManager.validToken()
-            }
-
-            DebugLogger.shared.log("AUTH", "JWT session ready")
-            scheduleAuthRefreshTimer()
-        } catch {
-            DebugLogger.shared.log("AUTH", "JWT session bootstrap failed: \(error.localizedDescription)", isError: true)
-        }
-    }
-
-    private func scheduleAuthRefreshTimer() {
-        authRefreshTimer?.invalidate()
-        let timer = Timer(timeInterval: 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                do {
-                    try await self.authTokenManager.refreshIfNeeded()
-                } catch {
-                    DebugLogger.shared.log("AUTH", "Scheduled JWT refresh failed: \(error.localizedDescription)", isError: true)
-                }
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        authRefreshTimer = timer
+        await lifecycleController?.establishAuthSession(forceRefresh: forceRefresh)
     }
 
     private func ensureUserPreferencesExists(in modelContainer: ModelContainer) {
