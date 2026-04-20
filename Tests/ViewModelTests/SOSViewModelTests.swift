@@ -21,6 +21,7 @@ final class SOSViewModelTests: XCTestCase {
     private var messageService: MessageService!
     private var notificationService: NotificationService!
     private var vm: SOSViewModel!
+    private let testPeerID = PeerID(bytes: Data(repeating: 0x01, count: PeerID.length))!
 
     override func setUp() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -32,7 +33,7 @@ final class SOSViewModelTests: XCTestCase {
 
         vm = SOSViewModel(
             modelContainer: container,
-            bleService: BLEService(),
+            bleService: BLEService(localPeerID: testPeerID),
             locationService: locationService,
             messageService: messageService,
             notificationService: notificationService
@@ -134,7 +135,7 @@ final class SOSViewModelTests: XCTestCase {
 
         let hydratedViewModel = SOSViewModel(
             modelContainer: container,
-            bleService: BLEService(),
+            bleService: BLEService(localPeerID: testPeerID),
             locationService: locationService,
             messageService: messageService,
             notificationService: notificationService
