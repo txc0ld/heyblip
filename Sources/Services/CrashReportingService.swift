@@ -20,6 +20,16 @@ final class CrashReportingService: @unchecked Sendable {
     /// Call once at app launch, before any other setup.
     /// DSN should come from Info.plist (build config), never hardcoded.
     func configure(dsn: String, environment: String = "production") {
+        // Don't initialise Sentry when the process is hosting the test harness.
+        // Xcode's test action sets XCTestConfigurationFilePath for both XCTest
+        // and Swift Testing runs. Without this guard, any runtime trap inside a
+        // test function (force-unwrap, precondition, #expect via trap) is
+        // captured as a fatal mach exception and mailed out.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            logger.info("Sentry disabled — running under test harness")
+            return
+        }
+
         SentrySDK.start { options in
             options.dsn = dsn
             options.environment = environment
