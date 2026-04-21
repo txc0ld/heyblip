@@ -1089,7 +1089,9 @@ final class MessageService: @unchecked Sendable {
                         signed = try Signer.sign(packet: packet, secretKey: identity.signingSecretKey)
                         DebugLogger.emit("TX", "Ed25519 signing OK", level: .verbose)
                     } catch {
-                        DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned", isError: true)
+                        // captureError fires below with richer context; the overlay
+                        // line stays informational so Sentry doesn't double-issue.
+                        DebugLogger.emit("TX", "Ed25519 SIGNING FAILED: \(error) — sending unsigned")
                         CrashReportingService.shared.captureError(error, context: ["operation": "ed25519_sign"])
                         signed = packet
                     }
@@ -1101,7 +1103,9 @@ final class MessageService: @unchecked Sendable {
                     let data = try PacketSerializer.encode(signed)
                     continuation.resume(returning: (data, signed))
                 } catch {
-                    DebugLogger.emit("TX", "ENCODE FAILED: \(error)", isError: true)
+                    // captureError fires below with richer context; the overlay
+                    // line stays informational so Sentry doesn't double-issue.
+                    DebugLogger.emit("TX", "ENCODE FAILED: \(error)")
                     CrashReportingService.shared.captureError(error, context: ["operation": "packet_encode"])
                     continuation.resume(throwing: error)
                 }

@@ -349,6 +349,10 @@ final class EventsViewModel {
 
             // Set active event if user is inside one
             activeEvent = events.first { $0.isActive }
+            CrashReportingService.shared.setActiveEvent(
+                id: activeEvent?.id.uuidString,
+                name: activeEvent?.name
+            )
 
             if let active = activeEvent {
                 await loadStages(for: active)
@@ -637,6 +641,7 @@ final class EventsViewModel {
 
         activeEvent = event
         isInsideEvent = true
+        CrashReportingService.shared.setActiveEvent(id: event.id.uuidString, name: event.name)
 
         ensureLostAndFoundChannel(for: event, context: context)
         createStageChannels(for: event)
@@ -671,6 +676,10 @@ final class EventsViewModel {
     func handleEventExit(eventID: UUID) {
         if activeEvent?.id == eventID {
             isInsideEvent = false
+            // Stop attributing subsequent crashes to this event. activeEvent itself
+            // stays set; the next discovery refresh re-evaluates `isActive` and the
+            // Sentry tag will be re-applied if the user re-enters.
+            CrashReportingService.shared.setActiveEvent(id: nil, name: nil)
             let context = self.context
             updateLostAndFoundChannelJoinState(for: eventID.uuidString, isJoined: false, context: context)
             do {

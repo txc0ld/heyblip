@@ -105,12 +105,19 @@ final class DebugLogger {
         if entries.count > maxEntries { entries.removeLast() }
         print("[Blip-\(category)] \(message)")
 
-        // Forward as Sentry breadcrumb so mesh/BLE events appear as crash context
+        // Always add a breadcrumb so non-error logs surface as crash context.
         CrashReportingService.shared.addBreadcrumb(
             category: category,
             message: message,
             level: isError ? .error : .info
         )
+
+        // Promote errors to a searchable Sentry issue. Without this, error-level
+        // breadcrumbs only appear inside an enclosing Sentry event — handled
+        // failures (network, decode, queue) never surface in the dashboard.
+        if isError {
+            CrashReportingService.shared.captureMessage("[\(category)] \(message)", level: .error)
+        }
     }
 
     /// Convenience for verbose-level logs (RSSI, raw bytes, timer ticks).

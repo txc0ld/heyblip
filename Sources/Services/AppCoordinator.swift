@@ -290,6 +290,11 @@ final class AppCoordinator {
             return false
         }
 
+        // Detach the Sentry user context so subsequent crashes from this
+        // device aren't attributed to the signed-out account. No-op when
+        // Sentry isn't configured (e.g. tests, missing DSN).
+        CrashReportingService.shared.clearUser()
+
         Task { await PushTokenManager.shared.clearToken() }
         teardownRuntimeState()
         guard clearLocalStore(in: container) else {
