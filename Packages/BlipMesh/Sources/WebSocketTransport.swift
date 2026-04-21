@@ -41,10 +41,32 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     public weak var delegate: (any TransportDelegate)?
 
-    public private(set) var state: TransportState = .idle {
-        didSet {
-            guard state != oldValue else { return }
-            delegate?.transport(self, didChangeState: state)
+    /// The transport's current operational state.
+    ///
+    /// Reads acquire `lock` and return the authoritative `_state`. This matters
+    /// in practice: `WebSocketTransport` writes state from URLSession's delegate
+    /// queue, the path-monitor queue, and Tasks spun up from `connect()`, while
+    /// the foreground handler and `TransportCoordinator` read it from the main
+    /// thread. Prior to serializing access, a stale read from another thread
+    /// could cause the foreground handler to see `.starting` while the transport
+    /// was actually `.running` (HEY1304).
+    public var state: TransportState {
+        lock.withLock { _state }
+    }
+
+    /// Lock-protected backing store for `state`. Never mutate directly — go
+    /// through `setState(_:)` so cross-thread readers see a coherent value and
+    /// the delegate is notified exactly once per real transition.
+    private var _state: TransportState = .idle
+
+    private func setState(_ newState: TransportState) {
+        let didChange: Bool = lock.withLock {
+            guard _state != newState else { return false }
+            _state = newState
+            return true
+        }
+        if didChange {
+            delegate?.transport(self, didChangeState: newState)
         }
     }
 
@@ -176,7 +198,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         }
         stopPathMonitor()
         disconnect()
-        state = .stopped
+        setState(.stopped)
     }
 
     public func send(data: Data, to peerID: PeerID) throws {
@@ -186,8 +208,8 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         // the mesh layer would catch the throw and silently fall back to
         // broadcast — privacy leak *and* symptom generator.
         let task: URLSessionWebSocketTask = try lock.withLock {
-            guard isConnected, state == .running else {
-                if state != .running {
+            guard isConnected, _state == .running else {
+                if _state != .running {
                     throw TransportError.notStarted
                 }
                 throw TransportError.unavailable("WebSocket not connected")
@@ -212,7 +234,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     public func broadcast(data: Data) {
         let task: URLSessionWebSocketTask? = lock.withLock {
-            guard isConnected, state == .running else { return nil }
+            guard isConnected, _state == .running else { return nil }
             return webSocketTask
         }
         guard let task else { return }
@@ -262,7 +284,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         lock.withLock {
             isReconnectScheduled = false
         }
-        state = .starting
+        setState(.starting)
         Task { [weak self] in
             guard let self else { return }
 
@@ -276,7 +298,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
                 } else if self.state != .stopped {
                     // A concurrent stop() has the final word — don't stomp .stopped
                     // with a late .failed from the detached tokenProvider Task.
-                    self.state = .failed("Authentication failed")
+                    self.setState(.failed("Authentication failed"))
                 }
             }
         }
@@ -285,14 +307,25 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     private func openWebSocket(using token: String) {
         guard autoReconnect || state == .starting else { return }
 
-        // Cancel any old task to prevent ghost receive callbacks.
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        // Cancel any old task to prevent ghost receive callbacks. If the old
+        // task was live (e.g. a stale `state` read on the path-monitor queue
+        // tripped `scheduleReconnect` while the connection was fine), the new
+        // task's handleConnectionEstablished will short-circuit on
+        // `!isConnected` and `state` will never transition back to `.running`
+        // — leaving the foreground handler staring at a stale `.starting`
+        // for the lifetime of the process. Tear the bookkeeping down here so
+        // the new task can cleanly report connected. HEY1304.
+        stopPingTimer()
+        let previousTask = webSocketTask
         webSocketTask = nil
+        previousTask?.cancel(with: .goingAway, reason: nil)
 
         // Increment the generation counter so stale callbacks from the old
-        // task are silently dropped.
+        // task are silently dropped, and reset `isConnected` so
+        // handleConnectionEstablished fires cleanly on the new task.
         lock.withLock {
             taskGeneration += 1
+            isConnected = false
         }
 
         var request = URLRequest(url: self.relayURL)
@@ -332,7 +365,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         }
         guard let generation else { return }
 
-        state = .running
+        setState(.running)
         delegate?.transport(self, didConnect: serverPeerID)
 
         startPingTimer(generation: generation)
@@ -362,7 +395,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         if autoReconnect {
             scheduleReconnect()
         } else {
-            state = .stopped
+            setState(.stopped)
         }
     }
 
@@ -391,7 +424,7 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             }
 
             guard self.autoReconnect else {
-                self.state = .stopped
+                self.setState(.stopped)
                 return
             }
 
@@ -420,13 +453,13 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             let attempts = lock.withLock { reconnectAttempts }
             if attempts > Self.maxReconnectAttempts {
                 logger.error("WebSocket max reconnect attempts reached")
-                state = .failed("Max reconnect attempts reached")
+                setState(.failed("Max reconnect attempts reached"))
             }
             return
         }
 
         logger.info("WebSocket reconnecting in \(delay)s (attempt \(self.reconnectAttempts))")
-        state = .starting
+        setState(.starting)
 
         queue.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self, self.autoReconnect else { return }
@@ -563,6 +596,30 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             guard let webSocketTask else { return false }
             return webSocketTask === task
         }
+    }
+}
+
+// MARK: - Internal test hooks
+//
+// These helpers let the unit-test suite exercise state-machine invariants
+// (notably the HEY1304 reconnect-while-connected race) without running a real
+// WebSocket handshake. They are deliberately non-public; production code must
+// not call them. Extensions in the same source file can reach `private`
+// members, so each hook simply forwards to the underlying private method.
+extension WebSocketTransport {
+    func __testing_simulateRelayConnected() {
+        handleConnectionEstablished()
+    }
+
+    func __testing_openWebSocket(token: String = "test-token") {
+        openWebSocket(using: token)
+    }
+
+    /// TEST ONLY. Drives `state` to `.starting` the same way `scheduleReconnect`
+    /// does in production. Lets tests simulate a scheduled reconnect without
+    /// waiting for the asyncAfter backoff to fire.
+    func __testing_markReconnecting() {
+        setState(.starting)
     }
 }
 

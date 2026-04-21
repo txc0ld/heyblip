@@ -169,4 +169,127 @@ struct WebSocketTransportTOCTOUTests {
         #expect(delegate.stateChanges.contains(.starting))
         #expect(delegate.stateChanges.contains(.stopped))
     }
+
+    // MARK: HEY1304 — reconnect while already connected must not strand state
+
+    /// Regression for HEY1304. The original symptom was the iOS foreground
+    /// handler logging `Foreground: relay not running (state=starting)` ~9
+    /// minutes after the relay had reached `.running`, then self-healing via a
+    /// reconnect.
+    ///
+    /// The cascade:
+    /// 1. WebSocketTransport reached `.running`, `isConnected = true`.
+    /// 2. A concurrent caller (path monitor, scenePhase observer, ...) saw a
+    ///    stale `state` read and triggered `scheduleReconnect` →
+    ///    `queue.asyncAfter` → `connect()` → `openWebSocket(using:)`.
+    /// 3. `openWebSocket` cancelled the live task but did *not* reset
+    ///    `isConnected`. The old task's `didClose`/`didComplete` callbacks were
+    ///    dropped by the `isCurrentWebSocketTask` guard, so `isConnected`
+    ///    stayed `true` forever.
+    /// 4. When the new task handshook, `handleConnectionEstablished`
+    ///    short-circuited on `!isConnected` and `state` never transitioned
+    ///    back to `.running`.
+    ///
+    /// After the fix `openWebSocket` tears down the bookkeeping synchronously
+    /// so the next `handleConnectionEstablished` cleanly drives state back to
+    /// `.running`.
+    @Test("Reconnect while already connected resets isConnected so the next handshake reaches .running")
+    func reconnectWhileConnectedLeavesStateRecoverable() {
+        let transport = makeWebSocketTransport()
+        let delegate = MockTransportDelegate()
+        transport.delegate = delegate
+
+        // Drive the state machine through direct test hooks rather than
+        // start() — start() spawns an async tokenProvider Task whose
+        // URLSession activity would race with the invariants we want to
+        // observe synchronously.
+        transport.__testing_simulateRelayConnected()
+        #expect(transport.state == .running)
+        #expect(!transport.connectedPeers.isEmpty, "relay peer should be reported once connected")
+
+        // Simulate scheduleReconnect's state transition firing because some
+        // other caller saw a stale state read. State flips to .starting — the
+        // exact fingerprint of the HEY1304 log line.
+        transport.__testing_markReconnecting()
+        #expect(transport.state == .starting)
+
+        // Simulate the reconnect path calling openWebSocket. Before the fix
+        // this left isConnected=true and no amount of subsequent handshakes
+        // would set state back to .running. After the fix the teardown is
+        // atomic: connectedPeers reports empty, signalling isConnected was
+        // reset.
+        transport.__testing_openWebSocket()
+        #expect(
+            transport.connectedPeers.isEmpty,
+            "openWebSocket must clear isConnected when replacing a live task (HEY1304)"
+        )
+
+        // Drive the new task's handshake to completion. This must flip state
+        // back to `.running`; if the `!isConnected` guard short-circuits here,
+        // the regression is back.
+        transport.__testing_simulateRelayConnected()
+        #expect(
+            transport.state == .running,
+            "handleConnectionEstablished must restore .running after a reconnect — regression for HEY1304"
+        )
+        #expect(
+            !transport.connectedPeers.isEmpty,
+            "relay peer must be re-reported after the reconnect handshake"
+        )
+
+        // Delegate should have observed the full .running → .starting → .running
+        // arc on the reconnect. Before the fix only the initial .running fires
+        // and the reconnect gets stuck in .starting.
+        let transitions = delegate.stateChanges
+        let runningCount = transitions.filter { $0 == .running }.count
+        #expect(
+            runningCount >= 2,
+            "delegate must observe .running on both the initial connect and the reconnect, saw \(runningCount) in \(transitions)"
+        )
+
+        transport.stop()
+    }
+
+    /// `state` is read from the main thread (foreground observer, UI) and
+    /// written from URLSession's delegate queue, the path-monitor queue, and
+    /// `connect()`'s Task. Without a lock-protected backing store the reader
+    /// could observe a stale `.starting` long after the writer had transitioned
+    /// to `.running` — which is exactly the HEY1304 fingerprint. This test
+    /// exercises the read path under contention to surface data-race issues
+    /// via TSan.
+    @Test("Concurrent state reads during repeated transitions never observe torn values")
+    func stateReadsUnderConcurrentTransitionsAreSafe() async {
+        let transport = makeWebSocketTransport()
+        transport.start()
+
+        await withTaskGroup(of: Void.self) { group in
+            // Writers: flip state between .running and .starting via the test
+            // hooks. Each transition takes the lock, so readers should only
+            // ever see one of the legal values.
+            group.addTask {
+                for _ in 0 ..< 200 {
+                    transport.__testing_simulateRelayConnected()
+                    transport.__testing_openWebSocket()
+                }
+            }
+
+            // Readers: hammer the `state` getter from multiple threads.
+            for _ in 0 ..< 8 {
+                group.addTask {
+                    for _ in 0 ..< 500 {
+                        let s = transport.state
+                        // Sanity: any of the declared cases is acceptable,
+                        // but the read itself must not crash / be torn.
+                        switch s {
+                        case .idle, .starting, .running, .stopped, .unauthorized, .failed:
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        transport.stop()
+        #expect(transport.state == .stopped)
+    }
 }
