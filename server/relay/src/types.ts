@@ -54,6 +54,13 @@ export interface Env {
    * path (which enforces expiry, rotation, and sub/npk binding).
    */
   ALLOW_LEGACY_AUTH?: string;
+  /** Sentry project DSN. Optional — Worker no-ops gracefully when unset. */
+  SENTRY_DSN?: string;
+  /**
+   * Logical environment tag attached to Sentry events. Set to "production" for
+   * the deployed Worker, "development" or anything else otherwise.
+   */
+  ENVIRONMENT?: string;
 }
 
 /** Convert raw bytes to hex-encoded PeerID. */

@@ -4,9 +4,88 @@
  * Entry point: handles WebSocket upgrade at /ws, validates auth,
  * derives PeerID, and forwards the connection to a RelayRoom Durable Object.
  */
+import { DurableObject } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import { bytesToHex, PUBLIC_KEY_LENGTH, PEER_ID_LENGTH, type Env, type PeerIDHex } from "./types";
+import { RelayRoom as RelayRoomImpl } from "./relay-room";
 
-export { RelayRoom } from "./relay-room";
+let warnedAboutMissingSentryDsn = false;
+
+/**
+ * Build Sentry options from env. Returns an empty object when SENTRY_DSN is
+ * absent so the SDK initialises in disabled mode and the Worker boots cleanly
+ * even before the project is provisioned.
+ */
+export function sentryOptions(env: Env) {
+  if (!env.SENTRY_DSN) {
+    if (!warnedAboutMissingSentryDsn) {
+      console.warn("[relay] SENTRY_DSN not configured — error reporting disabled");
+      warnedAboutMissingSentryDsn = true;
+    }
+    return {};
+  }
+  return {
+    dsn: env.SENTRY_DSN,
+    environment: env.ENVIRONMENT ?? "development",
+    tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+    beforeSend(event: Sentry.ErrorEvent): Sentry.ErrorEvent | null {
+      // Strip Authorization header — carries Bearer JWTs / legacy Noise keys.
+      const headers = event.request?.headers as Record<string, string> | undefined;
+      if (headers) {
+        delete headers["authorization"];
+        delete headers["Authorization"];
+      }
+      if (typeof event.request?.data === "string") {
+        event.request.data = scrubJwts(event.request.data);
+      }
+      return event;
+    },
+  };
+}
+
+function scrubJwts(input: string): string {
+  return input.replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "<jwt>");
+}
+
+/**
+ * Thin proxy that adapts the plain `RelayRoomImpl` (which `implements DurableObject`
+ * and is constructed directly by the unit tests with a mocked state) into a subclass
+ * of the real `DurableObject` base, so Sentry's `instrumentDurableObjectWithSentry`
+ * can initialise the SDK inside the DO isolate and capture any thrown error.
+ *
+ * All DO lifecycle methods are delegated 1:1 — no behaviour change.
+ */
+class RelayRoomProxy extends DurableObject<Env> {
+  private readonly impl: RelayRoomImpl;
+
+  constructor(state: DurableObjectState, env: Env) {
+    super(state, env);
+    this.impl = new RelayRoomImpl(state, env);
+  }
+
+  fetch(request: Request): Promise<Response> {
+    return this.impl.fetch(request);
+  }
+
+  webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    return this.impl.webSocketMessage(ws, message);
+  }
+
+  webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): void {
+    return this.impl.webSocketClose(ws, code, reason, wasClean);
+  }
+
+  webSocketError(ws: WebSocket, error: unknown): void {
+    return this.impl.webSocketError(ws, error);
+  }
+
+  alarm(): Promise<void> {
+    return this.impl.alarm();
+  }
+}
+
+export const RelayRoom = Sentry.instrumentDurableObjectWithSentry(sentryOptions, RelayRoomProxy);
 
 interface JWTPayload {
   sub: string;
@@ -37,7 +116,7 @@ class RelayAuthError extends Error {
 const ROOM_ID_NAME = "global-relay";
 const textEncoder = new TextEncoder();
 
-export default {
+export default Sentry.withSentry(sentryOptions, {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -54,6 +133,9 @@ export default {
         if (error instanceof RelayAuthError) {
           return new Response(error.message, { status: error.status });
         }
+        Sentry.captureException(error, {
+          tags: { route: "state", operation: "authorize" },
+        });
         return new Response("Unauthorized", { status: 401 });
       }
     }
@@ -77,10 +159,13 @@ export default {
       if (error instanceof RelayAuthError) {
         return new Response(error.message, { status: error.status });
       }
+      Sentry.captureException(error, {
+        tags: { route: "ws", operation: "authorize" },
+      });
       return new Response("Unauthorized", { status: 401 });
     }
   },
-};
+});
 
 function forwardToRelayRoom(
   request: Request,
@@ -242,14 +327,32 @@ export async function validateAuthorizationHeader(header: string | null, env: En
   if (token.includes(".")) {
     const secret = getJWTSecret(env);
     if (!secret) {
+      Sentry.captureMessage("JWT_SECRET missing — relay cannot authenticate peers", {
+        level: "fatal",
+        tags: { route: "relay", failure: "jwt_secret_missing" },
+      });
       throw new RelayAuthError(503, "JWT secret not configured");
     }
 
     const { claims, expired } = await verifyJWT(token, secret);
     if (expired) {
+      // Expired tokens are high-volume (every peer whose client sat idle past
+      // TTL); sample to avoid flooding the Sentry quota.
+      if (Math.random() < 0.1) {
+        Sentry.captureMessage("Relay JWT expired", {
+          level: "info",
+          tags: { route: "relay", failure: "jwt_expired" },
+        });
+      }
       throw new RelayAuthError(401, "Token expired", 4001);
     }
     if (!claims) {
+      if (Math.random() < 0.1) {
+        Sentry.captureMessage("Relay JWT verify failed", {
+          level: "warning",
+          tags: { route: "relay", failure: "jwt_invalid" },
+        });
+      }
       throw new RelayAuthError(401, "Unauthorized");
     }
 

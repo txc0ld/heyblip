@@ -1,10 +1,17 @@
 name = "blip-relay"
 main = "src/index.ts"
 compatibility_date = "2025-03-01"
+# @sentry/cloudflare imports node:async_hooks for context propagation across
+# async boundaries; the Worker fails at runtime without nodejs_compat.
+compatibility_flags = ["nodejs_compat"]
 
 # Required secrets — set via `wrangler secret put <name>`:
 #   JWT_SECRET        — HS256 signing key for session JWTs (must match blip-auth)
 #   INTERNAL_API_KEY  — shared secret for /v1/internal/push callouts (must match blip-auth)
+#   SENTRY_DSN        — Sentry project DSN for this Worker. Optional — when unset the
+#                       `withSentry` wrapper and `instrumentDurableObjectWithSentry` both
+#                       boot in disabled mode (errors stay in `wrangler tail`). Set this in
+#                       production so fetch + Durable Object errors land in the dashboard.
 
 [vars]
 AUTH_PUSH_URL = "https://blip-auth.john-mckean.workers.dev/v1/internal/push"

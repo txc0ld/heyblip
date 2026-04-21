@@ -9,6 +9,7 @@
  * is stored as a WebSocket tag so it survives hibernation and can be
  * recovered via this.state.getTags(ws) on wake-up.
  */
+import * as Sentry from "@sentry/cloudflare";
 import {
   bytesToHex,
   HEADER_SIZE,
@@ -292,6 +293,10 @@ export class RelayRoom implements DurableObject {
         } catch (err) {
           const failedPeer = this.wsToPeer.get(peerWs) ?? "unknown";
           console.warn(`[relay] broadcast send failed for peer ${failedPeer}, removing:`, err);
+          Sentry.captureException(err, {
+            tags: { component: "relay-room", operation: "broadcast_send" },
+            extra: { failedPeer },
+          });
           this.removePeer(peerWs);
         }
       }
@@ -310,6 +315,10 @@ export class RelayRoom implements DurableObject {
         return;
       } catch (err) {
         console.warn(`[relay] addressed send failed for recipient ${recipientHex}, removing and queuing:`, err);
+        Sentry.captureException(err, {
+          tags: { component: "relay-room", operation: "addressed_send" },
+          extra: { recipientHex },
+        });
         this.removePeer(recipientWs);
       }
     }
@@ -455,6 +464,10 @@ export class RelayRoom implements DurableObject {
         keysToDelete.push(key);
       } catch (err) {
         console.warn(`[relay] drainQueue: send failed for ${peerHex}, key=${key} — skipping`);
+        Sentry.captureException(err, {
+          tags: { component: "relay-room", operation: "drain_send" },
+          extra: { peerHex, queueKey: key },
+        });
         failedKeys.push(key);
         continue;
       }
@@ -487,6 +500,11 @@ export class RelayRoom implements DurableObject {
       console.warn(
         `[relay] drainQueue: max retries reached for ${peerHex}, ${failedKeys.length} packets remain queued for TTL expiry`
       );
+      Sentry.captureMessage("drainQueue exhausted retries", {
+        level: "error",
+        tags: { component: "relay-room", operation: "drain_exhausted" },
+        extra: { peerHex, remainingPackets: failedKeys.length },
+      });
       this.drainRetryCount.delete(peerHex);
     }
   }
@@ -513,9 +531,18 @@ export class RelayRoom implements DurableObject {
       });
       if (!resp.ok) {
         console.error(`[relay] Push trigger failed: ${resp.status}`);
+        Sentry.captureMessage("Relay push trigger returned non-OK status", {
+          level: "warning",
+          tags: { component: "relay-room", operation: "push_trigger" },
+          extra: { status: resp.status, recipientHex },
+        });
       }
     } catch (error) {
       console.error(`[relay] Push trigger error: ${error}`);
+      Sentry.captureException(error, {
+        tags: { component: "relay-room", operation: "push_trigger" },
+        extra: { recipientHex },
+      });
       // Fire-and-forget — don't break packet queuing
     }
   }

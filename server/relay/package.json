@@ -15,6 +15,7 @@
     "wrangler": "^4.0.0"
   },
   "dependencies": {
+    "@sentry/cloudflare": "^10.49.0",
     "typescript": "^5.7.0"
   }
 }
