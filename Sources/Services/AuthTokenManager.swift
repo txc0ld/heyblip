@@ -14,6 +14,9 @@ final class AuthTokenManager: ObservableObject {
     private let keychainTokenKey = "blip.auth.jwt"
     private let keychainExpiryKey = "blip.auth.jwt.expiry"
     private let refreshThreshold: TimeInterval = 300
+    // Must match server DEFAULT_REFRESH_GRACE_SECONDS — tokens expired beyond this
+    // cannot be refreshed and require a full re-authentication.
+    private let refreshGraceSeconds: TimeInterval = 300
     private let keyManager: KeyManager
     private let sodium: Sodium
     private let iso8601Formatter: ISO8601DateFormatter = {
@@ -27,7 +30,7 @@ final class AuthTokenManager: ObservableObject {
         let expiresAt: String
     }
 
-    private enum AuthError: LocalizedError {
+    enum AuthError: LocalizedError {
         case invalidURL
         case signingFailed
         case invalidResponse
@@ -189,6 +192,22 @@ final class AuthTokenManager: ObservableObject {
             throw AuthError.missingToken
         }
 
+        // If the token is expired beyond the server's refresh grace window,
+        // POST /auth/refresh will always return 401. Re-authenticate instead
+        // so we never send a token the server will unconditionally reject.
+        if let expiry = tokenExpiresAt, expiry.timeIntervalSinceNow < -refreshGraceSeconds {
+            DebugLogger.shared.log("AUTH", "JWT expired \(Int(-expiry.timeIntervalSinceNow))s ago (grace \(Int(refreshGraceSeconds))s), re-authenticating")
+            guard let identity = try keyManager.loadIdentity() else {
+                DebugLogger.shared.log("AUTH", "JWT re-auth fallback: no local identity", isError: true)
+                throw AuthError.missingIdentity
+            }
+            try await authenticate(
+                noisePublicKey: identity.noisePublicKey.rawRepresentation,
+                signingSecretKey: identity.signingSecretKey
+            )
+            return
+        }
+
         guard let url = URL(string: ServerConfig.authBaseURL + "/auth/refresh") else {
             throw AuthError.invalidURL
         }
@@ -347,6 +366,13 @@ final class AuthTokenManager: ObservableObject {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
         }
     }
+
+    #if DEBUG
+    func setStoredTokenForTesting(token: String, expiresAt: Date) {
+        currentToken = token
+        tokenExpiresAt = expiresAt
+    }
+    #endif
 
     private func parseErrorMessage(from data: Data) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
