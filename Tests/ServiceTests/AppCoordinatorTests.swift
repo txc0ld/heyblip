@@ -2,6 +2,7 @@ import XCTest
 import SwiftData
 @testable import Blip
 @testable import BlipCrypto
+@testable import BlipMesh
 
 // MARK: - AppCoordinatorTests
 
@@ -164,5 +165,93 @@ final class AppCoordinatorTests: XCTestCase {
 
         XCTAssertFalse(success, "Reconfigure should fail without identity")
         XCTAssertFalse(coordinator.isReady, "Should not be ready")
+    }
+
+    // MARK: - Live Transport State Mirroring (HEY-1305)
+
+    func testTransportDelegate_mirrorsWebSocketStateOntoCoordinator() async throws {
+        let keyManager = KeyManager(keyStore: InMemoryKeyManagerStore())
+        let identity = try keyManager.generateIdentity()
+        try keyManager.storeIdentity(identity)
+
+        let coordinator = AppCoordinator(keyManager: keyManager)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: BlipSchema.schema, configurations: [config])
+        coordinator.configure(modelContainer: container)
+        defer { coordinator.stop() }
+
+        let webSocketTransport = try XCTUnwrap(coordinator.webSocketTransport)
+
+        XCTAssertEqual(coordinator.webSocketTransportState, .idle, "Should start idle before any state events")
+
+        coordinator.transport(webSocketTransport, didChangeState: .starting)
+        try await waitForState(.starting) { coordinator.webSocketTransportState }
+
+        coordinator.transport(webSocketTransport, didChangeState: .running)
+        try await waitForState(.running) { coordinator.webSocketTransportState }
+
+        coordinator.transport(webSocketTransport, didChangeState: .stopped)
+        try await waitForState(.stopped) { coordinator.webSocketTransportState }
+    }
+
+    func testTransportDelegate_mirrorsBLEStateOntoCoordinator() async throws {
+        let keyManager = KeyManager(keyStore: InMemoryKeyManagerStore())
+        let identity = try keyManager.generateIdentity()
+        try keyManager.storeIdentity(identity)
+
+        let coordinator = AppCoordinator(keyManager: keyManager)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: BlipSchema.schema, configurations: [config])
+        coordinator.configure(modelContainer: container)
+        defer { coordinator.stop() }
+
+        let bleService = try XCTUnwrap(coordinator.bleService)
+
+        XCTAssertEqual(coordinator.bleTransportState, .idle, "Should start idle before any state events")
+
+        coordinator.transport(bleService, didChangeState: .starting)
+        try await waitForState(.starting) { coordinator.bleTransportState }
+
+        coordinator.transport(bleService, didChangeState: .running)
+        try await waitForState(.running) { coordinator.bleTransportState }
+
+        coordinator.transport(bleService, didChangeState: .unauthorized)
+        try await waitForState(.unauthorized) { coordinator.bleTransportState }
+    }
+
+    func testBLEDebugLabels_renderTransportStates() {
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .idle, hasService: true), "Idle")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .starting, hasService: true), "Starting")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .running, hasService: true), "Running")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .stopped, hasService: true), "Stopped")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .unauthorized, hasService: true), "Unauthorized")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .failed("oops"), hasService: true), "Failed: oops")
+        XCTAssertEqual(BLEDebugOverlay.bleLabel(for: .running, hasService: false), "Not initialized")
+
+        XCTAssertEqual(BLEDebugOverlay.webSocketLabel(for: .running), "Connected")
+        XCTAssertEqual(BLEDebugOverlay.webSocketLabel(for: .starting), "Connecting")
+        XCTAssertEqual(BLEDebugOverlay.webSocketLabel(for: .idle), "Disconnected")
+        XCTAssertEqual(BLEDebugOverlay.webSocketLabel(for: .stopped), "Disconnected")
+        XCTAssertEqual(BLEDebugOverlay.webSocketLabel(for: .failed("nope")), "Disconnected")
+    }
+
+    /// The TransportDelegate mirror hops to MainActor via `Task { @MainActor }`.
+    /// Yield until either the property reaches the expected value or the deadline
+    /// elapses — keeps the assertion deterministic without relying on a fixed sleep.
+    private func waitForState(
+        _ expected: TransportState,
+        timeout: TimeInterval = 1.0,
+        file: StaticString = #file,
+        line: UInt = #line,
+        _ probe: () -> TransportState
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while probe() != expected {
+            if Date() > deadline {
+                XCTFail("Timed out waiting for state \(expected); last seen: \(probe())", file: file, line: line)
+                return
+            }
+            await Task.yield()
+        }
     }
 }

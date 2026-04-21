@@ -53,6 +53,20 @@ final class AppCoordinator {
     /// "halfway in the screen" over chat content.
     var isInImmersiveView: Bool = false
 
+    /// Live BLE transport state, mirrored from `TransportDelegate.didChangeState`
+    /// so debug/UI surfaces can bind to it directly instead of polling
+    /// `bleService?.state` on a timer.
+    private(set) var bleTransportState: TransportState = .idle
+
+    /// Live WebSocket relay transport state, mirrored from
+    /// `TransportDelegate.didChangeState`.
+    private(set) var webSocketTransportState: TransportState = .idle
+
+    /// Number of BLE peers currently connected. Updated alongside
+    /// `bleTransportState` and on every BLE connect/disconnect callback so
+    /// observers see transitions in the same render frame.
+    private(set) var connectedBLEPeerCount: Int = 0
+
     // MARK: - Services
 
     private(set) var runtime: AppRuntime?
@@ -485,14 +499,38 @@ extension AppCoordinator: TransportDelegate {
 
     nonisolated func transport(_ transport: any Transport, didConnect peerID: PeerID) {
         transportDelegateBridge?.transport(transport, didConnect: peerID)
+        if transport is BLEService {
+            let snapshot = transport.connectedPeers.count
+            Task { @MainActor [weak self] in
+                self?.connectedBLEPeerCount = snapshot
+            }
+        }
     }
 
     nonisolated func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
         transportDelegateBridge?.transport(transport, didDisconnect: peerID)
+        if transport is BLEService {
+            let snapshot = transport.connectedPeers.count
+            Task { @MainActor [weak self] in
+                self?.connectedBLEPeerCount = snapshot
+            }
+        }
     }
 
     nonisolated func transport(_ transport: any Transport, didChangeState state: TransportState) {
         transportDelegateBridge?.transport(transport, didChangeState: state)
+        if transport is WebSocketTransport {
+            Task { @MainActor [weak self] in
+                self?.webSocketTransportState = state
+            }
+        } else if transport is BLEService {
+            let peerSnapshot = transport.connectedPeers.count
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.bleTransportState = state
+                self.connectedBLEPeerCount = peerSnapshot
+            }
+        }
     }
 
     nonisolated func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {

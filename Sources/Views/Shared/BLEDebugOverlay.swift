@@ -13,9 +13,6 @@ import os.log
 /// Activated by triple-tapping the Nearby tab title.
 struct BLEDebugOverlay: View {
 
-    @State private var bleState: String = "Unknown"
-    @State private var wsState: String = "Unknown"
-    @State private var peerCount = 0
     @State private var storePeers: [PeerInfo] = []
     @State private var copiedToast = false
     @State private var copiedDebugToast = false
@@ -135,24 +132,50 @@ struct BLEDebugOverlay: View {
     // MARK: - Transport Status
 
     private var transportSection: some View {
-        VStack(alignment: .leading, spacing: BlipSpacing.sm) {
+        let bleLabel = Self.bleLabel(for: coordinator.bleTransportState, hasService: coordinator.bleService != nil)
+        let wsLabel = Self.webSocketLabel(for: coordinator.webSocketTransportState)
+
+        return VStack(alignment: .leading, spacing: BlipSpacing.sm) {
             sectionHeader("Transport")
 
             HStack {
-                statusDot(bleState == "Running" ? .green : (bleState == "Starting" ? .yellow : .red))
-                Text("BLE: \(bleState)")
+                statusDot(bleLabel == "Running" ? .green : (bleLabel == "Starting" ? .yellow : .red))
+                Text("BLE: \(bleLabel)")
                 Spacer()
-                statusDot(wsState == "Connected" ? .green : .red)
-                Text("WS: \(wsState)")
+                statusDot(wsLabel == "Connected" ? .green : (wsLabel == "Connecting" ? .yellow : .red))
+                Text("WS: \(wsLabel)")
             }
             .font(.system(.caption, design: .monospaced))
             .foregroundStyle(.white)
 
             HStack(spacing: BlipSpacing.lg) {
-                metricBlock(label: "BLE Peers", value: "\(peerCount)")
+                metricBlock(label: "BLE Peers", value: "\(coordinator.connectedBLEPeerCount)")
                 metricBlock(label: "PeerStore", value: "\(storePeers.count)")
                 metricBlock(label: "w/ Name", value: "\(storePeers.filter { $0.username != nil }.count)")
             }
+        }
+    }
+
+    /// Renders a `TransportState` for the BLE indicator. Pure helper so it can be
+    /// covered by unit tests without instantiating SwiftUI.
+    static func bleLabel(for state: TransportState, hasService: Bool) -> String {
+        guard hasService else { return "Not initialized" }
+        switch state {
+        case .idle: return "Idle"
+        case .starting: return "Starting"
+        case .running: return "Running"
+        case .stopped: return "Stopped"
+        case .unauthorized: return "Unauthorized"
+        case .failed(let reason): return "Failed: \(reason)"
+        }
+    }
+
+    /// Renders a `TransportState` for the WebSocket indicator.
+    static func webSocketLabel(for state: TransportState) -> String {
+        switch state {
+        case .running: return "Connected"
+        case .starting: return "Connecting"
+        default: return "Disconnected"
         }
     }
 
@@ -593,28 +616,6 @@ struct BLEDebugOverlay: View {
     // MARK: - State Refresh
 
     private func refreshState() {
-        if let ble = coordinator.bleService {
-            switch ble.state {
-            case .idle: bleState = "Idle"
-            case .starting: bleState = "Starting"
-            case .running: bleState = "Running"
-            case .stopped: bleState = "Stopped"
-            case .unauthorized: bleState = "Unauthorized"
-            case .failed(let reason): bleState = "Failed: \(reason)"
-            }
-            peerCount = ble.connectedPeers.count
-        } else {
-            bleState = "Not initialized"
-        }
-
-        if let ws = coordinator.webSocketTransport {
-            switch ws.state {
-            case .running: wsState = "Connected"
-            case .starting: wsState = "Connecting"
-            default: wsState = "Disconnected"
-            }
-        }
-
         storePeers = coordinator.peerStore.allPeers().sorted { $0.lastSeenAt > $1.lastSeenAt }
 
         if let msgService = coordinator.messageService {
@@ -676,4 +677,9 @@ extension View {
     func bleDebugOverlay() -> some View {
         modifier(BLEDebugTapModifier())
     }
+}
+
+#Preview {
+    BLEDebugOverlay()
+        .environment(AppCoordinator())
 }
