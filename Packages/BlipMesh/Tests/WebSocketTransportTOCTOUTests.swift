@@ -25,6 +25,29 @@ private func makeWebSocketTransport(
     )
 }
 
+private actor TokenCounter {
+    private(set) var count = 0
+
+    func increment() {
+        count += 1
+    }
+}
+
+private func waitUntil(
+    timeout: Duration = .seconds(1),
+    step: Duration = .milliseconds(10),
+    condition: @escaping @Sendable () async -> Bool
+) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline {
+        if await condition() {
+            return
+        }
+        try await Task.sleep(for: step)
+    }
+    Issue.record("Timed out waiting for async condition after \(timeout)")
+}
+
 /// Regression suite for the `send`/`broadcast` TOCTOU invariant described in
 /// `WebSocketTransport.send(data:to:)`: state and the active WebSocket task
 /// must be captured under a single lock acquisition, otherwise a concurrent
@@ -172,14 +195,6 @@ struct WebSocketTransportTOCTOUTests {
 
     @Test("Foreground + path-change + ping reconnect triggers coalesce into one connect attempt")
     func concurrentReconnectTriggersCoalesce() async throws {
-        actor TokenCounter {
-            private(set) var count = 0
-
-            func increment() {
-                count += 1
-            }
-        }
-
         let counter = TokenCounter()
         let transport = makeWebSocketTransport(
             tokenProvider: {
@@ -192,16 +207,45 @@ struct WebSocketTransportTOCTOUTests {
 
         await withTaskGroup(of: Void.self) { group in
             group.addTask { transport.__testing_triggerForegroundReconnect() }
-            group.addTask { transport.__testing_triggerPathReconnect() }
-            group.addTask { transport.__testing_triggerPingReconnect() }
+            group.addTask { transport.__testing_triggerScheduledReconnect(reason: "test-path") }
+            group.addTask { transport.__testing_triggerScheduledReconnect(reason: "test-ping") }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitUntil {
+            await counter.count == 1
+        }
 
         #expect(await counter.count == 1, "only one reconnect attempt should fetch a token")
         let startingCount = delegate.stateChanges.filter { $0 == .starting }.count
         #expect(startingCount == 1, "coalesced reconnect should emit one .starting transition, saw \(startingCount)")
 
+        transport.stop()
+    }
+
+    @Test("Reconnect cycle clears after success so a later reconnect can start")
+    func reconnectCycleClearsAfterSuccess() async throws {
+        let counter = TokenCounter()
+        let transport = makeWebSocketTransport(
+            tokenProvider: {
+                await counter.increment()
+                return "test-token"
+            }
+        )
+
+        transport.__testing_triggerForegroundReconnect()
+        try await waitUntil {
+            await counter.count == 1
+        }
+
+        transport.__testing_simulateRelayConnected()
+        #expect(transport.state == .running)
+
+        transport.__testing_simulateConnectionLoss()
+        try await waitUntil(timeout: .seconds(2)) {
+            await counter.count == 2
+        }
+
+        #expect(await counter.count == 2, "a fresh reconnect should run after the previous cycle reached .running")
         transport.stop()
     }
 

@@ -135,6 +135,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
     /// This coalesces foreground/path/ping overlap into one reconnect cycle.
     private var reconnectInFlight = false
 
+    /// Optional callback for surfacing relay transport events to the app layer
+    /// (for example DebugLogger breadcrumbs in production).
+    /// Parameters: (category: String, message: String)
+    public var transportEventHandler: ((String, String) -> Void)?
+
     /// Network path monitor — triggers immediate disconnect/reconnect on path changes
     /// (WiFi→LTE, flight mode, etc.) rather than waiting up to 20s for ping failure.
     private var pathMonitor: NWPathMonitor?
@@ -189,6 +194,11 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
 
     // MARK: - Transport lifecycle
 
+    /// Starts relay connectivity and enables auto-reconnect.
+    ///
+    /// Unlike the previous implementation, `start()` also re-arms the
+    /// transport from `.failed` so callers can explicitly recover from a
+    /// terminal relay error without first calling `stop()`.
     public func start() {
         autoReconnect = true
         startPathMonitor()
@@ -207,6 +217,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         setState(.stopped)
     }
 
+    /// Forces a reconnect cycle and re-enables auto-reconnect even if a prior
+    /// `stop()` disabled it. Callers should only use this for lifecycle-driven
+    /// recovery paths that want the relay to stay connected afterwards.
     public func reconnect(reason: String) {
         autoReconnect = true
         startPathMonitor()
@@ -457,17 +470,19 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
         }
     }
 
-    private func scheduleReconnect(delayOverride: TimeInterval? = nil) {
+    private func scheduleReconnect(forcedDelayForTesting: TimeInterval? = nil) {
         let (delay, shouldRetry): (TimeInterval, Bool) = lock.withLock {
-            // Prevent duplicate reconnections from racing callbacks.
+            // Layered guards: `reconnectInFlight` coalesces higher-level
+            // trigger sources, while `isReconnectScheduled` keeps callbacks
+            // within a claimed reconnect cycle from queueing duplicate retries.
             guard !isReconnectScheduled else { return (0, false) }
             reconnectAttempts += 1
             guard reconnectAttempts <= Self.maxReconnectAttempts else {
                 return (0, false)
             }
             isReconnectScheduled = true
-            let d = delayOverride ?? currentReconnectDelay
-            if delayOverride == nil {
+            let d = forcedDelayForTesting ?? currentReconnectDelay
+            if forcedDelayForTesting == nil {
                 currentReconnectDelay = min(currentReconnectDelay * 2, Self.maxReconnectDelay)
             }
             return (d, true)
@@ -509,6 +524,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
                 isReconnectScheduled = false
                 return .begin
             case .starting:
+                // `.starting` already implies an in-flight reconnect cycle, but
+                // we mirror that explicitly so later triggers coalesce even if a
+                // stale observer races with the caller that initiated the start.
                 reconnectInFlight = true
                 return .skip(log: "reconnect already starting, skipping (\(reason))")
             case .running, .unauthorized:
@@ -521,6 +539,9 @@ public final class WebSocketTransport: NSObject, Transport, @unchecked Sendable 
             return true
         case .skip(let message):
             logger.debug("\(message)")
+            if message.contains("already starting") {
+                transportEventHandler?("RELAY", message)
+            }
             return false
         }
     }
@@ -697,14 +718,13 @@ extension WebSocketTransport {
         reconnect(reason: "test-foreground")
     }
 
-    func __testing_triggerPathReconnect() {
-        guard beginReconnectCycleIfNeeded(reason: "test-path") else { return }
-        scheduleReconnect(delayOverride: 0)
+    func __testing_triggerScheduledReconnect(reason: String) {
+        guard beginReconnectCycleIfNeeded(reason: reason) else { return }
+        scheduleReconnect(forcedDelayForTesting: 0)
     }
 
-    func __testing_triggerPingReconnect() {
-        guard beginReconnectCycleIfNeeded(reason: "test-ping") else { return }
-        scheduleReconnect(delayOverride: 0)
+    func __testing_simulateConnectionLoss() {
+        handleConnectionLost(error: nil)
     }
 }
 

@@ -54,6 +54,11 @@ struct AppRuntimeFactory {
             },
             relayURL: ServerConfig.relayWebSocketURL
         )
+        ws.transportEventHandler = { category, message in
+            Task { @MainActor in
+                DebugLogger.shared.log(category, message)
+            }
+        }
 
         let transportCoordinator = TransportCoordinator(
             bleTransport: ble,
