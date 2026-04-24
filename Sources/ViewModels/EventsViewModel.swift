@@ -4,6 +4,7 @@ import CoreLocation
 import os.log
 import BlipCrypto
 import BlipMesh
+import BlipProtocol
 
 // MARK: - Event Discovery State
 
@@ -1298,6 +1299,183 @@ final class EventsViewModel {
     private func setupGeofenceObserver() {
         // The LocationService notifies via its delegate; here we observe via the location service
         // This is connected during app startup when the EventsViewModel is set as the location delegate
+    }
+
+    // MARK: - Ad-Hoc Channels (HEY-1245)
+
+    /// Supported expiry windows for user-created meet-up channels.
+    enum AdHocChannelExpiry: TimeInterval, CaseIterable, Sendable, Identifiable {
+        case oneHour    = 3600
+        case fourHours  = 14400
+        case twelveHours = 43200
+        case twentyFourHours = 86400
+
+        var id: TimeInterval { rawValue }
+
+        var displayLabel: String {
+            switch self {
+            case .oneHour:          return "1 hour"
+            case .fourHours:        return "4 hours"
+            case .twelveHours:      return "12 hours"
+            case .twentyFourHours:  return "24 hours"
+            }
+        }
+    }
+
+    /// Max allowed characters for name / description on an ad-hoc channel.
+    static let adHocChannelNameLimit = 40
+    static let adHocChannelDescriptionLimit = 140
+
+    /// Errors surfaced from `createAdHocChannel` so the view can render the
+    /// right inline validation hint.
+    enum AdHocChannelError: Error, LocalizedError {
+        case nameEmpty
+        case nameTooLong
+        case descriptionTooLong
+        case persistenceFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .nameEmpty:                      return "Channel name is required."
+            case .nameTooLong:                    return "Channel name must be 40 characters or fewer."
+            case .descriptionTooLong:             return "Description must be 140 characters or fewer."
+            case .persistenceFailed(let reason):  return "Couldn't save channel: \(reason)"
+            }
+        }
+    }
+
+    /// Create a user-defined location channel that lives for `expiry` and
+    /// broadcast it to nearby peers via a `channelUpdate` (0x31) packet.
+    ///
+    /// - Returns: The newly created `Channel` on success, so the caller can
+    ///   navigate into it.
+    /// - Throws: `AdHocChannelError` for validation failures or persistence
+    ///   issues. The view should render the error inline in the sheet.
+    @discardableResult
+    func createAdHocChannel(
+        name: String,
+        description: String?,
+        expiry: AdHocChannelExpiry
+    ) throws -> Channel {
+        // 1. Validate inline — form validation lives in the ViewModel per the spec.
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw AdHocChannelError.nameEmpty
+        }
+        guard trimmedName.count <= Self.adHocChannelNameLimit else {
+            throw AdHocChannelError.nameTooLong
+        }
+
+        let trimmedDescription = description?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalDescription: String?
+        if let trimmedDescription, !trimmedDescription.isEmpty {
+            guard trimmedDescription.count <= Self.adHocChannelDescriptionLimit else {
+                throw AdHocChannelError.descriptionTooLong
+            }
+            finalDescription = trimmedDescription
+        } else {
+            finalDescription = nil
+        }
+
+        // 2. Persist the local Channel record. Set maxRetention to the expiry
+        // window as a TimeInterval so the existing message retention sweep
+        // also prunes stale chatter on the channel at the same cadence.
+        let now = Date()
+        let expiresAt = now.addingTimeInterval(expiry.rawValue)
+        let channel = Channel(
+            type: .locationChannel,
+            name: trimmedName,
+            maxRetention: expiry.rawValue,
+            isAutoJoined: true,
+            createdAt: now,
+            lastActivityAt: now,
+            channelDescription: finalDescription,
+            expiresAt: expiresAt
+        )
+
+        context.insert(channel)
+        do {
+            try context.save()
+        } catch {
+            context.delete(channel)
+            throw AdHocChannelError.persistenceFailed(error.localizedDescription)
+        }
+
+        DebugLogger.shared.log(
+            "EVENT",
+            "Created ad-hoc channel '\(DebugLogger.redact(trimmedName))' expiring in \(Int(expiry.rawValue))s"
+        )
+
+        // 3. Broadcast the channelUpdate (0x31) so nearby peers can pick up
+        // the new meet-up. We post to NotificationCenter so the transport
+        // layer handles the actual BLE write — same pattern SOSViewModel and
+        // FriendFinderViewModel use.
+        broadcastChannelUpdate(for: channel)
+
+        // 4. Nudge any observers (chat list, etc.) that the channel list has
+        // changed so the new entry shows up without a manual reload.
+        NotificationCenter.default.post(name: .channelListDidChange, object: nil)
+
+        return channel
+    }
+
+    /// Build + broadcast a channelUpdate (0x31) packet advertising the
+    /// channel to nearby mesh peers. Payload format (v1):
+    ///
+    ///   channel UUID (16B) ||
+    ///   expiresAt millis (UInt64 big-endian) ||
+    ///   name (UTF-8) || 0x00 ||
+    ///   description (UTF-8, may be empty)
+    ///
+    /// Receivers treat this as ephemeral metadata — no ack, no retry; the
+    /// sender re-announces by re-broadcasting. Unsigned: the channel itself
+    /// carries no trust claims.
+    private func broadcastChannelUpdate(for channel: Channel) {
+        let identity: Identity
+        do {
+            guard let loaded = try KeyManager.shared.loadIdentity() else {
+                logger.error("No identity found for channelUpdate broadcast")
+                return
+            }
+            identity = loaded
+        } catch {
+            logger.error("Failed to load identity for channelUpdate broadcast: \(error.localizedDescription)")
+            return
+        }
+
+        var payload = Data()
+        withUnsafeBytes(of: channel.id.uuid) { buffer in
+            payload.append(contentsOf: buffer)
+        }
+
+        let expiresAt = channel.expiresAt ?? Date().addingTimeInterval(channel.maxRetention)
+        var expiresMillis = UInt64(max(0, expiresAt.timeIntervalSince1970 * 1000)).bigEndian
+        payload.append(Data(bytes: &expiresMillis, count: MemoryLayout<UInt64>.size))
+
+        payload.append((channel.name ?? "").data(using: .utf8) ?? Data())
+        payload.append(0x00)
+        payload.append((channel.channelDescription ?? "").data(using: .utf8) ?? Data())
+
+        let packet = Packet(
+            type: .channelUpdate,
+            ttl: 4,
+            timestamp: Packet.currentTimestamp(),
+            flags: [],
+            senderID: identity.peerID,
+            payload: payload
+        )
+
+        do {
+            let wireData = try PacketSerializer.encode(packet)
+            NotificationCenter.default.post(
+                name: .shouldBroadcastPacket,
+                object: nil,
+                userInfo: ["data": wireData]
+            )
+            DebugLogger.shared.log("EVENT", "Broadcast channelUpdate 0x31 (\(wireData.count)B)")
+        } catch {
+            logger.error("Failed to encode channelUpdate packet: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Utility

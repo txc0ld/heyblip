@@ -9,6 +9,7 @@ private enum EventDiscoveryL10n {
     static let retry = String(localized: "common.retry", defaultValue: "Retry")
     static let emptyTitle = String(localized: "events.discovery.empty.title", defaultValue: "No events found")
     static let emptySubtitle = String(localized: "events.discovery.empty.subtitle", defaultValue: "Check back later for upcoming events\nin your area.")
+    static let createChannel = String(localized: "events.discovery.create_channel.label", defaultValue: "Create channel")
 
     static func filterBy(_ category: String) -> String {
         String(
@@ -29,6 +30,7 @@ struct EventDiscoveryView: View {
     @State private var searchText = ""
     @State private var selectedCategory: EventsViewModel.EventCategory = .all
     @State private var selectedEventID: String?
+    @State private var showCreateChannelSheet = false
 
     @Environment(\.theme) private var theme
 
@@ -41,6 +43,23 @@ struct EventDiscoveryView: View {
         .navigationTitle(EventDiscoveryL10n.title)
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showCreateChannelSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(theme.typography.title3)
+                        .foregroundStyle(Color.blipAccentPurple)
+                }
+                .accessibilityLabel(EventDiscoveryL10n.createChannel)
+            }
+        }
+        .sheet(isPresented: $showCreateChannelSheet) {
+            CreateChannelSheet(eventsViewModel: eventsViewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .navigationDestination(item: $selectedEventID) { eventID in
             if let eventsViewModel {
                 EventDetailView(eventsViewModel: eventsViewModel, eventID: eventID)

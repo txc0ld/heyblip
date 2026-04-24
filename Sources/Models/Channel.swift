@@ -46,6 +46,16 @@ final class Channel {
     var createdAt: Date
     var lastActivityAt: Date
 
+    /// Optional free-form description surfaced in ad-hoc location channels
+    /// (user-created meet-up channels from the Events tab). Nil for system-
+    /// created channels (DMs, stage channels, lost&found).
+    var channelDescription: String?
+
+    /// Optional wall-clock expiry. Currently set by ad-hoc location channels
+    /// so user-created meet-ups auto-disappear at the chosen time. Left nil
+    /// for persistent channels (DMs, event stages).
+    var expiresAt: Date?
+
     // MARK: - Inverse Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \Message.channel)
@@ -100,7 +110,9 @@ final class Channel {
         isAutoJoined: Bool = false,
         unreadCount: Int = 0,
         createdAt: Date = Date(),
-        lastActivityAt: Date = Date()
+        lastActivityAt: Date = Date(),
+        channelDescription: String? = nil,
+        expiresAt: Date? = nil
     ) {
         self.id = id
         self.typeRaw = type.rawValue
@@ -114,6 +126,14 @@ final class Channel {
         self.unreadCount = unreadCount
         self.createdAt = createdAt
         self.lastActivityAt = lastActivityAt
+        self.channelDescription = channelDescription
+        self.expiresAt = expiresAt
+    }
+
+    /// True when the channel has an expiry date that has already passed.
+    var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return Date() > expiresAt
     }
 }
 
