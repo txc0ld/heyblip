@@ -180,6 +180,35 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(vm.totalUnreadCount, 1)
     }
 
+    /// Regression: opening a chat once then leaving (ChatView.onDisappear →
+    /// clearTransientConversationState) used to leave `activeChannel` set,
+    /// so subsequent incoming messages were routed as if the user was still
+    /// inside the thread — `notifyNewMessage` never fired, the unread badge
+    /// never bumped, and the user never saw a banner. The fix makes
+    /// `isActiveConversation` consult NotificationService's currently-visible
+    /// channel, which `clearTransientConversationState` does clear.
+    func testHandleReceivedMessageAfterLeavingChatIncrementsUnread() async {
+        let channel = makeChannel(name: "Eve")
+
+        await vm.openConversation(channel)
+        // User taps back / app backgrounds → ChatView.onDisappear runs.
+        vm.clearTransientConversationState()
+
+        let incoming = Message(
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Pinged you".utf8),
+            status: .delivered
+        )
+        vm.handleReceivedMessage(incoming, in: channel)
+
+        XCTAssertEqual(vm.activeMessages.count, 0,
+                       "Message should not be appended live — user is not viewing the chat")
+        XCTAssertEqual(vm.unreadCounts[channel.id], 1,
+                       "Unread count must bump so the badge + chat-list dot appear")
+        XCTAssertEqual(vm.totalUnreadCount, 1)
+    }
+
     func testHandleReceivedMessageMovesChannelToTop() async {
         let _ = makeChannel(name: "First")
         let ch2 = makeChannel(name: "Second")
