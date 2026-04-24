@@ -228,6 +228,17 @@ final class ChatViewModel {
     }
 
     private func isActiveConversation(_ channel: Channel) -> Bool {
+        // "Active" means the user is currently *looking at* the chat —
+        // NotificationService.currentActiveChannelID is the source-of-truth
+        // for visibility (set in `openConversation`, cleared in
+        // `clearTransientConversationState` / `closeConversation`). The
+        // cached `activeChannel` field deliberately outlives the ChatView
+        // lifetime so the message cache stays hot for back-and-forth
+        // navigation; gating on it alone left local notifications
+        // permanently suppressed for any thread that had ever been opened.
+        guard notificationService.currentActiveChannelID() != nil else {
+            return false
+        }
         guard let activeChannel else { return false }
         return isSameConversation(activeChannel, channel)
     }
@@ -629,6 +640,9 @@ final class ChatViewModel {
                     channelName: channel.type == .group ? channel.name : nil,
                     messageType: message.typeRaw
                 )
+                DebugLogger.shared.log("NOTIF", "Posted local notif for msg \(message.id) in channel \(channel.id)")
+            } else {
+                DebugLogger.shared.log("NOTIF", "Suppressed (muted) for msg \(message.id) in channel \(channel.id)")
             }
         }
 
