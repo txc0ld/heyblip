@@ -9,7 +9,7 @@
  */
 import { Resend } from "resend";
 import * as Sentry from "@sentry/cloudflare";
-import { sendPush } from "./apns";
+import { sendApns, buildPayload, defaultDeeplink, type PushType } from "./apns";
 
 export interface Env {
   CODES: KVNamespace;
@@ -29,12 +29,38 @@ export interface Env {
   APNS_TEAM_ID: string;
   APNS_PRIVATE_KEY: string;
   APNS_ENVIRONMENT: string;
+  /**
+   * APNs topic for production (distribution) builds. Required; logged at boot
+   * if missing. Example: "au.heyblip.Blip".
+   */
+  APNS_BUNDLE_ID_PROD?: string;
+  /**
+   * APNs topic for debug builds. Required; logged at boot if missing.
+   * Example: "au.heyblip.Blip.debug".
+   */
+  APNS_BUNDLE_ID_DEBUG?: string;
+  /**
+   * Public URL of the relay worker (used to forward /v1/badge/clear to the
+   * relay's internal endpoint). Defaults to the production relay URL.
+   */
+  RELAY_INTERNAL_URL?: string;
   INTERNAL_API_KEY: string;
   /** Sentry project DSN. Optional — Worker no-ops gracefully when unset. */
   SENTRY_DSN?: string;
 }
 
 let warnedAboutMissingSentryDsn = false;
+let warnedAboutMissingBundleIds = false;
+
+function warnIfBundleIdsMissing(env: Env): void {
+  if (warnedAboutMissingBundleIds) return;
+  if (!env.APNS_BUNDLE_ID_PROD || !env.APNS_BUNDLE_ID_DEBUG) {
+    console.warn(
+      "[auth] APNS_BUNDLE_ID_PROD / APNS_BUNDLE_ID_DEBUG not set — pushes will use defaults"
+    );
+    warnedAboutMissingBundleIds = true;
+  }
+}
 
 /**
  * Build Sentry options from env. Returns an empty object when SENTRY_DSN is
@@ -243,6 +269,10 @@ export default Sentry.withSentry(sentryOptions, {
         return handleDeviceUnregister(request, env);
       case "/v1/internal/push":
         return handleInternalPush(request, env);
+      case "/v1/users/notification-prefs":
+        return handleNotificationPrefs(request, env);
+      case "/v1/badge/clear":
+        return handleBadgeClear(request, env);
         default:
           return json({ error: "Not found" }, 404, env);
       }
@@ -1266,6 +1296,9 @@ interface DeviceRegisterBody {
   token?: string;
   platform?: string;
   bundleId?: string;
+  locale?: string;
+  appVersion?: string;
+  sandbox?: boolean;
 }
 
 async function handleDeviceRegister(request: Request, env: Env): Promise<Response> {
@@ -1283,6 +1316,10 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
 
     const platform = body.platform ?? "ios";
     const bundleId = body.bundleId ?? "au.heyblip.Blip";
+    const locale = typeof body.locale === "string" && body.locale.length <= 32 ? body.locale : null;
+    const appVersion =
+      typeof body.appVersion === "string" && body.appVersion.length <= 32 ? body.appVersion : null;
+    const sandbox = body.sandbox === true;
 
     const userResult = await sql`
       SELECT id FROM users WHERE noise_public_key = ${auth.noisePublicKey}
@@ -1293,10 +1330,20 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     const userId = userResult[0].id;
 
     await sql`
-      INSERT INTO device_tokens (user_id, token, platform, bundle_id)
-      VALUES (${userId}, ${body.token}, ${platform}, ${bundleId})
+      INSERT INTO device_tokens (
+        user_id, token, platform, bundle_id, locale, app_version, sandbox, last_registered_at
+      )
+      VALUES (
+        ${userId}, ${body.token}, ${platform}, ${bundleId}, ${locale}, ${appVersion}, ${sandbox}, NOW()
+      )
       ON CONFLICT (token) DO UPDATE SET
         user_id = EXCLUDED.user_id,
+        platform = EXCLUDED.platform,
+        bundle_id = EXCLUDED.bundle_id,
+        locale = EXCLUDED.locale,
+        app_version = EXCLUDED.app_version,
+        sandbox = EXCLUDED.sandbox,
+        last_registered_at = NOW(),
         updated_at = NOW()
     `;
 
@@ -1349,22 +1396,261 @@ async function handleDeviceUnregister(request: Request, env: Env): Promise<Respo
 
 // ─── Internal Push ───────────────────────────────────────────
 
+const VALID_PUSH_TYPES: readonly PushType[] = [
+  "friend_request",
+  "friend_accept",
+  "dm",
+  "group_message",
+  "group_mention",
+  "voice_note",
+  "sos",
+  "silent_badge_sync",
+];
+
 interface InternalPushBody {
   recipientPeerIdHex?: string;
-  senderPeerIdHex?: string;
+  senderPeerIdHex?: string | null;
+  type?: string;
+  threadId?: string | null;
+  badgeCount?: number;
+  // Legacy fields (from old blip-relay):
   pushType?: number;
   "content-available"?: number;
 }
 
+interface NormalizedPush {
+  recipientPeerIdHex: string;
+  senderPeerIdHex: string | null;
+  type: PushType;
+  threadId: string | null;
+  badgeCount: number;
+}
+
+interface MutedEntry {
+  channelId?: string;
+  peerIdHex?: string;
+  until?: string | null;
+}
+
+interface NotificationPrefsRow {
+  dm_enabled: boolean;
+  friend_requests_enabled: boolean;
+  group_mentions_enabled: boolean;
+  voice_notes_enabled: boolean;
+  quiet_hours_start_utc: number | null;
+  quiet_hours_end_utc: number | null;
+  utc_offset_seconds: number;
+  muted_channels: MutedEntry[];
+  muted_friends: MutedEntry[];
+}
+
+const DEFAULT_PREFS: NotificationPrefsRow = {
+  dm_enabled: true,
+  friend_requests_enabled: true,
+  group_mentions_enabled: true,
+  voice_notes_enabled: true,
+  quiet_hours_start_utc: null,
+  quiet_hours_end_utc: null,
+  utc_offset_seconds: 0,
+  muted_channels: [],
+  muted_friends: [],
+};
+
+function logPushEvent(event: string, fields: Record<string, unknown>): void {
+  try {
+    console.log(
+      JSON.stringify({
+        event,
+        timestamp: new Date().toISOString(),
+        ...fields,
+      })
+    );
+  } catch {
+    // never let logging break the push path
+  }
+}
+
+function legacyPushTypeToString(pushType: number | undefined, contentAvailable: boolean): PushType {
+  if (contentAvailable) return "silent_badge_sync";
+  switch (pushType) {
+    case 0x60:
+      return "friend_request";
+    case 0x61:
+      return "friend_accept";
+    case 0x40:
+      return "sos";
+    default:
+      return "dm";
+  }
+}
+
+function normalizePushBody(body: InternalPushBody): NormalizedPush | null {
+  if (!body.recipientPeerIdHex) return null;
+
+  // Legacy shape: `pushType` numeric + optional `content-available`.
+  if (typeof body.pushType === "number") {
+    const contentAvailable = body["content-available"] === 1;
+    const type = legacyPushTypeToString(body.pushType, contentAvailable);
+    logPushEvent("push.legacy_body", {
+      recipientPeerIdHex: body.recipientPeerIdHex,
+      pushType: body.pushType,
+      "content-available": body["content-available"] ?? 0,
+      mappedType: type,
+    });
+    return {
+      recipientPeerIdHex: body.recipientPeerIdHex,
+      senderPeerIdHex: body.senderPeerIdHex ?? null,
+      type,
+      threadId: body.threadId ?? null,
+      badgeCount: typeof body.badgeCount === "number" ? body.badgeCount : 1,
+    };
+  }
+
+  if (typeof body.type !== "string" || !VALID_PUSH_TYPES.includes(body.type as PushType)) {
+    return null;
+  }
+
+  return {
+    recipientPeerIdHex: body.recipientPeerIdHex,
+    senderPeerIdHex: body.senderPeerIdHex ?? null,
+    type: body.type as PushType,
+    threadId: body.threadId ?? null,
+    badgeCount: typeof body.badgeCount === "number" ? body.badgeCount : 0,
+  };
+}
+
+function parseUntil(value: string | null | undefined): number | null {
+  if (value == null) return null;
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? null : t;
+}
+
+function isMuted(entry: MutedEntry, now: number): boolean {
+  const until = parseUntil(entry.until ?? null);
+  return until === null || until > now;
+}
+
+function inQuietHours(
+  startMinute: number | null,
+  endMinute: number | null,
+  utcOffsetSeconds: number,
+  now = Date.now()
+): boolean {
+  if (startMinute == null || endMinute == null) return false;
+  if (startMinute === endMinute) return false;
+  const nowUtcMinute = Math.floor((now / 60_000) % 1440);
+  const localMinute = ((nowUtcMinute + Math.floor(utcOffsetSeconds / 60)) % 1440 + 1440) % 1440;
+  if (startMinute < endMinute) {
+    return localMinute >= startMinute && localMinute < endMinute;
+  }
+  // Wrap-around: e.g. start=22:00, end=07:00 — in-quiet when >= start OR < end.
+  return localMinute >= startMinute || localMinute < endMinute;
+}
+
+function prefsAllow(
+  prefs: NotificationPrefsRow,
+  push: NormalizedPush,
+  logCtx: Record<string, unknown>
+): { allowed: true } | { allowed: false; reason: string } {
+  if (push.type === "sos") return { allowed: true };
+  if (push.type === "silent_badge_sync") return { allowed: true };
+
+  switch (push.type) {
+    case "dm":
+    case "voice_note":
+      if (!prefs.dm_enabled) return { allowed: false, reason: "dm_disabled" };
+      break;
+    case "friend_request":
+    case "friend_accept":
+      if (!prefs.friend_requests_enabled)
+        return { allowed: false, reason: "friend_requests_disabled" };
+      break;
+    case "group_mention":
+      if (!prefs.group_mentions_enabled)
+        return { allowed: false, reason: "group_mentions_disabled" };
+      break;
+    case "group_message":
+      // MVP: no per-type toggle for non-mention group messages; gated by mutes.
+      break;
+  }
+
+  const now = Date.now();
+
+  if (push.threadId) {
+    const muted = prefs.muted_channels.find(
+      (entry) => entry.channelId === push.threadId && isMuted(entry, now)
+    );
+    if (muted) return { allowed: false, reason: "channel_muted" };
+  }
+
+  if (push.senderPeerIdHex) {
+    const mutedFriend = prefs.muted_friends.find(
+      (entry) => entry.peerIdHex === push.senderPeerIdHex && isMuted(entry, now)
+    );
+    if (mutedFriend) return { allowed: false, reason: "friend_muted" };
+  }
+
+  if (
+    inQuietHours(
+      prefs.quiet_hours_start_utc,
+      prefs.quiet_hours_end_utc,
+      prefs.utc_offset_seconds,
+      now
+    )
+  ) {
+    return { allowed: false, reason: "quiet_hours" };
+  }
+
+  void logCtx;
+  return { allowed: true };
+}
+
+async function loadNotificationPrefs(
+  sql: any,
+  userId: string
+): Promise<NotificationPrefsRow> {
+  try {
+    const rows = await sql`
+      SELECT dm_enabled, friend_requests_enabled, group_mentions_enabled,
+             voice_notes_enabled, quiet_hours_start_utc, quiet_hours_end_utc,
+             utc_offset_seconds, muted_channels, muted_friends
+      FROM notification_prefs WHERE user_id = ${userId}
+    `;
+    if (rows.length === 0) return DEFAULT_PREFS;
+    const row = rows[0];
+    return {
+      dm_enabled: row.dm_enabled ?? true,
+      friend_requests_enabled: row.friend_requests_enabled ?? true,
+      group_mentions_enabled: row.group_mentions_enabled ?? true,
+      voice_notes_enabled: row.voice_notes_enabled ?? true,
+      quiet_hours_start_utc: row.quiet_hours_start_utc ?? null,
+      quiet_hours_end_utc: row.quiet_hours_end_utc ?? null,
+      utc_offset_seconds: row.utc_offset_seconds ?? 0,
+      muted_channels: Array.isArray(row.muted_channels) ? row.muted_channels : [],
+      muted_friends: Array.isArray(row.muted_friends) ? row.muted_friends : [],
+    };
+  } catch (error) {
+    console.warn("[auth] loadNotificationPrefs failed, using defaults:", error);
+    return DEFAULT_PREFS;
+  }
+}
+
 async function handleInternalPush(request: Request, env: Env): Promise<Response> {
+  warnIfBundleIdsMissing(env);
+
   const internalKey = request.headers.get("X-Internal-Key");
   if (!internalKey || internalKey !== env.INTERNAL_API_KEY) {
     return json({ error: "Unauthorized" }, 401, env);
   }
 
-  const body = await parseBody<InternalPushBody>(request);
-  if (!body?.recipientPeerIdHex || !body.senderPeerIdHex) {
-    return json({ error: "Missing recipientPeerIdHex or senderPeerIdHex" }, 400, env);
+  const rawBody = await parseBody<InternalPushBody>(request);
+  if (!rawBody) {
+    return json({ error: "Invalid body" }, 400, env);
+  }
+
+  const push = normalizePushBody(rawBody);
+  if (!push) {
+    return json({ error: "Missing recipientPeerIdHex or type" }, 400, env);
   }
 
   const sql = await getDb(env);
@@ -1373,56 +1659,347 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
   }
 
   try {
-    const [tokenRows, senderRows] = await Promise.all([
+    const [recipientRows, senderRows] = await Promise.all([
       sql`
-        SELECT dt.token FROM device_tokens dt
-        JOIN users u ON dt.user_id = u.id
-        WHERE u.peer_id_hex = ${body.recipientPeerIdHex}
+        SELECT u.id AS user_id, dt.token, dt.sandbox
+        FROM users u
+        LEFT JOIN device_tokens dt ON dt.user_id = u.id
+        WHERE u.peer_id_hex = ${push.recipientPeerIdHex}
       `,
-      sql`
-        SELECT username FROM users WHERE peer_id_hex = ${body.senderPeerIdHex}
-      `,
+      push.senderPeerIdHex
+        ? sql`SELECT username FROM users WHERE peer_id_hex = ${push.senderPeerIdHex}`
+        : Promise.resolve([]),
     ]);
 
-    if (tokenRows.length === 0) {
-      return json({ sent: 0, failed: 0 }, 200, env);
+    if (recipientRows.length === 0) {
+      return json({ sent: 0, failed: 0, suppressed: 0, purged: 0 }, 200, env);
     }
 
-    const senderName: string = senderRows[0]?.username ?? "Someone";
-    const conversationId = body.senderPeerIdHex;
-    const contentAvailable = body["content-available"] === 1;
+    const userId: string = recipientRows[0].user_id;
+    const tokens = recipientRows
+      .filter((row: Record<string, any>) => row.token != null)
+      .map((row: Record<string, any>) => ({
+        token: String(row.token),
+        sandbox: row.sandbox === true,
+      }));
 
-    let alertBody: string;
-    switch (body.pushType) {
-      case 0x60: alertBody = `${senderName} sent you a friend request`; break;
-      case 0x61: alertBody = `${senderName} accepted your friend request`; break;
-      case 0x40: alertBody = "SOS Alert nearby"; break;
-      default:   alertBody = `Message from ${senderName}`; break;
+    if (tokens.length === 0) {
+      return json({ sent: 0, failed: 0, suppressed: 0, purged: 0 }, 200, env);
     }
+
+    const prefs = await loadNotificationPrefs(sql, userId);
+    const senderUsername = (senderRows as Array<{ username?: string }>)[0]?.username ?? null;
+
+    const allow = prefsAllow(prefs, push, {});
+    if (!allow.allowed) {
+      logPushEvent("push.suppressed", {
+        recipientPeerIdHex: push.recipientPeerIdHex,
+        senderPeerIdHex: push.senderPeerIdHex,
+        type: push.type,
+        threadId: push.threadId,
+        reason: allow.reason,
+      });
+      return json({ sent: 0, failed: 0, suppressed: tokens.length, purged: 0 }, 200, env);
+    }
+
+    const deeplink = defaultDeeplink(push.type, push.threadId, push.senderPeerIdHex);
+    const { apsPayload, headers } = buildPayload({
+      type: push.type,
+      senderUsername,
+      // Server does not currently store channel names — NSE enriches from its
+      // App-Group cache. Passing null defaults to "New message"/"Mention".
+      channelName: null,
+      threadId: push.threadId,
+      senderPeerIdHex: push.senderPeerIdHex,
+      badgeCount: push.badgeCount,
+      deeplink,
+    });
 
     let sent = 0;
     let failed = 0;
+    let purged = 0;
 
-    await Promise.all(tokenRows.map(async (row: Record<string, any>) => {
-      const ok = await sendPush(
-        String(row.token),
-        senderName,
-        conversationId,
-        1,
-        env,
-        alertBody,
-        contentAvailable
-      );
-      if (ok) { sent++; } else { failed++; }
-    }));
+    await Promise.all(
+      tokens.map(async ({ token, sandbox }) => {
+        const apnsId = crypto.randomUUID();
+        logPushEvent("push.attempted", {
+          recipientPeerIdHex: push.recipientPeerIdHex,
+          type: push.type,
+          threadId: push.threadId,
+          sandbox,
+          apnsId,
+        });
 
-    return json({ sent, failed }, 200, env);
+        try {
+          const result = await sendApns(env, {
+            token,
+            payload: apsPayload,
+            headers: headers as unknown as Readonly<Record<string, string | undefined>>,
+            sandbox,
+            apnsId,
+          });
+
+          if (result.status === 200) {
+            sent += 1;
+            logPushEvent("push.success", {
+              recipientPeerIdHex: push.recipientPeerIdHex,
+              type: push.type,
+              apnsId: result.apnsId,
+            });
+            return;
+          }
+
+          if (result.purgeToken) {
+            try {
+              await sql`DELETE FROM device_tokens WHERE token = ${token}`;
+              purged += 1;
+              logPushEvent("push.token_purged", {
+                recipientPeerIdHex: push.recipientPeerIdHex,
+                apnsStatus: result.status,
+                apnsReason: result.reason,
+                apnsId: result.apnsId,
+              });
+            } catch (deleteError) {
+              console.error("[auth] failed to purge device token:", deleteError);
+              failed += 1;
+            }
+            return;
+          }
+
+          failed += 1;
+          logPushEvent("push.failed", {
+            recipientPeerIdHex: push.recipientPeerIdHex,
+            type: push.type,
+            apnsStatus: result.status,
+            apnsReason: result.reason,
+            apnsId: result.apnsId,
+            authJwt: result.authFailure === true,
+          });
+        } catch (sendError: any) {
+          failed += 1;
+          logPushEvent("push.failed", {
+            recipientPeerIdHex: push.recipientPeerIdHex,
+            type: push.type,
+            apnsId,
+            error: sendError?.message ?? String(sendError),
+          });
+        }
+      })
+    );
+
+    return json({ sent, failed, suppressed: 0, purged }, 200, env);
   } catch (error: any) {
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
     console.error("[auth] handleInternalPush error:", error);
     return json({ error: "Push failed" }, 500, env);
+  }
+}
+
+// ─── Notification Preferences ────────────────────────────────
+
+interface NotificationPrefsBody {
+  dmEnabled?: boolean;
+  friendRequestsEnabled?: boolean;
+  groupMentionsEnabled?: boolean;
+  voiceNotesEnabled?: boolean;
+  quietHoursStartUtc?: number | null;
+  quietHoursEndUtc?: number | null;
+  utcOffsetSeconds?: number;
+  mutedChannels?: Array<{ channelId?: string; until?: string | null }>;
+  mutedFriends?: Array<{ peerIdHex?: string; until?: string | null }>;
+}
+
+function validMinuteOfDay(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1440;
+}
+
+async function handleNotificationPrefs(request: Request, env: Env): Promise<Response> {
+  const sql = await getDb(env);
+  if (!sql) {
+    return json({ error: "Database not configured" }, 503, env);
+  }
+
+  try {
+    const auth = await authenticateRequest(request, env);
+    const body = await parseBody<NotificationPrefsBody>(request);
+    if (!body) {
+      return json({ error: "Invalid body" }, 400, env);
+    }
+
+    // Validate minute-of-day bounds. null is allowed (disables quiet hours for that bound).
+    if (body.quietHoursStartUtc !== undefined && body.quietHoursStartUtc !== null && !validMinuteOfDay(body.quietHoursStartUtc)) {
+      return json({ error: "Invalid quietHoursStartUtc" }, 400, env);
+    }
+    if (body.quietHoursEndUtc !== undefined && body.quietHoursEndUtc !== null && !validMinuteOfDay(body.quietHoursEndUtc)) {
+      return json({ error: "Invalid quietHoursEndUtc" }, 400, env);
+    }
+    if (body.utcOffsetSeconds !== undefined) {
+      if (
+        typeof body.utcOffsetSeconds !== "number" ||
+        !Number.isFinite(body.utcOffsetSeconds) ||
+        body.utcOffsetSeconds < -50_400 ||
+        body.utcOffsetSeconds > 50_400
+      ) {
+        return json({ error: "Invalid utcOffsetSeconds" }, 400, env);
+      }
+    }
+
+    const mutedChannels = Array.isArray(body.mutedChannels)
+      ? body.mutedChannels
+          .filter(
+            (entry) => typeof entry?.channelId === "string" && entry.channelId.length > 0 && entry.channelId.length < 128
+          )
+          .map((entry) => ({
+            channelId: entry.channelId as string,
+            until: typeof entry.until === "string" ? entry.until : null,
+          }))
+      : [];
+    const mutedFriends = Array.isArray(body.mutedFriends)
+      ? body.mutedFriends
+          .filter(
+            (entry) => typeof entry?.peerIdHex === "string" && /^[a-f0-9]{16}$/i.test(entry.peerIdHex)
+          )
+          .map((entry) => ({
+            peerIdHex: (entry.peerIdHex as string).toLowerCase(),
+            until: typeof entry.until === "string" ? entry.until : null,
+          }))
+      : [];
+
+    const userRows = await sql`SELECT id FROM users WHERE noise_public_key = ${auth.noisePublicKey}`;
+    if (userRows.length === 0) {
+      return json({ error: "User not found" }, 404, env);
+    }
+    const userId = userRows[0].id;
+
+    const dmEnabled = body.dmEnabled ?? true;
+    const friendRequestsEnabled = body.friendRequestsEnabled ?? true;
+    const groupMentionsEnabled = body.groupMentionsEnabled ?? true;
+    const voiceNotesEnabled = body.voiceNotesEnabled ?? true;
+    const quietStart = body.quietHoursStartUtc ?? null;
+    const quietEnd = body.quietHoursEndUtc ?? null;
+    const utcOffsetSeconds = body.utcOffsetSeconds ?? 0;
+
+    await sql`
+      INSERT INTO notification_prefs (
+        user_id, dm_enabled, friend_requests_enabled, group_mentions_enabled,
+        voice_notes_enabled, quiet_hours_start_utc, quiet_hours_end_utc,
+        utc_offset_seconds, muted_channels, muted_friends, updated_at
+      ) VALUES (
+        ${userId}, ${dmEnabled}, ${friendRequestsEnabled}, ${groupMentionsEnabled},
+        ${voiceNotesEnabled}, ${quietStart}, ${quietEnd},
+        ${utcOffsetSeconds}, ${JSON.stringify(mutedChannels)}::jsonb,
+        ${JSON.stringify(mutedFriends)}::jsonb, NOW()
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        dm_enabled = EXCLUDED.dm_enabled,
+        friend_requests_enabled = EXCLUDED.friend_requests_enabled,
+        group_mentions_enabled = EXCLUDED.group_mentions_enabled,
+        voice_notes_enabled = EXCLUDED.voice_notes_enabled,
+        quiet_hours_start_utc = EXCLUDED.quiet_hours_start_utc,
+        quiet_hours_end_utc = EXCLUDED.quiet_hours_end_utc,
+        utc_offset_seconds = EXCLUDED.utc_offset_seconds,
+        muted_channels = EXCLUDED.muted_channels,
+        muted_friends = EXCLUDED.muted_friends,
+        updated_at = NOW()
+    `;
+
+    logPushEvent("push.prefs_updated", {
+      userId,
+      dmEnabled,
+      friendRequestsEnabled,
+      groupMentionsEnabled,
+      voiceNotesEnabled,
+      mutedChannelsCount: mutedChannels.length,
+      mutedFriendsCount: mutedFriends.length,
+    });
+
+    return json({ updated: true }, 200, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    console.error("[auth] handleNotificationPrefs error:", error);
+    return json({ error: "Preferences update failed" }, 500, env);
+  }
+}
+
+// ─── Badge Clear (iOS → auth → relay) ────────────────────────
+
+interface BadgeClearBody {
+  threadId?: string | null;
+  all?: boolean | null;
+}
+
+async function handleBadgeClear(request: Request, env: Env): Promise<Response> {
+  try {
+    const auth = await authenticateRequest(request, env);
+    const body = await parseBody<BadgeClearBody>(request);
+    if (!body) {
+      return json({ error: "Invalid body" }, 400, env);
+    }
+
+    const hasThread = typeof body.threadId === "string" && body.threadId.length > 0;
+    const isAll = body.all === true;
+    if (hasThread === isAll) {
+      return json({ error: "Specify exactly one of threadId or all" }, 400, env);
+    }
+
+    if (!env.INTERNAL_API_KEY) {
+      return json({ error: "Internal API key not configured" }, 503, env);
+    }
+
+    const relayBase = env.RELAY_INTERNAL_URL ?? "https://blip-relay.john-mckean.workers.dev";
+    const relayUrl = `${relayBase.replace(/\/+$/g, "")}/internal/badge/clear`;
+
+    const payload = {
+      peerIdHex: auth.peerIdHex,
+      threadId: hasThread ? body.threadId : null,
+      all: isAll,
+    };
+
+    const response = await fetch(relayUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Key": env.INTERNAL_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    let parsed: any = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+
+    logPushEvent("push.badge_clear", {
+      peerIdHex: auth.peerIdHex,
+      threadId: payload.threadId,
+      all: isAll,
+      relayStatus: response.status,
+    });
+
+    if (!response.ok) {
+      return json(
+        { error: "Relay badge clear failed", detail: parsed ?? text },
+        response.status === 0 ? 502 : response.status,
+        env
+      );
+    }
+
+    const badgeCount =
+      parsed && typeof parsed.badgeCount === "number" ? parsed.badgeCount : 0;
+    return json({ cleared: true, badgeCount }, 200, env);
+  } catch (error: any) {
+    if (error instanceof HTTPError) {
+      return json({ error: error.message }, error.status, env);
+    }
+    console.error("[auth] handleBadgeClear error:", error);
+    return json({ error: "Badge clear failed" }, 500, env);
   }
 }
 

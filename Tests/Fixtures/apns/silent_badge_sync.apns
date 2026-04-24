@@ -1,0 +1,16 @@
+{
+  "Simulator Target Bundle": "au.heyblip.Blip.debug",
+  "aps": {
+    "alert": null,
+    "badge": 0,
+    "sound": null,
+    "content-available": 1
+  },
+  "blip": {
+    "type": "silent_badge_sync",
+    "threadId": null,
+    "senderPeerIdHex": null,
+    "deeplink": null,
+    "badgeCount": 0
+  }
+}

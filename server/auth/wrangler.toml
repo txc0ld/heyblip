@@ -24,6 +24,12 @@ JWT_REFRESH_GRACE_SECONDS = "300"
 #   APNS_ENVIRONMENT     — "production" for TestFlight/App Store, "development" for Xcode debug.
 #                          MUST match the `aps-environment` entitlement in App/Entitlements/Blip.entitlements.
 #                          Missing/mismatched = silent push failure (sandbox host rejects prod tokens).
+#   APNS_BUNDLE_ID_PROD  — APNs topic for production builds (e.g. "au.heyblip.Blip"). Required — used when
+#                          device_tokens.sandbox = FALSE.
+#   APNS_BUNDLE_ID_DEBUG — APNs topic for debug builds (e.g. "au.heyblip.Blip.debug"). Required — used when
+#                          device_tokens.sandbox = TRUE.
+#   RELAY_INTERNAL_URL   — Optional. Base URL of the blip-relay worker; /v1/badge/clear forwards to
+#                          `${RELAY_INTERNAL_URL}/internal/badge/clear`. Defaults to the production relay URL.
 #   SENTRY_DSN           — Sentry project DSN for this Worker. Optional — when unset the
 #                          `withSentry` wrapper boots in disabled mode (errors stay in
 #                          `wrangler tail`). Set this in production so handlers below

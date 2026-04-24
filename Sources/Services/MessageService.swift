@@ -1852,6 +1852,7 @@ extension MessageService: TransportDelegate {
 
     func transport(_ transport: any Transport, didReceiveData data: Data, from peerID: PeerID) {
         receive(data: data, from: peerID, via: ingressTransport(for: transport))
+        if let activeID = notificationService.currentActiveChannelID() { Task { @MainActor in BadgeSyncService.shared.clearThread(activeID) } }
     }
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {

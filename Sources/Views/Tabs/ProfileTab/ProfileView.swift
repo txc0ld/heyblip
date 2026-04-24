@@ -33,6 +33,7 @@ struct ProfileView: View {
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var showQRCode = false
+    @State private var showNotifications = false
 
     /// Sheets with `.presentationBackground(.ultraThinMaterial)` create their own
     /// presentation scene that doesn't always inherit the root window's
@@ -113,6 +114,15 @@ struct ProfileView: View {
                         .presentationBackground(.ultraThinMaterial)
                         .preferredColorScheme(appTheme.colorScheme)
                 }
+            }
+            .sheet(isPresented: $showNotifications) {
+                NavigationStack {
+                    NotificationsSettingsView()
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
+                .preferredColorScheme(appTheme.colorScheme)
             }
             .task {
                 await profileViewModel?.loadProfile()
@@ -302,6 +312,14 @@ struct ProfileView: View {
             HStack(spacing: BlipSpacing.md) {
                 quickActionCard(icon: "qrcode", title: ProfileViewL10n.myQRCode, subtitle: ProfileViewL10n.shareProfile) {
                     showQRCode = true
+                }
+
+                quickActionCard(
+                    icon: "bell.fill",
+                    title: String(localized: "profile.quick_actions.notifications.title", defaultValue: "Notifications"),
+                    subtitle: String(localized: "profile.quick_actions.notifications.subtitle", defaultValue: "Mutes & quiet hours")
+                ) {
+                    showNotifications = true
                 }
             }
         }

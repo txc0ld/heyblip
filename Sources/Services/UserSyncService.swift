@@ -550,9 +550,41 @@ final class UserSyncService: Sendable {
     // MARK: - Device Token
 
     /// Registers an APNs device token with the backend so the server can send push notifications.
+    ///
+    /// Legacy entry point — kept for any caller still passing a bare token
+    /// string. New call sites should prefer `registerDeviceToken(body:)`
+    /// so the server can route correctly across sandbox/prod, filter by
+    /// locale, and age out devices on app upgrades (HEY1321).
     func registerDeviceToken(_ token: String) async throws {
-        let body: [String: Any] = ["token": token, "platform": "ios"]
-        let (data, response) = try await post(path: "/devices/register", body: body, requiresAuth: true)
+        let body = DeviceRegisterBody(
+            token: token,
+            platform: "ios",
+            bundleId: Bundle.main.bundleIdentifier ?? "",
+            locale: Locale.current.identifier,
+            appVersion: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0",
+            sandbox: {
+                #if DEBUG
+                return true
+                #else
+                return false
+                #endif
+            }()
+        )
+        try await registerDeviceToken(body: body)
+    }
+
+    /// Registers an APNs device token with the full metadata envelope
+    /// introduced in HEY1321 (bundle id, locale, app version, sandbox flag).
+    func registerDeviceToken(body: DeviceRegisterBody) async throws {
+        let payload: [String: Any] = [
+            "token": body.token,
+            "platform": body.platform,
+            "bundleId": body.bundleId,
+            "locale": body.locale,
+            "appVersion": body.appVersion,
+            "sandbox": body.sandbox
+        ]
+        let (data, response) = try await post(path: "/devices/register", body: payload, requiresAuth: true)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             let serverMessage = parseError(data) ?? "Unknown error"

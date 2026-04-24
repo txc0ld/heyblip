@@ -158,6 +158,12 @@ final class AppCoordinator {
         locationService.delegate = self
         notificationService.delegate = self
 
+        // Wire remote-push helpers so notification taps / category actions
+        // reach the runtime (HEY1321). Both expose weak coordinator refs,
+        // so repeated calls during reconfigure are safe.
+        NotificationRouter.shared.coordinator = self
+        NotificationActionBackgroundWorker.shared.coordinator = self
+
         let runtime = AppRuntimeFactory().makeRuntime(
             modelContainer: modelContainer,
             identity: identity,
@@ -271,6 +277,7 @@ final class AppCoordinator {
 
         if identity != nil {
             configure(modelContainer: modelContainer)
+            PushTokenManager.shared.refreshAfterOnboarding()
         } else {
             initError = initError ?? "Identity not available after onboarding"
         }

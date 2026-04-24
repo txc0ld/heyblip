@@ -1,9 +1,14 @@
 import Foundation
 import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Notification Category
 
-/// Categories of local notifications that Blip can send.
+/// Categories of local notifications that Blip can send. These identifiers
+/// stay stable — they appear in delivered notifications from prior app
+/// versions and must continue to route correctly.
 enum BlipNotificationCategory: String, Sendable {
     /// New message received in a DM or group.
     case newMessage = "com.blip.notification.newMessage"
@@ -23,7 +28,7 @@ enum BlipNotificationCategory: String, Sendable {
 
 // MARK: - Notification Action
 
-/// Actions available on notifications.
+/// Actions available on local notifications.
 enum BlipNotificationAction: String, Sendable {
     case reply = "com.blip.action.reply"
     case markRead = "com.blip.action.markRead"
@@ -33,6 +38,17 @@ enum BlipNotificationAction: String, Sendable {
     case viewMap = "com.blip.action.viewMap"
     case respondSOS = "com.blip.action.respondSOS"
     case openConversation = "com.blip.action.openConversation"
+}
+
+// MARK: - Unsafe payload bridge
+
+/// Carries an APNs `userInfo` dictionary across a MainActor hop without the
+/// compiler complaining about `[AnyHashable: Any]` not being Sendable. APNs
+/// payloads are always JSON value trees, so the underlying bytes are safe
+/// to read from the receiving actor.
+struct UnsafeNotificationPayload: @unchecked Sendable {
+    let value: [AnyHashable: Any]
+    init(_ value: [AnyHashable: Any]) { self.value = value }
 }
 
 // MARK: - Notification Service Delegate
@@ -53,6 +69,7 @@ protocol NotificationServiceDelegate: AnyObject, Sendable {
 /// - SOS nearby assist requests
 /// - Friend request notifications
 /// - Organizer announcements
+/// - Remote push taps and category actions (HEY1321)
 ///
 /// Uses UNUserNotificationCenter with categories and actions for rich notification interactions.
 final class NotificationService: NSObject, @unchecked Sendable {
@@ -76,8 +93,17 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
     func setActiveChannel(_ channelID: UUID?) {
         lock.lock()
-        defer { lock.unlock() }
+        let previous = activeChannelID
         activeChannelID = channelID
+        lock.unlock()
+
+        // Server-authoritative badge: when the user opens a conversation,
+        // clear that thread's unread on the server. Fire-and-forget.
+        if let channelID, channelID != previous {
+            Task { @MainActor in
+                BadgeSyncService.shared.clearThread(channelID)
+            }
+        }
     }
 
     func currentActiveChannelID() -> UUID? {
@@ -95,7 +121,8 @@ final class NotificationService: NSObject, @unchecked Sendable {
         channelID: UUID?
     ) -> UNNotificationPresentationOptions {
         // SOS is always interruptive — that's the point.
-        if category == BlipNotificationCategory.sosAssist.rawValue {
+        if category == BlipNotificationCategory.sosAssist.rawValue
+            || category == BlipRemotePushCategory.sos.rawValue {
             return [.banner, .sound, .badge]
         }
 
@@ -103,10 +130,15 @@ final class NotificationService: NSObject, @unchecked Sendable {
         // relevant chat. Badge still updates so other channels' counts stay
         // accurate; sound is dropped because the bubble itself already
         // provides feedback.
-        if category == BlipNotificationCategory.newMessage.rawValue,
-           let channelID,
-           currentActiveChannelID() == channelID {
-            return [.badge]
+        if let channelID, currentActiveChannelID() == channelID {
+            switch category {
+            case BlipNotificationCategory.newMessage.rawValue,
+                 BlipRemotePushCategory.dm.rawValue,
+                 BlipRemotePushCategory.group.rawValue:
+                return [.badge]
+            default:
+                break
+            }
         }
 
         return [.banner, .badge]
@@ -123,18 +155,32 @@ final class NotificationService: NSObject, @unchecked Sendable {
         center = UNUserNotificationCenter.current()
         super.init()
         center.delegate = self
-        registerCategories()
+        NotificationCategoryRegistry.registerAll(on: center)
     }
 
     // MARK: - Authorization
 
-    /// Request notification permissions from the user.
+    /// Request notification permissions from the user. Includes provisional
+    /// authorization (banner-free alerts) and the App Notification Settings
+    /// shortcut so iOS offers a "Notification Settings" link inside the
+    /// system notification UI.
     func requestAuthorization() async -> Bool {
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .provisional])
+            let granted = try await center.requestAuthorization(
+                options: [.alert, .badge, .sound, .provisional, .providesAppNotificationSettings]
+            )
             isAuthorized = granted
+            CrashReportingService.shared.addBreadcrumb(
+                category: "push",
+                message: "permission_grant_\(granted)"
+            )
             return granted
         } catch {
+            DebugLogger.shared.log(
+                "PUSH",
+                "Authorization request failed: \(error.localizedDescription)",
+                isError: true
+            )
             return false
         }
     }
@@ -143,6 +189,16 @@ final class NotificationService: NSObject, @unchecked Sendable {
     func checkAuthorization() async {
         let settings = await center.notificationSettings()
         isAuthorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+    }
+
+    /// Register with APNs for remote notifications if not yet registered.
+    /// Always dispatched to the main thread per Apple's guidance.
+    func registerRemoteNotificationsIfNeeded() async {
+        #if canImport(UIKit)
+        await MainActor.run {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        #endif
     }
 
     // MARK: - New Message Notification
@@ -423,96 +479,24 @@ final class NotificationService: NSObject, @unchecked Sendable {
         }
     }
 
-    // MARK: - Private: Category Registration
+    // MARK: - Remote push helpers
 
-    private func registerCategories() {
-        // New Message category with reply and mark-read actions
-        let replyAction = UNTextInputNotificationAction(
-            identifier: BlipNotificationAction.reply.rawValue,
-            title: "Reply",
-            textInputButtonTitle: "Send",
-            textInputPlaceholder: "Type a message..."
-        )
-        let markReadAction = UNNotificationAction(
-            identifier: BlipNotificationAction.markRead.rawValue,
-            title: "Mark as Read"
-        )
-        let muteAction = UNNotificationAction(
-            identifier: BlipNotificationAction.mute.rawValue,
-            title: "Mute",
-            options: .destructive
-        )
-        let messageCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.newMessage.rawValue,
-            actions: [replyAction, markReadAction, muteAction],
-            intentIdentifiers: []
-        )
-
-        // Friend Nearby category
-        let viewMapAction = UNNotificationAction(
-            identifier: BlipNotificationAction.viewMap.rawValue,
-            title: "View on Map",
-            options: .foreground
-        )
-        let friendNearbyCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.friendNearby.rawValue,
-            actions: [viewMapAction],
-            intentIdentifiers: []
-        )
-
-        // Set Time Alert category
-        let setTimeCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.setTimeAlert.rawValue,
-            actions: [viewMapAction],
-            intentIdentifiers: []
-        )
-
-        // SOS Assist category
-        let respondAction = UNNotificationAction(
-            identifier: BlipNotificationAction.respondSOS.rawValue,
-            title: "I Can Help",
-            options: .foreground
-        )
-        let sosCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.sosAssist.rawValue,
-            actions: [respondAction],
-            intentIdentifiers: []
-        )
-
-        // Friend Request category
-        let acceptAction = UNNotificationAction(
-            identifier: BlipNotificationAction.acceptFriend.rawValue,
-            title: "Accept"
-        )
-        let declineAction = UNNotificationAction(
-            identifier: BlipNotificationAction.declineFriend.rawValue,
-            title: "Decline",
-            options: .destructive
-        )
-        let friendReqCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.friendRequest.rawValue,
-            actions: [acceptAction, declineAction],
-            intentIdentifiers: []
-        )
-
-        // SOS Resolved category
-        let sosResolvedCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.sosResolved.rawValue,
-            actions: [],
-            intentIdentifiers: []
-        )
-
-        // Organizer Announcement category
-        let orgCategory = UNNotificationCategory(
-            identifier: BlipNotificationCategory.organizerAnnouncement.rawValue,
-            actions: [],
-            intentIdentifiers: []
-        )
-
-        center.setNotificationCategories([
-            messageCategory, friendNearbyCategory, setTimeCategory,
-            sosCategory, friendReqCategory, sosResolvedCategory, orgCategory
-        ])
+    /// Handle a silent push — invoked from AppDelegate's `didReceiveRemoteNotification`
+    /// completion handler path. Currently only the `silent_badge_sync` type is
+    /// supported; other silent payloads are a no-op here.
+    func handleSilentRemoteNotification(userInfo: [AnyHashable: Any]) {
+        guard
+            let aps = userInfo["aps"] as? [String: Any],
+            aps["content-available"] as? Int == 1,
+            let blip = userInfo["blip"] as? [String: Any],
+            (blip["type"] as? String) == "silent_badge_sync",
+            let count = blip["badgeCount"] as? Int
+        else {
+            return
+        }
+        Task { @MainActor in
+            BadgeSyncService.shared.applyServerBadge(count)
+        }
     }
 
     // MARK: - Private: Scheduling
@@ -555,7 +539,18 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         let content = notification.request.content
-        let channelID = (content.userInfo["channelID"] as? String).flatMap(UUID.init(uuidString:))
+        let userInfo = content.userInfo
+        let channelID: UUID? = {
+            if let id = userInfo["channelID"] as? String, let uuid = UUID(uuidString: id) {
+                return uuid
+            }
+            if let blip = userInfo["blip"] as? [String: Any],
+               let id = blip["threadId"] as? String,
+               let uuid = UUID(uuidString: id) {
+                return uuid
+            }
+            return nil
+        }()
         return presentationOptions(
             forCategory: content.categoryIdentifier,
             channelID: channelID
@@ -566,20 +561,58 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let info = response.notification.request.content.userInfo as? [String: Any] ?? [:]
+        let info = response.notification.request.content.userInfo
 
-        if let textResponse = response as? UNTextInputNotificationResponse {
-            delegate?.notificationService(self, didReceiveReplyText: textResponse.userText, with: info)
-        } else if let action = BlipNotificationAction(rawValue: response.actionIdentifier) {
-            delegate?.notificationService(self, didReceiveAction: action, with: info)
-        } else if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
-            delegate?.notificationService(self, didReceiveAction: .openConversation, with: info)
+        // Prefer the remote-push path when the envelope looks like HEY1321
+        // (has a `blip` dictionary). Remote actions dispatch through the
+        // background worker; default tap goes through the router.
+        let hasRemoteEnvelope = info["blip"] is [String: Any]
+
+        if hasRemoteEnvelope {
+            let textInput = (response as? UNTextInputNotificationResponse)?.userText
+            let actionID = response.actionIdentifier
+
+            // UNSafe bridge: `[AnyHashable: Any]` is not Sendable, but APNs
+            // payloads are JSON-compatible value trees — safe to pass across
+            // the MainActor hop. The `@unchecked Sendable` wrapper pins this
+            // promise so the compiler stops warning.
+            let snapshot = UnsafeNotificationPayload(info)
+
+            if actionID == UNNotificationDefaultActionIdentifier {
+                await MainActor.run {
+                    NotificationRouter.shared.route(userInfo: snapshot.value)
+                }
+            } else if actionID != UNNotificationDismissActionIdentifier {
+                await NotificationActionBackgroundWorker.shared.handle(
+                    action: actionID,
+                    userInfo: snapshot.value,
+                    textInput: textInput
+                )
+            }
+        } else {
+            let stringInfo = info as? [String: Any] ?? [:]
+
+            if let textResponse = response as? UNTextInputNotificationResponse {
+                delegate?.notificationService(self, didReceiveReplyText: textResponse.userText, with: stringInfo)
+            } else if let action = BlipNotificationAction(rawValue: response.actionIdentifier) {
+                delegate?.notificationService(self, didReceiveAction: action, with: stringInfo)
+            } else if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+                delegate?.notificationService(self, didReceiveAction: .openConversation, with: stringInfo)
+            }
         }
 
         // Clear lingering banners for the channel that was just tapped/swiped — leaving
         // them queued in Notification Centre after the user has already opened the
         // conversation is the kind of detail users notice in a "godmode" app.
-        if let channelString = info["channelID"] as? String,
+        let channelStringCandidate: String? = {
+            if let s = info["channelID"] as? String { return s }
+            if let blip = info["blip"] as? [String: Any],
+               let s = blip["threadId"] as? String {
+                return s
+            }
+            return nil
+        }()
+        if let channelString = channelStringCandidate,
            let channelID = UUID(uuidString: channelString) {
             clearNotifications(forChannel: channelID)
         }

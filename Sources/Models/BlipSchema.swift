@@ -25,7 +25,9 @@ enum BlipSchema {
         UserPreferences.self,
         GroupSenderKey.self,
         NoiseSessionModel.self,
-        JoinedEvent.self
+        JoinedEvent.self,
+        ChannelMute.self,
+        FriendMute.self
     ]
 
     /// The SwiftData Schema containing all model types.

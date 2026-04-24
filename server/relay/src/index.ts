@@ -124,6 +124,45 @@ export default Sentry.withSentry(sentryOptions, {
       return new Response("ok", { status: 200 });
     }
 
+    // Badge-clear callout from the iOS client path (via auth or directly).
+    // Authenticated via the shared INTERNAL_API_KEY rather than a JWT — this
+    // endpoint is only invoked server-to-server by the auth worker (and in
+    // tests). The body identifies the peer; no user session is involved.
+    if (url.pathname === "/internal/badge/clear" && request.method === "POST") {
+      const providedKey = request.headers.get("X-Internal-Key");
+      if (!env.INTERNAL_API_KEY || providedKey !== env.INTERNAL_API_KEY) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      let body: { peerIdHex?: string; threadId?: string; all?: boolean };
+      try {
+        body = await request.json();
+      } catch {
+        return new Response("Invalid JSON", { status: 400 });
+      }
+      if (!body.peerIdHex || typeof body.peerIdHex !== "string") {
+        return new Response("Missing peerIdHex", { status: 400 });
+      }
+      if (!body.all && !body.threadId) {
+        return new Response("Must provide threadId or all", { status: 400 });
+      }
+      const roomId = env.RELAY_ROOM.idFromName(ROOM_ID_NAME);
+      const room = env.RELAY_ROOM.get(roomId);
+      const forward = new Request(
+        new URL("/internal/badge/clear", request.url).toString(),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Key": env.INTERNAL_API_KEY,
+            "X-Derived-Peer-ID": body.peerIdHex,
+            "X-State-Action": "badge-clear",
+          },
+          body: JSON.stringify({ threadId: body.threadId, all: body.all }),
+        }
+      );
+      return room.fetch(forward);
+    }
+
     // State sync endpoints (GCS reconciliation).
     if (url.pathname === "/state" && (request.method === "PUT" || request.method === "GET")) {
       try {
