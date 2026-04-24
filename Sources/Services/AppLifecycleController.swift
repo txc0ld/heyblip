@@ -194,8 +194,7 @@ final class AppLifecycleController {
             let ws = self.runtime.webSocketTransport
             guard ws.state != .running else { return }
             DebugLogger.shared.log("APP", "Foreground: relay not running (state=\(ws.state)) — reconnecting")
-            ws.stop()
-            ws.start()
+            ws.reconnect(reason: "foreground_resume")
         }
     }
 
@@ -343,8 +342,7 @@ final class AppLifecycleController {
             do {
                 if initialState != .running {
                     DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(initialState)) — reconnecting")
-                    ws.stop()
-                    ws.start()
+                    ws.reconnect(reason: "push_wake")
                     try await awaitWebSocketRunning(timeout: .seconds(8))
                 } else {
                     DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected")

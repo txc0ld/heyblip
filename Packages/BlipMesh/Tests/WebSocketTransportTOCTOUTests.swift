@@ -170,6 +170,41 @@ struct WebSocketTransportTOCTOUTests {
         #expect(delegate.stateChanges.contains(.stopped))
     }
 
+    @Test("Foreground + path-change + ping reconnect triggers coalesce into one connect attempt")
+    func concurrentReconnectTriggersCoalesce() async throws {
+        actor TokenCounter {
+            private(set) var count = 0
+
+            func increment() {
+                count += 1
+            }
+        }
+
+        let counter = TokenCounter()
+        let transport = makeWebSocketTransport(
+            tokenProvider: {
+                await counter.increment()
+                return "test-token"
+            }
+        )
+        let delegate = MockTransportDelegate()
+        transport.delegate = delegate
+
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { transport.__testing_triggerForegroundReconnect() }
+            group.addTask { transport.__testing_triggerPathReconnect() }
+            group.addTask { transport.__testing_triggerPingReconnect() }
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(await counter.count == 1, "only one reconnect attempt should fetch a token")
+        let startingCount = delegate.stateChanges.filter { $0 == .starting }.count
+        #expect(startingCount == 1, "coalesced reconnect should emit one .starting transition, saw \(startingCount)")
+
+        transport.stop()
+    }
+
     // MARK: HEY1304 — reconnect while already connected must not strand state
 
     /// Regression for HEY1304. The original symptom was the iOS foreground
