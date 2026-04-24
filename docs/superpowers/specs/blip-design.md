@@ -5,7 +5,7 @@
 **Status:** Approved
 **Platform:** iOS 17.0+ / macOS 13.0+ (iOS-first, Android planned)
 
-> **Note (HEY1260, April 2026):** This spec originally called for phone/SMS OTP identity verification. That was replaced with email verification via the `blip-auth` Cloudflare Worker (Resend backend). Sections 2.4, 3.1, 3.3, and 3.4 have been updated. Some deeper protocol sections (e.g. §6.2 packet types, §7.4 friend verification hash, §10 data model) still describe the old phone-hash friend-request flow — these are historical and should be rewritten when that flow is formally migrated. Current `Sources/` code uses email-only.
+> **Note (HEY1260, April 2026):** Identity verification is email OTP via the `blip-auth` Cloudflare Worker (Resend backend). An earlier draft of this spec described a phone/SMS OTP flow; that flow never shipped. Phone-hash friend verification is recorded as **deferred** (see §7.4, §11.1) — the design intent for phone-as-secondary-identifier may return in a later phase, but v1 ships without it. Current `Sources/` code is email-only.
 
 ---
 
@@ -109,7 +109,7 @@ A thin backend is required for four specific functions. Everything else is P2P.
 
 | Service | Purpose | Implementation |
 |---|---|---|
-| Email verification | Email OTP for identity confirmation (HEY1260 — replaced phone/SMS) | `blip-auth` Cloudflare Worker + Resend |
+| Email verification | Email OTP for identity confirmation | `blip-auth` Cloudflare Worker + Resend |
 | Event manifest | JSON list of registered events, stages, schedules | `blip-cdn` Cloudflare Worker (R2-backed) |
 | WebSocket relay | Off-mesh packet delivery with store-and-forward | `blip-relay` Cloudflare Worker (Durable Objects) |
 | StoreKit validation | Server-side receipt verification for IAP | Lightweight API (Cloudflare Workers) |
@@ -123,10 +123,10 @@ A thin backend is required for four specific functions. Everything else is P2P.
 
 ### 3.1 Identity model
 
-- Username-based identity with email verification (HEY1260 — replaced phone/SMS in Apr 2026)
+- Username-based identity confirmed by email OTP via `blip-auth`
 - Optional social login (Apple, Google) for convenience; email OTP is the canonical flow
 - Cryptographic keypair generated on first launch, signed challenge-response registration
-- No SMS, no password
+- No password
 
 ### 3.2 Key generation (first launch)
 
@@ -138,29 +138,41 @@ A thin backend is required for four specific functions. Everything else is P2P.
 
 ### 3.3 User profile
 
+Maps to the SwiftData `User` model at `Sources/Models/User.swift`.
+
 | Field | Required | Public | Storage |
 |---|---|---|---|
 | Username | Yes | Yes | SwiftData + announced on mesh |
 | Display name | No | Yes | SwiftData + announced on mesh |
-| Email address | Yes | **Never** (verification only) | `blip-auth` server (never on mesh), SwiftData (hash only for recovery) |
+| Email address | Yes | **Never** (verification only) | `blip-auth` server (never on mesh); on-device stored only as `User.emailHash` (SHA-256) for recovery lookup |
 | Profile picture | No | Yes (thumbnail) | SwiftData (thumbnail 64x64 + full-res cached) |
 | Bio | No | Yes | SwiftData (140 chars max) |
 | Noise public key | Auto | Yes (in announcements) | Keychain |
 | Signing public key | Auto | Yes (in announcements) | Keychain |
 
-### 3.4 Email verification (HEY1260 — replaced phone/SMS)
+### 3.4 Email verification
 
-- Email OTP via `blip-auth` Cloudflare Worker (Resend backend, FROM: verify@heyblip.au)
-- Registration flow: Ed25519-signed challenge-response (`POST /v1/auth/challenge` → `POST /v1/users/register`), email OTP follow-up
-- JWT session token issued on verification (`POST /v1/auth/token`), refreshed via `/v1/auth/refresh`
-- Email address NEVER displayed in UI beyond account settings, NEVER sent over mesh
-- Social login (Apple, Google) is optional; email is canonical for account recovery
+Email OTP is the single canonical identity check. The flow runs end-to-end through the `blip-auth` Cloudflare Worker with Resend as the email delivery backend (FROM: `verify@heyblip.au`).
+
+Flow:
+
+1. **Challenge request.** Client calls `POST /v1/auth/challenge` with the target email address. `blip-auth` returns a short-lived nonce bound to that address and dispatches a 6-digit OTP to the user via Resend.
+2. **Challenge response.** Client generates the Noise + Ed25519 keypairs locally (if not already present), signs the challenge nonce with the Ed25519 key, and submits the signature plus the OTP received in email via `POST /v1/users/register`.
+3. **Token issuance.** On successful OTP + signature verification, `blip-auth` returns a JWT session token via `POST /v1/auth/token`. Subsequent requests authenticate with the JWT; it is refreshed via `POST /v1/auth/refresh` before expiry.
+
+Rules:
+
+- Email address NEVER displayed in UI beyond account settings, NEVER sent over mesh.
+- On device, only the SHA-256 of the normalized email is persisted (`User.emailHash`) — used for recovery lookup, not for display.
+- Social login (Apple, Google) is optional; email is canonical for account recovery.
 
 ### 3.5 Account recovery
 
-- **Keychain backup via iCloud Keychain:** Keys survive device migration if user has iCloud Keychain enabled
-- **Manual backup:** Settings > Export Recovery Kit — generates encrypted backup of keypair (password-protected, AES-256-GCM)
-- **New device without backup:** New keypair generated, re-verify email, friends see "Username has a new device" — must re-accept to re-establish Noise sessions
+Recovery is driven entirely by email re-verification; there is no SMS fallback and no password reset path.
+
+- **Keychain backup via iCloud Keychain:** Keys survive device migration if the user has iCloud Keychain enabled.
+- **Manual backup:** Settings → Export Recovery Kit generates an encrypted backup of the keypair (password-protected, AES-256-GCM).
+- **New device without backup:** A new keypair is generated; the user completes the email verification flow (§3.4) against their existing email address. Friends see "Username has a new device" and must re-accept to re-establish Noise sessions.
 - **No server-side key storage.** Ever.
 
 ---
@@ -480,8 +492,8 @@ The multi-tier Bloom filter (Section 8.7) has ~0.3% aggregate false positive rat
 0x04  readReceipt         Message read
 0x05  voiceNote           Opus-encoded audio
 0x06  imageMessage        Compressed image
-0x07  friendRequest       Request with username + phone hash (only route for friend ops)
-0x08  friendAccept        Accept with phone hash confirmation (only route for friend ops)
+0x07  friendRequest       Signed-but-unencrypted friend request with username (only route for friend ops — phone-hash verification deferred, see §7.4)
+0x08  friendAccept        Signed-but-unencrypted accept (only route for friend ops — phone-hash verification deferred, see §7.4)
 0x09  typingIndicator     Recipient should show typing dots
 0x0A  messageDelete       Request to delete a sent message by ID
 0x0B  messageEdit         Edited content for a sent message by ID
@@ -542,19 +554,22 @@ Noise XX requires a 3-message handshake, which is expensive for frequently dropp
 - All broadcast/public packets are signed for authenticity
 - All encrypted packets are signed inside the Noise session
 
-### 7.4 Phone hash
+### 7.4 Phone hash (DEFERRED in v1)
+
+> **Status: DEFERRED.** v1 ships without a phone-hash-based verification channel. Identity verification is handled end-to-end via email OTP (§3.4). The design intent below is preserved in the spec because phone-as-secondary-identifier may return in a later phase to give users a second out-of-band signal when adding friends — but it is not implemented, is not broadcast, and MUST NOT be relied on by any v1 code path.
+
+Original design (kept for future reference):
 
 ```
 SHA256(phone_number_e164 + per_user_salt)
 ```
 
-- `per_user_salt`: 32 random bytes generated on first launch, stored in Keychain
-- Salt is exchanged inside the Noise-encrypted friend request payload (never in plaintext)
-- Both sides compute `SHA256(their_phone + friend's_salt)` and compare with the hash received
-- This prevents precomputed rainbow tables — each user's hash is unique even for the same phone number
-- Computed locally on device
-- Phone hash shared ONLY during friend request/accept (inside Noise-encrypted payload)
-- Raw phone number never transmitted
+- `per_user_salt`: 32 random bytes generated on first launch, stored in Keychain.
+- Salt would be exchanged inside the Noise-encrypted friend request payload (never in plaintext).
+- Both sides would compute `SHA256(their_phone + friend's_salt)` and compare with the hash received.
+- This prevents precomputed rainbow tables — each user's hash is unique even for the same phone number.
+- Computed locally on device; raw phone number never transmitted.
+- Phone hash would be shared ONLY during friend request/accept (inside Noise-encrypted payload).
 
 ### 7.5 Key storage
 
@@ -826,7 +841,7 @@ No precise location shared with general peers. Opt-out available in settings.
 ### 10.6 Privacy safeguards
 
 - Users anonymous to medical responders by default
-- Phone number never shared with medical team
+- No personally-identifiable contact details (email address, or phone if later added — see §7.4 DEFERRED) are shared with the medical team
 - Precise GPS auto-deletes from responder devices after 24 hours
 - Medical dashboard accessible only with organizer-issued rotating codes
 - No persistent health data — alert history purged after event + 24 hours
@@ -837,11 +852,9 @@ No precise location shared with general peers. Opt-out available in settings.
 
 ### 11.1 Adding friends
 
-- Search by username -> send friend request
-- Friend request includes phone hash for mutual verification
-- Both sides compute `SHA256(phone + salt)` and compare
-- If hashes match: phone-verified badge shown on profile
-- If no match: friend still added, but no verified badge
+- Search by username → send friend request.
+- The friend request is signed with the sender's Ed25519 key so the recipient can verify authenticity; it is not encrypted with Noise (friend requests bypass the Noise handshake so they can be sent before a session exists).
+- **Phone-hash mutual verification is DEFERRED in v1** (see §7.4). No phone-verified badge is shown, no phone hash is transmitted, and no phone number is collected. The feature may return in a later phase to give users a second out-of-band signal when adding friends.
 
 ### 11.2 Friend finder (GPS)
 
@@ -1046,7 +1059,7 @@ All technical details hidden from user:
 id: UUID
 username: String (unique)
 displayName: String?
-phoneHash: String (SHA256)
+emailHash: String (SHA256 of normalized email — used for recovery lookup, never displayed)
 noisePublicKey: Data (32 bytes)
 signingPublicKey: Data (32 bytes)
 avatarThumbnail: Data? (64x64 JPEG)
@@ -1060,7 +1073,7 @@ createdAt: Date
 id: UUID
 user: User
 status: enum (pending, accepted, blocked)
-phoneVerified: Bool
+phoneVerified: Bool (DEFERRED — always false in v1, see §7.4 / §11.1)
 locationSharingEnabled: Bool
 locationPrecision: enum (precise, fuzzy, off)
 lastSeenLocation: GeoPoint?
@@ -1448,7 +1461,7 @@ Blip/
 |       |-- NotificationService.swift
 |       |-- AudioService.swift
 |       |-- ImageService.swift
-|       +-- PhoneVerificationService.swift
+|       +-- EmailVerificationService.swift
 |
 |-- Packages/
 |   |-- BlipProtocol/
