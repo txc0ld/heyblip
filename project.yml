@@ -68,6 +68,14 @@ targets:
           CODE_SIGN_ENTITLEMENTS: App/Entitlements/Blip.entitlements
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: ""
           SWIFT_OPTIMIZATION_LEVEL: -O
+          # Release uses Manual signing with an explicit App Store Distribution profile.
+          # CI runners have no logged-in Apple ID, so Automatic signing fails. Manual
+          # with a per-target PROVISIONING_PROFILE_SPECIFIER works in both CI (with
+          # the profile imported from a base64 secret) and local archive (provided the
+          # dev has the matching profile installed via Xcode/portal).
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Blip App Store Distribution
     postBuildScripts:
       - name: Embed Git Info
         script: |
@@ -127,6 +135,11 @@ targets:
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: au.heyblip.Blip.notifications
           CODE_SIGN_ENTITLEMENTS: App/Entitlements/BlipNotificationService.entitlements
+          # See note on the main Blip target — Release uses Manual signing with an
+          # explicit profile so CI archives without an Apple ID account.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Blip NSE Distribution
     dependencies: []
 
   BlipTests:
