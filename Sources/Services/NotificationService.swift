@@ -176,7 +176,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
             )
             return granted
         } catch {
-            DebugLogger.shared.log(
+            await DebugLogger.shared.log(
                 "PUSH",
                 "Authorization request failed: \(error.localizedDescription)",
                 isError: true
