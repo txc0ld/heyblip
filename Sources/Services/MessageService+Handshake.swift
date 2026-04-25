@@ -168,16 +168,7 @@ extension MessageService {
 
         // Start handshake
         let (_, msg1) = try sessionManager.initiateHandshake(with: recipientPeerID)
-        var payload = Data([0x01])
-        payload.append(msg1)
-        let packet = MessagePayloadBuilder.buildPacket(
-            type: .noiseHandshake,
-            payload: payload,
-            flags: [.hasRecipient],
-            senderID: identity.peerID,
-            recipientID: recipientPeerID
-        )
-        try await sendPacket(packet)
+        try await sendHandshakeInitMessage(msg1, to: recipientPeerID, identity: identity)
         DebugLogger.emit("NOISE", "→ handshake msg1 to \(peerHex)")
 
         // Initialize pending queue
@@ -216,7 +207,8 @@ extension MessageService {
                 }
                 guard stillPending else { return }
 
-                // Retry: re-initiate handshake msg1 if no session yet.
+                // Retry: resend the original msg1 bytes so any in-flight msg2
+                // from earlier rounds still matches the initiator's DH state.
                 if attempt < retryDelays.count - 1 {
                     DebugLogger.shared.log("NOISE", "Handshake retry \(attempt + 1)/\(retryDelays.count - 1) for \(peerHex)")
                     if let sessionManager = self.noiseSessionManager,
@@ -227,18 +219,8 @@ extension MessageService {
                             continue
                         }
                         do {
-                            sessionManager.destroySession(for: retryPeerID)
-                            let (_, retryMsg1) = try sessionManager.initiateHandshake(with: retryPeerID)
-                            var retryPayload = Data([0x01])
-                            retryPayload.append(retryMsg1)
-                            let retryPacket = MessagePayloadBuilder.buildPacket(
-                                type: .noiseHandshake,
-                                payload: retryPayload,
-                                flags: [.hasRecipient],
-                                senderID: identity.peerID,
-                                recipientID: retryPeerID
-                            )
-                            try await self.sendPacket(retryPacket)
+                            let retryMsg1 = try sessionManager.resendCachedMsg1(for: retryPeerID)
+                            try await self.sendHandshakeInitMessage(retryMsg1, to: retryPeerID, identity: identity)
                             DebugLogger.shared.log("NOISE", "→ handshake msg1 retry to \(peerHex)")
                         } catch {
                             DebugLogger.shared.log("NOISE", "Handshake retry failed: \(error)", isError: true)
@@ -256,6 +238,20 @@ extension MessageService {
         }
 
         return true
+    }
+
+    @MainActor
+    private func sendHandshakeInitMessage(_ msg1: Data, to peerID: PeerID, identity: Identity) async throws {
+        var payload = Data([0x01])
+        payload.append(msg1)
+        let packet = MessagePayloadBuilder.buildPacket(
+            type: .noiseHandshake,
+            payload: payload,
+            flags: [.hasRecipient],
+            senderID: identity.peerID,
+            recipientID: peerID
+        )
+        try await sendPacket(packet)
     }
 
     /// Called when a Noise session is established — flush all queued messages.
@@ -382,14 +378,23 @@ extension MessageService {
             Array(pendingHandshakeMessages.keys)
         }
         guard !pendingPeerBytes.isEmpty else { return }
-        DebugLogger.shared.log("NOISE", "Relay reconnected — re-initiating handshakes for \(pendingPeerBytes.count) pending peer(s)")
+        DebugLogger.shared.log("NOISE", "Relay reconnected — resending cached handshakes for \(pendingPeerBytes.count) pending peer(s)")
         for peerBytes in pendingPeerBytes {
             guard let peerID = PeerID(bytes: peerBytes) else { continue }
-            guard noiseSessionManager?.hasSession(for: peerID) == false else { continue }
+            guard let sessionManager = noiseSessionManager, sessionManager.hasSession(for: peerID) == false else { continue }
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 do {
-                    _ = try await self.initiateHandshakeIfNeeded(with: peerID)
+                    guard sessionManager.hasPendingInitiatorHandshake(for: peerID) else {
+                        let hex = peerBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                        DebugLogger.shared.log("NOISE", "Relay reconnect skipped resend for \(hex) — responder handshake still waiting for msg3")
+                        return
+                    }
+                    guard let identity = self.getIdentity() else { return }
+                    let msg1 = try sessionManager.resendCachedMsg1(for: peerID)
+                    try await self.sendHandshakeInitMessage(msg1, to: peerID, identity: identity)
+                    let hex = peerBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+                    DebugLogger.shared.log("NOISE", "→ handshake msg1 relay-reconnect resend to \(hex)")
                 } catch {
                     let hex = peerBytes.prefix(4).map { String(format: "%02x", $0) }.joined()
                     DebugLogger.shared.log("NOISE", "Relay reconnect handshake retry failed for \(hex): \(error)", isError: true)

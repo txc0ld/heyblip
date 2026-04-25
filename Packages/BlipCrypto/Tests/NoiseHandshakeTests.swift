@@ -416,6 +416,84 @@ struct NoiseHandshakeTests {
         #expect(manager.hasPendingHandshake(for: peerB))
     }
 
+    // MARK: - Retry Regression Coverage
+
+    @Test("Initiator retry resends the original msg1 bytes")
+    func testInitiatorRetryResendsOriginalMsg1() throws {
+        let initiatorKey = Curve25519.KeyAgreement.PrivateKey()
+        let responderKey = Curve25519.KeyAgreement.PrivateKey()
+        let responderPeerID = PeerID(noisePublicKey: responderKey.publicKey)
+
+        let initiatorManager = NoiseSessionManager(localStaticKey: initiatorKey)
+
+        let (_, msg1) = try initiatorManager.initiateHandshake(with: responderPeerID)
+        let retry1 = try initiatorManager.resendCachedMsg1(for: responderPeerID)
+        let retry2 = try initiatorManager.resendCachedMsg1(for: responderPeerID)
+
+        #expect(retry1 == msg1)
+        #expect(retry2 == msg1)
+        #expect(initiatorManager.hasPendingInitiatorHandshake(for: responderPeerID))
+    }
+
+    @Test("Responder dedupes duplicate msg1 into the same msg2")
+    func testResponderDedupeReturnsSameMsg2ForSameMsg1() throws {
+        let initiatorKey = Curve25519.KeyAgreement.PrivateKey()
+        let responderKey = Curve25519.KeyAgreement.PrivateKey()
+        let initiatorPeerID = PeerID(noisePublicKey: initiatorKey.publicKey)
+
+        let initiatorManager = NoiseSessionManager(localStaticKey: initiatorKey)
+        let responderManager = NoiseSessionManager(localStaticKey: responderKey)
+        let responderPeerID = PeerID(noisePublicKey: responderKey.publicKey)
+
+        let (_, msg1) = try initiatorManager.initiateHandshake(with: responderPeerID)
+
+        _ = try responderManager.receiveHandshakeInit(from: initiatorPeerID, message: msg1)
+        let msg2a = try responderManager.respondToHandshake(for: initiatorPeerID)
+
+        _ = try responderManager.receiveHandshakeInit(from: initiatorPeerID, message: msg1)
+        let msg2b = try responderManager.respondToHandshake(for: initiatorPeerID)
+
+        #expect(msg2b == msg2a)
+    }
+
+    @Test("Initiator can decrypt msg2 after repeated cached msg1 retries")
+    func testInitiatorProcessesLateMsg2AfterRepeatedRetries() throws {
+        let initiatorKey = Curve25519.KeyAgreement.PrivateKey()
+        let responderKey = Curve25519.KeyAgreement.PrivateKey()
+        let initiatorPeerID = PeerID(noisePublicKey: initiatorKey.publicKey)
+        let responderPeerID = PeerID(noisePublicKey: responderKey.publicKey)
+
+        let initiatorManager = NoiseSessionManager(localStaticKey: initiatorKey)
+        let responderManager = NoiseSessionManager(localStaticKey: responderKey)
+
+        let (_, initialMsg1) = try initiatorManager.initiateHandshake(with: responderPeerID)
+
+        _ = try responderManager.receiveHandshakeInit(from: initiatorPeerID, message: initialMsg1)
+        let delayedMsg2 = try responderManager.respondToHandshake(for: initiatorPeerID)
+
+        for _ in 0..<3 {
+            let retryMsg1 = try initiatorManager.resendCachedMsg1(for: responderPeerID)
+            #expect(retryMsg1 == initialMsg1)
+
+            _ = try responderManager.receiveHandshakeInit(from: initiatorPeerID, message: retryMsg1)
+            let retriedMsg2 = try responderManager.respondToHandshake(for: initiatorPeerID)
+            #expect(retriedMsg2 == delayedMsg2)
+        }
+
+        let (_, intermediateSession) = try initiatorManager.processHandshakeMessage(from: responderPeerID, message: delayedMsg2)
+        #expect(intermediateSession == nil)
+
+        let (msg3, initiatorSession) = try initiatorManager.completeHandshake(with: responderPeerID)
+        let (_, responderSession) = try responderManager.processHandshakeMessage(from: initiatorPeerID, message: msg3)
+
+        #expect(responderSession != nil)
+
+        let plaintext = Data("late retry msg2".utf8)
+        let ciphertext = try initiatorSession.encrypt(plaintext: plaintext)
+        let decrypted = try responderSession?.decrypt(ciphertext: ciphertext)
+        #expect(decrypted == plaintext)
+    }
+
     // MARK: - Helpers
 
     /// Perform a full handshake and return both results.

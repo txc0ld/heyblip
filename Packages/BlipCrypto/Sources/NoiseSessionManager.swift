@@ -147,14 +147,34 @@ public final class PendingHandshake: @unchecked Sendable {
     public let peerID: PeerID
     public let handshake: NoiseHandshake
     public let startedAt: Date
+    public let cachedMsg1: Data
+    let msg1Hash: Data
+    public private(set) var cachedMsg2: Data?
 
-    /// Timeout for handshakes (30 seconds).
-    public static let timeout: TimeInterval = 30
+    /// Keep inner handshake state alive longer than MessageService's ~4 minute
+    /// retry window so `pruneExpiredSessions()` cannot discard cached msg1/msg2
+    /// between retries; the outer service still owns the real timeout.
+    public static let timeout: TimeInterval = 5 * 60
 
-    public init(peerID: PeerID, handshake: NoiseHandshake, now: Date = Date()) {
+    public init(
+        peerID: PeerID,
+        handshake: NoiseHandshake,
+        cachedMsg1: Data,
+        now: Date = Date()
+    ) {
         self.peerID = peerID
         self.handshake = handshake
         self.startedAt = now
+        self.cachedMsg1 = cachedMsg1
+        self.msg1Hash = Self.hash(message: cachedMsg1)
+    }
+
+    func cacheMsg2(_ message: Data) {
+        cachedMsg2 = message
+    }
+
+    static func hash(message: Data) -> Data {
+        Data(SHA256.hash(data: message))
     }
 
     public func isTimedOut(now: Date = Date()) -> Bool {
@@ -289,10 +309,25 @@ public final class NoiseSessionManager: @unchecked Sendable {
         )
 
         let message = try handshake.writeMessage(payload: payload)
-        let pending = PendingHandshake(peerID: peerID, handshake: handshake)
+        let pending = PendingHandshake(peerID: peerID, handshake: handshake, cachedMsg1: message)
         pendingHandshakes[peerID] = pending
 
         return (pending, message)
+    }
+
+    /// Resend the original initiator msg1 without mutating the handshake state.
+    public func resendCachedMsg1(for peerID: PeerID) throws -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let pending = pendingHandshakes[peerID] else {
+            throw NoiseSessionError.sessionNotFound(peerID)
+        }
+        guard pending.handshake.role == .initiator else {
+            throw NoiseSessionError.handshakeInProgress(peerID)
+        }
+
+        return pending.cachedMsg1
     }
 
     /// Begin a new XX handshake as the responder after receiving message 1.
@@ -320,6 +355,14 @@ public final class NoiseSessionManager: @unchecked Sendable {
             // Our PeerID < remote → we yield initiator role
             // Explicitly remove the old initiator handshake before creating responder
             pendingHandshakes.removeValue(forKey: peerID)
+        } else if let existing = pendingHandshakes[peerID], existing.handshake.role == .responder {
+            let incomingMsg1Hash = PendingHandshake.hash(message: message)
+            if existing.msg1Hash == incomingMsg1Hash {
+                // Duplicate msg1: keep the original responder state so any msg2
+                // already in flight remains valid. `respondToHandshake(for:)`
+                // will reuse the cached msg2 if it has already been computed.
+                return (existing, Data())
+            }
         }
 
         let handshake = NoiseHandshake(
@@ -329,7 +372,7 @@ public final class NoiseSessionManager: @unchecked Sendable {
 
         // Read message 1
         let payload = try handshake.readMessage(message)
-        let pending = PendingHandshake(peerID: peerID, handshake: handshake)
+        let pending = PendingHandshake(peerID: peerID, handshake: handshake, cachedMsg1: message)
         pendingHandshakes[peerID] = pending
 
         _ = payload  // Message 1 payload (usually empty)
@@ -345,7 +388,15 @@ public final class NoiseSessionManager: @unchecked Sendable {
             throw NoiseSessionError.sessionNotFound(peerID)
         }
 
-        return try pending.handshake.writeMessage(payload: payload)
+        if pending.handshake.role == .responder, let cachedMsg2 = pending.cachedMsg2 {
+            return cachedMsg2
+        }
+
+        let message = try pending.handshake.writeMessage(payload: payload)
+        if pending.handshake.role == .responder {
+            pending.cacheMsg2(message)
+        }
+        return message
     }
 
     /// Process an incoming handshake message (message 2 or 3).

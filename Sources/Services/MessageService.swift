@@ -2016,8 +2016,12 @@ extension MessageService: TransportDelegate {
 
     func transport(_ transport: any Transport, didConnect peerID: PeerID) {
         let shortID = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let logCategory = transport is WebSocketTransport ? "RELAY-WS" : "PEER"
+        let connectMessage = transport is WebSocketTransport
+            ? "CONNECTED: relay websocket (\(shortID))"
+            : "CONNECTED: \(shortID)"
         Task { @MainActor in
-            DebugLogger.shared.log("PEER", "CONNECTED: \(shortID)")
+            DebugLogger.shared.log(logCategory, connectMessage)
 
             // Skip presence broadcast if identity isn't ready yet — relay connects
             // can race the registration/auth flow that sets localIdentity.
@@ -2045,12 +2049,16 @@ extension MessageService: TransportDelegate {
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
         let peerData = peerID.bytes
         let shortID = peerData.prefix(4).map { String(format: "%02x", $0) }.joined()
+        let logCategory = transport is WebSocketTransport ? "RELAY-WS" : "PEER"
+        let disconnectMessage = transport is WebSocketTransport
+            ? "DISCONNECTED: relay websocket (\(shortID))"
+            : "DISCONNECTED: \(shortID) (peer marked disconnected)"
 
         // Mark peer as disconnected in PeerStore so UI updates immediately
         peerStore.markDisconnected(peerID: peerData)
 
         Task { @MainActor in
-            DebugLogger.shared.log("PEER", "DISCONNECTED: \(shortID) (peer marked disconnected)")
+            DebugLogger.shared.log(logCategory, disconnectMessage)
         }
     }
 
