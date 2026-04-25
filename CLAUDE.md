@@ -249,40 +249,25 @@ Do not read or modify:
 - `*.xcuserdata`
 - `.DS_Store`
 
-## Issue Tracker (Notion)
+## Issue Tracker (Jira)
 
-Notion is the issue tracker as of 2026-04-24 (replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix continues as **HEY** (e.g., HEY-1186) — the Bugasura import preserved IDs and new tickets continue the sequence.
+Jira is the issue tracker as of 2026-04-25 (replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix is now **BDEV** (e.g., BDEV-179) — historical HEY-* tickets remain readable in the Bugasura archive, but no new tickets are filed there.
 
-**Notion workspace:** `HeyBlip` — see https://www.notion.so/HeyBlip-34c3e435f07a80acbe11e76655af9ebf for the hub.
+**Jira project:** `BDEV` at https://heyblip.atlassian.net/jira/software/c/projects/BDEV/summary
 
-**Tasks DB:** `34c3e435-f07a-8175-bbdd-e0c455d106f7`
+**Companion Confluence wiki** (internal docs / runbooks): https://heyblip.atlassian.net/wiki/spaces/BLIP/overview (space key: `BLIP`).
 
-**Schema:**
-- `Name` — title
-- `HEY ID` — rich text (e.g. `HEY-1245`); HEY-N continues from the Bugasura import
-- `Status` — select: `New`, `In Progress`, `Fixed`, `Not Fixed`, `Released`, `Cancelled`, `Closed`
-- `Severity` — select: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`
-- `Type` — select: `BUG`, `FEATURE`, `IMPROVEMENT`, `POLISH`, `SUGGESTION`, `TASK`, `TECH-DEBT`
-- `Sprint` — select: `Linear Import`, `Audit Gaps — Apr 2026`
-- `Assigned to` — select of agent handles (`claude-1`, `claude-2`, etc.); maintainer-owned
-- `Owner` — text; the agent's claim
-- `PR URL` — url
-- `Bugasura URL` — url (historical reference for tickets imported from Bugasura)
-- `Approved to merge` — checkbox; maintainer-owned
-- `Created`, `Closed` — date
+**API details:**
+- Base URL: `https://heyblip.atlassian.net/rest/api/3/`
+- Auth: HTTP Basic with Atlassian email + API token (token issued at https://id.atlassian.com/manage-profile/security/api-tokens). Credentials TBD — request from John before scripted use.
+- Encoding: `application/json` (standard Atlassian Cloud).
+- Status values: standard Jira workflow — confirm in the BDEV board's column config before automation; don't hardcode.
 
-**Filing a ticket** (use the Notion MCP `create-pages` tool, not curl):
-```
-mcp__notion-create-pages with parent={"data_source_id": "<tasks-data-source-id>"}
-properties: { Name, "HEY ID", Status, Severity, Type, Sprint }
-```
-The next available HEY-N is whatever sits one above the current max (query the DB sorted by HEY ID descending).
+**Historical archive (read-only):** Bugasura at https://my.bugasura.io/HeyBlip — for HEY-* tickets filed before the move to Jira.
 
-**Bugasura is read-only archive** at https://my.bugasura.io/HeyBlip — useful for historical lookup of imported tickets, but no new edits should land there.
-
-**Workflow:** Claude Code prompts are stored in the Notion task body. To pick up a task:
-1. Fetch the Notion task (via the Notion MCP `notion-fetch` tool — not WebFetch)
-2. Copy the prompt from the task body into Claude Code
+**Workflow:** Claude Code prompts are stored in Jira ticket descriptions. To pick up a task:
+1. Fetch the ticket from Jira (web UI or REST API)
+2. Copy the prompt from the ticket description into Claude Code
 3. Slack (#tay-tasks, #jmac-tasks) is for **notifications and status updates only** — not for prompts
 
 ## Git
@@ -291,7 +276,7 @@ The next available HEY-N is whatever sits one above the current max (query the D
 - Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - One logical change per commit
 - Never commit with failing tests
-- **Branch naming:** `type/HEY-XXX-short-description` (matches the Notion HEY-N ticket ID)
+- **Branch naming:** `type/BDEV-XXX-short-description` (matches Jira ticket)
 - **Before merging:** Always rebase onto latest `main` and re-run build + tests
 
 ### PR and Ticket Handoff — STOP HERE
@@ -301,9 +286,9 @@ The next available HEY-N is whatever sits one above the current max (query the D
 2. PR opened on GitHub
 3. Message posted in `#blip-dev` that the PR is up
 
-John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Notion task updates, merge routing), but the merge click is John's.
+John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Jira updates, merge routing), but the merge click is John's.
 
-**NEVER update Notion task `Status`, `Approved to merge`, or `Closed` date.** Cowork manages all ticket transitions (New → In Progress → Fixed → Closed) end-to-end. Do not touch those fields at any point during your work — your only allowed write is `Owner` → your handle when claiming.
+**NEVER update Jira ticket status.** Cowork manages all BDEV workflow transitions end-to-end. Do not touch ticket status at any point during your work.
 
 ## Execution Model
 
