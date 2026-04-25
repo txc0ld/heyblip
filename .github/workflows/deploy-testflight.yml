@@ -1,7 +1,8 @@
 # Required GitHub Secrets:
 # - DISTRIBUTION_CERTIFICATE_P12: Base64-encoded .p12 distribution certificate
 # - DISTRIBUTION_CERTIFICATE_PASSWORD: Password for the .p12 file
-# - PROVISIONING_PROFILE: Base64-encoded .mobileprovision file
+# - PROVISIONING_PROFILE: Base64-encoded .mobileprovision for the main app (au.heyblip.Blip)
+# - PROVISIONING_PROFILE_NSE: Base64-encoded .mobileprovision for the Notification Service Extension (au.heyblip.Blip.notifications)
 # - ASC_KEY_ID: App Store Connect API Key ID
 # - ASC_ISSUER_ID: App Store Connect Issuer ID
 # - ASC_PRIVATE_KEY: App Store Connect API private key (.p8 content)
@@ -43,8 +44,10 @@ jobs:
           echo "EXPORT_PATH=$RUNNER_TEMP/export" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db" >> "$GITHUB_ENV"
           echo "CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12" >> "$GITHUB_ENV"
-          echo "PROFILE_PATH=$RUNNER_TEMP/build_pp.mobileprovision" >> "$GITHUB_ENV"
-          echo "PROFILE_PLIST_PATH=$RUNNER_TEMP/build_pp.plist" >> "$GITHUB_ENV"
+          echo "PROFILE_MAIN_PATH=$RUNNER_TEMP/build_pp_main.mobileprovision" >> "$GITHUB_ENV"
+          echo "PROFILE_NSE_PATH=$RUNNER_TEMP/build_pp_nse.mobileprovision" >> "$GITHUB_ENV"
+          echo "PROFILE_MAIN_PLIST_PATH=$RUNNER_TEMP/build_pp_main.plist" >> "$GITHUB_ENV"
+          echo "PROFILE_NSE_PLIST_PATH=$RUNNER_TEMP/build_pp_nse.plist" >> "$GITHUB_ENV"
 
       - name: Select Xcode & install iOS platform
         run: |
@@ -64,6 +67,7 @@ jobs:
           DISTRIBUTION_CERTIFICATE_P12: ${{ secrets.DISTRIBUTION_CERTIFICATE_P12 }}
           DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
           PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          PROVISIONING_PROFILE_NSE: ${{ secrets.PROVISIONING_PROFILE_NSE }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
@@ -75,6 +79,7 @@ jobs:
             DISTRIBUTION_CERTIFICATE_P12 \
             DISTRIBUTION_CERTIFICATE_PASSWORD \
             PROVISIONING_PROFILE \
+            PROVISIONING_PROFILE_NSE \
             ASC_KEY_ID \
             ASC_ISSUER_ID \
             ASC_PRIVATE_KEY
@@ -139,19 +144,32 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-      - name: Import provisioning profile
+      - name: Import provisioning profiles
         env:
           PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          PROVISIONING_PROFILE_NSE: ${{ secrets.PROVISIONING_PROFILE_NSE }}
         run: |
           set -euo pipefail
-          echo -n "$PROVISIONING_PROFILE" | base64 --decode -o "$PROFILE_PATH"
-          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST_PATH"
-
-          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST_PATH")
-          profile_name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST_PATH")
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
-          echo "PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+
+          install_profile() {
+            local b64="$1"
+            local profile_path="$2"
+            local plist_path="$3"
+            local var_name="$4"
+
+            echo -n "$b64" | base64 --decode -o "$profile_path"
+            security cms -D -i "$profile_path" > "$plist_path"
+            local uuid
+            uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$plist_path")
+            local name
+            name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$plist_path")
+            cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            printf '%s=%s\n' "$var_name" "$name" >> "$GITHUB_ENV"
+          }
+
+          install_profile "$PROVISIONING_PROFILE"     "$PROFILE_MAIN_PATH" "$PROFILE_MAIN_PLIST_PATH" "PROVISIONING_PROFILE_NAME"
+          install_profile "$PROVISIONING_PROFILE_NSE" "$PROFILE_NSE_PATH"  "$PROFILE_NSE_PLIST_PATH"  "PROVISIONING_PROFILE_NSE_NAME"
 
       - name: Configure App Store Connect API key
         env:
@@ -166,6 +184,12 @@ jobs:
           chmod 600 "$key_path"
 
       - name: Archive
+        # Manual signing with auto-resolution: with both profiles pre-installed in
+        # ~/Library/MobileDevice/Provisioning Profiles/, xcodebuild matches each
+        # target's bundle ID (au.heyblip.Blip → main profile, au.heyblip.Blip.notifications
+        # → NSE profile) without us specifying PROVISIONING_PROFILE_SPECIFIER globally
+        # (which would force every target to the same profile and break the NSE).
+        # `-allowProvisioningUpdates` is the safety net via ASC API.
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -176,7 +200,6 @@ jobs:
             -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$APP_BUILD" \
             OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
@@ -201,5 +224,7 @@ jobs:
         if: always()
         run: |
           security delete-keychain "$KEYCHAIN_PATH" || true
-          rm -f "$CERTIFICATE_PATH" "$PROFILE_PATH" "$PROFILE_PLIST_PATH" || true
+          rm -f "$CERTIFICATE_PATH" \
+                "$PROFILE_MAIN_PATH" "$PROFILE_MAIN_PLIST_PATH" \
+                "$PROFILE_NSE_PATH"  "$PROFILE_NSE_PLIST_PATH" || true
           rm -rf "$HOME/.appstoreconnect" || true

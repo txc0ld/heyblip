@@ -16,6 +16,8 @@
     <dict>
         <key>au.heyblip.Blip</key>
         <string>Blip App Store Distribution</string>
+        <key>au.heyblip.Blip.notifications</key>
+        <string>Blip NSE Distribution</string>
     </dict>
     <key>stripSwiftSymbols</key>
     <true/>
