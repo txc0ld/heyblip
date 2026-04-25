@@ -65,13 +65,29 @@ jobs:
           done
 
       - name: Build app
+        # SWIFT_STRICT_CONCURRENCY is set to `complete` in project.yml; do NOT
+        # override to `minimal` here — CI must match local builds so concurrency
+        # bugs that fail your local build also fail CI (BDEV-398).
         run: >
           xcodebuild -scheme Blip
           -destination 'generic/platform=iOS'
           -skipPackagePluginValidation
           CODE_SIGN_IDENTITY=""
           CODE_SIGNING_ALLOWED=NO
-          OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal'
+          -quiet
+
+      - name: Test app (Blip scheme — BlipTests target)
+        # Runs the app-level test suite (Tests/ServiceTests, Tests/ViewModelTests,
+        # Tests/SwiftDataSchemaValidationTests, Tests/CryptoTests, Tests/MeshTests,
+        # Tests/ProtocolTests). These depend on the Blip app target and cannot run
+        # via `swift test`; previously they ran only locally via Xcode. (BDEV-399)
+        run: >
+          xcodebuild test
+          -scheme Blip
+          -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+          -skipPackagePluginValidation
+          CODE_SIGN_IDENTITY=""
+          CODE_SIGNING_ALLOWED=NO
           -quiet
 
   server-tests:

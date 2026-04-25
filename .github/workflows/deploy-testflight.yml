@@ -234,6 +234,9 @@ jobs:
         # export time via ExportOptions.plist for explicit per-bundle profile mapping.
         run: |
           set -euo pipefail
+          # SWIFT_STRICT_CONCURRENCY is `complete` in project.yml; do NOT override
+          # to `minimal` here — archive must match local + CI builds so concurrency
+          # bugs cannot ship to TestFlight via a more permissive flag (BDEV-398).
           xcodebuild archive \
             -scheme "$XCODE_SCHEME" \
             -archivePath "$ARCHIVE_PATH" \
@@ -242,7 +245,6 @@ jobs:
             -allowProvisioningUpdates \
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$APP_BUILD" \
-            OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
             -quiet
 
       - name: Export and upload to TestFlight
