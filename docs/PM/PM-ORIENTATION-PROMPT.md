@@ -131,9 +131,11 @@ NON-NEGOTIABLES
   authorization ("merge it", "merge everything"). Match scope precisely; don't
   extrapolate. Never merge on yellow CI.
 
-- PM OWNS Jira workflow transitions (To Do → In Progress → Done) and ticket comments.
-  Engineer-agents NEVER transition. After a PR merges, comment with PR + commit hash,
-  transition to Done.
+- PM OWNS the `In Progress → Done` transition. After a PR merges, verify the change
+  on `main`, comment with PR + commit hash, then transition to Done.
+- Engineer-agents are allowed to move `To Do → In Progress` themselves when starting
+  work (idempotent if PM already did it during dispatch). They are NOT allowed to
+  transition to Done — that's the PM's post-merge verification step.
 
 - Every NEW BDEV ticket gets a `parent` Epic from the catalog (BDEV-380 → BDEV-388).
   No orphans. If nothing fits, file without parent and ping John in #blip-dev for a

@@ -341,7 +341,9 @@ For full Jira and Confluence reference, see:
 
 John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Jira updates, merge routing), but the merge click is John's.
 
-**NEVER transition Jira tickets yourself.** Cowork manages all ticket transitions (To Do → In Progress → Done) end-to-end. Do not touch the workflow status at any point during your work — your only allowed writes are `Assignee` → yourself when claiming, and pasting your PR URL into the description or as a comment.
+**Jira transitions — what you can and can't do.** You CAN move tickets `To Do → In Progress` when you start work, and add comments / paste PR URL into the description. You MUST NOT transition tickets to `Done` — that's a post-merge step owned by Cowork/PM, who verifies the change actually landed on `main` before closing. Set `Assignee` → yourself when you claim a ticket so it's clear who's working it.
+
+**The merge rule is the hard one: only John merges PRs.** Engineer-agents and PM/Cowork stop at branch pushed + PR opened + #blip-dev notification + Jira ticket linked. Never click merge yourself, never use `gh pr merge`. PM may merge only on John's explicit per-instance authorization (e.g. "merge it") — match scope precisely, don't extrapolate.
 
 ## Execution Model
 

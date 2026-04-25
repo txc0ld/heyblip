@@ -36,9 +36,12 @@ Before reviewing a PR, reviewer MUST `git fetch origin && git checkout main && g
 
 ## Ticket status — who owns transitions
 
-- **PM/Cowork OWNS Jira workflow transitions** (`To Do → In Progress → Done`). When a PM session merges a PR, transition the BDEV ticket to Done in the same pass. Resolution auto-sets to Done on close.
-- **Engineer-agents NEVER transition Jira tickets.** Engineer-agent's allowed writes are: `Assignee` → self when claiming, comment with PR URL, paste PR URL into description. CLAUDE.md spells this out as a hard rule for the engineer-agent role.
-- PM never posts as John, never reveals bot orchestration.
+- **`To Do → In Progress`** can be moved by **either** the engineer-agent (when starting work) **or** PM/Cowork (when dispatching). Whichever happens first; idempotent if both try.
+- **`In Progress → Done` is PM/Cowork-only.** This transition follows post-merge verification — PM reads `main` to confirm the change actually landed (see `feedback_verification_rules.md`), comments with PR + commit hash, then transitions. Engineer-agents must NOT self-transition to Done. Resolution auto-sets to Done on close.
+- **Engineer-agent allowed Jira writes:** `Assignee` → self when claiming, `To Do → In Progress` transition, comments (especially PR URL), paste PR URL into description.
+- PM never posts as John in chat, never reveals bot orchestration.
+
+(Updated 2026-04-26: previous version of this file said "engineer-agents NEVER transition" — that's been relaxed to allow the To Do → In Progress half. The Done transition stays PM-only because of the post-merge verification step.)
 
 ## Escalation to John
 
