@@ -15,6 +15,8 @@ originSessionId: 6e15e31b-7115-4971-bf13-07d171f32b25
 
 **Standing rule from 2026-04-21 onward: capture all bugs big or small.** When reviewing PRs, working in code, or chasing Sentry noise, every finding gets a Jira BDEV ticket filed in the same pass — no mental notes, no "I'll remember this later". See `feedback_file_review_findings.md`.
 
+**Standing rule from 2026-04-26 onward: every new BDEV ticket gets a `parent` Epic** from the 9-Epic catalog (`reference_epic_catalog.md`). No orphans. If a ticket genuinely doesn't fit any Epic, ping John before filing rather than parking it under a misfit Epic by default.
+
 ## Merge pipeline
 
 - **John merges all PRs** via GitHub PAT. PM and engineer-agents stop at branch pushed + PR opened + `#blip-dev` notification — John clicks merge.

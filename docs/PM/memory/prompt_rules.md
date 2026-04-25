@@ -5,7 +5,7 @@ type: feedback
 originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 ---
 ## Task Dispatch Pipeline
-1. Cowork creates Jira ticket (project BDEV) with full description
+1. Cowork creates Jira ticket (project BDEV) with full description **AND a `parent` Epic from the catalog** (see `reference_epic_catalog.md` — 9 Epics covering all current scope; no orphan tickets)
 2. Cowork posts the FULL prompt directly in the person's task channel (#tay-tasks or #jmac-tasks) — NOT a link to Jira, NOT "check the description"
 3. Person copies the prompt and pastes into Claude Code (Tay) or Codex (John, sometimes)
 4. Claude Code / Codex does the work, pushes branch, opens PR, posts in #blip-dev

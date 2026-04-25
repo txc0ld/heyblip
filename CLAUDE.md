@@ -274,7 +274,7 @@ The same metadata is also embedded as plain text in each issue's description, so
 JQL: "HEY ID" = "HEY-1334"
 ```
 
-**Filing a ticket via REST API:**
+**Filing a ticket via REST API — every new ticket MUST include a `parent` Epic:**
 ```bash
 EMAIL="macca.mck@gmail.com"
 TOKEN=$(security find-generic-password -a "$EMAIL" -s atlassian-api-token-heyblip -w)
@@ -282,14 +282,31 @@ curl -X POST -u "$EMAIL:$TOKEN" -H "Content-Type: application/json" \
   "https://heyblip.atlassian.net/rest/api/3/issue" -d '{
     "fields": {
       "project": {"key":"BDEV"},
-      "summary": "...",
+      "summary": "[TAG] short description",
       "issuetype": {"name":"Bug"},
       "priority": {"name":"High"},
+      "parent": {"key":"BDEV-385"},
       "labels": ["audit-gaps-apr-2026"]
     }
   }'
 ```
 Atlassian rate limits are aggressive on API tokens — sleep ≥1s between calls; throttling appears as 401/404 (not 429).
+
+**BDEV Epic catalog (set up 2026-04-26) — every new ticket gets a parent Epic from this list:**
+
+| Epic | Key | Tag pattern |
+|---|---|---|
+| Push Notifications | BDEV-380 | `[PUSH]`, `[APNS]`, `[NSE]` (and push-specific `[APP]`) |
+| App Store Launch | BDEV-381 | `[LAUNCH]` |
+| Auth & Identity | BDEV-382 | `[AUTH]` |
+| Chat Experience | BDEV-383 | `[CHAT]`, `[DM]`, `[ATTACHMENT]`, `[REACTION]` (and chat-feature `[APP]`) |
+| Engineering Hygiene | BDEV-384 | `[REFACTOR]`, `[BUILD]`, `[OPS]`, `[POLISH]`, `[DOCS]`, `[PROCESS]` |
+| Handshake & Transport | BDEV-385 | `[NOISE]`, `[BLE]`, `[CRYPTO]`, `[RELAY]` |
+| Observability | BDEV-386 | `[OBS]`, `[OBSERVABILITY]`, `[SENTRY]`, `[LOG]` |
+| Test Infrastructure | BDEV-387 | `[TEST]`, `[CI]` |
+| Web Site | BDEV-388 | `[WEB]` |
+
+If a ticket genuinely doesn't fit any of the 9, file without a parent and ping John in `#blip-dev` for a 10th Epic — don't default to "Engineering Hygiene" as a misc bucket. Full catalog + decision tree in `docs/PM/memory/reference_epic_catalog.md`.
 
 **Notion HeyBlip workspace** — still exists with the original Tasks DB but is now a read-only archive. New work doesn't go there.
 

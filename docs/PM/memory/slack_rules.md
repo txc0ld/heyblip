@@ -25,6 +25,7 @@ originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 
 ## Code Block Formatting (CRITICAL — fixed 2026-04-06, refined 2026-04-24)
 - **Default to the `text` field with mrkdwn.** It auto-resolves `<@USER_ID>`, `<#CHANNEL_ID>`, `*bold*`, `_italic_`, and triple-backtick code blocks. This is what you want for normal posts — chat updates, dispatches, status notes. **Tags only render as actual @mentions in the `text` field; inside `rich_text_section` text elements they appear as literal `<@U...>` strings and don't ping anyone.**
+- **Inside a `rich_text` block, render mentions/channels via element types, not text:** use `{"type": "user", "user_id": "U..."}` for @mentions and `{"type": "channel", "channel_id": "C..."}` for channel links. The `<@U...>` shortcut is `text`-field-only — inside `rich_text_section`/`rich_text_preformatted` it shows as raw angle brackets. (Bit me on the John-startup-prompt update 2026-04-26 — `<@U0AP33M11QF|jmac>` rendered literally instead of as an @mention.)
 - **`rich_text` blocks are for long prompts and code only.** Specifically: any code block over ~2500 chars, where the `text` field would silently drop the triple-backtick formatting and post the whole thing as a wall of unformatted text.
 - Slack's `text` field auto-converts triple backticks to code blocks, BUT silently drops the formatting when the code block exceeds ~3000 characters. That's the threshold where you switch to `rich_text` blocks with explicit `rich_text_preformatted` elements.
 - **Format for long code blocks via bot token:**
