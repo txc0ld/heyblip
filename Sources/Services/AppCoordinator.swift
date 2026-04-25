@@ -1,4 +1,5 @@
 import Foundation
+import CoreBluetooth
 import CoreLocation
 import SwiftData
 import BlipProtocol
@@ -118,9 +119,15 @@ final class AppCoordinator {
         self.keyManager = keyManager
 
         // Configure Sentry crash reporting early, before any other setup
-        if let dsn = Bundle.main.infoDictionary?["SENTRY_DSN"] as? String, !dsn.isEmpty, !dsn.hasPrefix("$(") {
+        let sentryDSN = Bundle.main.infoDictionary?["SENTRY_DSN"] as? String
+        let sentryConfigured: Bool
+        if let dsn = sentryDSN, !dsn.isEmpty, !dsn.hasPrefix("$(") {
             CrashReportingService.shared.configure(dsn: dsn)
+            sentryConfigured = true
+        } else {
+            sentryConfigured = false
         }
+        DebugLogger.shared.log("SELF_CHECK", "Sentry configured=\(sentryConfigured) sessionID=\(DebugLogger.shared.sessionID.uuidString)")
 
         loadIdentityAndConfigure()
     }
@@ -131,6 +138,7 @@ final class AppCoordinator {
         do {
             guard let loadedIdentity = try keyManager.loadIdentity() else {
                 logger.info("No identity found — onboarding required")
+                DebugLogger.shared.log("SELF_CHECK", "Identity load: none — needsOnboarding=true")
                 needsOnboarding = true
                 return
             }
@@ -139,8 +147,14 @@ final class AppCoordinator {
             localPeerID = loadedIdentity.peerID
 
             logger.info("Identity loaded, PeerID: \(loadedIdentity.peerID)")
+            let peerHex = loadedIdentity.peerID.bytes.map { String(format: "%02x", $0) }.joined()
+            DebugLogger.shared.log(
+                "SELF_CHECK",
+                "Identity load: ok peerID=\(DebugLogger.redactHex(peerHex)) noiseKey=present signingKey=\(loadedIdentity.signingPublicKey.isEmpty ? "missing" : "present")"
+            )
         } catch {
             logger.error("Failed to load identity: \(error.localizedDescription)")
+            DebugLogger.shared.log("SELF_CHECK", "Identity load FAILED: \(error.localizedDescription)", isError: true)
             initError = "Failed to load identity: \(error.localizedDescription)"
             needsOnboarding = true
         }
@@ -150,8 +164,12 @@ final class AppCoordinator {
     func configure(modelContainer: ModelContainer) {
         guard let identity = identity else {
             logger.warning("configure() called without identity")
+            DebugLogger.shared.log("SELF_CHECK", "configure() skipped — no identity", isError: true)
             return
         }
+
+        let entityCount = modelContainer.schema.entities.count
+        DebugLogger.shared.log("SELF_CHECK", "ModelContainer received entities=\(entityCount)")
 
         teardownRuntimeState()
         ensureUserPreferencesExists(in: modelContainer)
@@ -177,6 +195,18 @@ final class AppCoordinator {
         )
         self.runtime = runtime
         self.lifecycleController = AppLifecycleController(runtime: runtime)
+        DebugLogger.shared.log("SELF_CHECK", "Runtime initialized — BLE/WS/MessageService wired")
+
+        let bleAuth: String
+        switch CBManager.authorization {
+        case .allowedAlways: bleAuth = "allowedAlways"
+        case .restricted:    bleAuth = "restricted"
+        case .denied:        bleAuth = "denied"
+        case .notDetermined: bleAuth = "notDetermined"
+        @unknown default:    bleAuth = "unknown"
+        }
+        let isError = (CBManager.authorization == .denied || CBManager.authorization == .restricted)
+        DebugLogger.shared.log("SELF_CHECK", "BLE authorization=\(bleAuth)", isError: isError)
 
         // Notify app layer when a transport-level send fails so MessageRetryService
         // can pick up persisted messages. The message is already enqueued in SwiftData
@@ -209,6 +239,14 @@ final class AppCoordinator {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.establishAuthSession()
+            let hasJWT = self.authTokenManager.currentToken != nil
+            let expiresIn: String
+            if let expiry = self.authTokenManager.tokenExpiresAt {
+                expiresIn = "\(Int(expiry.timeIntervalSinceNow))s"
+            } else {
+                expiresIn = "n/a"
+            }
+            DebugLogger.shared.log("SELF_CHECK", "JWT after establishAuthSession: present=\(hasJWT) expiresIn=\(expiresIn)")
         }
 
         // Re-sync encryption keys to server for existing users (idempotent upsert).
@@ -256,6 +294,7 @@ final class AppCoordinator {
         isReady = true
         onReady?()
         logger.info("AppCoordinator configured — services ready")
+        DebugLogger.shared.log("SELF_CHECK", "AppCoordinator ready — services configured, awaiting transports start()")
 
         // Self-check: verify local user is registered on the server.
         // Catches users who slipped through all registration retries.
