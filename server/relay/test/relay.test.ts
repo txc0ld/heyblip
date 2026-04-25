@@ -151,13 +151,14 @@ function collectBinaryMessages(ws: WebSocket): ArrayBuffer[] {
 type QueueEntry = { data: number[]; storedAt: number };
 
 class FakeStorage {
-  private entries = new Map<string, QueueEntry>();
+  private entries = new Map<string, unknown>();
+  private alarm: number | null = null;
 
-  seed(entries: Array<[string, QueueEntry]>): void {
+  seed(entries: Array<[string, unknown]>): void {
     this.entries = new Map(entries);
   }
 
-  async list(options?: { prefix?: string; limit?: number }): Promise<Map<string, QueueEntry>> {
+  async list<T = unknown>(options?: { prefix?: string; limit?: number }): Promise<Map<string, T>> {
     const prefix = options?.prefix ?? "";
     const limit = options?.limit;
     const filtered = [...this.entries.entries()]
@@ -165,11 +166,39 @@ class FakeStorage {
       .sort(([left], [right]) => left.localeCompare(right));
 
     const sliced = typeof limit === "number" ? filtered.slice(0, limit) : filtered;
-    return new Map(sliced);
+    return new Map(sliced) as Map<string, T>;
   }
 
   async delete(key: string): Promise<boolean> {
     return this.entries.delete(key);
+  }
+
+  async get<T = unknown>(key: string): Promise<T | undefined> {
+    const value = this.entries.get(key);
+    if (value === undefined) return undefined;
+    // Storage round-trips values as structured clones, so callers can't leak
+    // local mutations back into storage.
+    return structuredClone(value) as T;
+  }
+
+  async put<T = unknown>(key: string, value: T): Promise<void> {
+    this.entries.set(key, structuredClone(value));
+  }
+
+  async getAlarm(): Promise<number | null> {
+    return this.alarm;
+  }
+
+  setAlarm(when: number): void {
+    this.alarm = when;
+  }
+
+  async transaction<T>(closure: (txn: FakeStorage) => Promise<T>): Promise<T> {
+    // In the real DO runtime transactions are fully serialized against the
+    // single-threaded event loop. This fake runs the closure directly against
+    // `this` so mutations are immediately visible — matches the semantics of
+    // the DO transaction for our tests (no rollback on thrown error).
+    return await closure(this);
   }
 
   has(key: string): boolean {
@@ -178,6 +207,10 @@ class FakeStorage {
 
   keys(): string[] {
     return [...this.entries.keys()].sort();
+  }
+
+  allEntries(): Map<string, unknown> {
+    return new Map(this.entries);
   }
 }
 
@@ -1216,5 +1249,522 @@ describe("Packet size validation", () => {
     await new Promise((r) => setTimeout(r, 100));
 
     expect(messagesB.length).toBe(0);
+  });
+});
+
+// --- Push dispatch integration (HEY-1321) ---
+
+/** Build a packet of a specific BlipProtocol MessageType. */
+function buildTypedPacket(opts: {
+  type: number;
+  senderPeerId: Uint8Array;
+  recipientPeerId: Uint8Array;
+  payload?: Uint8Array;
+}): Uint8Array {
+  const payload = opts.payload ?? new Uint8Array([0xAA]);
+  const size =
+    HEADER_SIZE +
+    PEER_ID_LENGTH + // sender
+    PEER_ID_LENGTH + // recipient
+    payload.length;
+  const buf = new Uint8Array(size);
+  const view = new DataView(buf.buffer);
+  buf[0] = 0x01; // version
+  buf[1] = opts.type; // TYPE byte — this is what push-dispatch reads
+  buf[2] = 3; // ttl
+  view.setBigUint64(3, BigInt(Date.now()), false);
+  buf[OFFSET_FLAGS] = FLAG_HAS_RECIPIENT;
+  view.setUint32(12, payload.length, false);
+  buf.set(opts.senderPeerId, OFFSET_SENDER_ID);
+  buf.set(opts.recipientPeerId, OFFSET_RECIPIENT_ID);
+  buf.set(payload, OFFSET_RECIPIENT_ID + PEER_ID_LENGTH);
+  return buf;
+}
+
+describe("Push dispatch in queuePacket / drainQueue", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("queuePacket schedules push after 500ms delay and includes bumped badge count", async () => {
+    const senderHex = "aaaaaaaaaaaaaaaa";
+    const recipientHex = "bbbbbbbbbbbbbbbb";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    const packet = buildTypedPacket({
+      type: 0x11, // noiseEncrypted → "dm"
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, packet);
+
+    // Let the microtask queue drain so enqueuePush completes (bump + schedule).
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Advance past the 500ms schedule window → push fires.
+    await vi.advanceTimersByTimeAsync(600);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(body.recipientPeerIdHex).toBe(recipientHex);
+    expect(body.senderPeerIdHex).toBe(senderHex);
+    expect(body.type).toBe("dm");
+    expect(body.threadId).toBe(senderHex); // zero-knowledge: sender hex = thread key
+    expect(body.badgeCount).toBe(1);
+  });
+
+  it("does not push for noiseHandshake / fragment / meshBroadcast / announce", async () => {
+    const senderHex = "0000aaaa11112222";
+    const recipientHex = "3333444455556666";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    for (const type of [0x10, 0x20, 0x02, 0x01, 0x21, 0x50]) {
+      const packet = buildTypedPacket({
+        type,
+        senderPeerId: hexToPeerID(senderHex),
+        recipientPeerId: hexToPeerID(recipientHex),
+      });
+      await (room as unknown as {
+        queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+      }).queuePacket(recipientHex, packet);
+    }
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("drainQueue within 500ms cancels the scheduled push (drained_fast)", async () => {
+    const senderHex = "cafe000000000001";
+    const recipientHex = "beef000000000002";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const packet = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, packet);
+    await vi.advanceTimersByTimeAsync(10);
+
+    // Recipient "reconnects" immediately — drain the queue.
+    const sendSpy = vi.fn();
+    const ws = { send: sendSpy } as unknown as WebSocket;
+    (room as unknown as { peers: Map<string, WebSocket> }).peers.set(recipientHex, ws);
+    await (room as unknown as {
+      drainQueue(peerHex: string, ws: WebSocket): Promise<void>;
+    }).drainQueue(recipientHex, ws);
+
+    // Advance past the 500ms window — push MUST NOT fire.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+
+    const drainedFastLogs = logSpy.mock.calls.filter(
+      ([arg]) => typeof arg === "string" && arg.includes('"reason":"drained_fast"')
+    );
+    expect(drainedFastLogs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("SOS bypasses cooldown even if a recent DM push was fired to the same peer", async () => {
+    const senderHex = "a1a1a1a1a1a1a1a1";
+    const recipientHex = "b2b2b2b2b2b2b2b2";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    // First: a DM push lands successfully.
+    const dmPacket = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, dmPacket);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Seconds later — an SOS from the same sender. Within the 30s DM cooldown
+    // window, but SOS must bypass.
+    const sosPacket = buildTypedPacket({
+      type: 0x40,
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, sosPacket);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const sosBody = JSON.parse(fetchSpy.mock.calls[1][1]?.body as string);
+    expect(sosBody.type).toBe("sos");
+  });
+
+  it("cooldown is per-(peer, thread) — different sender → different thread → proceeds", async () => {
+    const recipientHex = "c3c3c3c3c3c3c3c3";
+    const sender1 = "1111111111111111";
+    const sender2 = "2222222222222222";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    const p1 = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(sender1),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+    const p2 = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(sender2),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, p1);
+    await vi.advanceTimersByTimeAsync(600);
+
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, p2);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    // Second push for sender1 within 30s — should be suppressed by cooldown.
+    const p1b = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(sender1),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, p1b);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(fetchSpy).toHaveBeenCalledTimes(2); // no new fetch
+  });
+
+  it("badge count increments across multiple pushable packets", async () => {
+    const senderHex = "d4d4d4d4d4d4d4d4";
+    const recipientHex = "e5e5e5e5e5e5e5e5";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    // Queue three DM packets — each bump should increment the ledger total
+    // even if the push itself is suppressed by cooldown.
+    for (let i = 0; i < 3; i++) {
+      const packet = buildTypedPacket({
+        type: 0x11,
+        senderPeerId: hexToPeerID(senderHex),
+        recipientPeerId: hexToPeerID(recipientHex),
+      });
+      await (room as unknown as {
+        queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+      }).queuePacket(recipientHex, packet);
+      // Give enqueuePush's microtasks time to run.
+      await vi.advanceTimersByTimeAsync(10);
+    }
+
+    const row = await storage.get<{ total: number }>(`unread:${recipientHex}`);
+    expect(row?.total).toBe(3);
+  });
+
+  it("auth callout failure does not break packet queuing", async () => {
+    const senderHex = "f6f6f6f6f6f6f6f6";
+    const recipientHex = "f7f7f7f7f7f7f7f7";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("auth worker down"));
+
+    const packet = buildTypedPacket({
+      type: 0x11,
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+
+    await expect(
+      (room as unknown as {
+        queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+      }).queuePacket(recipientHex, packet)
+    ).resolves.toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    // Packet was still queued in storage, even though push failed.
+    expect(storage.keys().some((k) => k.startsWith(`q:${recipientHex}:`))).toBe(true);
+  });
+});
+
+describe("Silent badge sync on reconnect", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("fires silent_badge_sync when peer reconnects after >5 min AND has queued packets", async () => {
+    const peerHex = "7a7a7a7a7a7a7a7a";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    // Seed a queued packet + a non-zero badge so the sync has something to wake.
+    storage.seed([
+      [`q:${peerHex}:0001:a`, { data: [0x01, 0x02], storedAt: Date.now() }],
+      [`unread:${peerHex}`, { total: 5, byThread: { "x": 5 }, updatedAt: Date.now() }],
+    ]);
+
+    // Simulate peer was last seen 6 minutes ago.
+    (room as unknown as {
+      lastDisconnectedAt: Map<string, number>;
+    }).lastDisconnectedAt.set(peerHex, Date.now() - 6 * 60_000);
+
+    (room as unknown as {
+      maybeFireReconnectSilentSync(peerIdHex: string): void;
+    }).maybeFireReconnectSilentSync(peerHex);
+
+    // The work is deferred via a microtask chain — let it settle.
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(body.type).toBe("silent_badge_sync");
+    expect(body.senderPeerIdHex).toBeNull();
+    expect(body.badgeCount).toBe(5);
+  });
+
+  it("does NOT fire silent_badge_sync if peer was offline < 5 min", async () => {
+    const peerHex = "8b8b8b8b8b8b8b8b";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    storage.seed([
+      [`unread:${peerHex}`, { total: 3, byThread: { "x": 3 }, updatedAt: Date.now() }],
+    ]);
+
+    // 2 minutes — below the 5-minute threshold.
+    (room as unknown as {
+      lastDisconnectedAt: Map<string, number>;
+    }).lastDisconnectedAt.set(peerHex, Date.now() - 2 * 60_000);
+
+    (room as unknown as {
+      maybeFireReconnectSilentSync(peerIdHex: string): void;
+    }).maybeFireReconnectSilentSync(peerHex);
+
+    await vi.advanceTimersByTimeAsync(50);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT fire silent_badge_sync if nothing is queued AND badge is zero", async () => {
+    const peerHex = "9c9c9c9c9c9c9c9c";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    // No queued packets, no unread row. First-ever reconnect (offlineFor = Infinity).
+    (room as unknown as {
+      maybeFireReconnectSilentSync(peerIdHex: string): void;
+    }).maybeFireReconnectSilentSync(peerHex);
+
+    await vi.advanceTimersByTimeAsync(50);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("/internal/badge/clear", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("wipes the ledger with all=true and returns 0", async () => {
+    const peerHex = "aabbccddeeff0011";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    // Seed an unread row for the peer and mark the peer as connected so the
+    // "multi-device fanout" branch triggers a silent_badge_sync.
+    storage.seed([
+      [`unread:${peerHex}`, { total: 7, byThread: { "x": 7 }, updatedAt: Date.now() }],
+    ]);
+    const ws = { send: vi.fn() } as unknown as WebSocket;
+    (room as unknown as { peers: Map<string, WebSocket> }).peers.set(peerHex, ws);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    const req = new Request("https://relay.heyblip.au/internal/badge/clear", {
+      method: "POST",
+      headers: {
+        "X-Derived-Peer-ID": peerHex,
+        "X-State-Action": "badge-clear",
+        "X-Internal-Key": "test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ all: true }),
+    });
+    const res = await room.fetch(req);
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as { cleared: boolean; badgeCount: number };
+    expect(body).toEqual({ cleared: true, badgeCount: 0 });
+
+    // Row was wiped.
+    expect(storage.has(`unread:${peerHex}`)).toBe(false);
+
+    // Silent sync to multi-device fanout was dispatched.
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const pushBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(pushBody.type).toBe("silent_badge_sync");
+    expect(pushBody.badgeCount).toBe(0);
+  });
+
+  it("clears by threadId and leaves other threads intact", async () => {
+    const peerHex = "112233445566aabb";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    storage.seed([
+      [`unread:${peerHex}`, {
+        total: 5,
+        byThread: { "thread-a": 2, "thread-b": 3 },
+        updatedAt: Date.now(),
+      }],
+    ]);
+
+    const req = new Request("https://relay.heyblip.au/internal/badge/clear", {
+      method: "POST",
+      headers: {
+        "X-Derived-Peer-ID": peerHex,
+        "X-State-Action": "badge-clear",
+        "X-Internal-Key": "test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ threadId: "thread-a" }),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { cleared: boolean; badgeCount: number };
+    expect(body.badgeCount).toBe(3);
+
+    const row = await storage.get<{ total: number; byThread: Record<string, number> }>(
+      `unread:${peerHex}`
+    );
+    expect(row?.total).toBe(3);
+    expect(row?.byThread).toEqual({ "thread-b": 3 });
+  });
+
+  it("rejects missing X-Internal-Key via the top-level worker route", async () => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(
+      new Request("https://relay.heyblip.au/internal/badge/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ peerIdHex: "deadbeefcafebabe", all: true }),
+      }),
+      env,
+      ctx
+    );
+    await waitOnExecutionContext(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects mismatched X-Internal-Key", async () => {
+    const ctx = createExecutionContext();
+    (env as Record<string, unknown>).INTERNAL_API_KEY = "correct-key";
+    try {
+      const res = await worker.fetch(
+        new Request("https://relay.heyblip.au/internal/badge/clear", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Key": "wrong-key",
+          },
+          body: JSON.stringify({ peerIdHex: "deadbeefcafebabe", all: true }),
+        }),
+        env,
+        ctx
+      );
+      await waitOnExecutionContext(ctx);
+      expect(res.status).toBe(401);
+    } finally {
+      delete (env as Record<string, unknown>).INTERNAL_API_KEY;
+    }
+  });
+
+  it("rejects body missing both threadId and all", async () => {
+    const peerHex = "ccddccddccddccdd";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const req = new Request("https://relay.heyblip.au/internal/badge/clear", {
+      method: "POST",
+      headers: {
+        "X-Derived-Peer-ID": peerHex,
+        "X-State-Action": "badge-clear",
+        "X-Internal-Key": "test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+    const res = await room.fetch(req);
+    expect(res.status).toBe(400);
   });
 });

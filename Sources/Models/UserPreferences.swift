@@ -97,6 +97,27 @@ final class UserPreferences {
     var friendFinderMapStyleRaw: String
     var lastEventID: UUID?
 
+    // MARK: - Push Notification Preferences (HEY-1321)
+    //
+    // Per-type toggles that layer on top of the global `notificationsEnabled`
+    // flag. SOS intentionally has no toggle — it is always delivered.
+    //
+    // `quietHours*` are stored as minute-of-day in UTC (0..<1440) so the
+    // server evaluates them in a single timezone. The device sends its current
+    // `utcOffsetSeconds` alongside the prefs so the server can map the user's
+    // local window back to UTC without needing `TimeZone` parsing server-side.
+    //
+    // Defaults are filled in at init time — no Optional<Bool> — so SwiftData
+    // lightweight migration populates existing rows automatically.
+
+    var notificationsDMsEnabled: Bool = true
+    var notificationsFriendRequestsEnabled: Bool = true
+    var notificationsGroupMentionsEnabled: Bool = true
+    var notificationsVoiceNotesEnabled: Bool = true
+    var quietHoursStartUtc: Int? = nil
+    var quietHoursEndUtc: Int? = nil
+    var utcOffsetSeconds: Int = 0
+
     // MARK: - Computed Properties
 
     var theme: AppTheme {
@@ -133,7 +154,14 @@ final class UserPreferences {
         crowdPulseVisible: Bool = true,
         nearbyVisibilityEnabled: Bool = false,
         friendFinderMapStyle: MapStyle = .standard,
-        lastEventID: UUID? = nil
+        lastEventID: UUID? = nil,
+        notificationsDMsEnabled: Bool = true,
+        notificationsFriendRequestsEnabled: Bool = true,
+        notificationsGroupMentionsEnabled: Bool = true,
+        notificationsVoiceNotesEnabled: Bool = true,
+        quietHoursStartUtc: Int? = nil,
+        quietHoursEndUtc: Int? = nil,
+        utcOffsetSeconds: Int = 0
     ) {
         self.id = id
         self.themeRaw = theme.rawValue
@@ -147,5 +175,12 @@ final class UserPreferences {
         self.nearbyVisibilityEnabled = nearbyVisibilityEnabled
         self.friendFinderMapStyleRaw = friendFinderMapStyle.rawValue
         self.lastEventID = lastEventID
+        self.notificationsDMsEnabled = notificationsDMsEnabled
+        self.notificationsFriendRequestsEnabled = notificationsFriendRequestsEnabled
+        self.notificationsGroupMentionsEnabled = notificationsGroupMentionsEnabled
+        self.notificationsVoiceNotesEnabled = notificationsVoiceNotesEnabled
+        self.quietHoursStartUtc = quietHoursStartUtc
+        self.quietHoursEndUtc = quietHoursEndUtc
+        self.utcOffsetSeconds = utcOffsetSeconds
     }
 }

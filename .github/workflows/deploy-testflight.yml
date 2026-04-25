@@ -1,7 +1,8 @@
 # Required GitHub Secrets:
 # - DISTRIBUTION_CERTIFICATE_P12: Base64-encoded .p12 distribution certificate
 # - DISTRIBUTION_CERTIFICATE_PASSWORD: Password for the .p12 file
-# - PROVISIONING_PROFILE: Base64-encoded .mobileprovision file
+# - PROVISIONING_PROFILE: Base64-encoded .mobileprovision for the main app (au.heyblip.Blip)
+# - PROVISIONING_PROFILE_NSE: Base64-encoded .mobileprovision for the Notification Service Extension (au.heyblip.Blip.notifications)
 # - ASC_KEY_ID: App Store Connect API Key ID
 # - ASC_ISSUER_ID: App Store Connect Issuer ID
 # - ASC_PRIVATE_KEY: App Store Connect API private key (.p8 content)
@@ -43,27 +44,71 @@ jobs:
           echo "EXPORT_PATH=$RUNNER_TEMP/export" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db" >> "$GITHUB_ENV"
           echo "CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12" >> "$GITHUB_ENV"
-          echo "PROFILE_PATH=$RUNNER_TEMP/build_pp.mobileprovision" >> "$GITHUB_ENV"
-          echo "PROFILE_PLIST_PATH=$RUNNER_TEMP/build_pp.plist" >> "$GITHUB_ENV"
+          echo "PROFILE_MAIN_PATH=$RUNNER_TEMP/build_pp_main.mobileprovision" >> "$GITHUB_ENV"
+          echo "PROFILE_NSE_PATH=$RUNNER_TEMP/build_pp_nse.mobileprovision" >> "$GITHUB_ENV"
+          echo "PROFILE_MAIN_PLIST_PATH=$RUNNER_TEMP/build_pp_main.plist" >> "$GITHUB_ENV"
+          echo "PROFILE_NSE_PLIST_PATH=$RUNNER_TEMP/build_pp_nse.plist" >> "$GITHUB_ENV"
 
-      - name: Select Xcode & install iOS platform
+      - name: Select Xcode & verify iOS platform
+        # Walk a hardcoded preference list of GitHub-documented stable Xcode 26.x
+        # builds (per actions/runner-images macos-26 manifest). The macos-26 image
+        # ALSO has undocumented sibling dirs (Xcode_26.5.0.app, Xcode_26.5.app,
+        # Xcode_26.4.app, etc.) — some are partial installs whose iOS PLATFORM is
+        # missing even when the SDK headers are present, so `xcodebuild -showsdks`
+        # claims iOS is available and `xcodebuild archive` then dies on
+        # "iOS X.Y is not installed". Stick to the documented versions and probe
+        # the SDK presence via a plist file that fakes/symlinks won't carry.
         run: |
           set -euo pipefail
-          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+
+          echo "All Xcode installs on this runner:"
+          ls -d /Applications/Xcode_*.app 2>/dev/null || true
+          echo
+
+          # Order: latest stable first. Per GitHub macos-26 docs.
+          DOCUMENTED_XCODES=(
+            "/Applications/Xcode_26.4.1.app"
+            "/Applications/Xcode_26.3.app"
+            "/Applications/Xcode_26.2.app"
+            "/Applications/Xcode_26.1.1.app"
+            "/Applications/Xcode_26.0.1.app"
+          )
+
+          XCODE=""
+          for candidate in "${DOCUMENTED_XCODES[@]}"; do
+            if [ ! -d "$candidate" ]; then
+              echo "Skipping $candidate — directory not present"
+              continue
+            fi
+
+            sdk_settings="$candidate/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/SDKSettings.plist"
+            if [ ! -f "$sdk_settings" ]; then
+              echo "Skipping $candidate — iPhoneOS.sdk/SDKSettings.plist missing"
+              continue
+            fi
+
+            sdk_version=$(/usr/libexec/PlistBuddy -c 'Print :Version' "$sdk_settings" 2>/dev/null || echo "?")
+            echo "Picked $candidate (iOS SDK $sdk_version)"
+            XCODE="$candidate"
+            break
+          done
+
           if [ -z "$XCODE" ]; then
-            echo "::error::No Xcode 26 installation found on the runner"
+            echo "::error::No documented Xcode 26.x with a complete iOS SDK found"
             exit 1
           fi
 
-          echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
-          xcodebuild -downloadPlatform iOS || true
+
+          echo "Using $XCODE"
+          xcodebuild -showsdks | head -20
 
       - name: Validate required secrets
         env:
           DISTRIBUTION_CERTIFICATE_P12: ${{ secrets.DISTRIBUTION_CERTIFICATE_P12 }}
           DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
           PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          PROVISIONING_PROFILE_NSE: ${{ secrets.PROVISIONING_PROFILE_NSE }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
@@ -75,6 +120,7 @@ jobs:
             DISTRIBUTION_CERTIFICATE_P12 \
             DISTRIBUTION_CERTIFICATE_PASSWORD \
             PROVISIONING_PROFILE \
+            PROVISIONING_PROFILE_NSE \
             ASC_KEY_ID \
             ASC_ISSUER_ID \
             ASC_PRIVATE_KEY
@@ -139,19 +185,32 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-      - name: Import provisioning profile
+      - name: Import provisioning profiles
         env:
           PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+          PROVISIONING_PROFILE_NSE: ${{ secrets.PROVISIONING_PROFILE_NSE }}
         run: |
           set -euo pipefail
-          echo -n "$PROVISIONING_PROFILE" | base64 --decode -o "$PROFILE_PATH"
-          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST_PATH"
-
-          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST_PATH")
-          profile_name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST_PATH")
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
-          echo "PROVISIONING_PROFILE_NAME=$profile_name" >> "$GITHUB_ENV"
+
+          install_profile() {
+            local b64="$1"
+            local profile_path="$2"
+            local plist_path="$3"
+            local var_name="$4"
+
+            echo -n "$b64" | base64 --decode -o "$profile_path"
+            security cms -D -i "$profile_path" > "$plist_path"
+            local uuid
+            uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$plist_path")
+            local name
+            name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$plist_path")
+            cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            printf '%s=%s\n' "$var_name" "$name" >> "$GITHUB_ENV"
+          }
+
+          install_profile "$PROVISIONING_PROFILE"     "$PROFILE_MAIN_PATH" "$PROFILE_MAIN_PLIST_PATH" "PROVISIONING_PROFILE_NAME"
+          install_profile "$PROVISIONING_PROFILE_NSE" "$PROFILE_NSE_PATH"  "$PROFILE_NSE_PLIST_PATH"  "PROVISIONING_PROFILE_NSE_NAME"
 
       - name: Configure App Store Connect API key
         env:
@@ -166,6 +225,13 @@ jobs:
           chmod 600 "$key_path"
 
       - name: Archive
+        # Use the project's native Automatic signing (set in project.yml). Manual mode
+        # via the CLI would require per-target PROVISIONING_PROFILE_SPECIFIER overrides
+        # for the main app + NSE, which xcodebuild doesn't expose per-target. With both
+        # profiles pre-installed in ~/Library/MobileDevice/Provisioning Profiles/, plus
+        # -allowProvisioningUpdates and the ASC API key configured below, Xcode resolves
+        # each target's profile by bundle ID match. Manual signing is still used at
+        # export time via ExportOptions.plist for explicit per-bundle profile mapping.
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -174,9 +240,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -skipPackagePluginValidation \
             -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$APP_BUILD" \
             OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
@@ -201,5 +264,7 @@ jobs:
         if: always()
         run: |
           security delete-keychain "$KEYCHAIN_PATH" || true
-          rm -f "$CERTIFICATE_PATH" "$PROFILE_PATH" "$PROFILE_PLIST_PATH" || true
+          rm -f "$CERTIFICATE_PATH" \
+                "$PROFILE_MAIN_PATH" "$PROFILE_MAIN_PLIST_PATH" \
+                "$PROFILE_NSE_PATH"  "$PROFILE_NSE_PLIST_PATH" || true
           rm -rf "$HOME/.appstoreconnect" || true

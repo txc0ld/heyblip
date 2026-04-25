@@ -1,0 +1,21 @@
+{
+  "Simulator Target Bundle": "au.heyblip.Blip.debug",
+  "aps": {
+    "alert": {
+      "title": "alex",
+      "body": "Sent a voice note"
+    },
+    "badge": 6,
+    "sound": "default",
+    "thread-id": "11111111-2222-3333-4444-555555555555",
+    "mutable-content": 1,
+    "interruption-level": "active"
+  },
+  "blip": {
+    "type": "voice_note",
+    "threadId": "11111111-2222-3333-4444-555555555555",
+    "senderPeerIdHex": "0011223344556677",
+    "deeplink": "blip://channel/11111111-2222-3333-4444-555555555555",
+    "badgeCount": 6
+  }
+}

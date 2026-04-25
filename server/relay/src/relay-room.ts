@@ -24,6 +24,8 @@ import {
   type PeerIDHex,
   type Env,
 } from "./types";
+import { PushDispatcher, packetTypeToPushType, type PushType } from "./push-dispatch";
+import { bumpUnread, clearUnread, getUnread } from "./badge-ledger";
 
 /** Extract the recipient PeerID hex from a binary packet, or null if not routable. */
 export function extractRecipient(data: Uint8Array): PeerIDHex | null {
@@ -79,13 +81,28 @@ export class RelayRoom implements DurableObject {
   /** State TTL: 1 hour. Stale entries cleaned on access. */
   private static readonly STATE_TTL_MS = 3600_000;
 
-  private lastPushSentAt: Map<string, number> = new Map();
-  private readonly PUSH_COOLDOWN_MS = 30_000; // 30 seconds between pushes per recipient
+  /** Push decision + cooldown + rate-limiting engine. */
+  private readonly dispatcher: PushDispatcher;
+
+  /**
+   * Wall-clock millis of the last WebSocket disconnect per peer. Used to
+   * decide whether to trigger a silent_badge_sync on reconnect (the iOS
+   * client may have missed in-band relay traffic while offline and needs
+   * its other devices to resync badge state). In-memory only — after
+   * hibernation we lose this, which intentionally biases toward firing a
+   * silent sync on wake-up.
+   */
+  private lastDisconnectedAt: Map<PeerIDHex, number> = new Map();
+
+  /** Threshold for firing a silent_badge_sync on reconnect (5 minutes). */
+  private static readonly RECONNECT_SILENT_SYNC_THRESHOLD_MS = 5 * 60_000;
 
   constructor(
     private readonly state: DurableObjectState,
     private readonly env: Env
-  ) {}
+  ) {
+    this.dispatcher = new PushDispatcher(env, env.AUTH_PUSH_URL);
+  }
 
   async fetch(request: Request): Promise<Response> {
     const peerIdHex = request.headers.get("X-Derived-Peer-ID");
@@ -105,6 +122,9 @@ export class RelayRoom implements DurableObject {
     }
     if (stateAction === "get") {
       return this.handleStateGet(peerIdHex, request);
+    }
+    if (stateAction === "badge-clear") {
+      return this.handleBadgeClear(peerIdHex, request);
     }
 
     const { 0: client, 1: server } = new WebSocketPair();
@@ -161,6 +181,73 @@ export class RelayRoom implements DurableObject {
     }
   }
 
+  // MARK: - Badge ledger
+
+  /**
+   * Clear unread badge state for `peerIdHex` and return the new total.
+   * If the clear reduced the total AND the peer is currently connected,
+   * fire a silent content-available push so the user's OTHER devices
+   * resync their badge counters (the auth worker fans out to every
+   * device_token for the user).
+   */
+  private async handleBadgeClear(peerIdHex: PeerIDHex, request: Request): Promise<Response> {
+    let body: { threadId?: string; all?: boolean };
+    try {
+      body = await request.json();
+    } catch {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+    if (!body.all && !body.threadId) {
+      return new Response("Must provide threadId or all", { status: 400 });
+    }
+
+    const previous = await getUnread(this.state.storage, peerIdHex);
+    const newTotal = await clearUnread(this.state.storage, peerIdHex, {
+      threadId: body.threadId,
+      all: body.all,
+    });
+
+    console.log(
+      JSON.stringify({
+        event: "push.badge_cleared",
+        timestamp: Date.now(),
+        recipientPeerIdHex: peerIdHex,
+        threadId: body.threadId ?? null,
+        all: body.all === true,
+        previousTotal: previous.total,
+        newTotal,
+      })
+    );
+
+    // Multi-device fanout: if the peer is connected locally AND the clear
+    // actually reduced the badge, wake any of the user's other devices so
+    // they can resync. This is an out-of-band push (not rate-limited the
+    // same way DMs are — uses the dispatcher's silent-sync window).
+    if (newTotal < previous.total && this.peers.has(peerIdHex)) {
+      void this.dispatcher.dispatchNow({
+        recipientPeerIdHex: peerIdHex,
+        senderPeerIdHex: null,
+        type: "silent_badge_sync",
+        threadId: null,
+        badgeCount: newTotal,
+      });
+      console.log(
+        JSON.stringify({
+          event: "push.silent_sync",
+          timestamp: Date.now(),
+          recipientPeerIdHex: peerIdHex,
+          reason: "badge_cleared",
+          badgeCount: newTotal,
+        })
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ cleared: true, badgeCount: newTotal }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   private handleSession(ws: WebSocket, peerIdHex: PeerIDHex): void {
     // Hibernation API: DO can sleep between events without being evicted by
     // Cloudflare. peerIdHex is stored as a tag so it survives hibernation and
@@ -178,7 +265,6 @@ export class RelayRoom implements DurableObject {
       } catch {
         console.info(`[relay] close on replaced socket for peer ${peerIdHex} failed (already closed)`);
       }
-      this.lastPushSentAt.delete(peerIdHex);
     }
 
     this.peers.set(peerIdHex, ws);
@@ -187,6 +273,12 @@ export class RelayRoom implements DurableObject {
     // Send "connected" text frame to confirm the connection (matches iOS client expectation).
     ws.send("connected");
     console.info(`[relay] peer ${peerIdHex} connected (${this.peers.size} peers now online)`);
+
+    // Check if this reconnect crossed the 5-minute gap — if so, fire a silent
+    // badge sync to wake any background drain on the user's other devices.
+    // We do this before draining queued packets so the other devices can start
+    // catching up while in-band delivery happens here.
+    this.maybeFireReconnectSilentSync(peerIdHex);
 
     // Drain any store-and-forward packets queued while this peer was offline.
     // Serialized via scheduleDrain so concurrent drains for the same peer
@@ -223,11 +315,21 @@ export class RelayRoom implements DurableObject {
   }
 
   webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+    this.stampDisconnect(ws);
     this.removePeer(ws);
   }
 
   webSocketError(ws: WebSocket, _error: unknown): void {
+    this.stampDisconnect(ws);
     this.removePeer(ws);
+  }
+
+  /** Record the wall-clock disconnect time so reconnect silent-sync can fire. */
+  private stampDisconnect(ws: WebSocket): void {
+    const peerIdHex = this.wsToPeer.get(ws);
+    if (peerIdHex) {
+      this.lastDisconnectedAt.set(peerIdHex, Date.now());
+    }
   }
 
   // MARK: - Message routing
@@ -395,11 +497,95 @@ export class RelayRoom implements DurableObject {
       this.state.storage.setAlarm(storedAt + QUEUE_TTL_MS);
     }
 
-    // Extract sender PeerID and packet type from header
+    // Push pipeline — classify, bump ledger, schedule the auth-worker callout.
+    // Don't block packet queuing on any of these side-effects.
+    void this.enqueuePush(recipientHex, data, key).catch((err) => {
+      // Auth callout failure must not break queuing; Sentry already captured
+      // inside PushDispatcher.dispatchNow. Log once for visibility.
+      console.log(
+        JSON.stringify({
+          event: "push.internal_fetch_failed",
+          timestamp: Date.now(),
+          recipientPeerIdHex: recipientHex,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    });
+  }
+
+  /**
+   * Classify the queued packet, bump the unread ledger, and schedule a push
+   * via the dispatcher. Split out from queuePacket so the async chain is
+   * clearly fire-and-forget and so tests can exercise it directly.
+   */
+  private async enqueuePush(
+    recipientHex: PeerIDHex,
+    data: Uint8Array,
+    queueKey: string
+  ): Promise<void> {
     const senderHex = bytesToHex(data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH));
     const packetType = data[OFFSET_TYPE];
-    // Fire-and-forget push trigger — don't await (don't block queuing)
-    this.triggerPush(recipientHex, senderHex, packetType).catch(() => {});
+    const pushType = packetTypeToPushType(packetType);
+    if (pushType === null) {
+      console.log(
+        JSON.stringify({
+          event: "push.suppressed",
+          timestamp: Date.now(),
+          reason: "unsupported_type",
+          recipientPeerIdHex: recipientHex,
+          packetType,
+        })
+      );
+      return;
+    }
+
+    // Thread identity for the ledger. Relay is zero-knowledge and cannot see
+    // the channel UUID inside a noiseEncrypted packet, so we use the sender
+    // PeerID hex as a stable per-contact thread key across all pushable types.
+    const threadId = this.deriveThreadId(pushType, senderHex);
+
+    const newTotal = await bumpUnread(this.state.storage, recipientHex, threadId);
+    console.log(
+      JSON.stringify({
+        event: "push.badge_bumped",
+        timestamp: Date.now(),
+        recipientPeerIdHex: recipientHex,
+        threadId,
+        type: pushType,
+        newTotal,
+      })
+    );
+
+    this.dispatcher.schedulePush(queueKey, {
+      recipientPeerIdHex: recipientHex,
+      senderPeerIdHex: senderHex,
+      type: pushType,
+      threadId,
+      badgeCount: newTotal,
+    });
+  }
+
+  /**
+   * Derive a threadId for the badge ledger. Because the relay is
+   * zero-knowledge, every pushable type uses the sender PeerID hex — it's a
+   * stable per-contact thread key that survives the DM/friend/SOS split. If
+   * iOS ever passes a plaintext hint byte (see push-dispatch TODO), we can
+   * switch to channel UUID for group traffic. For now, sender hex is the
+   * correct choice.
+   */
+  private deriveThreadId(type: PushType, senderHex: string): string | null {
+    switch (type) {
+      case "dm":
+      case "friend_request":
+      case "friend_accept":
+      case "sos":
+      case "group_message":
+      case "group_mention":
+      case "voice_note":
+        return senderHex;
+      case "silent_badge_sync":
+        return null;
+    }
   }
 
   /**
@@ -462,6 +648,20 @@ export class RelayRoom implements DurableObject {
         const packet = new Uint8Array(entry.data);
         ws.send(packet.buffer);
         keysToDelete.push(key);
+        // The peer reconnected before the 500ms push-schedule window — cancel
+        // the pending auth-worker callout so we don't wake APNs for a packet
+        // that already landed in-band.
+        if (this.dispatcher.cancelPendingForKey(key)) {
+          console.log(
+            JSON.stringify({
+              event: "push.suppressed",
+              timestamp: Date.now(),
+              reason: "drained_fast",
+              recipientPeerIdHex: peerHex,
+              queueKey: key,
+            })
+          );
+        }
       } catch (err) {
         console.warn(`[relay] drainQueue: send failed for ${peerHex}, key=${key} — skipping`);
         Sentry.captureException(err, {
@@ -509,45 +709,62 @@ export class RelayRoom implements DurableObject {
     }
   }
 
-  private async triggerPush(recipientHex: string, senderHex: string, packetType?: number): Promise<void> {
-    const now = Date.now();
-    const lastSent = this.lastPushSentAt.get(recipientHex) ?? 0;
-    if (now - lastSent < this.PUSH_COOLDOWN_MS) return;
+  /**
+   * Fire a silent_badge_sync push on reconnect if the peer has been offline
+   * for more than {@link RelayRoom.RECONNECT_SILENT_SYNC_THRESHOLD_MS} AND
+   * either has queued packets or a non-zero badge. The auth worker fans this
+   * out to every device_token belonging to the user, letting background
+   * drains on secondary devices resync badge state.
+   *
+   * In-memory `lastDisconnectedAt` is wiped on hibernation; the first
+   * reconnect after wake-up treats the peer as if it had been gone "forever",
+   * which intentionally triggers the silent sync. That's a safe default — the
+   * dispatcher's 60s per-peer silent-sync cap prevents any runaway.
+   */
+  private maybeFireReconnectSilentSync(peerIdHex: PeerIDHex): void {
+    const lastDisc = this.lastDisconnectedAt.get(peerIdHex);
+    const offlineFor = lastDisc === undefined
+      ? Number.POSITIVE_INFINITY
+      : Date.now() - lastDisc;
+    if (offlineFor < RelayRoom.RECONNECT_SILENT_SYNC_THRESHOLD_MS) {
+      return;
+    }
 
-    this.lastPushSentAt.set(recipientHex, now);
-
-    try {
-      const resp = await fetch(this.env.AUTH_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Key': this.env.INTERNAL_API_KEY,
-        },
-        body: JSON.stringify({
-          recipientPeerIdHex: recipientHex,
-          senderPeerIdHex: senderHex,
-          pushType: packetType,
-          // Wake the iOS client for a short background drain window while
-          // preserving the visible alert/banner path.
-          "content-available": 1,
-        }),
-      });
-      if (!resp.ok) {
-        console.error(`[relay] Push trigger failed: ${resp.status}`);
-        Sentry.captureMessage("Relay push trigger returned non-OK status", {
-          level: "warning",
-          tags: { component: "relay-room", operation: "push_trigger" },
-          extra: { status: resp.status, recipientHex },
+    // Defer the actual work so handleSession returns quickly.
+    void (async () => {
+      try {
+        const snapshot = await getUnread(this.state.storage, peerIdHex);
+        const queuedList = await this.state.storage.list({
+          prefix: `${QUEUE_PREFIX}${peerIdHex}:`,
+          limit: 1,
+        });
+        if (snapshot.total === 0 && queuedList.size === 0) {
+          return; // nothing to resync; don't bother waking APNs.
+        }
+        console.log(
+          JSON.stringify({
+            event: "push.silent_sync",
+            timestamp: Date.now(),
+            recipientPeerIdHex: peerIdHex,
+            reason: "reconnect_gap",
+            offlineMs: Number.isFinite(offlineFor) ? offlineFor : null,
+            badgeCount: snapshot.total,
+          })
+        );
+        await this.dispatcher.dispatchNow({
+          recipientPeerIdHex: peerIdHex,
+          senderPeerIdHex: null,
+          type: "silent_badge_sync",
+          threadId: null,
+          badgeCount: snapshot.total,
+        });
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { component: "relay-room", operation: "reconnect_silent_sync" },
+          extra: { peerIdHex },
         });
       }
-    } catch (error) {
-      console.error(`[relay] Push trigger error: ${error}`);
-      Sentry.captureException(error, {
-        tags: { component: "relay-room", operation: "push_trigger" },
-        extra: { recipientHex },
-      });
-      // Fire-and-forget — don't break packet queuing
-    }
+    })();
   }
 
   /** Periodic cleanup of expired queued packets. Called by DO alarm. */

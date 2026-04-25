@@ -1,0 +1,21 @@
+{
+  "Simulator Target Bundle": "au.heyblip.Blip.debug",
+  "aps": {
+    "alert": {
+      "title": "alex",
+      "body": "Sent you a message"
+    },
+    "badge": 3,
+    "sound": "default",
+    "thread-id": "11111111-2222-3333-4444-555555555555",
+    "mutable-content": 1,
+    "interruption-level": "active"
+  },
+  "blip": {
+    "type": "dm",
+    "threadId": "11111111-2222-3333-4444-555555555555",
+    "senderPeerIdHex": "0011223344556677",
+    "deeplink": "blip://channel/11111111-2222-3333-4444-555555555555",
+    "badgeCount": 3
+  }
+}

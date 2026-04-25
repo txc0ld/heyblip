@@ -1,0 +1,21 @@
+{
+  "Simulator Target Bundle": "au.heyblip.Blip.debug",
+  "aps": {
+    "alert": {
+      "title": "Emergency nearby",
+      "body": "Someone nearby needs help"
+    },
+    "badge": 7,
+    "sound": "sos_critical.caf",
+    "thread-id": "33333333-4444-5555-6666-777777777777",
+    "mutable-content": 1,
+    "interruption-level": "critical"
+  },
+  "blip": {
+    "type": "sos",
+    "threadId": "33333333-4444-5555-6666-777777777777",
+    "senderPeerIdHex": "AABBCCDDEEFF0011",
+    "deeplink": "blip://sos/33333333-4444-5555-6666-777777777777",
+    "badgeCount": 7
+  }
+}

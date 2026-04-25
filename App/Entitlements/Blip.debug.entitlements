@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Debug variant of Blip.entitlements. Differences from the Release file:
+    - aps-environment = development (APNs sandbox gateway, required for Xcode-installed builds)
+    - App Group is identical (group.com.heyblip.shared) so the NSE writer/reader cache path
+      is the same across Debug and Release builds.
+    - keychain-access-groups intentionally keeps the "au.heyblip.Blip" suffix (NOT .debug).
+      This lets Keychain items (Noise keypair, Ed25519 signing key, JWTs) survive when a
+      developer toggles between Debug and Release builds on the same device. The Keychain
+      access group is namespaced by AppIdentifierPrefix (team ID), so sharing across two
+      bundle IDs on the same team is safe and intentional.
+-->
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.heyblip.shared</string>
+	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)au.heyblip.Blip</string>
+	</array>
+</dict>
+</plist>

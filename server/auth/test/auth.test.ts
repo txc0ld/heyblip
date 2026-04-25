@@ -5,13 +5,8 @@ import {
 } from "cloudflare:test";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const { sendPushMock } = vi.hoisted(() => ({
-  sendPushMock: vi.fn(async () => true),
-}));
-
-vi.mock("../src/apns", () => ({
-  sendPush: sendPushMock,
-}));
+// APNs is exercised end-to-end via server/auth/test/internal-push.test.ts
+// (which mocks fetch). Auth coverage here focuses on non-push routes.
 
 vi.mock("@neondatabase/serverless", () => ({
   neon: () => {
@@ -410,8 +405,6 @@ beforeEach(async () => {
   delete (globalThis as Record<string, unknown>).__blipAuthMockWarmupError;
   resetMockUsers();
   resetMockDeviceTokens();
-  sendPushMock.mockReset();
-  sendPushMock.mockResolvedValue(true);
 });
 
 // ─── Health ──────────────────────────────────────────────────
@@ -1191,40 +1184,4 @@ describe("input hardening", () => {
   });
 });
 
-describe("POST /v1/internal/push", () => {
-  it("threads content-available through to APNs send", async () => {
-    const { user: sender } = await seedAuthUser("sender");
-    const { user: recipient } = await seedAuthUser("recipient");
-    sender.peer_id_hex = "aa".repeat(16);
-    recipient.peer_id_hex = "bb".repeat(16);
-    const deviceToken = seedDeviceToken(recipient.id, "device-token-1");
-
-    (env as Record<string, unknown>).DATABASE_URL = "postgres://test";
-    (env as Record<string, unknown>).INTERNAL_API_KEY = "test-internal-key";
-
-    const res = await request(
-      "POST",
-      "/v1/internal/push",
-      {
-        recipientPeerIdHex: recipient.peer_id_hex,
-        senderPeerIdHex: sender.peer_id_hex,
-        "content-available": 1,
-      },
-      {
-        "X-Internal-Key": "test-internal-key",
-      }
-    );
-
-    expect(res.status).toBe(200);
-    expect(await json(res)).toEqual({ sent: 1, failed: 0 });
-    expect(sendPushMock).toHaveBeenCalledWith(
-      deviceToken.token,
-      sender.username,
-      sender.peer_id_hex,
-      1,
-      env,
-      `Message from ${sender.username}`,
-      true
-    );
-  });
-});
+// See server/auth/test/internal-push.test.ts for full /v1/internal/push coverage.

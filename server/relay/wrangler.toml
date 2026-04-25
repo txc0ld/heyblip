@@ -7,7 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 
 # Required secrets — set via `wrangler secret put <name>`:
 #   JWT_SECRET        — HS256 signing key for session JWTs (must match blip-auth)
-#   INTERNAL_API_KEY  — shared secret for /v1/internal/push callouts (must match blip-auth)
+#   INTERNAL_API_KEY  — shared secret for /v1/internal/push callouts (must match blip-auth).
+#                       Also gates the inbound /internal/badge/clear endpoint — the auth
+#                       worker calls this after an iOS client clears a chat's unread state
+#                       so the relay's badge ledger stays in sync. Single shared secret.
 #   SENTRY_DSN        — Sentry project DSN for this Worker. Optional — when unset the
 #                       `withSentry` wrapper and `instrumentDurableObjectWithSentry` both
 #                       boot in disabled mode (errors stay in `wrangler tail`). Set this in
