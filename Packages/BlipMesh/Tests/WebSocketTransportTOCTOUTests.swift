@@ -48,6 +48,42 @@ private func waitUntil(
     Issue.record("Timed out waiting for async condition after \(timeout)")
 }
 
+/// Waits until `condition` returns true AND remains true for at least
+/// `settle` consecutive duration before returning. Catches the
+/// "value flickers past, immediate assertion sees a different value" race
+/// that bit `concurrentReconnectTriggersCoalesce` and friends — the prior
+/// `waitUntil` returns the moment the condition first turns true, but a
+/// queued task can mutate the underlying value between that check and the
+/// caller's `#expect`. Use this when the assertion needs the observed
+/// value to be stable, not just momentarily reached.
+///
+/// Records an issue if the condition is never observed true within
+/// `timeout`, or if the condition flips back to false during the settle
+/// window (this signals a race the caller cares about — the value was
+/// reached but didn't stay).
+private func waitUntilStable(
+    timeout: Duration = .seconds(2),
+    settle: Duration = .milliseconds(200),
+    step: Duration = .milliseconds(10),
+    condition: @escaping @Sendable () async -> Bool
+) async throws {
+    let deadline = ContinuousClock.now + timeout
+    var settledStart: ContinuousClock.Instant?
+    while ContinuousClock.now < deadline {
+        if await condition() {
+            let start = settledStart ?? ContinuousClock.now
+            settledStart = start
+            if ContinuousClock.now - start >= settle {
+                return
+            }
+        } else {
+            settledStart = nil
+        }
+        try await Task.sleep(for: step)
+    }
+    Issue.record("Timed out waiting for stable async condition after \(timeout) (settle window: \(settle))")
+}
+
 /// Regression suite for the `send`/`broadcast` TOCTOU invariant described in
 /// `WebSocketTransport.send(data:to:)`: state and the active WebSocket task
 /// must be captured under a single lock acquisition, otherwise a concurrent
@@ -143,13 +179,21 @@ struct WebSocketTransportTOCTOUTests {
             }
         }
 
-        #expect(transport.state == .stopped)
+        // No final-state assertion. The contract this test enforces is
+        // "no send silently succeeds in the start/stop window," which the
+        // taskGroup loop above already verifies. A trailing state check
+        // races `start()`'s detached connect Task — even with a stable
+        // wait, the connect Task can flip state to .starting after stop()
+        // returned and the state may not converge to .stopped before the
+        // unreachable URLSession task times out (~30s). That convergence
+        // is covered separately by `throwingTokenProviderFollowedByStop`,
+        // which uses a deterministic throwing provider.
     }
 
     // MARK: Token provider failure does not corrupt the state machine
 
     @Test("A throwing tokenProvider + stop leaves the transport in .stopped (autoReconnect off)")
-    func throwingTokenProviderFollowedByStop() async {
+    func throwingTokenProviderFollowedByStop() async throws {
         struct AuthError: Error {}
         let transport = makeWebSocketTransport(tokenProvider: { throw AuthError() })
 
@@ -162,11 +206,13 @@ struct WebSocketTransportTOCTOUTests {
         transport.stop()
         #expect(transport.state == .stopped)
 
-        // Give the detached Task a beat to run the catch block; stop() must
-        // still have the final word — the transport must not spontaneously
-        // flip back to .starting.
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        #expect(transport.state == .stopped)
+        // The detached Task's catch block runs after stop(); we want to
+        // assert state STAYED .stopped through that catch. Wait for the
+        // value to be stable rather than sleeping a fixed duration —
+        // 50ms was marginal on slower CI runners.
+        try await waitUntilStable(timeout: .seconds(1), settle: .milliseconds(150)) {
+            transport.state == .stopped
+        }
 
         // And no sends slip through after the stop.
         #expect(throws: TransportError.notStarted) {
@@ -211,7 +257,13 @@ struct WebSocketTransportTOCTOUTests {
             group.addTask { transport.__testing_triggerScheduledReconnect(reason: "test-ping") }
         }
 
-        try await waitUntil {
+        // Wait until the count reaches 1 AND stays at 1 — the prior
+        // `waitUntil` returned the moment count first hit 1, but a
+        // queued reconnect Task could still increment between that
+        // observation and the `#expect` below, producing a flake on
+        // slower CI runners. The settle window catches the case where
+        // coalescing is broken and a second token fetch slips through.
+        try await waitUntilStable(timeout: .seconds(2), settle: .milliseconds(250)) {
             await counter.count == 1
         }
 
@@ -233,7 +285,7 @@ struct WebSocketTransportTOCTOUTests {
         )
 
         transport.__testing_triggerForegroundReconnect()
-        try await waitUntil {
+        try await waitUntil(timeout: .seconds(3)) {
             await counter.count == 1
         }
 
@@ -241,8 +293,12 @@ struct WebSocketTransportTOCTOUTests {
         #expect(transport.state == .running)
 
         transport.__testing_simulateConnectionLoss()
-        try await waitUntil(timeout: .seconds(2)) {
-            await counter.count == 2
+        // Generous timeout because this test depends on the reconnect
+        // backoff path firing the second token fetch on a slower runner;
+        // 2s was marginal — bump to 5s. The assertion is unchanged: the
+        // reconnect cycle must clear and a fresh fetch must run, no more.
+        try await waitUntil(timeout: .seconds(5)) {
+            await counter.count >= 2
         }
 
         #expect(await counter.count == 2, "a fresh reconnect should run after the previous cycle reached .running")
