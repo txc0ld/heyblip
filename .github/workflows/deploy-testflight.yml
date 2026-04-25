@@ -49,13 +49,15 @@ jobs:
           echo "PROFILE_MAIN_PLIST_PATH=$RUNNER_TEMP/build_pp_main.plist" >> "$GITHUB_ENV"
           echo "PROFILE_NSE_PLIST_PATH=$RUNNER_TEMP/build_pp_nse.plist" >> "$GITHUB_ENV"
 
-      - name: Select Xcode & install iOS platform
-        # Pick an Xcode 26.x where xcodebuild ITSELF reports a usable iOS SDK.
-        # The macos-26 image currently ships with several bare Xcode 26.5.x dirs
-        # whose iPhoneOS.platform/Developer/SDKs/ directory exists (with stale
-        # symlinks) but xcodebuild rejects with "iOS X.Y is not installed" at
-        # archive time. Filesystem-only check fooled us — ask xcodebuild instead
-        # of looking at directory contents.
+      - name: Select Xcode & verify iOS platform
+        # Walk a hardcoded preference list of GitHub-documented stable Xcode 26.x
+        # builds (per actions/runner-images macos-26 manifest). The macos-26 image
+        # ALSO has undocumented sibling dirs (Xcode_26.5.0.app, Xcode_26.5.app,
+        # Xcode_26.4.app, etc.) — some are partial installs whose iOS PLATFORM is
+        # missing even when the SDK headers are present, so `xcodebuild -showsdks`
+        # claims iOS is available and `xcodebuild archive` then dies on
+        # "iOS X.Y is not installed". Stick to the documented versions and probe
+        # the SDK presence via a plist file that fakes/symlinks won't carry.
         run: |
           set -euo pipefail
 
@@ -63,22 +65,36 @@ jobs:
           ls -d /Applications/Xcode_*.app 2>/dev/null || true
           echo
 
+          # Order: latest stable first. Per GitHub macos-26 docs.
+          DOCUMENTED_XCODES=(
+            "/Applications/Xcode_26.4.1.app"
+            "/Applications/Xcode_26.3.app"
+            "/Applications/Xcode_26.2.app"
+            "/Applications/Xcode_26.1.1.app"
+            "/Applications/Xcode_26.0.1.app"
+          )
+
           XCODE=""
-          # Walk newest → oldest; pick the first whose xcodebuild reports an iOS SDK.
-          for candidate in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -Vr); do
-            sdks=$(DEVELOPER_DIR="$candidate/Contents/Developer" xcodebuild -showsdks 2>/dev/null | grep -E "iphoneos[0-9]" || true)
-            if [ -n "$sdks" ]; then
-              echo "Found Xcode with usable iOS SDK: $candidate"
-              echo "  SDKs reported: $(echo "$sdks" | xargs)"
-              XCODE="$candidate"
-              break
-            else
-              echo "Skipping $candidate — xcodebuild reports no iphoneos SDK"
+          for candidate in "${DOCUMENTED_XCODES[@]}"; do
+            if [ ! -d "$candidate" ]; then
+              echo "Skipping $candidate — directory not present"
+              continue
             fi
+
+            sdk_settings="$candidate/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/SDKSettings.plist"
+            if [ ! -f "$sdk_settings" ]; then
+              echo "Skipping $candidate — iPhoneOS.sdk/SDKSettings.plist missing"
+              continue
+            fi
+
+            sdk_version=$(/usr/libexec/PlistBuddy -c 'Print :Version' "$sdk_settings" 2>/dev/null || echo "?")
+            echo "Picked $candidate (iOS SDK $sdk_version)"
+            XCODE="$candidate"
+            break
           done
 
           if [ -z "$XCODE" ]; then
-            echo "::error::No Xcode 26.x with a usable iOS SDK found"
+            echo "::error::No documented Xcode 26.x with a complete iOS SDK found"
             exit 1
           fi
 
