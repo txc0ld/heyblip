@@ -1114,6 +1114,21 @@ final class MessageService: @unchecked Sendable {
 
         // Transport send (thread-safe)
         if let recipientID = signedPacket.recipientID, !recipientID.isBroadcast {
+            // The relay drops packets >512B silently (MAX_PACKET_SIZE in
+            // server/relay/src/relay-room.ts) and BLE's effective MTU is the
+            // same. Image/voice attachments routinely exceed this, so for
+            // addressed sends over the wire MTU we split into fragments here.
+            // Receivers reassemble via FragmentAssembler in handleFragment().
+            if wireData.count > Packet.effectiveMTU {
+                try await sendFragmented(
+                    wireData: wireData,
+                    senderID: signedPacket.senderID,
+                    recipientID: recipientID,
+                    transport: transport
+                )
+                return
+            }
+
             let recipientHex = recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
             do {
                 try transport.send(data: wireData, to: recipientID)
@@ -1129,9 +1144,79 @@ final class MessageService: @unchecked Sendable {
                 }
             }
         } else {
+            // Broadcast fragmentation is not supported here — large broadcasts
+            // would saturate the mesh. Today the only legitimate >MTU sends
+            // are addressed (images, voice notes), so error out loudly rather
+            // than silently truncating.
+            if wireData.count > Packet.effectiveMTU {
+                DebugLogger.emit("TX", "BROADCAST too large: \(wireData.count)B exceeds MTU \(Packet.effectiveMTU)", isError: true)
+                throw MessageServiceError.payloadTooLarge(wireData.count)
+            }
             transport.broadcast(data: wireData)
             DebugLogger.emit("TX", "BROADCAST \(wireData.count)B", level: .verbose)
         }
+    }
+
+    /// Split `wireData` into protocol-layer fragments and send each to
+    /// `recipientID` in order, paced under the relay's 100/sec rate limit.
+    /// Each fragment is wrapped in a signed `MessageType.fragment` packet so
+    /// the receiver's existing FragmentAssembler reassembles + re-dispatches.
+    private func sendFragmented(
+        wireData: Data,
+        senderID: PeerID,
+        recipientID: PeerID,
+        transport: any Transport
+    ) async throws {
+        let fragments = FragmentSplitter.split(wireData)
+        let recipientHex = recipientID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.emit("TX", "FRAGMENTING \(wireData.count)B → \(fragments.count) fragments → \(recipientHex)")
+
+        let identity = getIdentity()
+        let timestampMs = UInt64(Date().timeIntervalSince1970 * 1000)
+
+        for (idx, fragment) in fragments.enumerated() {
+            var wrapper = Packet(
+                type: .fragment,
+                ttl: FragmentSplitter.maxFragmentTTL,
+                timestamp: timestampMs,
+                flags: [.hasRecipient],
+                senderID: senderID,
+                recipientID: recipientID,
+                payload: fragment.serialize()
+            )
+
+            if let identity {
+                do {
+                    wrapper = try Signer.sign(packet: wrapper, secretKey: identity.signingSecretKey)
+                } catch {
+                    DebugLogger.emit("TX", "Fragment \(idx + 1)/\(fragments.count) sign failed: \(error) — sending unsigned", isError: true)
+                }
+            }
+
+            let fragmentWire: Data
+            do {
+                fragmentWire = try PacketSerializer.encode(wrapper)
+            } catch {
+                DebugLogger.emit("TX", "Fragment \(idx + 1)/\(fragments.count) encode failed: \(error)", isError: true)
+                throw error
+            }
+
+            do {
+                try transport.send(data: fragmentWire, to: recipientID)
+            } catch {
+                DebugLogger.emit("TX", "Fragment \(idx + 1)/\(fragments.count) send failed: \(error)", isError: true)
+                throw error
+            }
+
+            // Pace under the relay's per-peer rate limit (100/sec, see
+            // RATE_LIMIT_PER_SECOND in server/relay/src/relay-room.ts) and
+            // BLE's queue tolerance. ~12 ms between fragments → 83/sec.
+            if idx < fragments.count - 1 {
+                try await Task.sleep(nanoseconds: 12_000_000)
+            }
+        }
+
+        DebugLogger.emit("TX", "FRAGMENTED \(wireData.count)B in \(fragments.count) fragments → \(recipientHex)")
     }
 
     func transportAvailabilitySnapshot() -> (ble: Bool, webSocket: Bool)? {

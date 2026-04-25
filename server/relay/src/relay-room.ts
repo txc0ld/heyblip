@@ -42,8 +42,16 @@ const MAX_PACKET_SIZE = 512;
 /** Maximum messages per peer per second. */
 const RATE_LIMIT_PER_SECOND = 100;
 
-/** Store-and-forward: max queued packets per peer. */
-const MAX_QUEUED_PER_PEER = 50;
+/**
+ * Store-and-forward: max queued packets per peer. Bumped from 50 → 1000 to
+ * accommodate fragment bursts: a single 251 KB image splits into ~620
+ * fragments (FragmentSplitter at the 416-byte threshold), so the previous
+ * 50-cap would have evicted all but the last 50 and the receiver could
+ * never reassemble. Each queue entry is ~2 KiB JSON (raw bytes ×3-4 for
+ * `Array.from(data)` representation) — 1000 × 2 KiB = 2 MiB per offline
+ * peer, comfortably within the DO storage budget.
+ */
+const MAX_QUEUED_PER_PEER = 1000;
 
 /** Store-and-forward: queue TTL (1 hour). */
 const QUEUE_TTL_MS = 3600_000;
