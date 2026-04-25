@@ -234,6 +234,7 @@ final class AuthTokenManager: ObservableObject {
         if let bearerToken {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
+        _ = request.attachTraceID(category: "AUTH")
 
         if let body {
             do {

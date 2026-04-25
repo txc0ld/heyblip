@@ -695,6 +695,7 @@ final class UserSyncService: Sendable {
             return try await performAuthenticatedRequest(request)
         }
 
+        _ = request.attachTraceID(category: "AUTH")
         do {
             return try await ServerConfig.pinnedSession.data(for: request)
         } catch {
@@ -710,6 +711,7 @@ final class UserSyncService: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 15
+        _ = request.attachTraceID(category: "AUTH")
 
         do {
             return try await ServerConfig.pinnedSession.data(for: request)
@@ -733,6 +735,9 @@ final class UserSyncService: Sendable {
     private func performAuthenticatedRequest(_ request: URLRequest, allowRetry: Bool = true) async throws -> (Data, URLResponse) {
         var authorizedRequest = request
         authorizedRequest.setValue(try await authorizationHeaderValue(), forHTTPHeaderField: "Authorization")
+        if authorizedRequest.value(forHTTPHeaderField: "X-Trace-ID") == nil {
+            _ = authorizedRequest.attachTraceID(category: "AUTH")
+        }
 
         do {
             let result = try await ServerConfig.pinnedSession.data(for: authorizedRequest)

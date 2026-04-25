@@ -59,7 +59,16 @@ final class DebugLogger {
     }
 
     /// Unique session ID to correlate logs across devices.
-    let sessionID = UUID()
+    nonisolated let sessionID = UUID()
+
+    /// Generate a per-request trace identifier of the form
+    /// `<sessionID>-<8-hex-nonce>`. Suitable for the `X-Trace-ID` HTTP header
+    /// so a single request can be stitched across the iOS client, Cloudflare
+    /// Workers (wrangler tail), and Sentry. (BDEV-403)
+    nonisolated func nextTraceID() -> String {
+        let nonce = String(format: "%08x", UInt32.random(in: .min ... .max))
+        return "\(sessionID.uuidString.lowercased())-\(nonce)"
+    }
 
     private(set) var entries: [Entry] = []
     private let maxEntries = 500

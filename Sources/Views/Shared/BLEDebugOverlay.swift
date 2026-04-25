@@ -81,6 +81,20 @@ struct BLEDebugOverlay: View {
                                 .font(.system(.caption, design: .monospaced))
                         }
                         .foregroundStyle(.blipAccentPurple)
+
+                        // BDEV-403 — copy this device's session trace ID. Tester
+                        // pastes "<sessionID>" into Slack and John can grep
+                        // wrangler tail / Sentry / debug overlay for matching
+                        // request lines (any nonce suffix matches the prefix).
+                        Button {
+                            UIPasteboard.general.string = DebugLogger.shared.sessionID.uuidString
+                            copiedToast = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedToast = false }
+                        } label: {
+                            Label("Trace ID", systemImage: "tag")
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                        .foregroundStyle(.blipAccentPurple)
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
