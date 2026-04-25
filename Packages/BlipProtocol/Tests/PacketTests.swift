@@ -339,9 +339,9 @@ struct EncryptedSubTypeTests {
         #expect(EncryptedSubType.pttAudio.rawValue == 0x17)
     }
 
-    @Test("All cases count is 19")
+    @Test("All cases count is 20")
     func allCasesCount() {
-        #expect(EncryptedSubType.allCases.count == 19)
+        #expect(EncryptedSubType.allCases.count == 20)
     }
 
     @Test("Group management sub-types identified")
