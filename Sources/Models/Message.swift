@@ -53,8 +53,12 @@ final class Message {
     var createdAt: Date
     var expiresAt: Date?
 
-    /// Local-only reaction emoji the current user applied to this message.
-    /// Not transmitted over the wire — reactions are UI-only for now.
+    /// Reaction emoji applied to this message.
+    ///
+    /// Persisted locally and transmitted over the wire as
+    /// `EncryptedSubType.messageReaction` whenever the local user changes their reaction.
+    /// Incoming reactions from the message's other participant overwrite this value (DMs
+    /// today are 1:1, so the field stores the single live reaction). `nil` means cleared.
     var reaction: String?
 
     // MARK: - Inverse Relationships

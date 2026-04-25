@@ -186,6 +186,38 @@ enum MessagePayloadBuilder {
         return ParsedMediaPayload(messageID: messageID, duration: duration, media: media)
     }
 
+    // MARK: - Reaction Payloads
+
+    /// Build a reaction payload: `[messageID: UTF-8 UUID string (36B)][0x00][emoji UTF-8 bytes]`.
+    ///
+    /// An empty trailing emoji payload (i.e., `emoji == nil` or `emoji == ""`) signals that the
+    /// sender cleared their reaction on the target message.
+    static func buildReactionPayload(messageID: UUID, emoji: String?) -> Data {
+        var payload = Data()
+        payload.append(messageID.uuidString.data(using: .utf8) ?? Data())
+        payload.append(0x00)
+        if let emoji {
+            payload.append(emoji.data(using: .utf8) ?? Data())
+        }
+        return payload
+    }
+
+    /// Parse a reaction payload produced by ``buildReactionPayload(messageID:emoji:)``.
+    ///
+    /// Returns `(messageID, emoji)`. `emoji == nil` means the sender cleared their reaction.
+    /// If the leading messageID prefix is missing/non-UTF-8, returns a fresh UUID — callers
+    /// should then fail to find a matching `Message` and drop the update gracefully.
+    static func parseReactionPayload(_ data: Data) -> (messageID: UUID, emoji: String?) {
+        let bytes = [UInt8](data)
+        let firstSep = bytes.firstIndex(of: 0x00) ?? bytes.endIndex
+        let messageIDBytes = Data(bytes[0 ..< firstSep])
+        let messageID = String(data: messageIDBytes, encoding: .utf8).flatMap(UUID.init) ?? UUID()
+        let contentStart = min(firstSep + 1, bytes.endIndex)
+        let emojiBytes = Data(bytes[contentStart...])
+        let emoji = emojiBytes.isEmpty ? nil : String(data: emojiBytes, encoding: .utf8)
+        return (messageID, emoji)
+    }
+
     // MARK: - Friend Payloads
 
     /// Parse friend request/accept payload: username + 0x00 + displayName (optional)

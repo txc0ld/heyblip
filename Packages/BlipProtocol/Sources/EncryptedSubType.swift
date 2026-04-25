@@ -31,6 +31,8 @@ public enum EncryptedSubType: UInt8, Sendable, Codable, CaseIterable {
     case messageDelete          = 0x0A
     /// Edited content for a sent message by ID.
     case messageEdit            = 0x0B
+    /// Reaction emoji applied to a sent message by ID. Empty payload clears.
+    case messageReaction        = 0x0C
 
     // MARK: - Profile
 
@@ -75,6 +77,7 @@ extension EncryptedSubType: CustomStringConvertible {
         case .typingIndicator:      return "typingIndicator"
         case .messageDelete:        return "messageDelete"
         case .messageEdit:          return "messageEdit"
+        case .messageReaction:      return "messageReaction"
         case .profileRequest:       return "profileRequest"
         case .profileResponse:      return "profileResponse"
         case .groupKeyDistribution: return "groupKeyDistribution"

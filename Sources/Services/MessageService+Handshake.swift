@@ -564,6 +564,8 @@ extension MessageService {
             try await handleMessageDelete(data: Data(contentData))
         case .messageEdit:
             try await handleMessageEdit(data: Data(contentData))
+        case .messageReaction:
+            try await handleIncomingReaction(data: Data(contentData), from: packet.senderID)
         case .groupKeyDistribution, .groupMemberAdd, .groupMemberRemove, .groupAdminChange:
             try await handleGroupManagement(subType: subType, data: Data(contentData), from: packet.senderID)
         case .profileRequest, .profileResponse, .blockVote:
@@ -706,7 +708,15 @@ extension MessageService {
         if let replyToID {
             let replyTargetID = replyToID
             let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyTargetID })
-            message.replyTo = try context.fetch(replyDesc).first
+            let target = try context.fetch(replyDesc).first
+            message.replyTo = target
+            if target == nil {
+                DebugLogger.shared.log(
+                    "DM",
+                    "Received message references replyTo=\(DebugLogger.redact(replyToID.uuidString)) but original is not in local store — reply preview will be missing",
+                    isError: true
+                )
+            }
         }
 
         context.insert(message)

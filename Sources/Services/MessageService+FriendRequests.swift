@@ -595,6 +595,42 @@ extension MessageService {
         }
     }
 
+    /// Apply a reaction emoji (or clear one) on a locally stored message in response to a remote
+    /// `EncryptedSubType.messageReaction` packet.
+    ///
+    /// Mirrors `handleMessageEdit`: parse, look up the target by ID, mutate, save, notify the
+    /// delegate so any open `ChatViewModel` refreshes the affected bubble. Silently no-ops when
+    /// the message is unknown locally — that's a recoverable state (e.g. reaction arrived before
+    /// the message body) rather than an error.
+    @MainActor
+    func handleIncomingReaction(data: Data, from peerID: PeerID) async throws {
+        let parsed = MessagePayloadBuilder.parseReactionPayload(data)
+        let messageID = parsed.messageID
+        let emoji = parsed.emoji
+
+        let context = self.context
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        do {
+            if let message = try context.fetch(descriptor).first {
+                message.reaction = emoji
+                try context.save()
+                delegate?.messageService(self, didUpdateReactionFor: messageID)
+                DebugLogger.shared.log(
+                    "DM",
+                    "Remote reaction applied for \(DebugLogger.redact(messageID.uuidString)): \(emoji ?? "(cleared)")"
+                )
+            } else {
+                DebugLogger.shared.log(
+                    "DM",
+                    "Remote reaction for unknown message \(DebugLogger.redact(messageID.uuidString)) — dropped"
+                )
+            }
+        } catch {
+            DebugLogger.shared.log("DM", "Failed to apply remote reaction: \(error.localizedDescription)", isError: true)
+            throw error
+        }
+    }
+
     @MainActor
     func handleGroupManagement(subType: EncryptedSubType, data: Data, from peerID: PeerID) async throws {
         let senderHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()

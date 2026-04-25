@@ -241,6 +241,84 @@ final class MessageServiceTests: XCTestCase {
         }
     }
 
+    func testSendTextMessageWithReplyTargetPersistsReplyOnLocalMessage() async throws {
+        // Regression test for HEY-1323: when sending a reply, the sender's
+        // local Message must carry replyTo so its own bubble renders the
+        // reply preview. Previously the wire payload used the parameter's
+        // `replyTo?.id` while the local Message used the re-fetched
+        // `localReplyTo`; if the re-fetch returned nil the local copy
+        // silently dropped the reply pointer while the wire still carried it.
+        let _ = makeLocalUser()
+        let remoteUser = makeUser(username: "bob", displayName: "Bob")
+        let channel = makeChannel(type: .dm, name: "Bob")
+
+        let context = ModelContext(container)
+        let membership = GroupMembership(user: remoteUser, channel: channel, role: .member)
+        context.insert(membership)
+        try context.save()
+
+        // Pre-existing message that will be the reply target. Re-fetch the
+        // channel in the same context so the relationship attaches cleanly.
+        let channelID = channel.id
+        let channelDesc = FetchDescriptor<Channel>(predicate: #Predicate { $0.id == channelID })
+        let localChannel = try XCTUnwrap(context.fetch(channelDesc).first)
+        let target = Message(
+            sender: nil,
+            channel: localChannel,
+            type: .text,
+            rawPayload: Data("original".utf8),
+            status: .delivered
+        )
+        context.insert(target)
+        try context.save()
+        let targetID = target.id
+
+        // Send a reply
+        let replyMessage = try await messageService.sendTextMessage(
+            content: "agreed",
+            to: channel,
+            replyTo: target
+        )
+
+        XCTAssertEqual(
+            replyMessage.replyTo?.id,
+            targetID,
+            "Sender's local Message must carry the reply pointer so its own bubble renders the reply preview"
+        )
+
+        // Verify it persists across a fresh context too.
+        let verifyContext = ModelContext(container)
+        let replyID = replyMessage.id
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyID })
+        let persisted = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(
+            persisted.replyTo?.id,
+            targetID,
+            "Persisted reply Message must retain replyTo across cold-launch fetches"
+        )
+    }
+
+    func testReplyToPropagatesIntoWirePayload() throws {
+        // Proxy for the full integration: verify MessagePayloadBuilder, fed
+        // the same inputs sendTextMessage uses on the wire path, round-trips
+        // the replyToID. Full transport-interception of the encrypted wire
+        // bytes is out of scope here — MessagePayloadBuilderTests covers the
+        // round-trip end-to-end. This test guards the contract sendTextMessage
+        // depends on: a non-nil replyToID survives encode → decode.
+        let messageID = UUID()
+        let replyToID = UUID()
+
+        let dmPayload = MessagePayloadBuilder.buildTextPayload(
+            content: "agreed",
+            messageID: messageID,
+            replyToID: replyToID
+        )
+        let parsed = MessagePayloadBuilder.parseTextPayload(dmPayload)
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertEqual(parsed.replyToID, replyToID)
+        XCTAssertEqual(String(data: parsed.content, encoding: .utf8), "agreed")
+    }
+
     func testSendTextMessage_withoutSession_staysEncryptingUntilDelivered() async throws {
         let _ = makeLocalUser()
         let remoteUser = makeUser(username: "bob", displayName: "Bob")
@@ -784,6 +862,265 @@ final class MessageServiceTests: XCTestCase {
 
         XCTAssertTrue(mockTransport.sentPackets.isEmpty)
         XCTAssertTrue(messageService.noiseSessionManager?.hasSession(for: remotePeerID) == true)
+    }
+
+    // MARK: - Reactions
+
+    func testSendReaction_encryptsAndAppliesLocalReaction() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let (remotePeerID, remoteSessionManager) = try establishNoiseSession(with: remoteIdentity)
+        let remoteUser = makeUser(
+            username: "alice",
+            displayName: "Alice",
+            noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation,
+            signingPublicKey: remoteIdentity.signingPublicKey
+        )
+
+        let peerInfo = PeerInfo(
+            peerID: remotePeerID.bytes,
+            noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation,
+            signingPublicKey: remoteIdentity.signingPublicKey,
+            username: "alice",
+            rssi: 0,
+            isConnected: false,
+            lastSeenAt: Date(),
+            hopCount: 0
+        )
+        messageService.peerStore.upsert(peer: peerInfo)
+
+        let context = ModelContext(container)
+        let channel = Channel(type: .dm, name: "Alice")
+        context.insert(channel)
+        let remoteUserID = remoteUser.id
+        let userDescriptor = FetchDescriptor<User>(predicate: #Predicate { $0.id == remoteUserID })
+        let localRemoteUser = try XCTUnwrap(context.fetch(userDescriptor).first)
+        context.insert(GroupMembership(user: localRemoteUser, channel: channel, role: .member))
+
+        let messageID = UUID()
+        let message = Message(
+            id: messageID,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Hi".utf8),
+            status: .sent
+        )
+        context.insert(message)
+        try context.save()
+        mockTransport.reset()
+
+        try await messageService.sendReaction("👍", for: messageID, in: channel)
+
+        // Local message must reflect the new reaction immediately.
+        let verifyContext = ModelContext(container)
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        let stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(stored.reaction, "👍", "sendReaction must update local Message.reaction")
+
+        // Wire packet must be a noiseEncrypted .messageReaction with the right payload.
+        let sentPacket = try XCTUnwrap(mockTransport.sentPackets.first)
+        let packet = try PacketSerializer.decode(sentPacket.data)
+        XCTAssertEqual(packet.type, .noiseEncrypted)
+
+        let remoteSession = try XCTUnwrap(remoteSessionManager.getSession(for: identity.peerID))
+        let plaintext = try remoteSession.decrypt(ciphertext: packet.payload)
+        XCTAssertEqual(plaintext.first, EncryptedSubType.messageReaction.rawValue)
+
+        let parsed = MessagePayloadBuilder.parseReactionPayload(Data(plaintext.dropFirst()))
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertEqual(parsed.emoji, "👍")
+    }
+
+    func testSendReaction_clearWritesEmptyEmojiPayload() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let (remotePeerID, remoteSessionManager) = try establishNoiseSession(with: remoteIdentity)
+        let remoteUser = makeUser(
+            username: "alice",
+            displayName: "Alice",
+            noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation,
+            signingPublicKey: remoteIdentity.signingPublicKey
+        )
+
+        let peerInfo = PeerInfo(
+            peerID: remotePeerID.bytes,
+            noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation,
+            signingPublicKey: remoteIdentity.signingPublicKey,
+            username: "alice",
+            rssi: 0,
+            isConnected: false,
+            lastSeenAt: Date(),
+            hopCount: 0
+        )
+        messageService.peerStore.upsert(peer: peerInfo)
+
+        let context = ModelContext(container)
+        let channel = Channel(type: .dm, name: "Alice")
+        context.insert(channel)
+        let remoteUserID = remoteUser.id
+        let userDescriptor = FetchDescriptor<User>(predicate: #Predicate { $0.id == remoteUserID })
+        let localRemoteUser = try XCTUnwrap(context.fetch(userDescriptor).first)
+        context.insert(GroupMembership(user: localRemoteUser, channel: channel, role: .member))
+
+        let messageID = UUID()
+        let message = Message(
+            id: messageID,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Hi".utf8),
+            status: .sent,
+            reaction: "👍"
+        )
+        context.insert(message)
+        try context.save()
+        mockTransport.reset()
+
+        try await messageService.sendReaction(nil, for: messageID, in: channel)
+
+        let verifyContext = ModelContext(container)
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        let stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertNil(stored.reaction, "Clearing must persist as nil, not as an empty string")
+
+        let sentPacket = try XCTUnwrap(mockTransport.sentPackets.first)
+        let packet = try PacketSerializer.decode(sentPacket.data)
+        let remoteSession = try XCTUnwrap(remoteSessionManager.getSession(for: identity.peerID))
+        let plaintext = try remoteSession.decrypt(ciphertext: packet.payload)
+        XCTAssertEqual(plaintext.first, EncryptedSubType.messageReaction.rawValue)
+
+        let parsed = MessagePayloadBuilder.parseReactionPayload(Data(plaintext.dropFirst()))
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertNil(parsed.emoji, "Cleared reaction must round-trip as nil over the wire")
+    }
+
+    func testHandleIncomingReaction_setsMessageReaction() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let remotePeerID = PeerID(noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation)
+        _ = makeUser(
+            username: "alice",
+            displayName: "Alice",
+            noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation,
+            signingPublicKey: remoteIdentity.signingPublicKey
+        )
+
+        let context = ModelContext(container)
+        let channel = Channel(type: .dm, name: "Alice")
+        context.insert(channel)
+
+        let messageID = UUID()
+        let message = Message(
+            id: messageID,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Hi".utf8),
+            status: .delivered
+        )
+        context.insert(message)
+        try context.save()
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: "🎉")
+        try await messageService.handleIncomingReaction(data: payload, from: remotePeerID)
+
+        let verifyContext = ModelContext(container)
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        let stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(stored.reaction, "🎉")
+    }
+
+    func testHandleIncomingReaction_clearsExistingReaction() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let remotePeerID = PeerID(noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation)
+
+        let context = ModelContext(container)
+        let channel = Channel(type: .dm, name: "Alice")
+        context.insert(channel)
+
+        let messageID = UUID()
+        let message = Message(
+            id: messageID,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Hi".utf8),
+            status: .delivered,
+            reaction: "👍"
+        )
+        context.insert(message)
+        try context.save()
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: nil)
+        try await messageService.handleIncomingReaction(data: payload, from: remotePeerID)
+
+        let verifyContext = ModelContext(container)
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        let stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertNil(stored.reaction, "Empty payload must clear the local reaction")
+    }
+
+    func testHandleIncomingReaction_unknownMessageIDIsNoOp() async throws {
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let remotePeerID = PeerID(noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation)
+
+        let unknownMessageID = UUID()
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: unknownMessageID, emoji: "👍")
+        // Should not throw, just silently drop.
+        try await messageService.handleIncomingReaction(data: payload, from: remotePeerID)
+
+        let verifyContext = ModelContext(container)
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == unknownMessageID })
+        XCTAssertTrue(try verifyContext.fetch(descriptor).isEmpty, "No phantom message should be created for unknown reaction targets")
+    }
+
+    func testReactionRoundTrip_updatesRecipientMessage() async throws {
+        // Simulates the receive-side exit point: handleIncomingReaction is called with the
+        // same payload format `dispatchDecryptedPayload` would produce after Noise decryption.
+        let _ = makeLocalUser()
+        let remoteIdentity = try makeRemoteIdentity()
+        let remotePeerID = PeerID(noisePublicKey: remoteIdentity.noisePublicKey.rawRepresentation)
+
+        let context = ModelContext(container)
+        let channel = Channel(type: .dm, name: "Alice")
+        context.insert(channel)
+
+        let messageID = UUID()
+        let message = Message(
+            id: messageID,
+            channel: channel,
+            type: .text,
+            rawPayload: Data("Hi".utf8),
+            status: .delivered
+        )
+        context.insert(message)
+        try context.save()
+
+        // First reaction lands.
+        let first = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: "❤️")
+        try await messageService.handleIncomingReaction(data: first, from: remotePeerID)
+
+        var verifyContext = ModelContext(container)
+        var descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        var stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(stored.reaction, "❤️")
+
+        // Second reaction overwrites the first.
+        let second = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: "🎉")
+        try await messageService.handleIncomingReaction(data: second, from: remotePeerID)
+
+        verifyContext = ModelContext(container)
+        descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertEqual(stored.reaction, "🎉", "Latest reaction must overwrite earlier one")
+
+        // Clear lands.
+        let clear = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: nil)
+        try await messageService.handleIncomingReaction(data: clear, from: remotePeerID)
+
+        verifyContext = ModelContext(container)
+        descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
+        stored = try XCTUnwrap(verifyContext.fetch(descriptor).first)
+        XCTAssertNil(stored.reaction)
     }
 
     func testHandleIncomingGroupMessage_usesPayloadChannelID() async throws {

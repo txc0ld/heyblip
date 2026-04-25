@@ -29,6 +29,13 @@ struct ProfileView: View {
 
     @Query private var users: [User]
 
+    /// Reactive count of accepted friends. The local user's `friends` inverse
+    /// relationship is always empty (every Friend record's `user` points to the
+    /// remote peer, never the local user), so we query Friend records directly.
+    /// `FriendStatus.accepted.rawValue == "accepted"` (`Sources/Models/Friend.swift`).
+    @Query(filter: #Predicate<Friend> { $0.statusRaw == "accepted" })
+    private var acceptedFriends: [Friend]
+
     @State private var showEditProfile = false
     @State private var showFriends = false
     @State private var showSettings = false
@@ -300,7 +307,7 @@ struct ProfileView: View {
     private func quickActions(_ user: User) -> some View {
         VStack(spacing: BlipSpacing.md) {
             HStack(spacing: BlipSpacing.md) {
-                quickActionCard(icon: "person.2.fill", title: ProfileViewL10n.friends, subtitle: "\(user.friends.count) friends") {
+                quickActionCard(icon: "person.2.fill", title: ProfileViewL10n.friends, subtitle: "\(acceptedFriends.count) friends") {
                     showFriends = true
                 }
 

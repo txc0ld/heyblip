@@ -31,6 +31,7 @@ protocol MessageServiceDelegate: AnyObject, Sendable {
     func messageService(_ service: MessageService, didReceiveTypingIndicatorFrom peerID: PeerID, in channelID: UUID)
     func messageService(_ service: MessageService, didReceiveDeliveryAck messageID: UUID)
     func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID)
+    func messageService(_ service: MessageService, didUpdateReactionFor messageID: UUID)
 }
 
 // MARK: - Message Service
@@ -292,12 +293,24 @@ final class MessageService: @unchecked Sendable {
             throw MessageServiceError.channelNotFound
         }
 
-        // Re-fetch replyTo in this context if present
+        // Re-fetch replyTo in this context so the local Message can hold a valid
+        // SwiftData relationship. The wire payload uses the SAME re-fetched ID so
+        // sender's local copy and wire bytes stay in lockstep — historically the
+        // wire used `replyTo?.id` while local used `localReplyTo`, and when the
+        // re-fetch silently failed the sender's bubble would lose the reply
+        // preview while the receiver still rendered one. Single source of truth.
         var localReplyTo: Message?
         if let replyTo {
             let replyToID = replyTo.id
             let replyDesc = FetchDescriptor<Message>(predicate: #Predicate { $0.id == replyToID })
             localReplyTo = try context.fetch(replyDesc).first
+            if localReplyTo == nil {
+                DebugLogger.shared.log(
+                    "DM",
+                    "sendTextMessage: replyTo \(DebugLogger.redact(replyToID.uuidString)) not found in current context — reply attribution dropped",
+                    isError: true
+                )
+            }
         }
 
         // Create the message model
@@ -313,26 +326,33 @@ final class MessageService: @unchecked Sendable {
         context.insert(message)
         do {
             try context.save()
-            DebugLogger.shared.log("DM", "sendTextMessage: queued msgID=\(message.id)")
+            let replyState: String
+            if let replyMessage = localReplyTo {
+                replyState = "replyTo=\(DebugLogger.redact(replyMessage.id.uuidString))"
+            } else {
+                replyState = "replyTo=nil"
+            }
+            DebugLogger.shared.log("DM", "sendTextMessage: queued msgID=\(message.id) \(replyState)")
         } catch {
             DebugLogger.shared.log("DM", "sendTextMessage: FAILED at save: \(error)", isError: true)
             throw error
         }
 
-        // Encrypt and send
+        // Encrypt and send — use the SAME localReplyTo?.id we just attached to
+        // the local Message. Either both have the reply pointer or neither does.
         let payload: Data
         if localChannel.isGroup {
             payload = MessagePayloadBuilder.buildGroupTextPayload(
                 content: content,
                 channelID: localChannel.id,
                 messageID: message.id,
-                replyToID: replyTo?.id
+                replyToID: localReplyTo?.id
             )
         } else {
             payload = MessagePayloadBuilder.buildTextPayload(
                 content: content,
                 messageID: message.id,
-                replyToID: replyTo?.id
+                replyToID: localReplyTo?.id
             )
         }
         let sendOutcome: SendOutcome
@@ -864,6 +884,53 @@ final class MessageService: @unchecked Sendable {
         _ = try await encryptAndSend(
             payload: payload,
             subType: .messageEdit,
+            channel: channel,
+            identity: identity,
+            messageID: messageID,
+            shouldEnqueueForRetry: false
+        )
+    }
+
+    /// Send (or clear) a reaction emoji on a message to the remote peer(s) in `channel`.
+    ///
+    /// Updates the local `Message.reaction` immediately so the sender's UI reflects the change
+    /// before the encrypted packet has even been built, then transmits the reaction over the
+    /// wire as `EncryptedSubType.messageReaction`.
+    ///
+    /// - Parameters:
+    ///   - emoji: Emoji to apply, or `nil` to clear an existing reaction.
+    ///   - messageID: The target message's `id`.
+    ///   - channel: The channel the message belongs to (DMs use the other participant's PeerID,
+    ///     groups would broadcast — see note below).
+    ///
+    /// Group reactions are not supported in this PR. `messageEdit` / `messageDelete` only target
+    /// DMs today; reactions follow the same constraint and will piggy-back on the broader group
+    /// edit/delete work when that lands.
+    @MainActor
+    func sendReaction(_ emoji: String?, for messageID: UUID, in channel: Channel) async throws {
+        guard let identity = try KeyManager.shared.loadIdentity() else {
+            DebugLogger.shared.log("DM", "Cannot send reaction: no identity", isError: true)
+            return
+        }
+
+        // Update local Message.reaction immediately so the sender's UI is responsive,
+        // matching the optimistic-update pattern used elsewhere in the chat pipeline.
+        let context = self.context
+        let targetID = messageID
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == targetID })
+        do {
+            if let message = try context.fetch(descriptor).first {
+                message.reaction = emoji
+                try context.save()
+            }
+        } catch {
+            DebugLogger.shared.log("DM", "Failed to apply local reaction: \(error.localizedDescription)", isError: true)
+        }
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: emoji)
+        _ = try await encryptAndSend(
+            payload: payload,
+            subType: .messageReaction,
             channel: channel,
             identity: identity,
             messageID: messageID,
@@ -1741,6 +1808,13 @@ final class MessageService: @unchecked Sendable {
             guard let content = String(data: message.rawPayload, encoding: .utf8) else {
                 throw MessageServiceError.serializationFailed("Queued text payload could not be decoded")
             }
+            let retryReplyState: String
+            if let replyMessage = message.replyTo {
+                retryReplyState = "replyTo=\(DebugLogger.redact(replyMessage.id.uuidString))"
+            } else {
+                retryReplyState = "replyTo=nil"
+            }
+            DebugLogger.shared.log("DM", "retryQueuedMessage: msgID=\(message.id) \(retryReplyState)")
             if channel.isGroup {
                 payload = MessagePayloadBuilder.buildGroupTextPayload(
                     content: content,

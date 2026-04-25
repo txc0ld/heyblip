@@ -167,6 +167,52 @@ final class MessagePayloadBuilderTests: XCTestCase {
         XCTAssertEqual(parsed.media, Data([0x01, 0x02, 0x03]))
     }
 
+    // MARK: - Reaction payload
+
+    func testReactionPayloadRoundTripWithEmoji() {
+        let messageID = UUID()
+        let emoji = "👍"
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: emoji)
+        let parsed = MessagePayloadBuilder.parseReactionPayload(payload)
+
+        XCTAssertEqual(parsed.messageID, messageID, "messageID must round-trip exactly")
+        XCTAssertEqual(parsed.emoji, emoji, "emoji must round-trip exactly")
+    }
+
+    func testReactionPayloadRoundTripWithEmpty() {
+        let messageID = UUID()
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: nil)
+        let parsed = MessagePayloadBuilder.parseReactionPayload(payload)
+
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertNil(parsed.emoji, "nil emoji signals 'clear my reaction' — must not become empty string")
+    }
+
+    func testReactionPayloadRoundTripWithMultiByteEmoji() {
+        let messageID = UUID()
+        let emoji = "🎉"
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: emoji)
+        let parsed = MessagePayloadBuilder.parseReactionPayload(payload)
+
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertEqual(parsed.emoji, emoji, "multi-byte emoji must round-trip")
+    }
+
+    func testReactionPayloadRoundTripWithCompoundEmoji() {
+        // Skin-tone modifier + ZWJ sequences are common reactions and span many bytes.
+        let messageID = UUID()
+        let emoji = "👍🏽"
+
+        let payload = MessagePayloadBuilder.buildReactionPayload(messageID: messageID, emoji: emoji)
+        let parsed = MessagePayloadBuilder.parseReactionPayload(payload)
+
+        XCTAssertEqual(parsed.messageID, messageID)
+        XCTAssertEqual(parsed.emoji, emoji)
+    }
+
     // MARK: - Leading message ID
 
     func testParseLeadingMessageIDRecognizesTextPayload() {

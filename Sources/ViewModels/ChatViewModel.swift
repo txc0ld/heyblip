@@ -831,21 +831,41 @@ final class ChatViewModel {
         replyTarget = nil
     }
 
-    /// Apply or clear the local reaction emoji on a message.
-    /// Local-only — not transmitted over the wire. Passing `nil` clears.
+    /// Apply or clear the reaction emoji on a message and transmit it over the wire.
+    ///
+    /// `MessageService.sendReaction` handles the optimistic local persistence and the
+    /// encrypted send. This method just dispatches the async work and refreshes
+    /// `activeMessages` so the bubble re-renders immediately. Passing `nil` clears.
     func setReaction(_ emoji: String?, on message: Message) {
         let messageID = message.id
+        guard let channel = message.channel ?? activeChannel else {
+            DebugLogger.shared.log("DM", "setReaction: no channel for message \(DebugLogger.redact(messageID.uuidString))", isError: true)
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await self.messageService.sendReaction(emoji, for: messageID, in: channel)
+                self.refreshReaction(for: messageID)
+            } catch {
+                DebugLogger.shared.log("DM", "sendReaction failed: \(error.localizedDescription)", isError: true)
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Re-fetch the message identified by `messageID` and replace it in `activeMessages`
+    /// so the chat bubble observes the new reaction. No-op if the message isn't currently
+    /// rendered.
+    fileprivate func refreshReaction(for messageID: UUID) {
         let context = self.context
+        let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
         do {
-            let descriptor = FetchDescriptor<Message>(predicate: #Predicate { $0.id == messageID })
-            guard let localMessage = try context.fetch(descriptor).first else { return }
-            localMessage.reaction = emoji
-            try context.save()
+            guard let updated = try context.fetch(descriptor).first else { return }
             if let idx = activeMessages.firstIndex(where: { $0.id == messageID }) {
-                activeMessages[idx] = localMessage
+                activeMessages[idx] = updated
             }
         } catch {
-            errorMessage = error.localizedDescription
+            DebugLogger.shared.log("DM", "refreshReaction fetch failed: \(error.localizedDescription)", isError: true)
         }
     }
 }
@@ -893,6 +913,12 @@ extension ChatViewModel: MessageServiceDelegate {
     nonisolated func messageService(_ service: MessageService, didReceiveReadReceipt messageID: UUID) {
         Task { @MainActor in
             self.handleReadReceipt(for: messageID)
+        }
+    }
+
+    nonisolated func messageService(_ service: MessageService, didUpdateReactionFor messageID: UUID) {
+        Task { @MainActor in
+            self.refreshReaction(for: messageID)
         }
     }
 }
