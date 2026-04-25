@@ -184,12 +184,13 @@ jobs:
           chmod 600 "$key_path"
 
       - name: Archive
-        # Manual signing with auto-resolution: with both profiles pre-installed in
-        # ~/Library/MobileDevice/Provisioning Profiles/, xcodebuild matches each
-        # target's bundle ID (au.heyblip.Blip → main profile, au.heyblip.Blip.notifications
-        # → NSE profile) without us specifying PROVISIONING_PROFILE_SPECIFIER globally
-        # (which would force every target to the same profile and break the NSE).
-        # `-allowProvisioningUpdates` is the safety net via ASC API.
+        # Use the project's native Automatic signing (set in project.yml). Manual mode
+        # via the CLI would require per-target PROVISIONING_PROFILE_SPECIFIER overrides
+        # for the main app + NSE, which xcodebuild doesn't expose per-target. With both
+        # profiles pre-installed in ~/Library/MobileDevice/Provisioning Profiles/, plus
+        # -allowProvisioningUpdates and the ASC API key configured below, Xcode resolves
+        # each target's profile by bundle ID match. Manual signing is still used at
+        # export time via ExportOptions.plist for explicit per-bundle profile mapping.
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -198,8 +199,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -skipPackagePluginValidation \
             -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$APP_BUILD" \
             OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -strict-concurrency=minimal' \
