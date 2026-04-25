@@ -50,11 +50,17 @@ jobs:
           echo "PROFILE_NSE_PLIST_PATH=$RUNNER_TEMP/build_pp_nse.plist" >> "$GITHUB_ENV"
 
       - name: Select Xcode & install iOS platform
+        # Pick the latest STABLE Xcode 26 (filter out beta). When macos-26 runner images
+        # include `Xcode_26.5_beta_*.app`, a greedy `sort -V | tail -1` grabs the beta —
+        # whose iOS SDK isn't pre-installed on the runner, breaking `xcodebuild archive`
+        # with `iOS X.Y is not installed`. Filtering to GA-only avoids the trap.
         run: |
           set -euo pipefail
-          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V | tail -1)
           if [ -z "$XCODE" ]; then
-            echo "::error::No Xcode 26 installation found on the runner"
+            echo "::error::No stable Xcode 26 installation found on the runner"
+            echo "Available Xcode installs:"
+            ls -d /Applications/Xcode_*.app 2>/dev/null || true
             exit 1
           fi
 
