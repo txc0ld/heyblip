@@ -1,9 +1,14 @@
 ---
-name: Notion workspace — HeyBlip
-description: Notion HeyBlip workspace IDs, schemas, auth, and the canonical patterns for filing/editing tasks. Replaced Bugasura on 2026-04-24.
+name: Notion workspace — HeyBlip (SUPERSEDED — read-only archive)
+description: Was the issue tracker 2026-04-24 to 2026-04-25. Now read-only archive. Use reference_jira_workspace.md for live Jira BDEV. Kept for historical lookup only.
 type: reference
 originSessionId: 134ab6d3-3752-4978-ae5b-a3722cdc2970
 ---
+
+> **SUPERSEDED 2026-04-25.** Jira BDEV at heyblip.atlassian.net is now the live issue tracker — see [reference_jira_workspace.md](reference_jira_workspace.md). The Notion HeyBlip workspace remains as a read-only archive. Every Jira ticket has a `Notion URL` custom field linking back to its original Notion page for historical lookup. Do not file new tickets or make edits in Notion.
+
+The schemas/IDs/patterns below remain accurate for read-only API queries against the archive but must not be used for write operations.
+
 ## Workspace overview
 
 - **Workspace name:** `HeyBlip`

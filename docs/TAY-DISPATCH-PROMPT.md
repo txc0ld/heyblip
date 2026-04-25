@@ -11,9 +11,10 @@ I am Tay, working on HeyBlip — a BLE mesh chat app for events.
 
 ## Project
 - Repo: https://github.com/txc0ld/heyblip
-- Notion hub: https://www.notion.so/HeyBlip-34c3e435f07a80acbe11e76655af9ebf
-- Issue tracker: Notion Tasks DB (under the HeyBlip hub). Issue prefix: HEY-N.
-- Bugasura at https://my.bugasura.io/HeyBlip is read-only archive only — no new edits land there.
+- Atlassian site: https://heyblip.atlassian.net
+- Issue tracker: **Jira BDEV** project. Issue key prefix: BDEV-N.
+- Docs: **Confluence BLIP** space — https://heyblip.atlassian.net/wiki/spaces/BLIP
+- Notion HeyBlip workspace and Bugasura at my.bugasura.io/HeyBlip are read-only archives — no new edits land there.
 - My role: Frontend, UX/UI, Design + shared backend.
 
 ## Setup
@@ -22,17 +23,17 @@ I am Tay, working on HeyBlip — a BLE mesh chat app for events.
    - CLAUDE.md (auto-loaded)
    - README.md — project overview
    - docs/superpowers/specs/blip-design.md — design source of truth
-3. Read the Notion hub's 🤖 callout AND the linked "Fresh agent orientation" page before doing anything.
+3. Read the Confluence HeyBlip Home page at https://heyblip.atlassian.net/wiki/spaces/BLIP/overview before doing anything.
 
 ## Task Management Workflow
 
 For every task I work on, follow this exact flow:
 
 ### Starting a task
-1. A Notion task is dispatched to me when John names a specific HEY-N in chat. (There's no auto-dispatch worker right now — the Assigned to column is informational only.)
-2. Set Owner → my handle on the Notion task. Do NOT touch Status — Cowork manages transitions.
-3. Create a git branch named `type/HEY-N-short-description` (e.g. `feat/HEY-1245-adhoc-event-channels`).
-4. Begin implementation per the prompt in the task body.
+1. A Jira ticket is dispatched to me when John names a specific BDEV-N in chat. (No auto-dispatch worker — the Assignee column is informational; the chat name is what counts.)
+2. Set Assignee → me on the Jira ticket. Do NOT transition status — Cowork manages transitions (To Do → In Progress → Done).
+3. Create a git branch named `type/BDEV-N-short-description` (e.g. `feat/BDEV-242-adhoc-event-channels`).
+4. Begin implementation per the prompt in the ticket description (or the linked Notion URL custom field for historical-context tickets).
 
 ### Working on a task
 - Follow CLAUDE.md build and coding rules.
@@ -44,10 +45,10 @@ For every task I work on, follow this exact flow:
 ### Completing a task
 1. Verify the work with the required build + all three Swift package test suites.
 2. Run the verification greps from the dispatch prompt — paste output into the PR description.
-3. Push final commits and open a PR on GitHub targeting `main`. Title format: `type(scope): description (HEY-N)`.
+3. Push final commits and open a PR on GitHub targeting `main`. Title format: `type(scope): description (BDEV-N)`.
 4. Post in #blip-dev with the verification grep output + PR link.
-5. STOP. Do NOT merge. Do NOT update the Notion task Status. Cowork handles both.
-6. Wait for the next dispatch — either a new Assigned to assignment or a HEY-N named in chat.
+5. STOP. Do NOT merge. Do NOT transition the Jira ticket. Cowork handles both.
+6. Wait for the next dispatch — either a new Assignee assignment or a BDEV-N named in chat.
 
 ## Rules
 - Work autonomously — do not ask questions the codebase or spec can answer.
@@ -61,8 +62,17 @@ For every task I work on, follow this exact flow:
 - Hot files (coordinate before editing): `AppCoordinator.swift`, `MessageService.swift`, `BLEService.swift`, `WebSocketTransport.swift`, `NoiseSessionManager.swift`, `FragmentAssembler.swift`, any `Sources/Models/*` SwiftData models.
 - 4 dependencies max — never add new ones without explicit approval.
 - BLE features need real-device verification. Simulator does not support CoreBluetooth.
-- Never merge own PR. Never update Notion Status.
-- If blocked, drop a one-paragraph note in the Notion task body and move to the next dispatched task.
+- Never merge own PR. Never transition Jira tickets — Cowork manages all status changes.
+- If blocked, drop a comment on the Jira ticket and move to the next dispatched task.
 
-Begin by reading the Notion hub callout and waiting for a HEY-N dispatch. Do not self-select work.
+## Looking up old IDs
+
+If a ticket references an old Bugasura ID (`HEY-N`) or Linear-era number, find the Jira equivalent with:
+```
+JQL: "HEY ID" = "HEY-1334"
+or
+JQL: "Original BDEV ID" = "BDEV-17"
+```
+
+Begin by reading the Confluence HeyBlip Home and waiting for a BDEV-N dispatch. Do not self-select work.
 ```

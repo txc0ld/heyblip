@@ -1,6 +1,6 @@
 ---
-name: Infrastructure — Workers, Sentry, Bugasura, DB, GitHub
-description: Deployed surfaces, secrets, versions, URLs, ownership split. Updated 2026-04-21 EOD.
+name: Infrastructure — Workers, Sentry, Atlassian (Jira+Confluence), DB, GitHub
+description: Deployed surfaces, secrets, versions, URLs, ownership split. Updated 2026-04-25 (Bugasura→Notion→Jira migration complete).
 type: reference
 originSessionId: 6e15e31b-7115-4971-bf13-07d171f32b25
 ---
@@ -61,12 +61,29 @@ originSessionId: 6e15e31b-7115-4971-bf13-07d171f32b25
 - Used by `blip-auth` and `blip-relay` via `DATABASE_URL` in their `wrangler.toml`.
 - Key table: `users` — `id`, `username`, `email`, `noise_public_key`, `signing_public_key`, `created_at`, `updated_at`, `display_name`, `avatar_url`, `provider`, `provider_id`.
 
-## Bugasura
+## Atlassian (Jira BDEV + Confluence BLIP)
+
+- **Site:** https://heyblip.atlassian.net (created 2026-04-25)
+- **Jira project:** `BDEV` ("HeyBlip"), company-managed Scrum. 366 tickets imported from Notion 2026-04-25, range BDEV-2 → BDEV-367. New tickets continue from BDEV-368+.
+- **Confluence space:** `BLIP` ("HeyBlip"). Team home at `/wiki/spaces/BLIP/overview`. Sub-pages: Decisions log, Components reference (per SPM package + worker).
+- **Auth:** `ATLASSIAN_TOKEN` env var (Basic auth `email:token`). Email `macca.mck@gmail.com`. CLASSIC token (not scoped — scoped tokens default to read-only).
+- **Custom fields preserved on every imported ticket:** `HEY ID` (cf 10039), `Original BDEV ID` (cf 10040), `Notion URL` (cf 10041), `Bugasura URL` (cf 10042). Same metadata also in description text for JQL fallback.
+- **Find a migrated ticket by old ID:** `JQL: "HEY ID" = "HEY-1334"`.
+- **Rate limits are aggressive** — 1s between calls, 15s between bulk batches. Throttling appears as 401/404 (not 429) — confusing.
+- Full reference in `reference_jira_workspace.md` and `reference_confluence_workspace.md`.
+
+## Notion (read-only archive)
+
+- **App URL:** https://www.notion.so/HeyBlip-34c3e435f07a80acbe11e76655af9ebf
+- **Status:** archive only as of 2026-04-25. Original Tasks DB preserved for historical lookup. NOT to be edited for live work.
+- Token in `NOTION_TOKEN` env var; only needed if you have to read original Notion pages.
+
+## Bugasura (read-only archive)
 
 - **App URL:** https://my.bugasura.io/
-- **IDs:** project 135167 (HeyBlip), team 101842 (Mesh Works), sprint 152746 (Linear Import). Issue prefix **HEY**.
-- Full API reference in `reference_bugasura_api.md`.
-- **Bugasura MCP plugin** NOT yet installed. Bundle at `~/FezChat/heyblip-team.plugin` (855-byte zip). One double-click installs it at Cowork level. Until installed, all Bugasura ops go through curl. Tracked informally — nudge John if it still isn't installed by tomorrow.
+- **IDs:** project 135167 (HeyBlip), team 101842 (Mesh Works), sprint 152746 (Linear Import). Issue prefix **HEY** (preserved as Jira custom field).
+- Each Jira ticket has a `Bugasura URL` custom field linking back. Click-through is the easiest path for historical lookups; the API is rarely needed now.
+- Full historical API reference in `reference_bugasura_api.md`.
 
 ## Ownership split (confirmed 2026-04-14)
 

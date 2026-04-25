@@ -35,14 +35,14 @@ curl -sf https://blip-auth.john-mckean.workers.dev/v1/auth/health
 
 ## 3. Verify ticket status against actual code on main
 
-Never trust Notion task status at face value. Before presenting a ticket as "next to work on" or "still open":
+Never trust Jira ticket status at face value. Before presenting a ticket as "next to work on" or "still open":
 
-1. `git log` for commits referencing the ticket ID or fixing the described issue
+1. `git log` for commits referencing the ticket ID (BDEV-N or the legacy HEY-N in the ticket's `HEY ID` custom field) or fixing the described issue
 2. Grep the code on `main` to see if the fix is already there
-3. Check for tickets incorrectly marked Done where the code wasn't actually changed (or vice versa — Fixed on main but still New in Notion)
+3. Check for tickets incorrectly marked Done where the code wasn't actually changed (or vice versa — landed on main but still To Do in Jira)
 
-**Why:** On 2026-04-14, presented HEY1194 (CRITICAL: group messages unencrypted) as the next task — but PR #178 had already fixed it. Also found PUSH-1 through PUSH-4 on main but tickets still open, and HEY1198/1199/1200 marked Closed with the code unchanged. Codex/Claude Code agents don't always update Bugasura; humans don't always reopen bad closes.
+**Why:** On 2026-04-14, presented HEY1194 (CRITICAL: group messages unencrypted) as the next task — but PR #178 had already fixed it. Also found PUSH-1 through PUSH-4 on main but tickets still open, and HEY1198/1199/1200 marked Closed with the code unchanged. Codex/Claude Code agents don't always update the issue tracker; humans don't always reopen bad closes. (This risk persisted through the 3 trackers — Bugasura → Notion → Jira BDEV. The verification rule fixes the underlying gap, not the tool.)
 
-Separately from that: in April 2026, 4 of 15 UI audit tickets (BDEV-250/251/254/256) were marked Done but main was unchanged — the PRs had empty diffs or were silently reverted. This is why prompts must carry a `## Verification` section with grep/ls/wc checks, and why post-merge we re-run those checks against `main` before marking Done.
+Separately from that: in April 2026, 4 of 15 UI audit tickets (BDEV-250/251/254/256 in the original Linear-era numbering — find the migrated equivalents via JQL `"Original BDEV ID" = "BDEV-250"`) were marked Done but main was unchanged — the PRs had empty diffs or were silently reverted. This is why prompts must carry a `## Verification` section with grep/ls/wc checks, and why post-merge we re-run those checks against `main` before transitioning to Done.
 
-**How to apply:** Before any sprint planning or task dispatch, audit open tickets against `git log` + code search on `main`. Takes 5–10 minutes; saves hours of dispatching already-shipped work. Post-merge, re-run the prompt's verification greps against `main` before the ticket is flagged for closure.
+**How to apply:** Before any sprint planning or task dispatch, audit open tickets against `git log` + code search on `main`. Takes 5–10 minutes; saves hours of dispatching already-shipped work. Post-merge, re-run the prompt's verification greps against `main` before transitioning the ticket to Done.

@@ -83,16 +83,16 @@ originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 - NEVER generate Claude Code prompts or do substantive planning — that's Cowork's job
 - The scheduled bot auto-reviews new GitHub PRs (checks every 15 min) and responds to @Blip tags
 - PR reviews: post in #blip-dev, merge commands go to the appropriate task channel per merge routing rules
-- NEVER make things up. Only state facts verifiable from Slack, GitHub, or Notion. If unsure, say so.
+- NEVER make things up. Only state facts verifiable from Slack, GitHub, or Jira. If unsure, say so.
 
 ## Auto-Actions (PR Review & Merge Pipeline)
 - GitHub PAT stored in `.claude/skills/slack-bot/.env` as `GITHUB_PAT`
 - When reviewing PRs: check diff via GitHub API, approve if clean, merge via squash
 - If PR is a draft: mark ready via GraphQL mutation first, then merge
-- After merge: update Notion task to Done, post confirmation in #blip-dev
-- If anything is off (bugs, missing error handling, spec violations): request changes or auto-create a Notion task for the fix
+- After merge: transition the Jira ticket to Done, post confirmation in #blip-dev
+- If anything is off (bugs, missing error handling, spec violations): request changes or auto-create a Jira ticket for the fix
 - **Merge routing (updated 2026-04-21)**: Cowork reviews AND merges PRs via GitHub PAT — acts as project manager/senior dev. Tay's job ends at push + PR open + post in #blip-dev; he does NOT run `gh pr merge`. John is only pinged for conflicts/escalations, worker deploys (wrangler commands go to #jmac-tasks), or when CI fails. Do NOT merge on yellow/in-progress CI — wait for green.
   - **Why the flip:** Previously (2026-04-14 → 2026-04-20) John merged all PRs himself. On 2026-04-21 he reassigned merge authority to Cowork — "you review and merge PRs, you are the project manager/senior dev" — so the bottleneck is removed.
   - **Self-approval limitation**: GitHub PAT cannot approve PRs where the PAT owner (iamjohnnymac) pushed the latest commit. Workaround: merge directly without formal approval.
-  - **Post-merge steps (mandatory):** verify the change landed on `main` by reading the code (not trusting the commit message), post merge confirmation in #blip-dev, and flag the Notion task for closure (John still transitions tickets per separate rule).
-- **Auto-dispatch is NOT live yet.** There is no service watching Notion to fire dispatches when Assigned to changes. All dispatch is manual right now: John (or Cowork acting on his behalf) names a HEY-N in chat, then Cowork posts the full prompt to the task channel. The `Assigned to` column is informational only until an auto-dispatch worker is built (see HEY-1332).
+  - **Post-merge steps (mandatory):** verify the change landed on `main` by reading the code (not trusting the commit message), post merge confirmation in #blip-dev, and transition the Jira ticket to Done (Cowork has Jira write access via `ATLASSIAN_TOKEN`).
+- **Auto-dispatch is NOT live yet.** There is no service watching Jira to fire dispatches when Assignee changes. All dispatch is manual right now: John (or Cowork acting on his behalf) names a BDEV-N in chat, then Cowork posts the full prompt to the task channel. The `Assignee` field is informational only until an auto-dispatch worker is built.

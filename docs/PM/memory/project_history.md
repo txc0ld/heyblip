@@ -4,6 +4,8 @@ description: Current repo state, open backlog, pending verifications. For pre-20
 type: project
 ---
 
+> **Issue tracker note (2026-04-25):** All HEY-N references below are pre-migration Bugasura/Notion IDs. They were imported into Jira BDEV with new BDEV-N numbers but their original HEY-N is preserved on each ticket as the `HEY ID` custom field. To find the new BDEV equivalent: `JQL: "HEY ID" = "HEY-1334"`. New tickets file directly in Jira BDEV (no HEY prefix — just BDEV-N).
+
 ## Current state (as of 2026-04-25 EOD AWST — push-notifications session)
 
 ### Headline

@@ -251,24 +251,60 @@ Do not read or modify:
 
 ## Issue Tracker (Jira)
 
-Jira is the issue tracker as of 2026-04-25 (replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix is now **BDEV** (e.g., BDEV-179) — historical HEY-* tickets remain readable in the Bugasura archive, but no new tickets are filed there.
+**Jira BDEV** is the issue tracker as of 2026-04-25. It replaced Notion (which replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix is **`BDEV-N`** — Jira's auto-numbering. The 366 imported tickets cover **BDEV-2 → BDEV-367**; new tickets continue from BDEV-368+.
 
-**Jira project:** `BDEV` at https://heyblip.atlassian.net/jira/software/c/projects/BDEV/summary
+**Site:** https://heyblip.atlassian.net  
+**Jira project:** `BDEV` ("HeyBlip"), company-managed Scrum  
+**Confluence space:** `BLIP` ("HeyBlip") — linked from BDEV → Docs tab. Team home at https://heyblip.atlassian.net/wiki/spaces/BLIP
 
-**Companion Confluence wiki** (internal docs / runbooks): https://heyblip.atlassian.net/wiki/spaces/BLIP/overview (space key: `BLIP`).
+**Issue types** (default Scrum): `Bug`, `Task`, `Story`, `Epic`, `Subtask`. Old Notion-era types (`IMPROVEMENT`, `POLISH`, `SUGGESTION`, `TECH-DEBT`) were collapsed into `Task` during import.
 
-**API details:**
-- Base URL: `https://heyblip.atlassian.net/rest/api/3/`
-- Auth: HTTP Basic with Atlassian email + API token (token issued at https://id.atlassian.com/manage-profile/security/api-tokens). Credentials TBD — request from John before scripted use.
-- Encoding: `application/json` (standard Atlassian Cloud).
-- Status values: standard Jira workflow — confirm in the BDEV board's column config before automation; don't hardcode.
+**Statuses:** `To Do`, `In Progress`, `Done`. Resolution auto-set to `Done` on transition to Done.
 
-**Historical archive (read-only):** Bugasura at https://my.bugasura.io/HeyBlip — for HEY-* tickets filed before the move to Jira.
+**Custom fields** (every imported ticket has these populated):
+- `HEY ID` (`customfield_10039`) — old Bugasura ID, e.g. `HEY-1334`
+- `Original BDEV ID` (`customfield_10040`) — old Linear-era BDEV-N
+- `Notion URL` (`customfield_10041`) — link back to original Notion page
+- `Bugasura URL` (`customfield_10042`) — link to Bugasura archive
 
-**Workflow:** Claude Code prompts are stored in Jira ticket descriptions. To pick up a task:
-1. Fetch the ticket from Jira (web UI or REST API)
-2. Copy the prompt from the ticket description into Claude Code
+The same metadata is also embedded as plain text in each issue's description, so JQL `description ~ "HEY-1334"` works as a fallback.
+
+**Find an old ticket by its HEY-N:**
+```
+JQL: "HEY ID" = "HEY-1334"
+```
+
+**Filing a ticket via REST API:**
+```bash
+EMAIL="macca.mck@gmail.com"
+TOKEN=$(security find-generic-password -a "$EMAIL" -s atlassian-api-token-heyblip -w)
+curl -X POST -u "$EMAIL:$TOKEN" -H "Content-Type: application/json" \
+  "https://heyblip.atlassian.net/rest/api/3/issue" -d '{
+    "fields": {
+      "project": {"key":"BDEV"},
+      "summary": "...",
+      "issuetype": {"name":"Bug"},
+      "priority": {"name":"High"},
+      "labels": ["audit-gaps-apr-2026"]
+    }
+  }'
+```
+Atlassian rate limits are aggressive on API tokens — sleep ≥1s between calls; throttling appears as 401/404 (not 429).
+
+**Notion HeyBlip workspace** — still exists with the original Tasks DB but is now a read-only archive. New work doesn't go there.
+
+**Bugasura** — read-only archive at https://my.bugasura.io/HeyBlip. Linked from each ticket's `Bugasura URL` custom field for historical lookup.
+
+**Documentation:** Confluence is the team docs home. Decisions log uses Confluence's `/decision` inline action with stable `DEC-N` IDs. Components reference mirrors the SPM package layout — see https://heyblip.atlassian.net/wiki/spaces/BLIP/pages/524291/Components.
+
+**Workflow:** To pick up a task:
+1. Fetch the Jira ticket via REST API (`GET /rest/api/3/issue/BDEV-N`) or by URL `https://heyblip.atlassian.net/browse/BDEV-N`
+2. Read the description for repro steps + linked Notion/Bugasura URL for historical context
 3. Slack (#tay-tasks, #jmac-tasks) is for **notifications and status updates only** — not for prompts
+
+For full Jira and Confluence reference, see:
+- `docs/PM/memory/reference_jira_workspace.md`
+- `docs/PM/memory/reference_confluence_workspace.md`
 
 ## Git
 
@@ -276,7 +312,7 @@ Jira is the issue tracker as of 2026-04-25 (replaced Bugasura, which replaced Li
 - Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - One logical change per commit
 - Never commit with failing tests
-- **Branch naming:** `type/BDEV-XXX-short-description` (matches Jira ticket)
+- **Branch naming:** `type/BDEV-XXX-short-description` (matches the Jira BDEV-N ticket key). For tickets that pre-date the migration, you may also see `type/HEY-XXX-...` branches still open — these are valid; the BDEV ticket carries the old HEY-N as a custom field for traceability.
 - **Before merging:** Always rebase onto latest `main` and re-run build + tests
 
 ### PR and Ticket Handoff — STOP HERE
@@ -288,7 +324,7 @@ Jira is the issue tracker as of 2026-04-25 (replaced Bugasura, which replaced Li
 
 John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Jira updates, merge routing), but the merge click is John's.
 
-**NEVER update Jira ticket status.** Cowork manages all BDEV workflow transitions end-to-end. Do not touch ticket status at any point during your work.
+**NEVER transition Jira tickets yourself.** Cowork manages all ticket transitions (To Do → In Progress → Done) end-to-end. Do not touch the workflow status at any point during your work — your only allowed writes are `Assignee` → yourself when claiming, and pasting your PR URL into the description or as a comment.
 
 ## Execution Model
 
