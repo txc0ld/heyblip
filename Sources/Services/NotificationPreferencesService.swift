@@ -335,6 +335,7 @@ final class NotificationPreferencesService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        _ = request.attachTraceID(category: "PUSH_PREFS")
 
         let encoder = JSONEncoder()
         do {

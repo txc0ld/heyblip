@@ -86,6 +86,16 @@ struct BLEDebugOverlay: View {
                         .foregroundStyle(.blipAccentPurple)
 
                         Button {
+                            UIPasteboard.general.string = DebugLogger.shared.sessionID.uuidString
+                            copiedToast = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedToast = false }
+                        } label: {
+                            Label("Trace ID", systemImage: "tag")
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                        .foregroundStyle(.blipAccentPurple)
+
+                        Button {
                             guard !loadingHistory else { return }
                             loadingHistory = true
                             Task {

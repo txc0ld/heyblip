@@ -232,6 +232,14 @@ export default Sentry.withSentry(sentryOptions, {
 
     const url = new URL(request.url);
 
+    // Cross-tier trace ID (BDEV-403). Read the iOS client's X-Trace-ID
+    // header so a single request stitches across the in-app debug overlay,
+    // wrangler tail, and Sentry. If absent, mint one so internal-service
+    // calls (cron, badge-clear forwarder) still get a correlation handle.
+    const traceID = request.headers.get("X-Trace-ID") ?? crypto.randomUUID();
+    Sentry.setTag("trace_id", traceID);
+    console.log(`[trace ${traceID}] ${request.method} ${url.pathname}`);
+
     try {
       if (url.pathname === "/v1/auth/health") {
         return json({ status: "ok" }, 200, env);

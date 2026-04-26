@@ -120,6 +120,13 @@ export default Sentry.withSentry(sentryOptions, {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // Cross-tier trace ID (BDEV-403). Read the iOS client's X-Trace-ID so a
+    // single request stitches across in-app debug overlay, wrangler tail,
+    // and Sentry. If absent (server-to-server calls), mint one.
+    const traceID = request.headers.get("X-Trace-ID") ?? crypto.randomUUID();
+    Sentry.setTag("trace_id", traceID);
+    console.log(`[trace ${traceID}] ${request.method} ${url.pathname}`);
+
     if (url.pathname === "/health") {
       return new Response("ok", { status: 200 });
     }

@@ -86,6 +86,7 @@ final class BadgeSyncService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 10
+        _ = request.attachTraceID(category: "PUSH")
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)

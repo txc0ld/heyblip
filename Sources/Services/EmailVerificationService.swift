@@ -122,6 +122,7 @@ final class EmailVerificationService: Sendable {
         } catch {
             throw EmailVerificationError.networkError("Failed to encode request")
         }
+        _ = request.attachTraceID(category: "AUTH")
 
         do {
             return try await ServerConfig.pinnedSession.data(for: request)

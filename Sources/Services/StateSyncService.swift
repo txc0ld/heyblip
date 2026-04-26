@@ -82,6 +82,7 @@ final class StateSyncService: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
+        _ = request.attachTraceID(category: "SYNC")
 
         do {
             let (data, response) = try await performAuthenticatedRequest(request, identity: identity)
@@ -128,6 +129,7 @@ final class StateSyncService: @unchecked Sendable {
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.httpBody = stateData
         request.timeoutInterval = 10
+        _ = request.attachTraceID(category: "SYNC")
 
         do {
             let (_, response) = try await performAuthenticatedRequest(request, identity: identity)
