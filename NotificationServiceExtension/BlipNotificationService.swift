@@ -63,10 +63,17 @@ final class BlipNotificationService: UNNotificationServiceExtension {
         let senderHex = blip["senderPeerIdHex"] as? String
         let threadId = blip["threadId"] as? String
 
+        let payloadDisplayName = (blip["senderDisplayName"] as? String)
+            ?? (blip["senderUsername"] as? String)
         let friend = senderHex.flatMap { cache?.friends[$0] }
         let channel = threadId.flatMap { cache?.channels[$0] }
 
-        let displayName: String = friend?.displayName ?? "Unknown contact"
+        // Cache hit wins for established friends (preserves user-set display
+        // names). For senders the recipient hasn't befriended yet — friend
+        // requests being the canonical case — fall through to the payload's
+        // `senderUsername` (server-resolved). "Someone" is the last-resort
+        // fallback (BDEV-409).
+        let displayName: String = friend?.displayName ?? payloadDisplayName ?? "Someone"
         let channelName: String? = channel?.name
 
         switch type {

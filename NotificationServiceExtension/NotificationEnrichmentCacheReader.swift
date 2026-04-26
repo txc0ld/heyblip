@@ -12,7 +12,8 @@ import Foundation
 /// App Group: `group.com.heyblip.shared` (shared across Debug + Release builds)
 ///
 /// On any failure (missing entitlement, missing file, corrupt JSON) this
-/// returns `nil` and the NSE falls back to "Unknown contact" / "New message".
+/// returns `nil` and the NSE falls back to the payload's `senderUsername`
+/// (or "Someone" / "New message" if that's also absent).
 struct NotificationEnrichmentCache: Codable, Sendable {
     struct Friend: Codable, Sendable {
         let peerIdHex: String

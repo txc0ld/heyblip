@@ -46,6 +46,7 @@ export interface ApsPayload {
     type: PushType;
     threadId: string | null;
     senderPeerIdHex: string | null;
+    senderUsername: string | null;
     deeplink: string | null;
     badgeCount: number;
   };
@@ -181,8 +182,8 @@ function headersFor(type: PushType, threadId: string | null): ApnsHeaders {
 }
 
 export function buildPayload(input: BuildPayloadInput): BuildPayloadOutput {
-  const { type, threadId, senderPeerIdHex, badgeCount, deeplink } = input;
-  const alert = strings(type, input.senderUsername, input.channelName);
+  const { type, threadId, senderPeerIdHex, senderUsername, badgeCount, deeplink } = input;
+  const alert = strings(type, senderUsername, input.channelName);
   const snd = sound(type);
   const level = interruptionLevel(type);
   const headers = headersFor(type, threadId);
@@ -216,6 +217,7 @@ export function buildPayload(input: BuildPayloadInput): BuildPayloadOutput {
       type,
       threadId,
       senderPeerIdHex,
+      senderUsername,
       deeplink,
       badgeCount,
     },
