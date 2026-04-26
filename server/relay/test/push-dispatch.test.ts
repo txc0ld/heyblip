@@ -149,6 +149,7 @@ describe("PushDispatcher.dispatchNow", () => {
       type: "dm",
       threadId: "bbbb",
       badgeCount: 3,
+      traceID: "trace-123",
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -157,6 +158,7 @@ describe("PushDispatcher.dispatchNow", () => {
     expect(init?.method).toBe("POST");
     expect((init?.headers as Record<string, string>)["X-Internal-Key"]).toBe("test-key");
     expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    expect((init?.headers as Record<string, string>)["X-Trace-ID"]).toBe("trace-123");
     const body = JSON.parse(init?.body as string);
     expect(body).toEqual({
       recipientPeerIdHex: "aaaa",

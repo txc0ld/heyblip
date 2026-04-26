@@ -80,6 +80,7 @@ export interface PushPayload {
   type: PushType;
   threadId: string | null;
   badgeCount: number;
+  traceID?: string;
 }
 
 type ShouldPushDecision = "proceed" | "cooldown" | "unsupported_type";
@@ -109,6 +110,10 @@ function structuredLog(event: string, fields: Record<string, unknown>): void {
       ...fields,
     })
   );
+}
+
+function traceLog(traceID: string, message: string): void {
+  console.log(`[trace ${traceID}] ${message}`);
 }
 
 export class PushDispatcher {
@@ -205,6 +210,7 @@ export class PushDispatcher {
    * directly for out-of-band pushes (silent_badge_sync on reconnect).
    */
   async dispatchNow(payload: PushPayload): Promise<void> {
+    const traceID = payload.traceID ?? crypto.randomUUID();
     const now = Date.now();
     const decision = this.shouldPush(
       payload.recipientPeerIdHex,
@@ -213,11 +219,16 @@ export class PushDispatcher {
       now
     );
     if (decision === "cooldown") {
+      traceLog(
+        traceID,
+        `push suppressed reason=cooldown type=${payload.type} recipient=${payload.recipientPeerIdHex} thread=${payload.threadId ?? "-"}`
+      );
       structuredLog("push.suppressed", {
         reason: "cooldown",
         recipientPeerIdHex: payload.recipientPeerIdHex,
         type: payload.type,
         threadId: payload.threadId,
+        traceID,
       });
       return;
     }
@@ -234,11 +245,16 @@ export class PushDispatcher {
     };
 
     try {
+      traceLog(
+        traceID,
+        `env.AUTH.fetch /v1/internal/push type=${payload.type} recipient=${payload.recipientPeerIdHex} thread=${payload.threadId ?? "-"}`
+      );
       const init: RequestInit = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Internal-Key": this.env.INTERNAL_API_KEY,
+          "X-Trace-ID": traceID,
         },
         body: JSON.stringify(body),
       };
@@ -250,10 +266,15 @@ export class PushDispatcher {
         ? await this.env.AUTH.fetch(this.authPushUrl, init)
         : await fetch(this.authPushUrl, init);
       if (!resp.ok) {
+        traceLog(
+          traceID,
+          `env.AUTH.fetch non-OK status=${resp.status} type=${payload.type} recipient=${payload.recipientPeerIdHex}`
+        );
         structuredLog("push.internal_fetch_failed", {
           recipientPeerIdHex: payload.recipientPeerIdHex,
           type: payload.type,
           status: resp.status,
+          traceID,
         });
         Sentry.captureMessage("Relay push trigger returned non-OK status", {
           level: "warning",
@@ -262,18 +283,28 @@ export class PushDispatcher {
         });
         return;
       }
+      traceLog(
+        traceID,
+        `push dispatched type=${payload.type} recipient=${payload.recipientPeerIdHex} badge=${payload.badgeCount}`
+      );
       structuredLog("push.dispatched", {
         recipientPeerIdHex: payload.recipientPeerIdHex,
         type: payload.type,
         threadId: payload.threadId,
         badgeCount: payload.badgeCount,
         hasSender: payload.senderPeerIdHex !== null,
+        traceID,
       });
     } catch (error) {
+      traceLog(
+        traceID,
+        `env.AUTH.fetch error type=${payload.type} recipient=${payload.recipientPeerIdHex} error=${error instanceof Error ? error.message : String(error)}`
+      );
       structuredLog("push.internal_fetch_failed", {
         recipientPeerIdHex: payload.recipientPeerIdHex,
         type: payload.type,
         error: error instanceof Error ? error.message : String(error),
+        traceID,
       });
       Sentry.captureException(error, {
         tags: { component: "push-dispatch", operation: "push_trigger" },

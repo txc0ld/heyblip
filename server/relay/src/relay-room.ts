@@ -434,7 +434,9 @@ export class RelayRoom implements DurableObject {
     }
 
     // Recipient not connected — store for later delivery.
-    this.queuePacket(recipientHex, data);
+    const traceID = crypto.randomUUID();
+    console.log(`[trace ${traceID}] WS recipient ${recipientHex} offline; enqueueing + triggering push`);
+    this.queuePacket(recipientHex, data, traceID);
   }
 
   // MARK: - Hibernation helpers
@@ -477,7 +479,11 @@ export class RelayRoom implements DurableObject {
   // MARK: - Store-and-forward queue
 
   /** Queue a packet for offline delivery. Bounded by MAX_QUEUED_PER_PEER. */
-  private async queuePacket(recipientHex: PeerIDHex, data: Uint8Array): Promise<void> {
+  private async queuePacket(
+    recipientHex: PeerIDHex,
+    data: Uint8Array,
+    traceID?: string
+  ): Promise<void> {
     const storedAt = Date.now();
     const queuePrefix = `${QUEUE_PREFIX}${recipientHex}:`;
     const key = `${queuePrefix}${storedAt}:${crypto.randomUUID().slice(0, 12)}`;
@@ -507,7 +513,7 @@ export class RelayRoom implements DurableObject {
 
     // Push pipeline — classify, bump ledger, schedule the auth-worker callout.
     // Don't block packet queuing on any of these side-effects.
-    void this.enqueuePush(recipientHex, data, key).catch((err) => {
+    void this.enqueuePush(recipientHex, data, key, traceID).catch((err) => {
       // Auth callout failure must not break queuing; Sentry already captured
       // inside PushDispatcher.dispatchNow. Log once for visibility.
       console.log(
@@ -516,6 +522,7 @@ export class RelayRoom implements DurableObject {
           timestamp: Date.now(),
           recipientPeerIdHex: recipientHex,
           error: err instanceof Error ? err.message : String(err),
+          traceID: traceID ?? null,
         })
       );
     });
@@ -529,7 +536,8 @@ export class RelayRoom implements DurableObject {
   private async enqueuePush(
     recipientHex: PeerIDHex,
     data: Uint8Array,
-    queueKey: string
+    queueKey: string,
+    traceID?: string
   ): Promise<void> {
     const senderHex = bytesToHex(data.slice(OFFSET_SENDER_ID, OFFSET_SENDER_ID + PEER_ID_LENGTH));
     const packetType = data[OFFSET_TYPE];
@@ -542,6 +550,7 @@ export class RelayRoom implements DurableObject {
           reason: "unsupported_type",
           recipientPeerIdHex: recipientHex,
           packetType,
+          traceID: traceID ?? null,
         })
       );
       return;
@@ -561,6 +570,7 @@ export class RelayRoom implements DurableObject {
         threadId,
         type: pushType,
         newTotal,
+        traceID: traceID ?? null,
       })
     );
 
@@ -570,6 +580,7 @@ export class RelayRoom implements DurableObject {
       type: pushType,
       threadId,
       badgeCount: newTotal,
+      traceID,
     });
   }
 

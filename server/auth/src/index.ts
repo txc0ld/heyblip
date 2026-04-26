@@ -244,7 +244,6 @@ export default Sentry.withSentry(sentryOptions, {
       if (url.pathname === "/v1/auth/health") {
         return json({ status: "ok" }, 200, env);
       }
-
       // GET routes (besides health)
       if (request.method === "GET" && url.pathname.startsWith("/v1/users/lookup/")) {
           return handleLookupByUsername(request, url, env);
@@ -1486,6 +1485,11 @@ function logPushEvent(event: string, fields: Record<string, unknown>): void {
   }
 }
 
+function redactPushToken(token: string): string {
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 8)}...${token.slice(-4)}`;
+}
+
 function legacyPushTypeToString(pushType: number | undefined, contentAvailable: boolean): PushType {
   if (contentAvailable) return "silent_badge_sync";
   switch (pushType) {
@@ -1653,6 +1657,7 @@ async function loadNotificationPrefs(
 
 async function handleInternalPush(request: Request, env: Env): Promise<Response> {
   warnIfBundleIdsMissing(env);
+  const traceID = request.headers.get("X-Trace-ID") ?? crypto.randomUUID();
 
   const internalKey = request.headers.get("X-Internal-Key");
   if (!internalKey || internalKey !== env.INTERNAL_API_KEY) {
@@ -1668,6 +1673,10 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
   if (!push) {
     return json({ error: "Missing recipientPeerIdHex or type" }, 400, env);
   }
+
+  console.log(
+    `[trace ${traceID}] internal.push begin type=${push.type} recipient=${push.recipientPeerIdHex} sender=${push.senderPeerIdHex ?? "-"} thread=${push.threadId ?? "-"}`
+  );
 
   const sql = await getDb(env);
   if (!sql) {
@@ -1688,6 +1697,9 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
     ]);
 
     if (recipientRows.length === 0) {
+      console.log(
+        `[trace ${traceID}] internal.push no_recipient recipient=${push.recipientPeerIdHex} type=${push.type}`
+      );
       return json({ sent: 0, failed: 0, suppressed: 0, purged: 0 }, 200, env);
     }
 
@@ -1700,6 +1712,9 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
       }));
 
     if (tokens.length === 0) {
+      console.log(
+        `[trace ${traceID}] internal.push no_tokens recipient=${push.recipientPeerIdHex} user_id=${userId} type=${push.type}`
+      );
       return json({ sent: 0, failed: 0, suppressed: 0, purged: 0 }, 200, env);
     }
 
@@ -1707,6 +1722,9 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
     const senderUsername = (senderRows as Array<{ username?: string }>)[0]?.username ?? null;
 
     const allow = prefsAllow(prefs, push, {});
+    console.log(
+      `[trace ${traceID}] push.allowed=${allow.allowed} type=${push.type} tokens=${tokens.length} recipient=${push.recipientPeerIdHex}`
+    );
     if (!allow.allowed) {
       logPushEvent("push.suppressed", {
         recipientPeerIdHex: push.recipientPeerIdHex,
@@ -1714,7 +1732,11 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
         type: push.type,
         threadId: push.threadId,
         reason: allow.reason,
+        traceID,
       });
+      console.log(
+        `[trace ${traceID}] internal.push suppressed reason=${allow.reason} type=${push.type} recipient=${push.recipientPeerIdHex}`
+      );
       return json({ sent: 0, failed: 0, suppressed: tokens.length, purged: 0 }, 200, env);
     }
 
@@ -1744,7 +1766,11 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
           threadId: push.threadId,
           sandbox,
           apnsId,
+          traceID,
         });
+        console.log(
+          `[trace ${traceID}] APNs attempt type=${push.type} token=${redactPushToken(token)} sandbox=${sandbox} apns_id=${apnsId}`
+        );
 
         try {
           const result = await sendApns(env, {
@@ -1761,7 +1787,11 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
               recipientPeerIdHex: push.recipientPeerIdHex,
               type: push.type,
               apnsId: result.apnsId,
+              traceID,
             });
+            console.log(
+              `[trace ${traceID}] APNs HTTP 200 token=${redactPushToken(token)} apns_id=${result.apnsId}`
+            );
             return;
           }
 
@@ -1774,7 +1804,11 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
                 apnsStatus: result.status,
                 apnsReason: result.reason,
                 apnsId: result.apnsId,
+                traceID,
               });
+              console.log(
+                `[trace ${traceID}] APNs purge status=${result.status} reason=${result.reason ?? "unknown"} token=${redactPushToken(token)} apns_id=${result.apnsId}`
+              );
             } catch (deleteError) {
               console.error("[auth] failed to purge device token:", deleteError);
               failed += 1;
@@ -1790,7 +1824,11 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
             apnsReason: result.reason,
             apnsId: result.apnsId,
             authJwt: result.authFailure === true,
+            traceID,
           });
+          console.log(
+            `[trace ${traceID}] APNs HTTP ${result.status} token=${redactPushToken(token)} reason=${result.reason ?? "unknown"} apns_id=${result.apnsId}`
+          );
         } catch (sendError: any) {
           failed += 1;
           logPushEvent("push.failed", {
@@ -1798,17 +1836,27 @@ async function handleInternalPush(request: Request, env: Env): Promise<Response>
             type: push.type,
             apnsId,
             error: sendError?.message ?? String(sendError),
+            traceID,
           });
+          console.log(
+            `[trace ${traceID}] APNs send error token=${redactPushToken(token)} error=${sendError?.message ?? String(sendError)} apns_id=${apnsId}`
+          );
         }
       })
     );
 
+    console.log(
+      `[trace ${traceID}] internal.push result sent=${sent} failed=${failed} suppressed=0 purged=${purged} type=${push.type} recipient=${push.recipientPeerIdHex}`
+    );
     return json({ sent, failed, suppressed: 0, purged }, 200, env);
   } catch (error: any) {
     if (error instanceof HTTPError) {
       return json({ error: error.message }, error.status, env);
     }
     console.error("[auth] handleInternalPush error:", error);
+    console.log(
+      `[trace ${traceID}] internal.push error type=${push?.type ?? "unknown"} recipient=${push?.recipientPeerIdHex ?? "unknown"} error=${error?.message ?? String(error)}`
+    );
     return json({ error: "Push failed" }, 500, env);
   }
 }
