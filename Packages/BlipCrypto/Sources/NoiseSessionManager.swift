@@ -330,6 +330,26 @@ public final class NoiseSessionManager: @unchecked Sendable {
         return pending.cachedMsg1
     }
 
+    /// Diagnostic snapshot of a pending handshake — printable summary safe to log.
+    /// All key material is truncated to 4-byte hex prefixes; ephemeral and static
+    /// public keys are not secret. Returns nil if no pending handshake exists.
+    public func pendingHandshakeDiagnostic(for peerID: PeerID) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let pending = pendingHandshakes[peerID] else { return nil }
+
+        func hex(_ data: some Sequence<UInt8>) -> String {
+            data.prefix(4).map { String(format: "%02x", $0) }.joined()
+        }
+        let role = pending.handshake.role == .initiator ? "init" : "resp"
+        let age = String(format: "%.1fs", Date().timeIntervalSince(pending.startedAt))
+        let eiPrefix = hex(pending.cachedMsg1)
+        let msg1HashPrefix = hex(pending.msg1Hash)
+        let msg2Cached = pending.cachedMsg2 != nil ? "yes" : "no"
+        let knownStatic = knownStaticKeys[peerID].map { hex($0.rawRepresentation) } ?? "none"
+        return "role=\(role) age=\(age) msg1.len=\(pending.cachedMsg1.count) e_i_prefix=\(eiPrefix) msg1HashPrefix=\(msg1HashPrefix) msg2Cached=\(msg2Cached) knownStatic=\(knownStatic)"
+    }
+
     /// Begin a new XX handshake as the responder after receiving message 1.
     ///
     /// Returns the pending handshake state and payload, or `nil` if a simultaneous

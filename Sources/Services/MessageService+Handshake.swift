@@ -79,7 +79,15 @@ extension MessageService {
                 }
                 onSessionEstablished(with: peerID)
             } catch {
-                DebugLogger.shared.log("NOISE", "⚠️ Handshake msg2 failed from \(peerHex): \(error) — destroying and will retry", isError: true)
+                // BDEV-413 diagnostic: capture state BEFORE destroying the pending handshake
+                // so we can correlate the msg2 failure mode with the initiator's cached msg1.
+                let diag = sessionManager.pendingHandshakeDiagnostic(for: peerID) ?? "no-pending"
+                let msg2Prefix = handshakeData.prefix(4).map { String(format: "%02x", $0) }.joined()
+                DebugLogger.shared.log(
+                    "NOISE",
+                    "⚠️ Handshake msg2 failed from \(peerHex): \(error) — msg2.len=\(handshakeData.count) e_r_prefix=\(msg2Prefix) | \(diag) — destroying and will retry",
+                    isError: true
+                )
                 sessionManager.destroySession(for: peerID)
             }
 
