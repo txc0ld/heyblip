@@ -1327,7 +1327,7 @@ describe("Push dispatch in queuePacket / drainQueue", () => {
     expect(body.badgeCount).toBe(1);
   });
 
-  it("does not push for noiseHandshake / fragment / meshBroadcast / announce", async () => {
+  it("does not push for fragment / meshBroadcast / announce / syncRequest / locationShare", async () => {
     const senderHex = "0000aaaa11112222";
     const recipientHex = "3333444455556666";
     const storage = new FakeStorage();
@@ -1337,7 +1337,10 @@ describe("Push dispatch in queuePacket / drainQueue", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("ok", { status: 200 }));
 
-    for (const type of [0x10, 0x20, 0x02, 0x01, 0x21, 0x50]) {
+    // 0x10 (noiseHandshake) is intentionally absent — see the next test.
+    // It now triggers silent_badge_sync so the offline recipient wakes up
+    // to complete the handshake. (BDEV-411.)
+    for (const type of [0x20, 0x02, 0x01, 0x21, 0x50]) {
       const packet = buildTypedPacket({
         type,
         senderPeerId: hexToPeerID(senderHex),
@@ -1349,6 +1352,34 @@ describe("Push dispatch in queuePacket / drainQueue", () => {
     }
     await vi.advanceTimersByTimeAsync(1_000);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("pushes silent_badge_sync for noiseHandshake to wake offline recipient (BDEV-411)", async () => {
+    const senderHex = "0000aaaa11112222";
+    const recipientHex = "3333444455556666";
+    const storage = new FakeStorage();
+    const room = makeRelayRoom(storage);
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+
+    const packet = buildTypedPacket({
+      type: 0x10, // PACKET_TYPE_NOISE_HANDSHAKE
+      senderPeerId: hexToPeerID(senderHex),
+      recipientPeerId: hexToPeerID(recipientHex),
+    });
+    await (room as unknown as {
+      queuePacket(recipientHex: string, data: Uint8Array): Promise<void>;
+    }).queuePacket(recipientHex, packet);
+
+    // Drain the schedule window so the dispatcher fires.
+    await vi.advanceTimersByTimeAsync(600);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(body.recipientPeerIdHex).toBe(recipientHex);
+    expect(body.type).toBe("silent_badge_sync");
   });
 
   it("drainQueue within 500ms cancels the scheduled push (drained_fast)", async () => {

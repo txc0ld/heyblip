@@ -39,8 +39,11 @@ describe("packetTypeToPushType", () => {
     expect(packetTypeToPushType(PACKET_TYPE_FRIEND_ACCEPT)).toBe("friend_accept");
   });
 
-  it("returns null for noiseHandshake (silent)", () => {
-    expect(packetTypeToPushType(PACKET_TYPE_NOISE_HANDSHAKE)).toBeNull();
+  it("maps noiseHandshake (0x10) → silent_badge_sync (BDEV-411)", () => {
+    // Noise handshake msgs MUST trigger a silent push so the offline recipient
+    // wakes up to complete the handshake. Without this, the first DM between
+    // newly-accepted friends stalls indefinitely.
+    expect(packetTypeToPushType(PACKET_TYPE_NOISE_HANDSHAKE)).toBe("silent_badge_sync");
   });
 
   it("returns null for fragment (reassembled packet triggers push)", () => {

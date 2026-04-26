@@ -54,21 +54,32 @@ export type PushType =
  * always tag as "dm". The iOS Notification Service Extension enriches from
  * its own App-Group cache and picks the right body/sound. Group muting still
  * works because the NSE consults `mutedChannels` before presenting.
+ *
+ * NOTE: for 0x10 (noiseHandshake) we route to silent_badge_sync so the
+ * recipient's app wakes silently and drains the queued msg1/msg2/finalize.
+ * Without this, the first DM between two newly-accepted friends stalls
+ * indefinitely — the encrypted DM ciphertext can't be generated until the
+ * handshake round-trip completes, and the recipient never gets woken up to
+ * complete it. (BDEV-411.)
  */
 export function packetTypeToPushType(packetType: number): PushType | null {
   switch (packetType) {
     case PACKET_TYPE_NOISE_ENCRYPTED:
       return "dm";
+    case PACKET_TYPE_NOISE_HANDSHAKE:
+      // Silent wake — no banner. The handshake itself isn't user-visible;
+      // the encrypted DM that follows it is what triggers the real banner.
+      return "silent_badge_sync";
     case PACKET_TYPE_SOS_ALERT:
       return "sos";
     case PACKET_TYPE_FRIEND_REQUEST:
       return "friend_request";
     case PACKET_TYPE_FRIEND_ACCEPT:
       return "friend_accept";
-    // All remaining types (announce, meshBroadcast, noiseHandshake,
-    // fragment, syncRequest, locationShare, and anything we don't recognise)
-    // are silent. Fragments in particular MUST NOT push — the reassembled
-    // packet is what triggers the push.
+    // All remaining types (announce, meshBroadcast, fragment, syncRequest,
+    // locationShare, and anything we don't recognise) are silent. Fragments
+    // in particular MUST NOT push — the reassembled packet is what triggers
+    // the push.
     default:
       return null;
   }
