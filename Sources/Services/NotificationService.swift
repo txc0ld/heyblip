@@ -255,33 +255,23 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
     // MARK: - Friend Nearby Notification
 
-    /// Show a notification when a friend is detected nearby.
+    /// Show a notification when a friend is detected on the local BLE mesh.
     ///
-    /// - Parameters:
-    ///   - friendName: Name of the nearby friend.
-    ///   - friendID: The friend's UUID for deep linking.
-    ///   - distance: Approximate distance in meters.
-    func notifyFriendNearby(friendName: String, friendID: UUID, distance: Int) {
+    /// Title-only — we don't claim a metres distance because RSSI doesn't
+    /// translate cleanly to metres outside controlled environments.
+    /// Caller (`MeshViewModel`) is responsible for gating on direct peer
+    /// + signal-strength + recency before calling.
+    func notifyFriendNearby(friendName: String, friendID: UUID) {
         guard notificationsEnabled else { return }
         guard !isDuplicate(id: "friend_nearby_\(friendID.uuidString)") else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "\(friendName) is nearby"
-
-        if distance < 50 {
-            content.body = "Less than 50m away"
-        } else if distance < 200 {
-            content.body = "About \(distance)m away"
-        } else {
-            content.body = "Somewhere nearby on the mesh"
-        }
-
+        content.title = "\(friendName) is nearby on the mesh"
         content.categoryIdentifier = BlipNotificationCategory.friendNearby.rawValue
         content.sound = UNNotificationSound(named: UNNotificationSoundName("friend_ping.caf"))
         content.userInfo = [
             "friendID": friendID.uuidString,
             "friendName": friendName,
-            "distance": distance,
             "type": "friendNearby"
         ]
 
