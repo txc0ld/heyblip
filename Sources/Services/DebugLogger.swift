@@ -45,11 +45,25 @@ final class DebugLogger {
     }
 
     struct Entry: Identifiable, Sendable {
-        let id = UUID()
-        let timestamp = Date()
+        let id: UUID
+        let timestamp: Date
         let category: String
         let message: String
         let isError: Bool
+
+        init(
+            category: String,
+            message: String,
+            isError: Bool,
+            id: UUID = UUID(),
+            timestamp: Date = Date()
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.category = category
+            self.message = message
+            self.isError = isError
+        }
 
         var formattedTime: String {
             let f = DateFormatter()
@@ -73,6 +87,52 @@ final class DebugLogger {
     private(set) var entries: [Entry] = []
     private let maxEntries = 500
 
+    // MARK: - Persistent rolling buffer (BDEV-402)
+
+    /// Rolls hourly JSONL files (one per UTC hour) into the App Group container,
+    /// retains 24h worth, and replays the most recent file into `entries` on init
+    /// so a force-quit / crash doesn't wipe the post-mortem context.
+    nonisolated private static let appGroupID = blipAppGroupIdentifier
+    nonisolated private static let logsSubdirectory = "logs"
+    nonisolated private static let fileWriterQueue = DispatchQueue(
+        label: "com.blip.DebugLogger.fileWriter",
+        qos: .utility
+    )
+    nonisolated private static let logRetentionInterval: TimeInterval = 24 * 3600
+
+    /// Persisted on-disk row format. JSON-encoded one per line in the hourly file.
+    private struct PersistedEntry: Codable {
+        let ts: String          // ISO8601 with fractional seconds
+        let sessionID: String
+        let category: String
+        let message: String
+        let isError: Bool
+    }
+
+    nonisolated(unsafe) private static let persistDateFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    nonisolated private static let hourlyFilenameFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd-HH"
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    nonisolated private static func logsDirectory() -> URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
+            .appendingPathComponent(logsSubdirectory, isDirectory: true)
+    }
+
+    nonisolated private static func filename(for date: Date) -> String {
+        "debug-\(hourlyFilenameFormatter.string(from: date)).jsonl"
+    }
+
     /// Minimum log level — messages below this are silently dropped.
     #if DEBUG
     var minimumLevel: LogLevel = .debug
@@ -85,6 +145,122 @@ final class DebugLogger {
     private var recentLogTimes: [String: Date] = [:]
     private let maxDedupEntries = 20
     private let dedupLock = NSLock()
+
+    private init() {
+        Self.bootstrapPersistentBuffer { [weak self] historicalEntries in
+            // Replay happens off the file queue; hop back to MainActor to mutate
+            // `entries`. Force-quit between the two callbacks just means the
+            // overlay loads empty and the disk file is still there.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard !historicalEntries.isEmpty else { return }
+                let merged = (historicalEntries + self.entries).prefix(self.maxEntries)
+                self.entries = Array(merged)
+            }
+        }
+    }
+
+    /// On-disk bootstrap: ensure the logs dir exists, prune files older than the
+    /// retention window, and read the most recent file back into memory.
+    /// Errors are swallowed — disk failure must NEVER crash logging.
+    nonisolated private static func bootstrapPersistentBuffer(
+        replay: @escaping @Sendable ([Entry]) -> Void
+    ) {
+        fileWriterQueue.async {
+            guard let dir = logsDirectory() else {
+                replay([])
+                return
+            }
+            do {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                replay([])
+                return
+            }
+            let cutoff = Date().addingTimeInterval(-logRetentionInterval)
+            let urls = (try? FileManager.default.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: [.creationDateKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            let logFiles = urls.filter {
+                $0.lastPathComponent.hasPrefix("debug-")
+                && $0.lastPathComponent.hasSuffix(".jsonl")
+            }
+            for url in logFiles {
+                let attrs = try? url.resourceValues(forKeys: [.creationDateKey])
+                if let created = attrs?.creationDate, created < cutoff {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
+            // Replay most recent surviving file.
+            let surviving = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+            guard let recent = surviving
+                .filter({ $0.hasPrefix("debug-") && $0.hasSuffix(".jsonl") })
+                .sorted()
+                .last else {
+                replay([])
+                return
+            }
+            let url = dir.appendingPathComponent(recent)
+            guard let data = try? Data(contentsOf: url),
+                  let text = String(data: data, encoding: .utf8) else {
+                replay([])
+                return
+            }
+            let decoder = JSONDecoder()
+            var loaded: [Entry] = []
+            for line in text.split(separator: "\n") {
+                guard let lineData = line.data(using: .utf8),
+                      let p = try? decoder.decode(PersistedEntry.self, from: lineData) else { continue }
+                let ts = persistDateFormatter.date(from: p.ts) ?? Date()
+                loaded.append(Entry(
+                    category: p.category,
+                    message: p.message,
+                    isError: p.isError,
+                    timestamp: ts
+                ))
+            }
+            // Newest-first to match in-memory buffer ordering.
+            replay(loaded.reversed())
+        }
+    }
+
+    /// Append one persisted row to the current hour's file. Best-effort — disk
+    /// failures fall back to in-memory only and are silently dropped.
+    nonisolated private static func persist(_ entry: Entry, sessionID: UUID) {
+        fileWriterQueue.async {
+            guard let dir = logsDirectory() else { return }
+            do {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                return
+            }
+            let url = dir.appendingPathComponent(filename(for: entry.timestamp))
+            let row = PersistedEntry(
+                ts: persistDateFormatter.string(from: entry.timestamp),
+                sessionID: sessionID.uuidString,
+                category: entry.category,
+                message: entry.message,
+                isError: entry.isError
+            )
+            guard var data = try? JSONEncoder().encode(row) else { return }
+            data.append(UInt8(ascii: "\n"))
+            if FileManager.default.fileExists(atPath: url.path) {
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    defer { try? handle.close() }
+                    do {
+                        try handle.seekToEnd()
+                        try handle.write(contentsOf: data)
+                    } catch {
+                        // Disk full / permission lost mid-session — drop quietly.
+                    }
+                }
+            } else {
+                try? data.write(to: url, options: .atomic)
+            }
+        }
+    }
 
     func log(_ category: String, _ message: String, isError: Bool = false, level: LogLevel? = nil) {
         let resolvedLevel = level ?? (isError ? .error : .info)
@@ -114,6 +290,10 @@ final class DebugLogger {
         if entries.count > maxEntries { entries.removeLast() }
         print("[Blip-\(category)] \(message)")
 
+        // Persist to the rolling 24h on-disk buffer (BDEV-402). Off-main-thread,
+        // best-effort — disk failures must not crash the logger.
+        Self.persist(entry, sessionID: sessionID)
+
         // Always add a breadcrumb so non-error logs surface as crash context.
         CrashReportingService.shared.addBreadcrumb(
             category: category,
@@ -136,6 +316,52 @@ final class DebugLogger {
 
     func clear() {
         entries.removeAll()
+    }
+
+    /// Load every persisted entry from the 24h on-disk window, oldest-first,
+    /// and return them as a single newline-joined export string. Format matches
+    /// `exportText` so the share sheet behaves identically. (BDEV-402)
+    nonisolated func loadPersistedHistory() async -> String {
+        await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+            Self.fileWriterQueue.async {
+                continuation.resume(returning: Self.assemblePersistedHistoryText())
+            }
+        }
+    }
+
+    nonisolated private static func assemblePersistedHistoryText() -> String {
+        guard let dir = logsDirectory() else { return "(persistent log dir unavailable)" }
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        let logFiles = names
+            .filter { $0.hasPrefix("debug-") && $0.hasSuffix(".jsonl") }
+            .sorted()
+        guard !logFiles.isEmpty else { return "(no persisted history yet)" }
+
+        let decoder = JSONDecoder()
+        var lines: [String] = []
+        lines.append("=== Blip Persistent Log (24h) ===")
+        lines.append("Files: \(logFiles.count)")
+        lines.append("=================================")
+        lines.append("")
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        timeFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        for name in logFiles {
+            let url = dir.appendingPathComponent(name)
+            guard let data = try? Data(contentsOf: url),
+                  let text = String(data: data, encoding: .utf8) else { continue }
+            lines.append("--- \(name) ---")
+            for line in text.split(separator: "\n") {
+                guard let lineData = line.data(using: .utf8),
+                      let row = try? decoder.decode(PersistedEntry.self, from: lineData) else { continue }
+                let ts = persistDateFormatter.date(from: row.ts)
+                    .map { timeFormatter.string(from: $0) } ?? row.ts
+                let prefix = row.isError ? "[ERR]" : "     "
+                lines.append("\(prefix) [\(ts)] [\(row.category)] \(row.message)")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// Thread-safe logging entry point for non-MainActor contexts.
