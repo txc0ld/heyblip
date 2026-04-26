@@ -85,13 +85,9 @@ originSessionId: 6e15e31b-7115-4971-bf13-07d171f32b25
 - **Status:** archive only as of 2026-04-25. Original Tasks DB preserved for historical lookup. NOT to be edited for live work.
 - Token in `NOTION_TOKEN` env var; only needed if you have to read original Notion pages.
 
-## Bugasura (read-only archive)
+## Bugasura (deleted 2026-04-26)
 
-- **App URL:** https://my.bugasura.io/
-- **IDs:** project 135167 (HeyBlip), team 101842 (Mesh Works), sprint 152746 (Linear Import). Issue prefix **HEY** (preserved as Jira custom field).
-- Each Jira ticket has a `Bugasura URL` custom field linking back. Click-through is the easiest path for historical lookups; the API is rarely needed now.
-- Full historical API reference in `reference_bugasura_api.md`.
-- **Bugasura → Slack webhook is still firing into `#blip-dev`** (cross-tracker noise). Owner: turn off in Bugasura settings — flagged for John's manual cleanup.
+The Bugasura project was deleted entirely (not just archived). The `Bugasura URL` custom field on every imported Jira ticket (`customfield_10042`) now resolves to a 404 — kept in place as historical provenance, but don't expect click-through to work. The `HEY ID` field (`customfield_10039`) is the load-bearing cross-reference; JQL `"HEY ID" = "HEY-1334"` still finds the migrated ticket. The Bugasura → Slack webhook is gone with the project.
 
 ## Ownership split (confirmed 2026-04-14)
 

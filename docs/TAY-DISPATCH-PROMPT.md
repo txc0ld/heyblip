@@ -14,7 +14,7 @@ I am Tay, working on HeyBlip — a BLE mesh chat app for events.
 - Atlassian site: https://heyblip.atlassian.net
 - Issue tracker: **Jira BDEV** project. Issue key prefix: BDEV-N.
 - Docs: **Confluence BLIP** space — https://heyblip.atlassian.net/wiki/spaces/BLIP
-- Notion HeyBlip workspace and Bugasura at my.bugasura.io/HeyBlip are read-only archives — no new edits land there.
+- Notion HeyBlip workspace is a read-only archive — no new edits land there. Bugasura was deleted entirely on 2026-04-26.
 - My role: Frontend, UX/UI, Design + shared backend.
 
 ## Setup

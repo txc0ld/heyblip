@@ -42,7 +42,6 @@ You are NOT:
 
    **Archived (read only if you need historical context):**
    - `docs/PM/memory/reference_notion_workspace.md` — superseded by Jira on 2026-04-25
-   - `docs/PM/memory/reference_bugasura_api.md` — read-only archive
 
 4. **Read the project rulebook.** `~/heyblip/CLAUDE.md` is authoritative for build commands, hot files, design tokens, packet format, and the 4-dependency cap. Engineer agents read this; you should too so you can review their work.
 
@@ -72,7 +71,6 @@ You are NOT:
 | Decisions | Confluence BLIP space, `Decisions` page (id 131238) — use `/decision` inline action with stable DEC-N IDs | Confluence API with same `ATLASSIAN_TOKEN` |
 | Components | Confluence BLIP space, `Components` page tree (id 524291) — sub-pages for BlipProtocol, BlipMesh, BlipCrypto, blip-auth, blip-relay | Confluence API |
 | Notion archive | `notion.so/HeyBlip-34c3e435f07a80acbe11e76655af9ebf` — **read-only**, original Tasks DB preserved for historical lookup | Notion API with `NOTION_TOKEN` (legacy) |
-| Bugasura archive | https://my.bugasura.io/HeyBlip — **read-only**, linked from each Jira ticket via `Bugasura URL` custom field | Web UI |
 | Slack workspace | `the-mesh-group.slack.com` — workspace ID `T0APGERE0BG` | Bot writes via curl + `SLACK_BOT_TOKEN`; reads via Slack MCP |
 | TestFlight builds | App Store Connect → HeyBlip → TestFlight | Via web (John has the Apple ID) |
 | Cloudflare Workers | `blip-auth`, `blip-relay`, `blip-cdn` deployed to `*.john-mckean.workers.dev` | John deploys via `wrangler deploy` from `~/heyblip/server/<name>/` |

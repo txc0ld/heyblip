@@ -3,7 +3,7 @@ name: Jira workspace — HeyBlip (BDEV)
 description: Jira Cloud at heyblip.atlassian.net is the live issue tracker as of 2026-04-25. Replaced Notion (which replaced Bugasura, which replaced Linear). Project key BDEV.
 ---
 
-> **Source of truth as of 2026-04-25.** Jira BDEV is the live issue tracker. Notion HeyBlip workspace remains for narrative pages but is no longer the ticket source. Bugasura is read-only archive. See [reference_notion_workspace.md](reference_notion_workspace.md) for what stayed and what moved.
+> **Source of truth as of 2026-04-25.** Jira BDEV is the live issue tracker. Notion HeyBlip workspace remains for narrative pages but is no longer the ticket source. The pre-Notion Bugasura project was deleted entirely on 2026-04-26 — `Bugasura URL` custom fields on imported tickets now 404; cross-reference via `HEY ID` instead. See [reference_notion_workspace.md](reference_notion_workspace.md) for what stayed and what moved.
 
 ## Site
 
@@ -46,10 +46,10 @@ Default Scrum workflow: `To Do`, `In Progress`, `Done`. Resolution auto-set to `
 
 | Field | Custom field ID | Source |
 |---|---|---|
-| HEY ID | `customfield_10039` | Bugasura ID (e.g. `HEY-1334`) |
+| HEY ID | `customfield_10039` | Bugasura ID (e.g. `HEY-1334`) — still load-bearing for cross-reference |
 | Original BDEV ID | `customfield_10040` | Old Linear-era BDEV-N |
 | Notion URL | `customfield_10041` | Link back to original Notion page |
-| Bugasura URL | `customfield_10042` | Link to Bugasura archive |
+| Bugasura URL | `customfield_10042` | Historical only — Bugasura project deleted 2026-04-26, URLs 404 |
 
 These are also embedded as plain text in each issue's description, so JQL `description ~ "HEY-1334"` works as a fallback.
 

@@ -10,7 +10,7 @@ Team ID: T0APGERE0BG
 Channels:
 - #all-the-mesh (C0APF4L9AKX) — announcements, cross-project updates
 - #blip-dev (C0AQCQZVBCG) — Blip dev: PRs, builds, deploys, testing (renamed from #fezchat-dev)
-- #blip-website (C0APV45UF6G) — Blip website issues, routed from Bugasura WDEV team
+- #blip-website (C0APV45UF6G) — Blip website issues
 - #blip-hangout (C0AQD990D3J) — casual chat for Blip team
 - #blip-tech (C0AQNJK10SW) — deep technical discussions, architecture, protocol design, competitive analysis
 - #tay-tasks (C0APT84EXAS) — Tay's daily dispatch prompts and task context

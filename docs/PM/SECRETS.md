@@ -41,9 +41,9 @@ export GITHUB_PAT="ghp_..."
 # read historical pages or the original Tasks DB.
 export NOTION_TOKEN="ntn_..."
 
-# Bugasura API key. Issue tracker 2026-04-13 to 2026-04-24. Archive. Each Jira ticket
-# has a Bugasura URL custom field for direct lookup; the API key is rarely needed now.
-export BUGASURA_API_KEY="ef611198..."
+# Bugasura API key — DEPRECATED. The Bugasura project was deleted entirely on
+# 2026-04-26, so the API no longer resolves anything. Remove this var; safe to drop.
+# export BUGASURA_API_KEY="ef611198..."
 ```
 
 ## How to verify each one works
@@ -75,12 +75,6 @@ gh pr list --repo txc0ld/heyblip --state open
 # Notion — should print "Claude.ai HeyBlip"
 curl -s -H "Authorization: Bearer $NOTION_TOKEN" -H "Notion-Version: 2022-06-28" \
   "https://api.notion.com/v1/users/me" | jq .name
-
-# Bugasura — list any imported HEY-N
-curl -s -G -H "Authorization: Basic $BUGASURA_API_KEY" \
-  --data-urlencode "team_id=101842" --data-urlencode "project_id=135167" \
-  --data-urlencode "sprint_id=152746" --data-urlencode "max_results=5" \
-  "https://api.bugasura.io/v1/issues/list" | jq '.issue_list[0].issue_id'
 ```
 
 If any of the live tokens fail, the secret is stale or wrong — surface to John, do NOT scrape from disk.

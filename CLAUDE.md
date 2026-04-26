@@ -262,10 +262,10 @@ Do not read or modify:
 **Statuses:** `To Do`, `In Progress`, `Done`. Resolution auto-set to `Done` on transition to Done.
 
 **Custom fields** (every imported ticket has these populated):
-- `HEY ID` (`customfield_10039`) — old Bugasura ID, e.g. `HEY-1334`
+- `HEY ID` (`customfield_10039`) — old Bugasura ID, e.g. `HEY-1334`. Load-bearing for cross-reference.
 - `Original BDEV ID` (`customfield_10040`) — old Linear-era BDEV-N
 - `Notion URL` (`customfield_10041`) — link back to original Notion page
-- `Bugasura URL` (`customfield_10042`) — link to Bugasura archive
+- `Bugasura URL` (`customfield_10042`) — historical link only; the Bugasura project was deleted 2026-04-26 so these URLs 404. Kept as provenance.
 
 The same metadata is also embedded as plain text in each issue's description, so JQL `description ~ "HEY-1334"` works as a fallback.
 
@@ -310,13 +310,13 @@ If a ticket genuinely doesn't fit any of the 9, file without a parent and ping J
 
 **Notion HeyBlip workspace** — still exists with the original Tasks DB but is now a read-only archive. New work doesn't go there.
 
-**Bugasura** — read-only archive at https://my.bugasura.io/HeyBlip. Linked from each ticket's `Bugasura URL` custom field for historical lookup.
+**Bugasura** — project deleted 2026-04-26. The `Bugasura URL` custom field on imported tickets now 404s; use `HEY ID` for cross-reference instead.
 
 **Documentation:** Confluence is the team docs home. Decisions log uses Confluence's `/decision` inline action with stable `DEC-N` IDs. Components reference mirrors the SPM package layout — see https://heyblip.atlassian.net/wiki/spaces/BLIP/pages/524291/Components.
 
 **Workflow:** To pick up a task:
 1. Fetch the Jira ticket via REST API (`GET /rest/api/3/issue/BDEV-N`) or by URL `https://heyblip.atlassian.net/browse/BDEV-N`
-2. Read the description for repro steps + linked Notion/Bugasura URL for historical context
+2. Read the description for repro steps + linked Notion URL for historical context
 3. Slack (#tay-tasks, #jmac-tasks) is for **notifications and status updates only** — not for prompts
 
 For full Jira and Confluence reference, see:
