@@ -185,8 +185,35 @@ describe("apns/payloads", () => {
       type: "dm",
       threadId: "thread-1",
       senderPeerIdHex: "cc".repeat(8),
+      senderUsername: "grace",
       deeplink: "blip://channel/thread-1",
       badgeCount: 2,
     });
+  });
+
+  it("friend_request: blip envelope carries senderUsername for NSE enrichment", () => {
+    const { apsPayload } = buildPayload({
+      type: "friend_request",
+      senderUsername: "tay",
+      channelName: null,
+      threadId: null,
+      senderPeerIdHex: "aa".repeat(8),
+      badgeCount: 1,
+      deeplink: null,
+    });
+    expect(apsPayload.blip.senderUsername).toBe("tay");
+  });
+
+  it("friend_request: blip.senderUsername is null when sender is unknown", () => {
+    const { apsPayload } = buildPayload({
+      type: "friend_request",
+      senderUsername: null,
+      channelName: null,
+      threadId: null,
+      senderPeerIdHex: null,
+      badgeCount: 1,
+      deeplink: null,
+    });
+    expect(apsPayload.blip.senderUsername).toBeNull();
   });
 });
