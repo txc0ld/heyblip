@@ -86,14 +86,15 @@ originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 - PR reviews: post in #blip-dev, merge commands go to the appropriate task channel per merge routing rules
 - NEVER make things up. Only state facts verifiable from Slack, GitHub, or Jira. If unsure, say so.
 
-## Auto-Actions (PR Review & Merge Pipeline)
-- GitHub PAT stored in `.claude/skills/slack-bot/.env` as `GITHUB_PAT`
-- When reviewing PRs: check diff via GitHub API, approve if clean, merge via squash
-- If PR is a draft: mark ready via GraphQL mutation first, then merge
-- After merge: transition the Jira ticket to Done, post confirmation in #blip-dev
-- If anything is off (bugs, missing error handling, spec violations): request changes or auto-create a Jira ticket for the fix
-- **Merge routing (updated 2026-04-21)**: Cowork reviews AND merges PRs via GitHub PAT — acts as project manager/senior dev. Tay's job ends at push + PR open + post in #blip-dev; he does NOT run `gh pr merge`. John is only pinged for conflicts/escalations, worker deploys (wrangler commands go to #jmac-tasks), or when CI fails. Do NOT merge on yellow/in-progress CI — wait for green.
-  - **Why the flip:** Previously (2026-04-14 → 2026-04-20) John merged all PRs himself. On 2026-04-21 he reassigned merge authority to Cowork — "you review and merge PRs, you are the project manager/senior dev" — so the bottleneck is removed.
-  - **Self-approval limitation**: GitHub PAT cannot approve PRs where the PAT owner (iamjohnnymac) pushed the latest commit. Workaround: merge directly without formal approval.
-  - **Post-merge steps (mandatory):** verify the change landed on `main` by reading the code (not trusting the commit message), post merge confirmation in #blip-dev, and transition the Jira ticket to Done (Cowork has Jira write access via `ATLASSIAN_TOKEN`).
-- **Auto-dispatch is NOT live yet.** There is no service watching Jira to fire dispatches when Assignee changes. All dispatch is manual right now: John (or Cowork acting on his behalf) names a BDEV-N in chat, then Cowork posts the full prompt to the task channel. The `Assignee` field is informational only until an auto-dispatch worker is built.
+## PR Review & Merge Pipeline
+- GitHub PAT stored in `.claude/skills/secrets/.env` as `GITHUB_PAT` (legacy copy in `.claude/skills/slack-bot/.env`).
+- PM reviews PRs via GitHub API: check diff, request changes if issues, otherwise wait for green CI.
+- If PR is a draft: PM may flip ready via GraphQL once review passes, but only on explicit John auth.
+- **Merge authority (current rule, locked in 2026-04-26):** **John merges all PRs by default** via the GitHub PAT. PM and engineer-agents stop at branch pushed + PR opened + `#blip-dev` notification + Jira ticket linked. Never click merge yourself, never `gh pr merge`. PM may merge only on John's explicit per-instance authorization ("merge it") — match the scope precisely, don't extrapolate. Never merge on yellow/in-progress CI; the only exception is John's per-instance auth on a known-flake red.
+  - History: 2026-04-14 → 2026-04-20 John merged manually. 2026-04-21 he briefly reassigned merge authority to Cowork. 2026-04-26 he flipped it back — John clicks merge, period.
+  - **Self-approval limitation:** GitHub PAT cannot approve PRs where the PAT owner (`iamjohnnymac`) pushed the latest commit. Workaround when merge auth is delegated: merge directly without a formal approval.
+- **Jira transitions (clarified 2026-04-26):**
+  - Engineer-agents CAN transition `To Do → In Progress` when starting work, set `Assignee` to themselves, and comment with PR URL.
+  - Engineer-agents CANNOT transition to Done.
+  - PM/Cowork OWNS `In Progress → Done` after post-merge verification: read the code on `main` to confirm the change actually landed (not just the commit message), comment with PR + commit hash, then transition.
+- **Auto-dispatch is NOT live.** No service watches Jira to fire dispatches when Assignee changes. All dispatch is manual: John names a BDEV-N in chat, PM posts the full prompt to the task channel. The `Assignee` field is informational only until an auto-dispatch worker is built.

@@ -27,7 +27,7 @@ Members:
 Blip Bot:
 - App ID: A0APDURFTMH
 - Bot User ID: U0APGUH16SZ
-- Bot token stored at: `.claude/skills/slack-bot/.env` in FezChat project folder (variable: BLIP_BOT_TOKEN)
+- Bot token stored at: `~/heyblip/.claude/skills/secrets/.env` as `SLACK_BOT_TOKEN` (canonical), with a legacy duplicate at `~/heyblip/.claude/skills/slack-bot/.env` as `BLIP_BOT_TOKEN`. Both env names hold the same xoxb- token.
 - Scopes: canvases:read, canvases:write, chat:write, chat:write.public, channels:join, channels:read, groups:read, files:read, channels:history, reactions:write, reactions:read, im:history, im:read, groups:history, files:write, users:read, pins:write, pins:read, bookmarks:read, bookmarks:write
 - **Can download Slack files** via bot token: `curl -s -H "Authorization: Bearer $BLIP_BOT_TOKEN" "<url_private_download>"` — use conversations.history API to get file URLs first
 - **Can read DMs** to the bot via im:history + im:read scopes
@@ -37,9 +37,9 @@ Blip Bot:
 
 To send as bot:
 ```
-source /path/to/FezChat/.claude/skills/slack-bot/.env
+source ~/heyblip/.claude/skills/secrets/.env
 curl -s -X POST https://slack.com/api/chat.postMessage \
-  -H "Authorization: Bearer $BLIP_BOT_TOKEN" \
+  -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"channel":"CHANNEL_ID","text":"message"}'
 ```

@@ -35,6 +35,13 @@ description: Jira Cloud at heyblip.atlassian.net is the live issue tracker as of
 
 Default Scrum workflow: `To Do`, `In Progress`, `Done`. Resolution auto-set to `Done` on transition. Other resolutions available: `Won't Do`, `Cannot Reproduce`, `Duplicate` — but the resolution field is **not on the workflow's transition screen** by default, so resolution is always set to `Done` automatically. To use other resolutions, edit the workflow's "Done" transition screen first.
 
+### Who transitions what (clarified 2026-04-26)
+
+- **Engineer-agents CAN** transition `To Do → In Progress` when starting work, set `Assignee` to themselves, comment with PR URL.
+- **Engineer-agents CANNOT** transition to Done.
+- **PM/Cowork OWNS** `In Progress → Done` after post-merge verification: read the actual code on `main` to confirm the change landed (not just the commit message), comment with PR + commit hash, then transition.
+- See `slack_rules.md` for the full merge-pipeline rule (only John clicks merge).
+
 ## Custom fields on every imported ticket
 
 | Field | Custom field ID | Source |

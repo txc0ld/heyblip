@@ -91,6 +91,7 @@ originSessionId: 6e15e31b-7115-4971-bf13-07d171f32b25
 - **IDs:** project 135167 (HeyBlip), team 101842 (Mesh Works), sprint 152746 (Linear Import). Issue prefix **HEY** (preserved as Jira custom field).
 - Each Jira ticket has a `Bugasura URL` custom field linking back. Click-through is the easiest path for historical lookups; the API is rarely needed now.
 - Full historical API reference in `reference_bugasura_api.md`.
+- **Bugasura → Slack webhook is still firing into `#blip-dev`** (cross-tracker noise). Owner: turn off in Bugasura settings — flagged for John's manual cleanup.
 
 ## Ownership split (confirmed 2026-04-14)
 
