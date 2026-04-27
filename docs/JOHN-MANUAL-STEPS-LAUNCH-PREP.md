@@ -12,8 +12,10 @@ Five manual tasks that need your hands. Each is independent — do them in any o
 | 1 | [Email aliases](#1-email-aliases) | Porkbun Email Forwarding | ~5 min |
 | 2 | [Reviewer OTP secrets](#2-reviewer-otp-secrets) | Terminal (wrangler) | ~5 min |
 | 3 | [App Privacy nutrition label](#3-app-privacy-nutrition-label) | App Store Connect | ~30 min |
-| 4 | [App Store screenshots](#4-app-store-screenshots) | Xcode Simulator | ~60 min |
+| 4 | [App Store screenshots](#4-app-store-screenshots) — **ON HOLD** | Xcode Simulator | ~60 min |
 | 5 | [Jira Verifying gate](#5-jira-verifying-gate) | Atlassian admin | ~15 min |
+
+**Active total** (excluding screenshots): ~55 min across the 4 active tasks.
 
 ---
 
@@ -196,6 +198,14 @@ Paste the per-category answers from `docs/LAUNCH-APP-PRIVACY-DECLARATION.md` (PR
 ---
 
 ## 4. App Store screenshots
+
+> ⏸️ **ON HOLD — capture when the app is at its final-candidate build.**
+>
+> Decision (2026-04-27): the app UI is still evolving (Tay's frontend polish sprint — BDEV-422/423/424/425/426/427 — is mid-flight; Build 44 is the latest TestFlight cut). Capturing screenshots now means re-doing them after every meaningful UI change. Defer until the build that's going to App Review.
+>
+> **Trigger to pick this back up:** when the build that's going to be submitted is identified — typically when there are no open frontend-polish PRs for the screens being captured (chat list, friend finder, events, SOS, friend-add, onboarding) and Tay/Fabian have signed off on the visuals.
+>
+> Ticket [BDEV-364](https://heyblip.atlassian.net/browse/BDEV-364) is back in **To Do**. The recipe below stays in place so you can run it cold once the trigger fires.
 
 Capture 12 PNGs (6 shots × 2 device classes) for the App Store listing. Full spec at `docs/LAUNCH-APP-STORE-SCREENSHOTS.md` (PR [#295](https://github.com/txc0ld/heyblip/pull/295)). This section is the streamlined click path.
 
