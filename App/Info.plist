@@ -87,7 +87,7 @@
     <key>NSPhotoLibraryUsageDescription</key>
     <string>HeyBlip accesses your photo library to set a profile picture or share images in chats.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>HeyBlip uses the microphone for walkie-talkie and voice notes.</string>
+    <string>HeyBlip uses the microphone to record voice notes you send in chats.</string>
     <key>UIAppFonts</key>
     <array>
         <string>PlusJakartaSans-Regular.ttf</string>

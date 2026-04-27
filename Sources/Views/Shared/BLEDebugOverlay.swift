@@ -682,7 +682,19 @@ private struct ShareSheet: UIViewControllerRepresentable {
 
 // MARK: - Debug Overlay Modifier
 
-/// Triple-tap gesture to show BLE debug overlay in debug and TestFlight builds.
+/// Triple-tap gesture to show the BLE debug overlay in DEBUG and TestFlight
+/// builds only. App Store (production-release) builds MUST NOT expose this
+/// surface — exposing dev tooling in production is an App Store rejection
+/// risk and a privacy concern (the overlay shows raw peer IDs, RSSI,
+/// connection state, etc.).
+///
+/// Gating layers:
+/// 1. `#if DEBUG` — true in dev/simulator builds only
+/// 2. `BuildInfo.isTestFlight` — true when the app receipt is the TestFlight
+///    sandbox receipt; false for App Store distribution receipts
+///
+/// Both gates fail in an App Store production build → `isEnabled == false` →
+/// the triple-tap guard short-circuits before presenting the sheet.
 struct BLEDebugTapModifier: ViewModifier {
     @State private var showDebug = false
 
@@ -697,6 +709,9 @@ struct BLEDebugTapModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onTapGesture(count: 3) {
+                // Defence in depth — the sheet should never present in
+                // an App Store production build. Both `#if DEBUG` and
+                // `BuildInfo.isTestFlight` must be false there.
                 guard isEnabled else { return }
                 showDebug = true
             }
