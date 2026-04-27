@@ -9,7 +9,7 @@ Five manual tasks that need your hands. Each is independent — do them in any o
 
 | # | Task | Where | Time |
 |---|---|---|---|
-| 1 | [Email aliases](#1-email-aliases) | Cloudflare Email Routing | ~10 min |
+| 1 | [Email aliases](#1-email-aliases) | Porkbun Email Forwarding | ~5 min |
 | 2 | [Reviewer OTP secrets](#2-reviewer-otp-secrets) | Terminal (wrangler) | ~5 min |
 | 3 | [App Privacy nutrition label](#3-app-privacy-nutrition-label) | App Store Connect | ~30 min |
 | 4 | [App Store screenshots](#4-app-store-screenshots) | Xcode Simulator | ~60 min |
@@ -21,7 +21,7 @@ Five manual tasks that need your hands. Each is independent — do them in any o
 
 You need four public-facing aliases live before App Store submission: `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. All four forward to **John, Tay, and Fabian** so any one of you can pick up.
 
-The `heyblip.au` domain is registered with **Porkbun**, and email is handled by **Porkbun's free Email Forwarding** (verified via DNS: MX → `fwd1.porkbun.com` / `fwd2.porkbun.com`, SPF → `_spf.porkbun.com`, nameservers → `*.ns.porkbun.com`). Porkbun's forwarding supports up to **6 destinations per forward rule**, so we can fan out to all three of you with a single rule per alias — much simpler than the Cloudflare equivalent.
+The `heyblip.au` domain is registered with **Porkbun**, and email is handled by **Porkbun's free Email Forwarding** (verified via DNS: MX → `fwd1.porkbun.com` / `fwd2.porkbun.com`, SPF → `_spf.porkbun.com`, nameservers → `*.ns.porkbun.com`). Porkbun's forwarding supports up to **6 destinations per forward rule**, so we can fan out to all three of you with a single rule per alias.
 
 This is also tracked in [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430) (assigned to Tay — he handles email infra). If Tay ships it first, skip the setup steps and just verify the aliases work via the test-send (step 5 below).
 
@@ -54,7 +54,7 @@ This is also tracked in [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430
    | `privacy@heyblip.au` | (same three) |
    | `hello@heyblip.au` | (same three) |
 
-   Porkbun's forward UI accepts a comma-separated list of destinations in a single forward rule. **One rule per alias, three destinations each.** No verification step on the destination side (unlike Cloudflare's separate verify-each-destination requirement) — Porkbun trusts the address you type.
+   Porkbun's forward UI accepts a comma-separated list of destinations in a single forward rule. **One rule per alias, three destinations each.** No verification step on the destination side — Porkbun trusts the address you type.
 
 5. **Test send.** From your phone (or any external email account), send a test email to each of `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. Subject: "test" is fine.
 
