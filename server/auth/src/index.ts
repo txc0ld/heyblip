@@ -55,6 +55,22 @@ export interface Env {
   INTERNAL_API_KEY: string;
   /** Sentry project DSN. Optional — Worker no-ops gracefully when unset. */
   SENTRY_DSN?: string;
+  /**
+   * App Store reviewer OTP-bypass — see BDEV-366.
+   *
+   * When BOTH of these are set, requests to /v1/auth/send-code with `email`
+   * matching `REVIEWER_EMAIL` (case-insensitive) skip the Resend send
+   * (no email is dispatched) and seed `REVIEWER_OTP` directly into KV
+   * for the normal verify-code path to consume. Reviewer enters the OTP
+   * in the app, /v1/auth/verify-code accepts it on the standard path,
+   * and onboarding continues as normal.
+   *
+   * Provision via `wrangler secret put REVIEWER_EMAIL` +
+   * `wrangler secret put REVIEWER_OTP`. If either is unset, the bypass
+   * is OFF (fail-safe). Rotate immediately after each App Review pass.
+   */
+  REVIEWER_EMAIL?: string;
+  REVIEWER_OTP?: string;
 }
 
 let warnedAboutMissingSentryDsn = false;
@@ -351,6 +367,33 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
   const email = body.email.trim().toLowerCase();
   if (!isValidEmail(email)) {
     return json({ error: "Invalid email address" }, 400, env);
+  }
+
+  // BDEV-366 — App Store reviewer OTP-bypass. When BOTH REVIEWER_EMAIL
+  // and REVIEWER_OTP are configured AND the requested email matches
+  // REVIEWER_EMAIL, skip the Resend send and seed the static OTP into
+  // KV for the standard verify-code path. No email is dispatched —
+  // the reviewer types the documented OTP into the app and continues
+  // through normal onboarding.
+  //
+  // Fail-safe: if either env var is unset, the bypass is OFF. Both
+  // values must be present for the branch to fire.
+  const reviewerEmail = env.REVIEWER_EMAIL?.trim().toLowerCase();
+  const reviewerOtp = env.REVIEWER_OTP?.trim();
+  if (reviewerEmail && reviewerOtp && email === reviewerEmail) {
+    const ttl = parseInt(env.CODE_TTL_SECONDS, 10) || 600;
+    const stored: StoredCode = {
+      code: reviewerOtp,
+      attempts: 0,
+      createdAt: Date.now(),
+    };
+    await env.CODES.put(codeKey(email), JSON.stringify(stored), {
+      expirationTtl: ttl,
+    });
+    // Don't record rate-limit entry — the reviewer may legitimately
+    // re-trigger send-code multiple times during testing.
+    console.info("[auth] reviewer OTP bypass — no email sent");
+    return json({ sent: true }, 200, env);
   }
 
   // Rate limit: max N sends per email per hour.

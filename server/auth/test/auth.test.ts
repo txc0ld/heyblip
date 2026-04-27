@@ -452,6 +452,86 @@ describe("POST /v1/auth/send-code", () => {
     const res = await request("POST", "/v1/auth/send-code", { email });
     expect(res.status).toBe(429);
   });
+
+  // BDEV-366 — App Store reviewer OTP bypass.
+  describe("reviewer OTP bypass", () => {
+    const REVIEWER_EMAIL = "apple-reviewer@heyblip.au";
+    const REVIEWER_OTP = "123456";
+
+    beforeEach(() => {
+      (env as Record<string, unknown>).REVIEWER_EMAIL = REVIEWER_EMAIL;
+      (env as Record<string, unknown>).REVIEWER_OTP = REVIEWER_OTP;
+    });
+
+    it("returns sent:true without calling Resend when reviewer email is used", async () => {
+      const res = await request("POST", "/v1/auth/send-code", {
+        email: REVIEWER_EMAIL,
+      });
+      expect(res.status).toBe(200);
+      expect(await json(res)).toEqual({ sent: true });
+
+      // Stored code in KV equals the configured reviewer OTP.
+      const raw = await env.CODES.get(`code:${REVIEWER_EMAIL}`);
+      expect(raw).not.toBeNull();
+      const stored = JSON.parse(raw!);
+      expect(stored.code).toBe(REVIEWER_OTP);
+      expect(stored.attempts).toBe(0);
+    });
+
+    it("does not record a rate-limit entry for the reviewer email", async () => {
+      await request("POST", "/v1/auth/send-code", { email: REVIEWER_EMAIL });
+      const rateRaw = await env.CODES.get(`rate:${REVIEWER_EMAIL}`);
+      expect(rateRaw).toBeNull();
+    });
+
+    it("verify-code accepts the configured reviewer OTP via the standard path", async () => {
+      await request("POST", "/v1/auth/send-code", { email: REVIEWER_EMAIL });
+      const verifyRes = await request("POST", "/v1/auth/verify-code", {
+        email: REVIEWER_EMAIL,
+        code: REVIEWER_OTP,
+      });
+      expect(verifyRes.status).toBe(200);
+      expect(await json(verifyRes)).toEqual({ verified: true });
+    });
+
+    it("is case-insensitive on the email match", async () => {
+      const res = await request("POST", "/v1/auth/send-code", {
+        email: REVIEWER_EMAIL.toUpperCase(),
+      });
+      expect(res.status).toBe(200);
+      expect(await json(res)).toEqual({ sent: true });
+    });
+
+    it("falls through to the normal send path for non-reviewer emails", async () => {
+      // No RESEND_API_KEY set, so non-reviewer emails return 503.
+      // Reviewer bypass is configured but should NOT activate for this email.
+      delete (env as Record<string, unknown>).RESEND_API_KEY;
+      const res = await request("POST", "/v1/auth/send-code", {
+        email: "someone-else@example.com",
+      });
+      expect(res.status).toBe(503);
+    });
+
+    it("is OFF (fail-safe) when REVIEWER_EMAIL is unset", async () => {
+      delete (env as Record<string, unknown>).REVIEWER_EMAIL;
+      delete (env as Record<string, unknown>).RESEND_API_KEY;
+      const res = await request("POST", "/v1/auth/send-code", {
+        email: REVIEWER_EMAIL,
+      });
+      // Falls through to the normal flow; with no Resend key configured
+      // we get 503 — confirming we did NOT take the bypass path.
+      expect(res.status).toBe(503);
+    });
+
+    it("is OFF (fail-safe) when REVIEWER_OTP is unset", async () => {
+      delete (env as Record<string, unknown>).REVIEWER_OTP;
+      delete (env as Record<string, unknown>).RESEND_API_KEY;
+      const res = await request("POST", "/v1/auth/send-code", {
+        email: REVIEWER_EMAIL,
+      });
+      expect(res.status).toBe(503);
+    });
+  });
 });
 
 describe("POST /v1/auth/challenge", () => {
