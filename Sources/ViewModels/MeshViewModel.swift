@@ -162,6 +162,9 @@ final class MeshViewModel {
     /// Maximum events to keep in the log.
     private static let maxEventLogSize = 100
 
+    private static let nearbyRSSIThreshold = -75
+    private static let nearbyRecencyWindow: TimeInterval = 30
+
     // MARK: - Init
 
     private let notificationService: NotificationService
@@ -306,11 +309,16 @@ final class MeshViewModel {
 
         let currentIDs = Set(nearby.map(\.id))
         let newFriendIDs = currentIDs.subtracting(previousNearbyFriendIDs)
-        for friend in nearby where newFriendIDs.contains(friend.id) {
+        let now = Date()
+        for friend in nearby where
+            newFriendIDs.contains(friend.id)
+            && friend.isDirectPeer
+            && friend.rssi > Self.nearbyRSSIThreshold
+            && now.timeIntervalSince(friend.lastSeen) < Self.nearbyRecencyWindow
+        {
             notificationService.notifyFriendNearby(
                 friendName: friend.displayName,
-                friendID: friend.id,
-                distance: friend.rssi
+                friendID: friend.id
             )
         }
         previousNearbyFriendIDs = currentIDs
