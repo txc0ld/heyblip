@@ -27,7 +27,7 @@ type: project
 
 **Tay's frontend polish sprint dispatched.** 6 tickets (BDEV-422-427) sent via #tay-tasks parent message + 6 thread replies, each with a copy-paste-ready agent prompt. None overlap backend hot files. Recommended attack order in the parent message: 1 → 6 (skeleton loaders → empty states → animation polish → dynamic type → light mode → map UI).
 
-**John has 4 active manual launch-prep tasks queued** (~55 min total) + 1 paused (App Store screenshots, on hold until UI is at final-candidate build). Full recipe at `docs/JOHN-MANUAL-STEPS-LAUNCH-PREP.md`.
+**John has 3 active manual launch-prep tasks queued** (~50 min total) + 1 paused (App Store screenshots, on hold until UI is at final-candidate build). Full recipe at `docs/JOHN-MANUAL-STEPS-LAUNCH-PREP.md`. The 4th task (`wrangler secret put REVIEWER_EMAIL/REVIEWER_OTP` on `blip-auth`) was completed in the 2026-04-28 ~05:21 AWST post-EOD redeploy — bypass is LIVE.
 
 **BDEV-413 is still the headline question.** Tay/Fabs never definitively tested Build 44 (the day moved fast onto John's launch-prep stack). Build 45 is the canonical test target. The BDEV-417 fingerprint hygiene fix means diagnostic events should now bucket under their own Sentry issue.
 
@@ -37,8 +37,8 @@ type: project
 - **Build 43** (`beta-1.0.0-43` at `6614568`) — superseded.
 - Builds 30/31 still installable for legacy QA.
 
-### Workers (live)
-- `blip-auth.john-mckean.workers.dev` — **needs redeploy** to pick up #292 (BDEV-419 branded email) + #294 (BDEV-366 reviewer bypass). Both are in main but not yet in the deployed worker. Run `cd ~/heyblip/server/auth && wrangler deploy`.
+### Workers (live, updated 2026-04-28 ~05:21 AWST)
+- `blip-auth.john-mckean.workers.dev` — ✅ redeployed in post-EOD window. Latest version `e75d026d-e328-4206-ac7b-05c9bd1fa780`. Code deploy at 21:14 UTC picked up #292 (BDEV-419 branded email) + #294 (BDEV-366 reviewer bypass); 21:19/21:20/21:21 UTC secret-sets armed `REVIEWER_EMAIL` + `REVIEWER_OTP`. Smoke-test confirms bypass active (`{"sent":true}` for `apple-reviewer-2026-04@heyblip.au`).
 - `blip-relay.john-mckean.workers.dev` — version `995bebe2` (2026-04-26, BDEV-411 silent_badge_sync). No relay PRs today; no redeploy needed.
 - `blip-cdn.john-mckean.workers.dev` — unchanged.
 
@@ -69,7 +69,7 @@ The 11-attempt deploy saga from 2026-04-25 stays solved — `deploy-testflight.y
 - **BDEV-362** — debug overlay gating verified (#290)
 - **BDEV-363** — /support page (website PR #11, awaiting John's manual merge — bot can't push to upstream `txc0ld/heyblip.au`)
 - **BDEV-365** — App Privacy declaration doc (#295) — paste step is John's
-- **BDEV-366** — reviewer OTP-bypass (#294) — `wrangler secret put` step is John's
+- **BDEV-366** — reviewer OTP-bypass (#294) + secrets armed in 2026-04-28 ~05:21 AWST post-EOD redeploy — bypass is LIVE
 - **BDEV-378** — Verifying gate process doc + Jira setup guide (#293 + #295) — Jira admin step is John's
 - **BDEV-410** — explicit notification authorization (#289)
 - **BDEV-412** — RSSI-as-meters fix (#288)
@@ -130,13 +130,13 @@ Bugasura MCP entry removed (Bugasura was deleted 2026-04-26).
 1. **PAT rotation** — `GITHUB_PAT` leaked in 2026-04-25 transcript. **Still pending after 3 days.**
 2. **Apple processing of Build 45** → triggers TestFlight availability for Tay/Fabs.
 3. **Tay/Fabs Build 45 repro on BDEV-413** — coordinate the test.
-4. **John's 4 active manual launch-prep tasks** (~55 min total, full recipe at `docs/JOHN-MANUAL-STEPS-LAUNCH-PREP.md`):
+4. **John's 3 active manual launch-prep tasks** (~50 min total, full recipe at `docs/JOHN-MANUAL-STEPS-LAUNCH-PREP.md`):
    - **Email aliases on Porkbun** (~5 min) — abuse@/support@/privacy@/hello@. https://porkbun.com/account/email/heyblip.au
-   - **Reviewer OTP secrets** (~5 min) — `wrangler secret put REVIEWER_EMAIL` + `REVIEWER_OTP` on `blip-auth`
    - **App Privacy nutrition label** (~30 min) — paste from `docs/LAUNCH-APP-PRIVACY-DECLARATION.md` into ASC
    - **Jira Verifying gate setup** (~15 min) — admin UI, recipe in `docs/PROCESS-VERIFICATION-GATE-JIRA-SETUP.md`
+   - ~~Reviewer OTP secrets~~ — ✅ done in 2026-04-28 ~05:21 AWST post-EOD window.
 5. **App Store screenshots — paused** until UI is at final-candidate build. Trigger: build going to App Review identified + Tay/Fabian have signed off on screen visuals.
-6. **`wrangler deploy` on blip-auth** — to push #292 + #294 to production. Branded email won't reach users + reviewer bypass won't activate without it.
+6. ~~`wrangler deploy` on blip-auth~~ — ✅ done in 2026-04-28 ~05:14 AWST post-EOD window. Latest version `e75d026d`. Both #292 + #294 are LIVE.
 7. **Website PR #11 manual merge** — bot identity can't merge upstream.
 8. **BDEV-410 / BDEV-412 product calls — DONE** (decisions made + shipped today).
 
@@ -147,7 +147,7 @@ Bugasura MCP entry removed (Bugasura was deleted 2026-04-26).
 1. **Read SOUL.md first.** Wired into HANDOVER.md as step 3.
 2. **The 9-PR merge spree on 2026-04-27 was a one-time grant.** John typed "yes, review and you are authorized to merge if you're satisfied" — that was scoped to the 9 PRs in front of him. The default rule (engineer stops at PR + Slack + Jira) is reactivated for the next session. Don't extrapolate.
 3. **Email is on Porkbun, not Cloudflare.** MX → fwd1/fwd2.porkbun.com, SPF → _spf.porkbun.com. Don't repeat the 2026-04-27 mistake of assuming Cloudflare Email Routing.
-4. **`blip-auth` needs redeploy** to pick up today's PR #292 + #294. Run `cd ~/heyblip/server/auth && wrangler deploy` once John gives the go.
+4. **`blip-auth` was redeployed in the 2026-04-28 ~05:21 AWST post-EOD window** — picked up PR #292 + #294 + reviewer-bypass secrets. Latest version `e75d026d`. If you read an older doc that says "needs redeploy", it's stale: re-verify with `wrangler deployments list --name blip-auth` before reporting.
 5. **Website repo workflow** — push to `fork` remote (`iamjohnnymac/heyblip.au`), open PR from fork → upstream `txc0ld/heyblip.au`. Bot identity can't push or merge on the canonical repo. Confirmed today.
 6. **TestFlight build commit ≠ what tester sees** until Apple processes. Build 45 workflow completed at 13:05 UTC; Apple processing typically 5-30 min more. Always check ASC TestFlight tab for actual availability.
 7. **CI flake (BDEV-404) is much worse than the original ticket text.** ~50-100% per CI run today. PR #291 needed 3 reruns. PM should escalate to High + assign.

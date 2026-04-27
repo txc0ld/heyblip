@@ -1,21 +1,21 @@
 # John's Manual Launch-Prep Steps
 
 **Audience:** John only
-**Last reviewed:** 2026-04-27
+**Last reviewed:** 2026-04-28
 
 Five manual tasks that need your hands. Each is independent — do them in any order. Total time across all five: ~2.5 hours.
 
 ## Quick index
 
-| # | Task | Where | Time |
-|---|---|---|---|
-| 1 | [Email aliases](#1-email-aliases) | Porkbun Email Forwarding | ~5 min |
-| 2 | [Reviewer OTP secrets](#2-reviewer-otp-secrets) | Terminal (wrangler) | ~5 min |
-| 3 | [App Privacy nutrition label](#3-app-privacy-nutrition-label) | App Store Connect | ~30 min |
-| 4 | [App Store screenshots](#4-app-store-screenshots) — **ON HOLD** | Xcode Simulator | ~60 min |
-| 5 | [Jira Verifying gate](#5-jira-verifying-gate) | Atlassian admin | ~15 min |
+| # | Task | Where | Time | Status |
+|---|---|---|---|---|
+| 1 | [Email aliases](#1-email-aliases) | Porkbun Email Forwarding | ~5 min | active |
+| 2 | [Reviewer OTP secrets](#2-reviewer-otp-secrets) | Terminal (wrangler) | ~5 min | ✅ DONE 2026-04-28 |
+| 3 | [App Privacy nutrition label](#3-app-privacy-nutrition-label) | App Store Connect | ~30 min | active |
+| 4 | [App Store screenshots](#4-app-store-screenshots) — **ON HOLD** | Xcode Simulator | ~60 min | paused |
+| 5 | [Jira Verifying gate](#5-jira-verifying-gate) | Atlassian admin | ~15 min | active |
 
-**Active total** (excluding screenshots): ~55 min across the 4 active tasks.
+**Active total** (excluding screenshots + #2): ~50 min across the 3 remaining active tasks.
 
 ---
 
@@ -74,6 +74,8 @@ Don't touch the `verify@heyblip.au` alias if it already exists — Resend uses i
 ---
 
 ## 2. Reviewer OTP secrets
+
+> **✅ COMPLETED 2026-04-28 ~05:21 AWST** — secrets armed in the post-EOD `blip-auth` redeploy. Latest deployed version: `e75d026d`. Reviewer can sign in with `apple-reviewer-2026-04@heyblip.au` + OTP `846291`. Smoke-test confirmed (`POST /v1/auth/send-code` returns `{"sent":true}` without sending an email). The steps below are kept as historical reference + for the **rotation step after App Review concludes**.
 
 Set the reviewer OTP-bypass secrets on the `blip-auth` Cloudflare Worker so Apple's reviewer can sign in without going through real email-OTP infrastructure. Companion to PR [#294](https://github.com/txc0ld/heyblip/pull/294) (which adds the bypass code).
 
