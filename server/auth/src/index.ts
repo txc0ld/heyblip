@@ -411,11 +411,13 @@ async function handleSendCode(request: Request, env: Env): Promise<Response> {
   }
   try {
     const resend = new Resend(env.RESEND_API_KEY);
+    const { html, text } = emailTemplate(code);
     const { error } = await resend.emails.send({
       from: env.FROM_EMAIL,
       to: email,
-      subject: "Blip — Your verification code",
-      html: emailTemplate(code),
+      subject: "Your HeyBlip verification code",
+      html,
+      text,
     });
 
     if (error) {
@@ -2254,17 +2256,133 @@ function json(data: unknown, status = 200, env?: Env): Response {
   });
 }
 
-function emailTemplate(code: string): string {
-  return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 400px; margin: 0 auto; padding: 40px 20px;">
-      <h2 style="color: #6600FF; margin-bottom: 8px;">Blip</h2>
-      <p style="color: #333; font-size: 16px; margin-bottom: 24px;">Your verification code is:</p>
-      <div style="background: #F5F0FF; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
-        <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #6600FF;">${code}</span>
-      </div>
-      <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
-    </div>
-  `;
+/**
+ * Build the verification email body with both HTML and plain-text variants.
+ *
+ * Design notes for the HTML:
+ * - Table-based layout — the only thing that renders consistently across
+ *   Outlook, Gmail, Apple Mail, and the long tail of mobile clients.
+ * - All CSS inlined; no external stylesheet, no <style> blocks (Gmail
+ *   strips them in some surfaces).
+ * - System font stack only — web fonts inflate latency and don't load
+ *   in many email clients.
+ * - Dark-mode rules via `@media (prefers-color-scheme: dark)` are
+ *   honoured by Apple Mail / iOS Mail / Outlook for Mac. Gmail web
+ *   ignores them but the light-mode default still reads cleanly there.
+ * - Brand colour AccentPurple #6600FF for the wordmark + code accents.
+ * - Code is shown in a large monospace block — easy to copy, easy to
+ *   read, with letter-spacing so the dashes / segments are obvious.
+ *
+ * The plain-text variant is the fallback for clients with HTML disabled
+ * (still common in corporate environments and for screen readers that
+ * prefer text/plain).
+ */
+export function emailTemplate(code: string): { html: string; text: string } {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your HeyBlip verification code</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F5F5F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <!-- preheader (hidden in client, shown in inbox preview) -->
+  <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;font-size:0;">Your HeyBlip verification code is ${code}. Enter it in the app to finish setting up.</span>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F5F5F7;">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;width:100%;background-color:#FFFFFF;border-radius:16px;overflow:hidden;">
+
+          <!-- Wordmark header -->
+          <tr>
+            <td align="center" style="padding:40px 20px 24px 20px;">
+              <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:32px;font-weight:800;letter-spacing:-0.5px;color:#6600FF;line-height:1;">HeyBlip</span>
+            </td>
+          </tr>
+
+          <!-- Headline + intro -->
+          <tr>
+            <td style="padding:0 40px;">
+              <h1 style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:24px;font-weight:700;line-height:1.25;color:#0A0A0A;">Confirm your email</h1>
+              <p style="margin:0 0 32px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.5;color:#444444;">Here's your verification code. Enter it in the HeyBlip app to finish setting up your account.</p>
+            </td>
+          </tr>
+
+          <!-- Code box -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="background-color:#F5F0FF;border-radius:12px;padding:28px 16px;">
+                    <span style="font-family:'SF Mono',Menlo,Consolas,'Courier New',monospace;font-size:32px;font-weight:700;letter-spacing:6px;color:#6600FF;line-height:1;">${code}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Reassurance -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;">
+              <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.5;color:#888888;">This code expires in 10 minutes. If you didn't request this email, you can safely ignore it &mdash; nothing will happen on your account.</p>
+            </td>
+          </tr>
+
+          <!-- Footer divider -->
+          <tr>
+            <td style="padding:0 40px;">
+              <div style="border-top:1px solid #EEEEEE;height:1px;line-height:1px;font-size:1px;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:24px 40px 32px 40px;">
+              <p style="margin:0 0 6px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;line-height:1.5;color:#999999;">HeyBlip &mdash; chat at events, even without signal.</p>
+              <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;line-height:1.5;color:#AAAAAA;">Need help? <a href="mailto:support@heyblip.au" style="color:#6600FF;text-decoration:none;">support@heyblip.au</a></p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Dark-mode overrides for Apple Mail / iOS Mail / Outlook for Mac.
+       Gmail web ignores these; light mode renders cleanly there. -->
+  <style>
+    @media (prefers-color-scheme: dark) {
+      body, table[role="presentation"] { background-color:#0A0A0A !important; }
+      table[role="presentation"] table[role="presentation"] { background-color:#1A1A1C !important; }
+      h1 { color:#FFFFFF !important; }
+      p { color:#CCCCCC !important; }
+      div[style*="border-top"] { border-top-color:#2A2A2C !important; }
+      td[style*="background-color:#F5F0FF"] { background-color:#2A1A4D !important; }
+    }
+  </style>
+</body>
+</html>`;
+
+  const text = [
+    "HeyBlip — confirm your email",
+    "",
+    "Here's your verification code. Enter it in the HeyBlip app to",
+    "finish setting up your account.",
+    "",
+    `    ${code}`,
+    "",
+    "This code expires in 10 minutes. If you didn't request this email,",
+    "you can safely ignore it — nothing will happen on your account.",
+    "",
+    "—",
+    "HeyBlip — chat at events, even without signal.",
+    "Need help? support@heyblip.au",
+  ].join("\n");
+
+  return { html, text };
 }
 
 function isValidChallenge(challenge: string | undefined): challenge is string {
