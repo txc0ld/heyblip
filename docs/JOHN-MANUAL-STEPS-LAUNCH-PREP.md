@@ -19,50 +19,55 @@ Five manual tasks that need your hands. Each is independent — do them in any o
 
 ## 1. Email aliases
 
-You need four public-facing aliases live before App Store submission: `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. All four route to **John, Tay, and Fabian** so any one of you can pick up.
+You need four public-facing aliases live before App Store submission: `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. All four forward to **John, Tay, and Fabian** so any one of you can pick up.
 
-This is also tracked in [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430) (assigned to Tay). If Tay ships it first, skip this section and just verify the aliases work (steps 6–7 below). If you're doing it yourself, follow the full recipe.
+The `heyblip.au` domain is registered with **Porkbun**, and email is handled by **Porkbun's free Email Forwarding** (verified via DNS: MX → `fwd1.porkbun.com` / `fwd2.porkbun.com`, SPF → `_spf.porkbun.com`, nameservers → `*.ns.porkbun.com`). Porkbun's forwarding supports up to **6 destinations per forward rule**, so we can fan out to all three of you with a single rule per alias — much simpler than the Cloudflare equivalent.
+
+This is also tracked in [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430) (assigned to Tay — he handles email infra). If Tay ships it first, skip the setup steps and just verify the aliases work via the test-send (step 5 below).
 
 ### Prerequisites
-- Cloudflare account access to the `heyblip.au` domain (the one running the website at https://heyblip.au)
+- Porkbun account credentials for the account that owns `heyblip.au`
 - Tay's and Fabian's personal email addresses
+- A few minutes — Porkbun applies forwards within seconds, no DNS propagation wait
 
 ### Steps
 
-1. **Open Cloudflare Email Routing**
-   👉 https://dash.cloudflare.com/?to=/:account/:zone/email/routing/routes
-   (or: dash.cloudflare.com → pick `heyblip.au` from the domain list → Email → Email Routing → Routes)
+1. **Open Porkbun's domain management for heyblip.au:**
+   👉 https://porkbun.com/account/domainsSpeedy
+   Sign in if needed. Find `heyblip.au` in the domain list.
 
-2. **Verify Email Routing is enabled.** Top of the page should say "Email Routing enabled". If not, click "Enable Email Routing" first — Cloudflare walks you through verifying the MX records on your `heyblip.au` zone (takes 5 min the first time, zero if already done).
+2. **Open Email Forwarding for the domain.**
+   - Click the **Details** button next to `heyblip.au`.
+   - Scroll to the **Email Forwarding** section.
+   - Or go direct: 👉 https://porkbun.com/account/email/heyblip.au
 
-3. **Add the destination addresses.** This is one-time setup. Cloudflare needs to verify each destination before you can route to it.
-   - Go to the **Destination addresses** tab.
-   - Click **Add destination address**.
-   - Add each of: your personal email, Tay's email, Fabian's email. Each gets a verification email — click the link in their inbox to confirm.
+3. **Check what already exists.** Some aliases (`verify@` for the Resend FROM address, `support@`, `privacy@`) may already be set up. List them. If any of the four required ones (`abuse@`, `support@`, `privacy@`, `hello@`) are already there:
+   - **Edit** the existing forward to make sure it routes to all three of you (John + Tay + Fabian).
+   - Skip step 4 for that alias.
 
-4. **Create the four routing rules.** Routes tab → **Create address**. For each alias:
+4. **Add or update the four forwards.** Click **Add Forward** for each missing alias:
 
-   | Custom address | Action | Destination |
-   |---|---|---|
-   | `abuse@heyblip.au` | Send to an email | (one route per destination — see note below) |
-   | `support@heyblip.au` | Send to an email | (same) |
-   | `privacy@heyblip.au` | Send to an email | (same) |
-   | `hello@heyblip.au` | Send to an email | (same) |
+   | Custom address | Forwards to (comma-separated, up to 6) |
+   |---|---|
+   | `abuse@heyblip.au` | `<your-personal-email>, <tay-email>, <fabian-email>` |
+   | `support@heyblip.au` | (same three) |
+   | `privacy@heyblip.au` | (same three) |
+   | `hello@heyblip.au` | (same three) |
 
-   **Cloudflare Email Routing limit:** one rule = one destination address. To fan out to all three of you, the simplest path is **three rules per alias** (one rule routing `abuse@heyblip.au` to John, another routing `abuse@heyblip.au` to Tay, another to Fabian). 12 rules total.
-   - Cloudflare collapses identical sources in the UI; it's not as messy as it sounds.
-   - Alternative if you want to avoid 12 rules: deploy a tiny Worker that takes one address and forwards to all three. Out of scope for this doc — 12 rules is fine for v1.
+   Porkbun's forward UI accepts a comma-separated list of destinations in a single forward rule. **One rule per alias, three destinations each.** No verification step on the destination side (unlike Cloudflare's separate verify-each-destination requirement) — Porkbun trusts the address you type.
 
-5. **Save each rule.** Cloudflare applies them within ~30 seconds.
+5. **Test send.** From your phone (or any external email account), send a test email to each of `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. Subject: "test" is fine.
 
-6. **Test send.** From your phone (or any external email account), send a test email to each of `abuse@`, `support@`, `privacy@`, `hello@heyblip.au`. Subject: "test" is fine.
+6. **Verify all three of you receive it.** Within 5 minutes you, Tay, and Fabian should each see the test email in your inbox. If anyone is missing, double-check the comma-separated list in the forward rule for typos.
 
-7. **Verify all three of you receive it.** Within 5 minutes you, Tay, and Fabian should each see the test email in your inbox. If anyone is missing, recheck the destination verification step (step 3).
+### Note on `verify@heyblip.au`
+
+Don't touch the `verify@heyblip.au` alias if it already exists — Resend uses it as the *FROM* address when sending OTP emails to users (see `server/auth/wrangler.toml`'s `FROM_EMAIL`). It doesn't need to forward anywhere; it just needs to exist as a valid sender on the domain. If for some reason you need to set it up: forward to `/dev/null` equivalent (Porkbun lets you forward to any destination — pick one of yours, ignore replies, or leave it unforwarded if Porkbun allows existing-but-unforwarded).
 
 ### Done when
 
 - ✅ Test email to each of the 4 aliases delivers to all 3 of your inboxes within 5 min.
-- ✅ Comment "live" on [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430).
+- ✅ Comment "live" on [BDEV-430](https://heyblip.atlassian.net/browse/BDEV-430) with which aliases got created vs which were already there.
 
 ---
 
