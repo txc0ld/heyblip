@@ -61,6 +61,10 @@ final class CrashReportingService: @unchecked Sendable {
             // Defence in depth — the test-harness guard in
             // fix/sentry-skip-test-harness should make this unreachable, but
             // also drop any event that slips through with a fake event_id.
+            //
+            // Also: split DebugLogger.captureMessage events by their `[TAG]`
+            // prefix so unrelated [AUTH] / [NOISE] / [PUSH] log captures stop
+            // collapsing onto one mixed-fingerprint Sentry issue (BDEV-417).
             options.beforeSend = { event in
                 if let envName = event.environment, envName == "development",
                    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
@@ -69,6 +73,10 @@ final class CrashReportingService: @unchecked Sendable {
                 if let eventID = event.tags?["blip.event_id"],
                    Self.isSuspiciousEventID(eventID) {
                     return nil
+                }
+                if let formatted = event.message?.formatted,
+                   let fingerprint = Self.fingerprintForLogMessage(formatted) {
+                    event.fingerprint = fingerprint
                 }
                 return event
             }
@@ -118,6 +126,38 @@ final class CrashReportingService: @unchecked Sendable {
         if trimmed.isEmpty { return true }
         let lowered = trimmed.lowercased()
         return lowered == "test" || lowered == "fake" || lowered == "null" || lowered == "undefined"
+    }
+
+    /// Derive a stable Sentry fingerprint from a `[TAG] message body` log
+    /// string captured via `DebugLogger.captureMessage`. The default
+    /// fingerprint groups by call-site stack frame, which collapses
+    /// unrelated tagged log captures onto a single Sentry issue (BDEV-417 —
+    /// APPLE-IOS-1Z was bucketing [AUTH] 429 with [NOISE] msg2 failures).
+    ///
+    /// Returns `nil` for messages that don't start with a `[TAG]` prefix —
+    /// those keep Sentry's default grouping (crashes, ANRs, NSExceptions).
+    ///
+    /// Numeric runs (HTTP status codes, byte lengths, hex prefixes) inside
+    /// the message are normalised to `N` so e.g. `HTTP 429` and `HTTP 500`
+    /// group together under `[AUTH] Challenge request failed HTTP N`.
+    static func fingerprintForLogMessage(_ message: String) -> [String]? {
+        guard message.hasPrefix("["),
+              let close = message.firstIndex(of: "]") else { return nil }
+        let tag = String(message[message.index(after: message.startIndex)..<close])
+        guard !tag.isEmpty, tag.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+            return nil
+        }
+        let after = message.index(after: close)
+        let rest = String(message[after...]).trimmingCharacters(in: .whitespaces)
+        // Take the first ~60 chars so we don't fingerprint by per-event
+        // values (peer IDs, byte counts) that appear later in the line.
+        let head = String(rest.prefix(60))
+        let normalised = head.replacingOccurrences(
+            of: #"\d+"#,
+            with: "N",
+            options: .regularExpression
+        )
+        return ["log", tag, normalised]
     }
 
     /// Set user context (call after auth/profile load).
