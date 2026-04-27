@@ -126,7 +126,7 @@ We do **not** have access to E2E plaintext message content. We do **not** retain
 
 ## Team
 
-The HeyBlip team is small (founder + frontend engineer + marketing). Moderation is handled by the founder during the early phase, with on-call coverage during peak usage windows. As HeyBlip scales, dedicated moderation capacity will be added.
+The HeyBlip team is small (founder + frontend engineer + marketing). All three monitor the **abuse@heyblip.au** and **support@heyblip.au** inboxes during the early phase, so any one of us can pick up an incoming report quickly. The founder owns the final moderation decision (account suspension / revocation). As HeyBlip scales, dedicated moderation capacity will be added.
 
 ## Public statement of policy
 
