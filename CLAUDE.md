@@ -251,7 +251,7 @@ Do not read or modify:
 
 ## Issue Tracker (Jira)
 
-**Jira BDEV** is the issue tracker as of 2026-04-25. It replaced Notion (which replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix is **`BDEV-N`** — Jira's auto-numbering. The 366 imported tickets cover **BDEV-2 → BDEV-367**; new tickets continue from BDEV-368+.
+**Jira BDEV** is the issue tracker as of 2026-04-25. It replaced Notion (which replaced Bugasura, which replaced Linear on 2026-04-13). Issue prefix is **`BDEV-N`** — Jira's auto-numbering. The 366 imported tickets cover **BDEV-2 → BDEV-367**; new tickets continue from BDEV-368 onward, current high-water mark **BDEV-430+** (2026-04-27).
 
 **Site:** https://heyblip.atlassian.net  
 **Jira project:** `BDEV` ("HeyBlip"), company-managed Scrum  
