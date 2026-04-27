@@ -193,7 +193,11 @@ final class AppLifecycleController {
 
             let ws = self.runtime.webSocketTransport
             guard ws.state != .running else { return }
-            DebugLogger.shared.log("APP", "Foreground: relay not running (state=\(ws.state)) — reconnecting")
+            // Healthy resume path — the relay is intentionally torn down on
+            // background (see BDEV-348) and re-established on foreground.
+            // Phrase as the action being taken, not as an error condition,
+            // so triage greps for "not running" surface only genuine wedges.
+            DebugLogger.shared.log("APP", "Foreground resume: re-establishing relay (state=\(ws.state))")
             ws.reconnect(reason: "foreground_resume")
         }
     }
@@ -341,11 +345,15 @@ final class AppLifecycleController {
 
             do {
                 if initialState != .running {
-                    DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket not connected (state=\(initialState)) — reconnecting")
+                    // Healthy wake path — silent push wakes the app while
+                    // the relay is suspended; we re-establish to drain
+                    // queued packets. Match the foreground-resume phrasing
+                    // (BDEV-353) so triage greps stay clean.
+                    DebugLogger.shared.log("PUSH", "Push wake-up: re-establishing relay (state=\(initialState))")
                     ws.reconnect(reason: "push_wake")
                     try await awaitWebSocketRunning(timeout: .seconds(8))
                 } else {
-                    DebugLogger.shared.log("PUSH", "Push wake-up: WebSocket already connected")
+                    DebugLogger.shared.log("PUSH", "Push wake-up: relay already connected")
                 }
 
                 await runtime.messageRetryService.triggerScan()
