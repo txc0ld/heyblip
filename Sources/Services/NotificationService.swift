@@ -160,14 +160,18 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
     // MARK: - Authorization
 
-    /// Request notification permissions from the user. Includes provisional
-    /// authorization (banner-free alerts) and the App Notification Settings
-    /// shortcut so iOS offers a "Notification Settings" link inside the
-    /// system notification UI.
+    /// Request explicit notification permissions from the user. Triggers
+    /// the standard iOS permission dialog. Caller is responsible for
+    /// presenting a pre-prompt screen first if desired.
+    ///
+    /// `.providesAppNotificationSettings` adds a "Notification Settings"
+    /// shortcut inside iOS's notification UI so users can deep-link back
+    /// to our in-app settings. `.criticalAlert` is intentionally omitted —
+    /// it requires a separate Apple entitlement (see BDEV-421).
     func requestAuthorization() async -> Bool {
         do {
             let granted = try await center.requestAuthorization(
-                options: [.alert, .badge, .sound, .provisional, .providesAppNotificationSettings]
+                options: [.alert, .badge, .sound, .providesAppNotificationSettings]
             )
             isAuthorized = granted
             CrashReportingService.shared.addBreadcrumb(

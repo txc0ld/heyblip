@@ -1,21 +1,24 @@
 import SwiftUI
 import CoreBluetooth
 import AVFoundation
+import UserNotifications
 
 private enum PermissionsStepL10n {
     static let title = String(localized: "onboarding.permissions.title", defaultValue: "Stay connected\nwithout signal")
-    static let subtitle = String(localized: "onboarding.permissions.subtitle", defaultValue: "HeyBlip needs Bluetooth to connect with people nearby. The microphone is for voice notes — optional, but easy to enable now.")
+    static let subtitle = String(localized: "onboarding.permissions.subtitle", defaultValue: "HeyBlip needs Bluetooth to connect. Notifications keep you alerted to messages and SOS. The microphone enables voice notes.")
     static let bluetoothEnabled = String(localized: "onboarding.permissions.enabled", defaultValue: "Bluetooth enabled")
     static let microphoneEnabled = String(localized: "onboarding.permissions.microphone_enabled", defaultValue: "Microphone enabled")
     static let microphoneSkipped = String(localized: "onboarding.permissions.microphone_skipped", defaultValue: "Microphone disabled — voice notes won't work")
+    static let notificationsEnabled = String(localized: "onboarding.permissions.notifications_enabled", defaultValue: "Notifications enabled")
+    static let notificationsSkipped = String(localized: "onboarding.permissions.notifications_skipped", defaultValue: "Notifications disabled — DMs and SOS won't alert you")
     static let bluetoothRequired = String(localized: "onboarding.permissions.required_message", defaultValue: "Bluetooth is required for HeyBlip to work.")
     static let openSettings = String(localized: "common.open_settings", defaultValue: "Open Settings")
     static let openSettingsHint = String(localized: "onboarding.permissions.open_settings.hint", defaultValue: "Opens the iOS Settings app for HeyBlip.")
     static let getStarted = String(localized: "onboarding.permissions.cta.get_started", defaultValue: "Get started")
     static let enablePermissions = String(localized: "onboarding.permissions.cta.enable_permissions", defaultValue: "Enable permissions")
     static let completeHint = String(localized: "onboarding.permissions.complete.hint", defaultValue: "Finishes onboarding and opens the app.")
-    static let requestHint = String(localized: "onboarding.permissions.request.hint", defaultValue: "Requests Bluetooth and microphone permissions from iOS.")
-    static let requiredCaption = String(localized: "onboarding.permissions.required_caption", defaultValue: "Bluetooth required • Microphone optional")
+    static let requestHint = String(localized: "onboarding.permissions.request.hint", defaultValue: "Requests Bluetooth, microphone, and notification permissions from iOS.")
+    static let requiredCaption = String(localized: "onboarding.permissions.required_caption", defaultValue: "Bluetooth required • Mic + notifications optional")
 }
 
 // MARK: - BLE Permission Observer
@@ -54,6 +57,8 @@ struct PermissionsStep: View {
     @State private var permissionDenied = false
     @State private var microphoneGranted = false
     @State private var microphoneDenied = false
+    @State private var notificationGranted = false
+    @State private var notificationDenied = false
     @State private var observer = BLEPermissionObserver()
     @Environment(\.theme) private var theme
 
@@ -109,6 +114,22 @@ struct PermissionsStep: View {
                         }
                     } else if microphoneDenied {
                         Text(PermissionsStepL10n.microphoneSkipped)
+                            .font(theme.typography.secondary)
+                            .foregroundStyle(theme.colors.mutedText)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    if notificationGranted {
+                        HStack(spacing: BlipSpacing.sm) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(theme.colors.statusGreen)
+                                .accessibilityLabel(PermissionsStepL10n.notificationsEnabled)
+                            Text(PermissionsStepL10n.notificationsEnabled)
+                                .font(.custom(BlipFontName.medium, size: 15, relativeTo: .body))
+                                .foregroundStyle(theme.colors.statusGreen)
+                        }
+                    } else if notificationDenied {
+                        Text(PermissionsStepL10n.notificationsSkipped)
                             .font(theme.typography.secondary)
                             .foregroundStyle(theme.colors.mutedText)
                             .multilineTextAlignment(.center)
@@ -265,6 +286,27 @@ struct PermissionsStep: View {
         @unknown default:
             break
         }
+
+        // Same for notifications — show prior state if the user already
+        // answered iOS's prompt on a previous run.
+        Task { @MainActor in
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            withAnimation(SpringConstants.accessiblePageEntrance) {
+                switch settings.authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    notificationGranted = true
+                    notificationDenied = false
+                case .denied:
+                    notificationGranted = false
+                    notificationDenied = true
+                case .notDetermined:
+                    notificationGranted = false
+                    notificationDenied = false
+                @unknown default:
+                    break
+                }
+            }
+        }
     }
 
     /// Creates a CBCentralManager to trigger the system permission dialog.
@@ -292,7 +334,8 @@ struct PermissionsStep: View {
 
     /// Trigger the iOS microphone permission dialog. Idempotent: iOS only
     /// shows the prompt the first time per install. Microphone is optional —
-    /// "Get started" stays enabled regardless of the outcome.
+    /// "Get started" stays enabled regardless of the outcome. Chains into
+    /// the notification permission request once a decision has been recorded.
     private func requestMicrophonePermission() {
         // Skip if iOS has already recorded an answer.
         switch AVAudioApplication.shared.recordPermission {
@@ -301,12 +344,14 @@ struct PermissionsStep: View {
                 microphoneGranted = true
                 microphoneDenied = false
             }
+            requestNotificationPermission()
             return
         case .denied:
             withAnimation(SpringConstants.accessiblePageEntrance) {
                 microphoneGranted = false
                 microphoneDenied = true
             }
+            requestNotificationPermission()
             return
         case .undetermined:
             break
@@ -319,6 +364,59 @@ struct PermissionsStep: View {
                 withAnimation(SpringConstants.accessiblePageEntrance) {
                     microphoneGranted = granted
                     microphoneDenied = !granted
+                }
+                requestNotificationPermission()
+            }
+        }
+    }
+
+    /// Trigger the iOS notification permission dialog. Last in the
+    /// onboarding chain — Bluetooth → Microphone → Notifications. Optional;
+    /// "Get started" stays enabled regardless of the outcome. Idempotent
+    /// when iOS already has an answer recorded.
+    private func requestNotificationPermission() {
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+
+            // If iOS has already recorded a decision, surface it without
+            // re-prompting. Skipping the request also avoids a second cold
+            // dialog for users who answered on a previous run.
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    notificationGranted = true
+                    notificationDenied = false
+                }
+                return
+            case .denied:
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    notificationGranted = false
+                    notificationDenied = true
+                }
+                return
+            case .notDetermined:
+                break
+            @unknown default:
+                return
+            }
+
+            do {
+                let granted = try await center.requestAuthorization(
+                    options: [.alert, .badge, .sound, .providesAppNotificationSettings]
+                )
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    notificationGranted = granted
+                    notificationDenied = !granted
+                }
+            } catch {
+                await DebugLogger.shared.log(
+                    "PUSH",
+                    "Onboarding notification request failed: \(error.localizedDescription)",
+                    isError: true
+                )
+                withAnimation(SpringConstants.accessiblePageEntrance) {
+                    notificationDenied = true
                 }
             }
         }

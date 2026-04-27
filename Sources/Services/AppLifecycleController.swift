@@ -48,9 +48,12 @@ final class AppLifecycleController {
         DebugLogger.shared.log("LIFECYCLE", "MessageRetryService started")
 
         Task { @MainActor in
-            let notifGranted = await runtime.notificationService.requestAuthorization()
-            DebugLogger.shared.log("LIFECYCLE", "NotificationService authorization: \(notifGranted ? "granted" : "denied")")
-            if notifGranted {
+            // Authorization is requested during onboarding (PermissionsStep), not here.
+            // We only check current status and register for remote notifications if granted.
+            await runtime.notificationService.checkAuthorization()
+            let isAuthorized = runtime.notificationService.isAuthorized
+            DebugLogger.shared.log("LIFECYCLE", "NotificationService authorization: \(isAuthorized ? "granted" : "denied")")
+            if isAuthorized {
                 UIApplication.shared.registerForRemoteNotifications()
             }
 
