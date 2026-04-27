@@ -57,13 +57,32 @@ final class CrashReportingFingerprintTests: XCTestCase {
     // MARK: - Long messages truncate to a stable head
 
     func test_longMessageBody_truncatesAtSixtyChars() {
+        // Both message bodies are >= 60 chars long and share the same
+        // first 60 chars after the tag — they differ only in trailing
+        // content past the 60-char window, so they must produce the
+        // same fingerprint.
+        //
+        // Body of `short` (after `[NOISE] `) is 63 chars:
+        //   "Handshake msg2 failed for unknown peer at session establishment"
+        // The first 60 chars are:
+        //   "Handshake msg2 failed for unknown peer at session establishm"
         let short = CrashReportingService.fingerprintForLogMessage(
-            "[NOISE] Handshake msg2 failed once for peer ABCD with no detail"
+            "[NOISE] Handshake msg2 failed for unknown peer at session establishment"
         )
         let withTail = CrashReportingService.fingerprintForLogMessage(
-            "[NOISE] Handshake msg2 failed once for peer ABCD with no detail and a long trailing breadcrumb that should not affect grouping"
+            "[NOISE] Handshake msg2 failed for unknown peer at session establishment with a trailing breadcrumb that must not affect grouping"
         )
-        XCTAssertEqual(short, withTail, "trailing variable detail past ~60 chars must not change the fingerprint")
+        XCTAssertNotNil(short)
+        XCTAssertEqual(short, withTail, "trailing variable detail past 60 chars must not change the fingerprint")
+    }
+
+    func test_shortMessageBody_isNotTruncated() {
+        // Bodies under 60 chars are not truncated; the full body
+        // (with numeric normalisation) becomes the fingerprint head.
+        let result = CrashReportingService.fingerprintForLogMessage(
+            "[AUTH] Token refresh failed 401"
+        )
+        XCTAssertEqual(result, ["log", "AUTH", "Token refresh failed N"])
     }
 
     // MARK: - Edge cases — return nil so Sentry default grouping applies
