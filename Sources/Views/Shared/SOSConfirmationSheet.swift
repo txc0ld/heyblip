@@ -357,9 +357,23 @@ struct SOSConfirmationSheet: View {
 
     private var sentConfirmation: some View {
         VStack(spacing: BlipSpacing.lg) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(severityColor(selectedSeverity))
+            // BreathingRing behind the success checkmark communicates that the
+            // alert is alive and propagating — the rings expand and contract
+            // continuously while the cancel countdown is running. Severity
+            // colour matches the selected tier so red emergencies pulse with a
+            // red ring, etc. BreathingRing internally honours
+            // accessibilityReduceMotion and falls back to static rings.
+            ZStack {
+                BreathingRing(
+                    ringCount: 3,
+                    baseSize: 60,
+                    color: severityColor(selectedSeverity),
+                    cycleDuration: 2.4
+                )
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundStyle(severityColor(selectedSeverity))
+            }
 
             Text(SOSConfirmationL10n.helpRequested)
                 .font(theme.typography.headline)

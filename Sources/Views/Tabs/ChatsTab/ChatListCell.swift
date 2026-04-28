@@ -184,18 +184,30 @@ struct ChatListCell: View {
     // MARK: - Unread Badge
 
     private var unreadBadge: some View {
-        Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
-            .font(.custom(BlipFontName.bold, size: 11, relativeTo: .caption2))
-            .foregroundStyle(.white)
-            .padding(.horizontal, BlipSpacing.sm)
-            .padding(.vertical, BlipSpacing.xxs)
-            .background(
-                Capsule()
-                    .fill(Color.blipAccentPurple)
-            )
-            .contentTransition(.numericText())
-            .animation(SpringConstants.bouncyAnimation, value: conversation.unreadCount)
-            .accessibilityLabel(ChatListCellL10n.unreadCount(conversation.unreadCount))
+        // ElasticCounter handles the numericText transition + scale-pop on
+        // change with reduce-motion fallback; we only need the capsule pill
+        // styling around it. The "99+" cap stays here because ElasticCounter
+        // takes a numeric value, not a clamped string.
+        Group {
+            if conversation.unreadCount > 99 {
+                Text("99+")
+                    .font(.custom(BlipFontName.bold, size: 11, relativeTo: .caption2))
+                    .foregroundStyle(.white)
+            } else {
+                ElasticCounter(
+                    value: conversation.unreadCount,
+                    font: .custom(BlipFontName.bold, size: 11, relativeTo: .caption2),
+                    color: .white
+                )
+            }
+        }
+        .padding(.horizontal, BlipSpacing.sm)
+        .padding(.vertical, BlipSpacing.xxs)
+        .background(
+            Capsule()
+                .fill(Color.blipAccentPurple)
+        )
+        .accessibilityLabel(ChatListCellL10n.unreadCount(conversation.unreadCount))
     }
 
     // MARK: - Background
