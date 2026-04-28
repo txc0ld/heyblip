@@ -187,8 +187,13 @@ struct EditProfileView: View {
                 do {
                     if let data = try await newItem?.loadTransferable(type: Data.self),
                        let uiImage = ImageDownsampling.downsampledImage(from: data) {
+                        // JPEG re-encode runs off main to avoid a brief UI hitch
+                        // on slower devices when the source image is near 2048 px.
+                        let jpegData = await Task.detached(priority: .userInitiated) {
+                            uiImage.jpegData(compressionQuality: 0.8)
+                        }.value
                         avatarImage = Image(uiImage: uiImage)
-                        avatarData = uiImage.jpegData(compressionQuality: 0.8)
+                        avatarData = jpegData
                         cropSourceImage = uiImage
                         showAvatarCrop = true
                     }
