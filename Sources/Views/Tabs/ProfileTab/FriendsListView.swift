@@ -410,29 +410,23 @@ struct FriendsListView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: BlipSpacing.md) {
-            Spacer().frame(height: BlipSpacing.xxl)
+        let showAddFriendCTA = selectedSection == .all && searchText.isEmpty
 
-            Image(systemName: selectedSection.emptyIcon)
-                .font(.system(size: 40))
-                .foregroundStyle(theme.colors.mutedText)
-
-            Text(selectedSection.emptyMessage)
-                .font(theme.typography.body)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
+        return VStack(spacing: BlipSpacing.sm) {
+            EmptyStateView(
+                icon: selectedSection.emptyIcon,
+                title: selectedSection.emptyMessage,
+                subtitle: "",
+                ctaTitle: showAddFriendCTA ? FriendsListL10n.addFriend : nil,
+                ctaAction: showAddFriendCTA ? { showAddFriend = true } : nil,
+                style: .inline
+            )
+            .padding(.top, BlipSpacing.xxl)
 
             if selectedSection == .pending, coordinator.webSocketTransport?.state != .running {
                 Text(FriendsListL10n.relayOffline)
                     .font(theme.typography.caption)
                     .foregroundStyle(theme.colors.statusAmber)
-                    .padding(.top, BlipSpacing.xs)
-            }
-
-            if selectedSection == .all && searchText.isEmpty {
-                GlassButton(FriendsListL10n.addFriend, icon: "person.badge.plus", style: .secondary, size: .small) {
-                    showAddFriend = true
-                }
             }
         }
         .padding()

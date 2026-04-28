@@ -198,14 +198,12 @@ struct EventDiscoveryView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-            Image(systemName: "calendar.badge.plus").font(.system(size: 48)).foregroundStyle(theme.colors.mutedText.opacity(0.5))
-            Text(EventDiscoveryL10n.emptyTitle).font(theme.typography.headline).foregroundStyle(theme.colors.text)
-            Text(EventDiscoveryL10n.emptySubtitle).font(theme.typography.secondary).foregroundStyle(theme.colors.mutedText).multilineTextAlignment(.center)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity).staggeredReveal(index: 0)
+        EmptyStateView(
+            icon: "calendar.badge.plus",
+            title: EventDiscoveryL10n.emptyTitle,
+            subtitle: EventDiscoveryL10n.emptySubtitle
+        )
+        .staggeredReveal(index: 0)
     }
 
     // MARK: - Actions

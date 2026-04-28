@@ -223,21 +223,11 @@ struct NewGroupChatSheet: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Image(systemName: "person.2.slash")
-                .font(.system(size: 48))
-                .foregroundStyle(theme.colors.mutedText)
-
-            Text(NewGroupChatL10n.noFriendsTitle)
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.text)
-
-            Text(NewGroupChatL10n.noFriendsSubtitle)
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, BlipSpacing.xl)
-        }
+        EmptyStateView(
+            icon: "person.2.slash",
+            title: NewGroupChatL10n.noFriendsTitle,
+            subtitle: NewGroupChatL10n.noFriendsSubtitle
+        )
         .padding(BlipSpacing.xl)
     }
 

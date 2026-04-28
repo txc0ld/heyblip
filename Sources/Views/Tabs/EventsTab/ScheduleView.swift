@@ -188,21 +188,16 @@ struct ScheduleView: View {
 
     private var emptyFilterState: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(spacing: BlipSpacing.md) {
-                Image(systemName: filter == .saved ? "star" : "music.note")
-                    .font(.system(size: 32))
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(filter == .saved
-                     ? ScheduleViewL10n.noSavedActs
-                     : filter == .liveNow
-                     ? ScheduleViewL10n.noActsPlaying
-                     : ScheduleViewL10n.noActsScheduled)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.mutedText)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: filter == .saved ? "star" : "music.note",
+                title: filter == .saved
+                    ? ScheduleViewL10n.noSavedActs
+                    : filter == .liveNow
+                    ? ScheduleViewL10n.noActsPlaying
+                    : ScheduleViewL10n.noActsScheduled,
+                subtitle: "",
+                style: .inline
+            )
             .padding(.vertical, BlipSpacing.xl)
         }
     }

@@ -159,21 +159,11 @@ struct MessageSearchView: View {
     // MARK: - States
 
     private var emptyPromptState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-            Image(systemName: "text.magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(theme.colors.mutedText.opacity(0.5))
-            Text(MessageSearchL10n.emptyTitle)
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.text)
-            Text(MessageSearchL10n.emptySubtitle)
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        EmptyStateView(
+            icon: "text.magnifyingglass",
+            title: MessageSearchL10n.emptyTitle,
+            subtitle: MessageSearchL10n.emptySubtitle
+        )
         .staggeredReveal(index: 0)
     }
 
@@ -194,20 +184,11 @@ struct MessageSearchView: View {
     }
 
     private var noResultsState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(theme.colors.mutedText.opacity(0.5))
-            Text(MessageSearchL10n.noResults(searchText))
-                .font(theme.typography.headline)
-                .foregroundStyle(theme.colors.text)
-            Text(MessageSearchL10n.noResultsSubtitle)
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        EmptyStateView(
+            icon: "magnifyingglass",
+            title: MessageSearchL10n.noResults(searchText),
+            subtitle: MessageSearchL10n.noResultsSubtitle
+        )
         .staggeredReveal(index: 0)
     }
 

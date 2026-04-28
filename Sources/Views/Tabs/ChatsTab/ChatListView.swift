@@ -202,40 +202,25 @@ struct ChatListView: View {
 
     // MARK: - Empty State
 
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-                .frame(height: BlipSpacing.xxl * 2)
-
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
-                .foregroundStyle(theme.colors.mutedText.opacity(0.5))
-
-            if searchText.isEmpty {
-                Text(ChatListL10n.emptyTitle)
-                    .font(theme.typography.headline)
-                    .foregroundStyle(theme.colors.text)
-
-                Text(ChatListL10n.emptySubtitle)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText)
-                    .multilineTextAlignment(.center)
-
-                GlassButton(ChatListL10n.addFriend, icon: "person.badge.plus") {
-                    showAddFriend = true
-                }
-            } else {
-                Text(ChatListL10n.noResults(searchText))
-                    .font(theme.typography.headline)
-                    .foregroundStyle(theme.colors.text)
-
-                Text(ChatListL10n.searchEmptySubtitle)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText)
-            }
+        if searchText.isEmpty {
+            EmptyStateView(
+                icon: "bubble.left.and.bubble.right",
+                title: ChatListL10n.emptyTitle,
+                subtitle: ChatListL10n.emptySubtitle,
+                ctaTitle: ChatListL10n.addFriend,
+                ctaAction: { showAddFriend = true }
+            )
+            .staggeredReveal(index: 0)
+        } else {
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: ChatListL10n.noResults(searchText),
+                subtitle: ChatListL10n.searchEmptySubtitle
+            )
+            .staggeredReveal(index: 0)
         }
-        .frame(maxWidth: .infinity)
-        .staggeredReveal(index: 0)
     }
 
     // MARK: - New Message FAB

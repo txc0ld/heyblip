@@ -182,21 +182,13 @@ struct AddFriendByUsernameSheet: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: BlipSpacing.md) {
-            Image(systemName: "person.crop.circle.badge.questionmark")
-                .blipTextStyle(.display)
-                .foregroundStyle(theme.colors.mutedText)
-            Text(AddFriendByUsernameL10n.emptyTitle)
-                .font(theme.typography.body)
-                .fontWeight(.medium)
-                .foregroundStyle(theme.colors.text)
-            Text(AddFriendByUsernameL10n.emptySubtitle)
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
-        }
+        EmptyStateView(
+            icon: "person.crop.circle.badge.questionmark",
+            title: AddFriendByUsernameL10n.emptyTitle,
+            subtitle: AddFriendByUsernameL10n.emptySubtitle,
+            style: .inline
+        )
         .padding(.vertical, BlipSpacing.xl)
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Searching Indicator
