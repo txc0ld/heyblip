@@ -2,6 +2,13 @@
 
 Hey John, welcome to HeyBlip. Here's everything you need to get started.
 
+> ⚠️ **Historical document — written at project bootstrap (2026-04-14ish).** Section 1 (clone) is still accurate. Sections 2–3 reference `WORKPLAN.md` (the task list at the time) which has been **superseded by Jira BDEV** as of 2026-04-25. The "J1-J4" tasks below are all complete and shipped. For current state and what's next, read in this order:
+> 1. `docs/PM/memory/project_history.md` — current repo + ticket state
+> 2. The boot file (path printed by `claude` on session start) — day-1 actions for the current session
+> 3. `docs/JOHN-MANUAL-STEPS-LAUNCH-PREP.md` — manual launch-prep steps queued for you (the immediate to-do list as of 2026-04-27)
+>
+> The Claude Code / Codex / Cowork sections (4) are still operationally accurate — those tools work the same way.
+
 ---
 
 ## 1. Clone the repo

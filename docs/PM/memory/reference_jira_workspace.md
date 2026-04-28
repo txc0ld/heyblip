@@ -10,7 +10,7 @@ description: Jira Cloud at heyblip.atlassian.net is the live issue tracker as of
 - **URL:** https://heyblip.atlassian.net
 - **Project:** `BDEV` ("HeyBlip"), company-managed Scrum
 - **Confluence space:** `BLIP` ("HeyBlip") — linked from BDEV → Docs tab
-- **Tickets:** **BDEV-2 → BDEV-367** imported 2026-04-25 from the Notion Tasks DB. New tickets continue from BDEV-368+.
+- **Tickets:** **BDEV-2 → BDEV-367** imported 2026-04-25 from the Notion Tasks DB. New tickets continue from BDEV-368 onward; high water mark is **BDEV-430+** as of 2026-04-27.
 
 ## Auth
 
