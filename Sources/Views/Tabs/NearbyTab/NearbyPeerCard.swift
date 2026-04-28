@@ -177,7 +177,10 @@ struct NearbyPeerCard: View {
                 .font(theme.typography.body)
                 .fontWeight(.medium)
                 .foregroundStyle(theme.colors.text)
-                .lineLimit(1)
+                // 2 lines so longer display names stay legible at AX5;
+                // peer cards aren't list-dense like ChatListCell so the
+                // extra row is fine.
+                .lineLimit(2)
 
             HStack(spacing: BlipSpacing.xs) {
                 if let username {

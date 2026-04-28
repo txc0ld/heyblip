@@ -76,6 +76,11 @@ struct EventCard: View {
                     .font(.custom(BlipFontName.semiBold, size: 17, relativeTo: .headline))
                     .foregroundStyle(theme.colors.text)
                     .lineLimit(2)
+                    // Lets the event-name VStack expand vertically at AX5
+                    // instead of compressing into the row height. Long
+                    // festival names (e.g. "Splendour in the Grass 2026")
+                    // wrap to 2 lines cleanly rather than truncating.
+                    .fixedSize(horizontal: false, vertical: true)
 
                 categoryBadge
             }

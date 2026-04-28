@@ -181,7 +181,10 @@ private struct LocationChannelCard: View {
                         .foregroundStyle(theme.colors.mutedText.opacity(0.6))
                 }
             }
-            .frame(width: 200)
+            // Flexible width so cards expand vertically at AX5 instead of
+            // overflowing the 200pt fixed width with truncated channel
+            // names + 2-line preview text.
+            .frame(minWidth: 200, idealWidth: 220, maxWidth: 280)
         }
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)

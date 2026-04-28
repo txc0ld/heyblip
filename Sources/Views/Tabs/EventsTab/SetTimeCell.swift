@@ -111,7 +111,10 @@ struct SetTimeCell: View {
                     .font(theme.typography.body)
                     .fontWeight(.medium)
                     .foregroundStyle(theme.colors.text)
-                    .lineLimit(1)
+                    // Allow 2 lines so artist names like "Floating Points"
+                    // or "King Gizzard & The Lizard Wizard" stay readable
+                    // at AX5 instead of truncating to "Float…" / "King G…".
+                    .lineLimit(2)
 
                 if isLive {
                     Text(SetTimeCellL10n.live)
