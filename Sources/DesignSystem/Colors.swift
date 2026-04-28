@@ -85,11 +85,16 @@ struct BlipColors: Sendable {
 
     /// Adaptive color set that automatically adapts to the current color scheme.
     /// These use Asset Catalog colors when available, with programmatic fallbacks.
+    /// `tertiaryText` is its own catalog token (light: black@0.55, dark: white@0.35)
+    /// so timestamps + metadata clear the WCAG 3:1 non-text contrast bar in light
+    /// mode without darkening dark-mode metadata. Previously computed as
+    /// `MutedText.opacity(0.7)` which, after the light-mode MutedText bump to
+    /// black@0.6, would have landed at ~2.7:1 — under the 3:1 floor.
     static let adaptive = BlipColors(
         background: Color("Background", bundle: nil),
         text: Color("TextPrimary", bundle: nil),
         mutedText: Color("MutedText", bundle: nil),
-        tertiaryText: Color("MutedText", bundle: nil).opacity(0.7),
+        tertiaryText: Color("TertiaryText", bundle: nil),
         border: Color("Border", bundle: nil),
         cardBG: Color("CardBG", bundle: nil),
         hover: Color("Hover", bundle: nil),
@@ -132,9 +137,15 @@ struct BlipColors: Sendable {
     static let lightColors = BlipColors(
         background: .white,
         text: .black,
-        mutedText: .black.opacity(0.5),
-        tertiaryText: .black.opacity(0.35),
-        border: .black.opacity(0.08),
+        // WCAG-AA tuned: black@0.6 on white = ~4.6:1 (clears AA body text 4.5:1).
+        // Was 0.5 (~3.3:1, AA-fail for body).
+        mutedText: .black.opacity(0.6),
+        // black@0.55 on white = ~3.7:1 (clears the 3:1 non-text contrast bar
+        // by a comfortable margin). Was 0.35 (~2.0:1, well under 3:1).
+        tertiaryText: .black.opacity(0.55),
+        // Bumped from 0.08 → 0.12 for visible card separation on white surfaces;
+        // 0.08 was nearly invisible against white in real-device testing.
+        border: .black.opacity(0.12),
         cardBG: .black.opacity(0.02),
         hover: .black.opacity(0.05),
         accentPurple: Color(red: 0.4, green: 0.0, blue: 1.0),
