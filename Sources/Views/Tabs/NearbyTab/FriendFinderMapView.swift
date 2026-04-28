@@ -94,7 +94,6 @@ struct FriendFinderMapView: View {
     @State private var showFriendList = true
     @State private var showBeaconConfirm = false
     @State private var cameraPosition: MapCameraPosition = .automatic
-    @State private var sharingPulse = false
     @State private var currentUserLocation: CLLocationCoordinate2D? = nil
     @State private var locationRefreshTimer: Timer?
 
@@ -180,28 +179,36 @@ struct FriendFinderMapView: View {
                 }
             }
 
-            // Friend pins
-            ForEach(displayFriends.filter({ !$0.isOutOfRange })) { friend in
+            // Friend pins — out-of-range friends are kept on the map (with a
+            // dimmed + dashed visual via FriendMapPinView) so the user still
+            // sees their last-known location instead of having them vanish.
+            // Camera-zoom is guarded on `!isOutOfRange` so a tap on a stale
+            // pin doesn't fly the camera to a coordinate that's hours old.
+            ForEach(displayFriends) { friend in
                 Annotation(friend.displayName, coordinate: friend.coordinate) {
-                    FriendFinderPinView(
+                    FriendMapPinView(
                         friend: friend,
-                        isSelected: selectedFriend?.id == friend.id
+                        isSelected: selectedFriend?.id == friend.id,
+                        userLocation: resolvedUserLocation
                     ) {
                         withAnimation(SpringConstants.accessiblePageEntrance) {
                             selectedFriend = friend
-                            cameraPosition = .camera(MapCamera(
-                                centerCoordinate: friend.coordinate,
-                                distance: 500
-                            ))
+                            if !friend.isOutOfRange {
+                                cameraPosition = .camera(MapCamera(
+                                    centerCoordinate: friend.coordinate,
+                                    distance: 500
+                                ))
+                            }
                         }
                     }
                 }
             }
 
-            // Beacons
+            // Beacons — distinct cyan hexagon (BeaconMapPinView) so they
+            // visually separate from circular friend avatars at a glance.
             ForEach(displayBeacons) { beacon in
                 Annotation(beacon.label, coordinate: beacon.coordinate) {
-                    BeaconAnnotationView(beacon: beacon)
+                    BeaconMapPinView(beacon: beacon)
                 }
             }
         }
@@ -224,46 +231,28 @@ struct FriendFinderMapView: View {
 
     // MARK: - User Pin
 
+    /// Current-user marker: BreathingRing for "you are here", with an inner
+    /// accent dot as the fixed reference point. BreathingRing internally
+    /// renders static rings when `accessibilityReduceMotion` is on, so no
+    /// extra reduce-motion plumbing is needed here. Slightly larger than
+    /// friend pins (3 rings, 36pt base) so the user marker reads as the
+    /// origin in a crowd of friend avatars.
     private var userPinView: some View {
         ZStack {
-            // Sharing pulse ring
-            if isSharingLocation, !SpringConstants.isReduceMotionEnabled {
-                Circle()
-                    .stroke(.blipAccentPurple.opacity(0.3), lineWidth: 1.5)
-                    .frame(width: 56, height: 56)
-                    .scaleEffect(sharingPulse ? 1.8 : 1.0)
-                    .opacity(sharingPulse ? 0 : 0.6)
-            }
+            BreathingRing(
+                ringCount: 3,
+                baseSize: 36,
+                color: Color.blipAccentPurple,
+                cycleDuration: 2.4
+            )
 
             Circle()
-                .fill(.blipAccentPurple.opacity(0.2))
-                .frame(width: 44, height: 44)
-
-            Circle()
-                .fill(.blipAccentPurple)
+                .fill(Color.blipAccentPurple)
                 .frame(width: 16, height: 16)
                 .overlay(Circle().stroke(.white, lineWidth: 2.5))
-                .shadow(color: .blipAccentPurple.opacity(0.5), radius: 6)
-        }
-        .onAppear {
-            guard isSharingLocation, !SpringConstants.isReduceMotionEnabled else { return }
-            startSharingPulse()
-        }
-        .onChange(of: isSharingLocation) { _, sharing in
-            if sharing {
-                startSharingPulse()
-            } else {
-                sharingPulse = false
-            }
+                .shadow(color: Color.blipAccentPurple.opacity(0.5), radius: 6)
         }
         .accessibilityLabel(isSharingLocation ? FriendFinderMapViewL10n.userLocationSharing : FriendFinderMapViewL10n.userLocation)
-    }
-
-    private func startSharingPulse() {
-        guard !SpringConstants.isReduceMotionEnabled else { return }
-        withAnimation(SpringConstants.gentleAnimation.repeatForever(autoreverses: false)) {
-            sharingPulse = true
-        }
     }
 
     // MARK: - Control Buttons
@@ -770,137 +759,6 @@ struct FriendFinderMapView: View {
         case .off:
             return .off
         }
-    }
-}
-
-// MARK: - Friend Finder Pin View (standalone, not using FriendFinderMap's internal)
-
-private struct FriendFinderPinView: View {
-
-    let friend: FriendMapPin
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    @Environment(\.theme) private var theme
-    @State private var ringPulsing = false
-
-    var body: some View {
-        let baseSize: CGFloat = {
-            guard !isSelected else { return 36 }
-            guard let rssi = friend.rssiMeters else { return 28 }
-            let clamped = min(max(rssi, 2), 30)
-            return CGFloat(34 - (clamped - 2) * (12.0 / 28.0))
-        }()
-
-        Button(action: onTap) {
-            ZStack {
-                // Accuracy radius ring
-                if friend.precision == .precise, friend.accuracyMeters > 0 {
-                    Circle()
-                        .fill(friend.accuracyColor.opacity(0.08))
-                        .frame(width: ringSize, height: ringSize)
-                        .overlay(
-                            Circle()
-                                .stroke(friend.accuracyColor.opacity(0.3), lineWidth: 1)
-                        )
-                        .scaleEffect(ringPulsing ? 1.05 : 1.0)
-                }
-
-                if friend.precision == .fuzzy {
-                    Circle()
-                        .fill(friend.color.opacity(0.1))
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Circle()
-                                .stroke(friend.color.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        )
-                }
-
-                VStack(spacing: 2) {
-                    AvatarView(
-                        imageData: friend.avatarData,
-                        name: friend.displayName,
-                        size: baseSize,
-                        ringStyle: .friend,
-                        showOnlineIndicator: true
-                    )
-                    .shadow(color: friend.color.opacity(0.4), radius: 4)
-
-                    if isSelected {
-                        VStack(spacing: 1) {
-                            Text(friend.displayName)
-                                .font(theme.typography.caption2)
-
-                            if let distance = friend.distanceText {
-                                Text(distance)
-                                    .font(theme.typography.micro)
-                            }
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, BlipSpacing.sm)
-                        .padding(.vertical, BlipSpacing.xxs)
-                        .background(Capsule().fill(friend.color))
-                    }
-                }
-            }
-            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(FriendFinderMapViewL10n.friendRowAccessibility(name: friend.displayName, detail: friend.lastSeenText))
-        .onAppear {
-            guard !SpringConstants.isReduceMotionEnabled, friend.accuracyMeters > 0 else { return }
-            // Ambient loop — easeInOut intentional
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                ringPulsing = true
-            }
-        }
-    }
-
-    private var ringSize: CGFloat {
-        let clamped = min(max(friend.accuracyMeters, 10), 100)
-        return CGFloat(clamped * 0.6 + 20)
-    }
-}
-
-// MARK: - Beacon Annotation View
-
-private struct BeaconAnnotationView: View {
-
-    let beacon: BeaconPin
-    @Environment(\.theme) private var theme
-    @State private var isPulsing = false
-
-    var body: some View {
-        ZStack {
-            if !SpringConstants.isReduceMotionEnabled {
-                Circle()
-                    .stroke(.blipAccentPurple.opacity(0.3), lineWidth: 1)
-                    .frame(width: 36, height: 36)
-                    .scaleEffect(isPulsing ? 1.5 : 1.0)
-                    .opacity(isPulsing ? 0 : 0.5)
-            }
-
-            VStack(spacing: 0) {
-                Image(systemName: "mappin.circle.fill")
-                    .font(theme.typography.title2)
-                    .foregroundStyle(.blipAccentPurple)
-
-                Text(beacon.label)
-                    .font(theme.typography.micro)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, BlipSpacing.xs)
-                    .padding(.vertical, BlipSpacing.xxs)
-                    .background(Capsule().fill(.blipAccentPurple))
-            }
-        }
-        .onAppear {
-            guard !SpringConstants.isReduceMotionEnabled else { return }
-            // Ambient loop — easeInOut intentional
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                isPulsing = true
-            }
-        }
-        .accessibilityLabel(FriendFinderMapViewL10n.beacon(beacon.label))
     }
 }
 
