@@ -43,6 +43,10 @@ struct ChatListCell: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        // Chat list rows preserve single-line truncation as the design
+        // language (matches iMessage / WhatsApp / Signal). Capping at
+        // .accessibility3 keeps the row dense without breaking it at AX4/AX5.
+        // Users at the largest sizes still get 1.5x larger text than default.
         Button(action: onTap) {
             HStack(spacing: BlipSpacing.md) {
                 // Avatar
@@ -145,6 +149,7 @@ struct ChatListCell: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: BlipSizing.minTapTarget)
+        .dynamicTypeSize(.xSmall ... .accessibility3)
         .staggeredReveal(index: index)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             // Archive (destructive position)

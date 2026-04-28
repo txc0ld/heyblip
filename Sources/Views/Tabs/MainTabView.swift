@@ -162,7 +162,11 @@ struct MainTabView: View {
                         )
                         .scaleEffect(selectedTab == tab ? 1.08 : 1.0)
                         .animation(SpringConstants.bouncyAnimation, value: selectedTab)
-                        .frame(width: BlipSizing.minTapTarget, height: 32)
+                        // `minHeight` (not `height`) so the icon row grows
+                        // when Dynamic Type pushes the label below to wrap;
+                        // hard 32pt clipped the wrapped second line.
+                        .frame(width: BlipSizing.minTapTarget)
+                        .frame(minHeight: 32)
                 }
 
                 Text(tab.title)
@@ -172,12 +176,19 @@ struct MainTabView: View {
                             ? Color.blipAccentPurple
                             : theme.colors.tertiaryText
                     )
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: BlipSizing.minTapTarget)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Custom floating tab bars become unreadable past AX2 — labels wrap
+        // to 3+ lines and crowd into adjacent tabs. Cap here is the
+        // "use sparingly" escape hatch the design spec sanctions; users at
+        // AX3+ still get full Dynamic Type everywhere else.
+        .dynamicTypeSize(.xSmall ... .accessibility2)
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(selectedTab == tab ? [.isSelected, .isButton] : .isButton)
     }

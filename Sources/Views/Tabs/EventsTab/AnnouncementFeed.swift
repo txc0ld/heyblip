@@ -139,12 +139,15 @@ private struct AnnouncementCard: View {
 
                 // Content
                 VStack(alignment: .leading, spacing: BlipSpacing.xs) {
-                    HStack {
+                    HStack(alignment: .top) {
                         Text(announcement.title)
                             .font(theme.typography.body)
                             .fontWeight(.semibold)
                             .foregroundStyle(theme.colors.text)
-                            .lineLimit(2)
+                            // Announcements are critical info ("WEATHER WARNING",
+                            // "STAGE EVACUATED") — never truncate. Allow full
+                            // wrap and let the card grow vertically.
+                            .fixedSize(horizontal: false, vertical: true)
 
                         Spacer()
 
