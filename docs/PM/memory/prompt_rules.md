@@ -11,8 +11,9 @@ originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 4. Engineer-agent / dev does the work, transitions the ticket To Do → In Progress (allowed per the 2026-04-26 rule clarification — see slack_rules.md), pushes branch, opens PR, posts in #blip-dev.
 5. PM reviews PR via GitHub API.
 6. **John merges via GitHub PAT** (squash merge). PM merges only on John's explicit per-instance authorization.
-7. PM transitions the Jira ticket to Done after post-merge verification (verify change on `main` from the actual diff, comment with PR + commit hash).
-8. (Future state) An auto-dispatch worker would pick up the next To Do for that person and repeat from step 2 — but that worker doesn't exist yet. For now, after a task lands, the next dispatch is manual: John names the next BDEV-N in chat and PM repeats step 2.
+7. **PR merge auto-fires the `PR merged → Verifying (BDEV-378)` Jira automation rule** (live as of 2026-04-28): if the PR title or branch contains `BDEV-N` and the ticket is currently In Progress, it auto-transitions to Verifying and posts a comment requiring a verification artefact (commit SHA, build SHA, smoke-trace note, or `skip: <reason>`).
+8. PM transitions the Jira ticket from `Verifying → Done` after post-merge verification (verify change on `main` from the actual diff). The transition requires a comment containing one of the verification artefacts. Skip-path (`Done (no device verification)`) is for CI / docs / refactor / observability changes only — anything user-facing, transport, crypto, or push must go through Verifying. The skip path auto-tags the ticket with a `done-no-device-verification` label so abuse is auditable via JQL `labels = "done-no-device-verification"`.
+9. (Future state) An auto-dispatch worker would pick up the next To Do for that person and repeat from step 2 — but that worker doesn't exist yet. For now, after a task lands, the next dispatch is manual: John names the next BDEV-N in chat and PM repeats step 2.
 
 **Why:** John and Tay are non-technical. They should never have to go hunting for prompts in Jira ticket descriptions or figure out what to do. The prompt lands in their task channel, they copy-paste, done.
 
