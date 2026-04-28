@@ -201,17 +201,18 @@ struct EventsView: View {
                     .accessibilityLabel(EventsViewL10n.outOfRangeAccessibilityLabel)
             }
 
-            // Loading indicator when event data is being fetched
+            // Loading indicator when event data is being fetched.
+            // Layout-matching event-card skeletons mirror the rows that will
+            // appear once `discoveryState` flips to `.loaded`.
             if eventsViewModel?.discoveryState == .fetching {
                 VStack(spacing: BlipSpacing.md) {
-                    ProgressView()
-                        .tint(.blipAccentPurple)
-                    Text(EventsViewL10n.loadingEventData)
-                        .font(theme.typography.secondary)
-                        .foregroundStyle(theme.colors.mutedText)
+                    Skeleton(.eventCard)
+                    Skeleton(.eventCard)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.horizontal, BlipSpacing.md)
                 .padding(.vertical, BlipSpacing.xl)
+                .accessibilityLabel(EventsViewL10n.loadingEventData)
             }
 
             // Section picker

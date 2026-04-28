@@ -115,8 +115,7 @@ struct ResponderRegistrationView: View {
         Button(action: register) {
             HStack(spacing: BlipSpacing.sm) {
                 if isSubmitting {
-                    ProgressView()
-                        .tint(.white)
+                    Skeleton(.inlineBusy(tint: .white))
                 } else {
                     Image(systemName: "checkmark.shield.fill")
                 }

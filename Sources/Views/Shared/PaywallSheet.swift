@@ -164,16 +164,14 @@ struct PaywallSheet: View {
     private var packOptionsSection: some View {
         VStack(spacing: BlipSpacing.sm) {
             if resolvedStoreViewModel?.isLoadingProducts == true {
-                GlassCard(thickness: .ultraThin) {
-                    VStack(spacing: BlipSpacing.sm) {
-                        ProgressView()
-                        Text(PaywallSheetL10n.loading)
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.text)
+                // Skeleton stack mirrors the eventual `packCard` rows so the
+                // loaded paywall reads as a fade-in rather than a re-layout.
+                VStack(spacing: BlipSpacing.sm) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Skeleton(.productPack)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, BlipSpacing.lg)
                 }
+                .accessibilityLabel(PaywallSheetL10n.loading)
             } else if !availableProducts.isEmpty {
                 ForEach(availableProducts) { product in
                     packCard(product)

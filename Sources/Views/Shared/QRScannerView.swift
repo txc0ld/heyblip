@@ -123,10 +123,11 @@ struct QRScannerView: View {
     // MARK: - Requesting Permission
 
     private var requestingPermissionView: some View {
+        // Viewfinder-shaped skeleton — the real camera preview lands inside the
+        // same square footprint once the system permission dialog resolves, so
+        // the swap is in-place rather than a layout jump.
         VStack(spacing: BlipSpacing.md) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(.blipAccentPurple)
+            ShimmerRect(width: 240, height: 240, cornerRadius: BlipCornerRadius.xl)
         }
     }
 

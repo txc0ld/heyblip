@@ -98,8 +98,7 @@ struct AccountSettings: View {
                 Spacer()
 
                 if showsProgress {
-                    ProgressView()
-                        .tint(isDestructive ? theme.colors.statusRed : .blipAccentPurple)
+                    Skeleton(.inlineBusy(tint: isDestructive ? theme.colors.statusRed : .blipAccentPurple))
                 } else {
                     Image(systemName: icon)
                         .font(theme.typography.secondary)

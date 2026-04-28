@@ -126,9 +126,7 @@ struct MessageBubble: View {
                     } label: {
                         HStack(spacing: 4) {
                             if isRetrying {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(theme.colors.statusRed)
+                                Skeleton(.inlineBusy(tint: theme.colors.statusRed))
                             } else {
                                 Image(systemName: "exclamationmark.circle")
                                     .font(theme.typography.caption)
