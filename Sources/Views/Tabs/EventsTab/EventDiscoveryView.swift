@@ -173,13 +173,17 @@ struct EventDiscoveryView: View {
     }
 
     private var loadingState: some View {
+        // Stack of event-card skeletons matches the eventual discovery list.
         VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-            ProgressView().controlSize(.large).tint(.blipAccentPurple)
-            Text(EventDiscoveryL10n.loading).font(theme.typography.secondary).foregroundStyle(theme.colors.mutedText)
+            Skeleton(.eventCard)
+            Skeleton(.eventCard)
+            Skeleton(.eventCard)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.top, BlipSpacing.lg)
+        .accessibilityLabel(EventDiscoveryL10n.loading)
     }
 
     private func errorState(_ message: String) -> some View {

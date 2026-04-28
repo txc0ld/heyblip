@@ -74,7 +74,7 @@ struct CreateChannelSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: submit) {
                         if isSubmitting {
-                            ProgressView().controlSize(.small)
+                            Skeleton(.inlineBusy())
                         } else {
                             Text(CreateChannelL10n.create)
                                 .font(.custom(BlipFontName.semiBold, size: 15, relativeTo: .body))

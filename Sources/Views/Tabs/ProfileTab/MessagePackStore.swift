@@ -213,8 +213,18 @@ struct MessagePackStore: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if resolvedStoreViewModel?.isLoadingProducts == true {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 120)
+                // 2x2 pack-card skeleton grid mirrors the eventual LazyVGrid
+                // below. Same column layout, same per-cell padding, so when the
+                // products land it reads as an in-place fade.
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                    GridItem(.flexible(), spacing: BlipSpacing.md),
+                ], spacing: BlipSpacing.md) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        Skeleton(.productPack)
+                    }
+                }
+                .accessibilityLabel(MessagePackStoreL10n.buyMessages)
             } else if let products = resolvedStoreViewModel?.products, !products.isEmpty {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: BlipSpacing.md),
@@ -360,8 +370,7 @@ struct MessagePackStore: View {
         }) {
             HStack(spacing: BlipSpacing.sm) {
                 if resolvedStoreViewModel?.isRestoring == true {
-                    ProgressView()
-                        .scaleEffect(0.8)
+                    Skeleton(.inlineBusy())
                 }
                 Text(MessagePackStoreL10n.restorePurchases)
                     .font(theme.typography.secondary)

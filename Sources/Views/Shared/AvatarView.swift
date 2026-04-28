@@ -129,11 +129,10 @@ struct AvatarView: View {
                 case .failure:
                     initialsFallback
                 case .empty:
-                    initialsFallback
-                        .overlay(
-                            ProgressView()
-                                .tint(.white.opacity(0.6))
-                        )
+                    // Keep the initials visible (they're the user's identity
+                    // hint while their photo loads) and shimmer the whole
+                    // circle so the loading state still reads.
+                    initialsFallback.shimmer()
                 @unknown default:
                     initialsFallback
                 }

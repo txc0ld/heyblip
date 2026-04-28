@@ -389,12 +389,14 @@ struct NearbyView: View {
     private var friendList: some View {
         if nearbyFriends.isEmpty {
             if resolvedMeshViewModel?.isBLEActive == true {
-                // Scanning state — glassmorphism card with pulsing indicator
+                // Scanning state — glassmorphism card with skeleton avatar.
+                // The avatar is the visual metaphor: "we're looking for someone
+                // to surface here." When a peer arrives the same circle slot
+                // gets their real avatar, so the swap is a fade-in not a layout
+                // shift.
                 GlassCard(thickness: .ultraThin) {
                     VStack(spacing: BlipSpacing.md) {
-                        ProgressView()
-                            .tint(.blipAccentPurple)
-                            .scaleEffect(1.2)
+                        Skeleton(.avatar(diameter: 56))
 
                         Text(NearbyL10n.scanningTitle)
                             .font(theme.typography.secondary)

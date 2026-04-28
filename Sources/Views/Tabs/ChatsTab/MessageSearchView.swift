@@ -179,16 +179,18 @@ struct MessageSearchView: View {
 
     private var searchingState: some View {
         VStack(spacing: BlipSpacing.lg) {
-            Spacer()
-            ProgressView()
-                .controlSize(.large)
-                .tint(Color.blipAccentPurple)
+            // Layout-matching skeletons mirror the eventual list of result rows.
+            // Keeping the "Searching…" caption gives the loading state a voice
+            // — the rows alone read as "results loaded but empty."
+            Skeleton.list(of: .chatRow, count: 4)
+                .padding(.horizontal, BlipSpacing.md)
             Text(MessageSearchL10n.searching)
                 .font(theme.typography.secondary)
                 .foregroundStyle(theme.colors.mutedText)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.top, BlipSpacing.lg)
     }
 
     private var noResultsState: some View {

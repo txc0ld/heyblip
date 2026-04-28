@@ -303,8 +303,7 @@ struct CreateProfileStep: View {
                         Task { await sendVerificationCode() }
                     } label: {
                         if isSendingCode {
-                            ProgressView()
-                                .tint(Color.blipAccentPurple)
+                            Skeleton(.inlineBusy(tint: Color.blipAccentPurple))
                                 .accessibilityLabel(CreateProfileL10n.sendingEmailLabel)
                         } else {
                             Text(CreateProfileL10n.verifyButton)
@@ -355,8 +354,7 @@ struct CreateProfileStep: View {
                     }
 
                 if isVerifyingCode {
-                    ProgressView()
-                        .tint(theme.colors.mutedText)
+                    Skeleton(.inlineBusy(tint: theme.colors.mutedText))
                         .accessibilityLabel(CreateProfileL10n.verifyingCodeLabel)
                 }
             }
