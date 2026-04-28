@@ -95,21 +95,12 @@ struct LocationChannelList: View {
 
     private var emptyState: some View {
         GlassCard(thickness: .ultraThin, cornerRadius: BlipCornerRadius.xl) {
-            VStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "dot.radiowaves.left.and.right")
-                    .font(theme.typography.title1)
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(LocationChannelListL10n.noChannels)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(LocationChannelListL10n.noChannelsSubtitle)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText.opacity(0.7))
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: "dot.radiowaves.left.and.right",
+                title: LocationChannelListL10n.noChannels,
+                subtitle: LocationChannelListL10n.noChannelsSubtitle,
+                style: .inline
+            )
             .padding(.vertical, BlipSpacing.md)
         }
         .padding(.horizontal, BlipSpacing.md)

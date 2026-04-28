@@ -212,25 +212,16 @@ struct LostAndFoundView: View {
 
     private var emptyState: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(spacing: BlipSpacing.sm) {
-                Image(systemName: isPostingAvailable ? "tray" : "dot.radiowaves.left.and.right")
-                    .font(.system(size: 28))
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(isPostingAvailable ? LostAndFoundL10n.emptyTitle : LostAndFoundL10n.joiningTitle)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.text)
-
-                Text(
-                    isPostingAvailable
-                        ? LostAndFoundL10n.emptySubtitle
-                        : LostAndFoundL10n.joiningSubtitle
-                )
-                .font(theme.typography.secondary)
-                .foregroundStyle(theme.colors.mutedText)
-                .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: isPostingAvailable ? "tray" : "dot.radiowaves.left.and.right",
+                title: isPostingAvailable
+                    ? LostAndFoundL10n.emptyTitle
+                    : LostAndFoundL10n.joiningTitle,
+                subtitle: isPostingAvailable
+                    ? LostAndFoundL10n.emptySubtitle
+                    : LostAndFoundL10n.joiningSubtitle,
+                style: .inline
+            )
             .padding(.vertical, BlipSpacing.lg)
         }
     }

@@ -109,20 +109,12 @@ struct AnnouncementFeed: View {
 
     private var emptyState: some View {
         GlassCard(thickness: .ultraThin) {
-            VStack(spacing: BlipSpacing.sm) {
-                Image(systemName: "checkmark.circle")
-                    .blipTextStyle(.title2)
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(AnnouncementFeedL10n.emptyTitle)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.mutedText)
-
-                Text(AnnouncementFeedL10n.emptySubtitle)
-                    .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: "checkmark.circle",
+                title: AnnouncementFeedL10n.emptyTitle,
+                subtitle: AnnouncementFeedL10n.emptySubtitle,
+                style: .inline
+            )
         }
         .padding(.horizontal, BlipSpacing.md)
     }
