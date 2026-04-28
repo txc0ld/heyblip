@@ -112,6 +112,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -123,7 +124,8 @@ jobs:
             PROVISIONING_PROFILE_NSE \
             ASC_KEY_ID \
             ASC_ISSUER_ID \
-            ASC_PRIVATE_KEY
+            ASC_PRIVATE_KEY \
+            SENTRY_AUTH_TOKEN
           do
             if [ -z "${!secret_name:-}" ]; then
               missing+=("$secret_name")
@@ -166,7 +168,7 @@ jobs:
       - name: Install dependencies
         run: |
           set -euo pipefail
-          brew install xcodegen libsodium
+          brew install xcodegen libsodium getsentry/tools/sentry-cli
           xcodegen generate
 
       - name: Import signing certificate
@@ -246,6 +248,22 @@ jobs:
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$APP_BUILD" \
             -quiet
+
+      - name: Upload dSYMs to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The archive step writes dSYMs to $ARCHIVE_PATH/dSYMs/.
+          # sentry-cli matches symbols to events by DWARF UUID — the release/dist
+          # tags are supplementary but help scope results in the Sentry dashboard.
+          # Release format mirrors what the Sentry iOS SDK auto-derives at runtime:
+          #   au.heyblip.Blip@<MARKETING_VERSION>+<CURRENT_PROJECT_VERSION>
+          sentry-cli debug-files upload \
+            --org heyblip \
+            --project apple-ios \
+            --include-sources \
+            "$ARCHIVE_PATH/dSYMs/"
 
       - name: Export and upload to TestFlight
         env:
