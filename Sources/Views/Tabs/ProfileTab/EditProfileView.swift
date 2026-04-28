@@ -108,18 +108,26 @@ struct EditProfileView: View {
             .sheet(isPresented: $showAvatarCrop) {
                 if let sourceImage = cropSourceImage {
                     AvatarCropView(isPresented: $showAvatarCrop, image: sourceImage) { cropRect in
-                        let renderer = UIGraphicsImageRenderer(size: CGSize(
-                            width: sourceImage.size.width * cropRect.width,
-                            height: sourceImage.size.height * cropRect.height
-                        ))
-                        let cropped = renderer.image { _ in
-                            sourceImage.draw(at: CGPoint(
-                                x: -sourceImage.size.width * cropRect.origin.x,
-                                y: -sourceImage.size.height * cropRect.origin.y
-                            ))
+                        // Render + JPEG-encode off main; both can be tens of ms
+                        // for a 2048 px source on slower devices. avatarData
+                        // is only consumed at save() time, so deferred is safe.
+                        Task {
+                            let result = await Task.detached(priority: .userInitiated) {
+                                let renderer = UIGraphicsImageRenderer(size: CGSize(
+                                    width: sourceImage.size.width * cropRect.width,
+                                    height: sourceImage.size.height * cropRect.height
+                                ))
+                                let cropped = renderer.image { _ in
+                                    sourceImage.draw(at: CGPoint(
+                                        x: -sourceImage.size.width * cropRect.origin.x,
+                                        y: -sourceImage.size.height * cropRect.origin.y
+                                    ))
+                                }
+                                return (cropped, cropped.jpegData(compressionQuality: 0.8))
+                            }.value
+                            avatarImage = Image(uiImage: result.0)
+                            avatarData = result.1
                         }
-                        avatarImage = Image(uiImage: cropped)
-                        avatarData = cropped.jpegData(compressionQuality: 0.8)
                     }
                     .presentationDetents([.large])
                 }
@@ -128,8 +136,16 @@ struct EditProfileView: View {
                 SystemImagePicker(isPresented: $showCameraPicker, sourceType: .camera) { image in
                     cropSourceImage = image
                     avatarImage = Image(uiImage: image)
-                    avatarData = image.jpegData(compressionQuality: 0.8)
                     showAvatarCrop = true
+                    // JPEG fallback (used only if user dismisses crop without
+                    // confirming); compute off main to avoid blocking the
+                    // crop-sheet transition.
+                    Task {
+                        let jpegData = await Task.detached(priority: .userInitiated) {
+                            image.jpegData(compressionQuality: 0.8)
+                        }.value
+                        avatarData = jpegData
+                    }
                 }
             }
         }
