@@ -8,7 +8,7 @@ originSessionId: bbbc0954-8624-408e-9557-ba247c463544
 1. PM/Cowork creates Jira ticket (project BDEV) with full description **AND a `parent` Epic from the catalog** (see `reference_epic_catalog.md` — 9 Epics covering all current scope; no orphan tickets).
 2. PM posts the FULL prompt directly in the person's task channel (#tay-tasks or #jmac-tasks) — NOT a link to Jira, NOT "check the description".
 3. Person copies the prompt and pastes into Claude Code (Tay), Codex (John), or a heyblip-N engineer-agent session.
-4. Engineer-agent / dev does the work, transitions the ticket To Do → In Progress (allowed per the 2026-04-26 rule clarification — see slack_rules.md), pushes branch, opens PR, posts in #blip-dev.
+4. Engineer-agent / dev does the work, transitions the ticket To Do → In Progress (allowed per the 2026-04-26 rule clarification — see slack_rules.md), pushes branch, opens PR, posts in #blip-dev. **After PR open: start a CI watcher** — `/loop 1m` cron polling that PR's CI state, surfacing FAILURE / CLEAN transitions until terminal. Cancel the loop on terminal state. Never auto-merge. Per BDEV-436, see `feedback_pr_ci_watcher.md` for the prompt template.
 5. PM reviews PR via GitHub API.
 6. **John merges via GitHub PAT** (squash merge). PM merges only on John's explicit per-instance authorization.
 7. **PR merge auto-fires the `PR merged → Verifying (BDEV-378)` Jira automation rule** (live as of 2026-04-28): if the PR title or branch contains `BDEV-N` and the ticket is currently In Progress, it auto-transitions to Verifying and posts a comment requiring a verification artefact (commit SHA, build SHA, smoke-trace note, or `skip: <reason>`).
