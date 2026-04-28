@@ -2030,6 +2030,28 @@ extension MessageService: TransportDelegate {
                 return
             }
 
+            // Guard that the local user row is in SwiftData. The relay WebSocket
+            // can connect faster than SwiftData finishes initialising on launch
+            // (e.g. after a schema migration), so broadcastPresence() would throw
+            // senderNotFound before the user row exists — a spurious Sentry event
+            // that masks the real symptom (BDEV-431). Schedule a single deferred
+            // retry; the startup race window is typically sub-second.
+            let userFetch = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+            guard (try? self.context.fetch(userFetch).first) != nil else {
+                DebugLogger.shared.log("PRESENCE", "Broadcast deferred on connect — local user not yet in SwiftData")
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 s
+                    guard let self, self.getIdentity() != nil else { return }
+                    do {
+                        try await self.broadcastPresence()
+                        self.lastBroadcastTime = Date()
+                    } catch {
+                        DebugLogger.shared.log("PRESENCE", "Broadcast deferred retry failed: \(error)")
+                    }
+                }
+                return
+            }
+
             // Debounce: skip broadcast if one was sent less than 1s ago
             if let last = self.lastBroadcastTime,
                Date().timeIntervalSince(last) < self.broadcastDebounceInterval {
