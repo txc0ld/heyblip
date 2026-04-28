@@ -165,7 +165,8 @@ struct MainTabView: View {
                         // `minHeight` (not `height`) so the icon row grows
                         // when Dynamic Type pushes the label below to wrap;
                         // hard 32pt clipped the wrapped second line.
-                        .frame(width: BlipSizing.minTapTarget, minHeight: 32)
+                        .frame(width: BlipSizing.minTapTarget)
+                        .frame(minHeight: 32)
                 }
 
                 Text(tab.title)
