@@ -118,8 +118,11 @@ extension MeshRelayService: TransportDelegate {
             }
         }
 
-        // Forward connect event downstream to MessageService.
-        delegate?.transport(transport, didConnect: peerID)
+        // Forward connect event downstream on MainActor — delegate (MessageService) does
+        // @MainActor work (broadcastPresence, DebugLogger.shared) in its connect handler.
+        Task { @MainActor [weak self] in
+            self?.delegate?.transport(transport, didConnect: peerID)
+        }
     }
 
     func transport(_ transport: any Transport, didDisconnect peerID: PeerID) {
@@ -134,17 +137,22 @@ extension MeshRelayService: TransportDelegate {
         // Remove routes via the disconnected peer.
         gossipRouter.directedRouter.removeRoutes(viaPeer: peerID)
 
-        // Forward downstream.
-        delegate?.transport(transport, didDisconnect: peerID)
+        // Forward downstream on MainActor.
+        Task { @MainActor [weak self] in
+            self?.delegate?.transport(transport, didDisconnect: peerID)
+        }
     }
 
     func transport(_ transport: any Transport, didChangeState state: TransportState) {
-        // Forward downstream.
-        delegate?.transport(transport, didChangeState: state)
+        Task { @MainActor [weak self] in
+            self?.delegate?.transport(transport, didChangeState: state)
+        }
     }
 
     func transport(_ transport: any Transport, didFailDelivery data: Data, to peerID: PeerID?) {
-        delegate?.transport(transport, didFailDelivery: data, to: peerID)
+        Task { @MainActor [weak self] in
+            self?.delegate?.transport(transport, didFailDelivery: data, to: peerID)
+        }
     }
 }
 
