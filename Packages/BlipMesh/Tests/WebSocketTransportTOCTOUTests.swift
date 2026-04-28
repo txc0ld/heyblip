@@ -209,8 +209,9 @@ struct WebSocketTransportTOCTOUTests {
         // The detached Task's catch block runs after stop(); we want to
         // assert state STAYED .stopped through that catch. Wait for the
         // value to be stable rather than sleeping a fixed duration —
-        // 50ms was marginal on slower CI runners.
-        try await waitUntilStable(timeout: .seconds(1), settle: .milliseconds(150)) {
+        // 50ms was marginal on slower CI runners; 1s/150ms also flaked
+        // ~50-100% on macos-15 runners (BDEV-404). Bump to 2s/200ms.
+        try await waitUntilStable(timeout: .seconds(2), settle: .milliseconds(200)) {
             transport.state == .stopped
         }
 
@@ -285,7 +286,10 @@ struct WebSocketTransportTOCTOUTests {
         )
 
         transport.__testing_triggerForegroundReconnect()
-        try await waitUntil(timeout: .seconds(3)) {
+        // Generous timeout matching the second waitUntil below — the
+        // first reconnect's token fetch can take >3s on a slow macos-15
+        // runner (BDEV-404 flake symptom). Assertion is unchanged.
+        try await waitUntil(timeout: .seconds(5)) {
             await counter.count == 1
         }
 
