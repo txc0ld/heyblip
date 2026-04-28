@@ -363,6 +363,41 @@ final class MessageServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - Presence on connect — BDEV-431 regression
+
+    /// When the relay WebSocket connects before the local user row exists in SwiftData,
+    /// `transport(_:didConnect:)` must NOT log a Sentry-visible error — it should defer
+    /// and retry once the row is available.
+    func testBroadcastPresenceOnConnect_deferredWhenUserNotInSwiftData() async throws {
+        // setUp creates messageService with identity but inserts NO local user.
+        // Confirm the container is empty.
+        let ctx = ModelContext(container)
+        let existing = try ctx.fetch(FetchDescriptor<User>())
+        XCTAssertTrue(existing.isEmpty, "Precondition: no users in SwiftData yet")
+
+        let remotePeerID = PeerID(noisePublicKey: Data(repeating: 0xEE, count: 32))
+
+        // Simulate WebSocket connect — user row is absent.
+        messageService.transport(mockTransport, didConnect: remotePeerID)
+
+        // Give the async Task time to fire and check SwiftData.
+        try await Task.sleep(nanoseconds: 300_000_000) // 300 ms
+
+        // No broadcast should have been sent yet.
+        XCTAssertEqual(mockTransport.broadcastPackets.count, 0,
+                       "Presence must not be broadcast before the local user is in SwiftData")
+
+        // Now add the local user — simulates onboarding completing after connect.
+        _ = makeLocalUser()
+
+        // Wait past the 1.5 s deferred retry window.
+        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 s
+
+        // The retry should have fired and broadcast presence.
+        XCTAssertGreaterThan(mockTransport.broadcastPackets.count, 0,
+                             "Presence must be broadcast by the deferred retry once the user is available")
+    }
+
     // MARK: - Duplicate Message Rejection
 
     func testDuplicatePacket_isRejectedByBloomFilter() async {
