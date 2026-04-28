@@ -338,6 +338,7 @@ For full Jira and Confluence reference, see:
 1. Branch pushed to `origin`
 2. PR opened on GitHub
 3. Message posted in `#blip-dev` that the PR is up
+4. **CI watcher loop started** — see `feedback_pr_ci_watcher.md` for the template. Per-PR `/loop 1m` cron that surfaces FAILURE / CLEAN transitions until terminal, then self-cancels. John shouldn't have to ping back to ask "is it green yet?"
 
 John merges all PRs directly via GitHub PAT (updated 2026-04-14). Do not merge, do not approve, do not squash — just notify and stop. Cowork coordinates the pipeline (review prompts, Jira updates, merge routing), but the merge click is John's.
 
