@@ -186,7 +186,7 @@ struct EditProfileView: View {
             Task {
                 do {
                     if let data = try await newItem?.loadTransferable(type: Data.self),
-                       let uiImage = UIImage(data: data) {
+                       let uiImage = ImageDownsampling.downsampledImage(from: data) {
                         avatarImage = Image(uiImage: uiImage)
                         avatarData = uiImage.jpegData(compressionQuality: 0.8)
                         cropSourceImage = uiImage

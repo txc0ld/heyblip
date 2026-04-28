@@ -230,7 +230,7 @@ struct CreateProfileStep: View {
             Task {
                 do {
                     if let data = try await newItem?.loadTransferable(type: Data.self),
-                       let uiImage = UIImage(data: data) {
+                       let uiImage = ImageDownsampling.downsampledImage(from: data) {
                         selectedAvatarImage = uiImage
                     }
                 } catch {
