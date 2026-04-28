@@ -2034,20 +2034,29 @@ extension MessageService: TransportDelegate {
             // can connect faster than SwiftData finishes initialising on launch
             // (e.g. after a schema migration), so broadcastPresence() would throw
             // senderNotFound before the user row exists — a spurious Sentry event
-            // that masks the real symptom (BDEV-431). Schedule a single deferred
-            // retry; the startup race window is typically sub-second.
+            // that masks the real symptom (BDEV-431). Schedule a chain of deferred
+            // retries with backoff; the startup race window is typically sub-second
+            // but can stretch on a cold launch with a slow disk or schema migration.
             let userFetch = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
             guard (try? self.context.fetch(userFetch).first) != nil else {
                 DebugLogger.shared.log("PRESENCE", "Broadcast deferred on connect — local user not yet in SwiftData")
                 Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 s
-                    guard let self, self.getIdentity() != nil else { return }
-                    do {
-                        try await self.broadcastPresence()
-                        self.lastBroadcastTime = Date()
-                    } catch {
-                        DebugLogger.shared.log("PRESENCE", "Broadcast deferred retry failed: \(error)")
+                    // Three attempts at 1.5s / 3s / 6s intervals — covers fast typical case
+                    // and slower schema-migration-on-first-launch case without flooding logs.
+                    for delay in [1_500_000_000 as UInt64, 3_000_000_000, 6_000_000_000] {
+                        try? await Task.sleep(nanoseconds: delay)
+                        guard let self, self.getIdentity() != nil else { return }
+                        let retryFetch = FetchDescriptor<User>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+                        guard (try? self.context.fetch(retryFetch).first) != nil else { continue }
+                        do {
+                            try await self.broadcastPresence()
+                            self.lastBroadcastTime = Date()
+                        } catch {
+                            DebugLogger.shared.log("PRESENCE", "Broadcast deferred retry failed: \(error)")
+                        }
+                        return
                     }
+                    DebugLogger.shared.log("PRESENCE", "Broadcast retries exhausted — local user never appeared in SwiftData")
                 }
                 return
             }
