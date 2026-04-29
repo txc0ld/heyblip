@@ -182,7 +182,7 @@ struct CreateProfileStep: View {
 
     // MARK: - Avatar Section
 
-    private var avatarSection: some View {
+    @MainActor private var avatarSection: some View {
         PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
             ZStack {
                 if let image = selectedAvatarImage {
