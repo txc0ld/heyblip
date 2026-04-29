@@ -63,7 +63,7 @@ struct BLEDebugOverlay: View {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedToast = false }
                         } label: {
                             Label("Copy Log", systemImage: "doc.on.doc")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(theme.typography.caption)
                         }
                         .foregroundStyle(.blipAccentPurple)
 
@@ -71,7 +71,7 @@ struct BLEDebugOverlay: View {
                             showShareSheet = true
                         } label: {
                             Label("Share", systemImage: "square.and.arrow.up")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(theme.typography.caption)
                         }
                         .foregroundStyle(.blipAccentPurple)
 
@@ -81,7 +81,7 @@ struct BLEDebugOverlay: View {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedDebugToast = false }
                         } label: {
                             Label("Copy for Debug", systemImage: "ladybug")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(theme.typography.caption)
                         }
                         .foregroundStyle(.blipAccentPurple)
 
@@ -91,7 +91,7 @@ struct BLEDebugOverlay: View {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedToast = false }
                         } label: {
                             Label("Trace ID", systemImage: "tag")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(theme.typography.caption)
                         }
                         .foregroundStyle(.blipAccentPurple)
 
@@ -108,7 +108,7 @@ struct BLEDebugOverlay: View {
                             }
                         } label: {
                             Label(loadingHistory ? "Loading…" : "Export 24h", systemImage: "tray.full")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(theme.typography.caption)
                         }
                         .foregroundStyle(.blipAccentPurple)
                         .disabled(loadingHistory)
@@ -122,7 +122,7 @@ struct BLEDebugOverlay: View {
             .overlay(alignment: .top) {
                 if copiedToast {
                     Text("Copied to clipboard")
-                        .font(.system(.caption, design: .monospaced))
+                        .font(theme.typography.caption)
                         .padding(.horizontal, BlipSpacing.md)
                         .padding(.vertical, BlipSpacing.sm)
                         .background(.ultraThinMaterial, in: Capsule())
@@ -130,7 +130,7 @@ struct BLEDebugOverlay: View {
                 }
                 if copiedDebugToast {
                     Text("Debug log copied")
-                        .font(.system(.caption, design: .monospaced))
+                        .font(theme.typography.caption)
                         .padding(.horizontal, BlipSpacing.md)
                         .padding(.vertical, BlipSpacing.sm)
                         .background(.ultraThinMaterial, in: Capsule())
@@ -155,7 +155,7 @@ struct BLEDebugOverlay: View {
 
     private var buildBanner: some View {
         Text(BuildInfo.fullBuildString)
-            .font(.system(size: 10, design: .monospaced))
+            .font(theme.typography.caption2)
             .foregroundStyle(.gray)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, BlipSpacing.sm)
@@ -179,7 +179,7 @@ struct BLEDebugOverlay: View {
                 statusDot(wsLabel == "Connected" ? .green : (wsLabel == "Connecting" ? .yellow : .red))
                 Text("WS: \(wsLabel)")
             }
-            .font(.system(.caption, design: .monospaced))
+            .font(theme.typography.caption)
             .foregroundStyle(.white)
 
             HStack(spacing: BlipSpacing.lg) {
@@ -221,24 +221,24 @@ struct BLEDebugOverlay: View {
 
             if storePeers.isEmpty {
                 Text("No peers in PeerStore")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             } else {
                 ForEach(storePeers, id: \.peerID) { peer in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
                             Text(peerIDShort(peer.peerID))
-                                .font(.system(.caption2, design: .monospaced))
+                                .font(theme.typography.caption2)
                                 .foregroundStyle(.white)
 
                             if let name = peer.username {
                                 Text(name)
-                                    .font(.system(.caption2, design: .monospaced))
+                                    .font(theme.typography.caption2)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.green)
                             } else {
                                 Text("nil")
-                                    .font(.system(.caption2, design: .monospaced))
+                                    .font(theme.typography.caption2)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.red)
                             }
@@ -246,7 +246,7 @@ struct BLEDebugOverlay: View {
                             Spacer()
 
                             Text(peer.isConnected ? "connected" : "disconnected")
-                                .font(.system(.caption2, design: .monospaced))
+                                .font(theme.typography.caption2)
                                 .foregroundStyle(peer.isConnected ? .green : .orange)
                         }
 
@@ -263,7 +263,7 @@ struct BLEDebugOverlay: View {
                             Text(relativeTime(peer.lastSeenAt))
                                 .foregroundStyle(.gray)
                         }
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(theme.typography.micro)
                     }
                     .padding(.vertical, BlipSpacing.xxs)
                 }
@@ -286,7 +286,7 @@ struct BLEDebugOverlay: View {
                 }
             } else {
                 Text("Relay not initialized")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             }
         }
@@ -301,7 +301,7 @@ struct BLEDebugOverlay: View {
                     withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
                 } label: {
                     Text(tab.rawValue)
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(theme.typography.caption2)
                         .fontWeight(selectedTab == tab ? .bold : .regular)
                         .foregroundStyle(selectedTab == tab ? .white : .gray)
                         .padding(.vertical, BlipSpacing.sm)
@@ -341,10 +341,10 @@ struct BLEDebugOverlay: View {
                 sectionHeader("Log (\(DebugLogger.shared.entries.count))")
                 Spacer()
                 Button("Dump State") { dumpState() }
-                    .font(.system(.caption2, design: .monospaced))
+                    .font(theme.typography.caption2)
                     .foregroundStyle(.mint)
                 Button("Clear") { DebugLogger.shared.clear() }
-                    .font(.system(.caption2, design: .monospaced))
+                    .font(theme.typography.caption2)
                     .foregroundStyle(.blipAccentPurple)
             }
 
@@ -364,7 +364,7 @@ struct BLEDebugOverlay: View {
 
             if dmEntries.isEmpty {
                 Text("No DM entries yet")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             } else {
                 logEntryList(entries: Array(dmEntries))
@@ -385,7 +385,7 @@ struct BLEDebugOverlay: View {
 
             if peerEntries.isEmpty {
                 Text("No peer/BLE/mesh entries yet")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             } else {
                 logEntryList(entries: Array(peerEntries))
@@ -405,7 +405,7 @@ struct BLEDebugOverlay: View {
 
             if pendingHandshakes.isEmpty {
                 Text("No pending handshakes")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             } else {
                 ForEach(pendingHandshakes, id: \.peerHex) { hs in
@@ -423,7 +423,7 @@ struct BLEDebugOverlay: View {
                                 .foregroundStyle(hs.queuedMsgs > 0 ? .orange : .gray)
                         }
                     }
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .padding(.vertical, BlipSpacing.xxs)
                 }
             }
@@ -432,7 +432,7 @@ struct BLEDebugOverlay: View {
 
             if noiseEntries.isEmpty {
                 Text("No NOISE/CRYPTO entries yet")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(theme.typography.caption)
                     .foregroundStyle(.gray)
             } else {
                 logEntryList(entries: Array(noiseEntries))
@@ -501,7 +501,7 @@ struct BLEDebugOverlay: View {
                         .foregroundStyle(synced ? .green : .orange)
                 }
             }
-            .font(.system(.caption, design: .monospaced))
+            .font(theme.typography.caption)
             .padding(BlipSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -521,7 +521,7 @@ struct BLEDebugOverlay: View {
                     Text(entry.message)
                         .foregroundStyle(entry.isError ? .red : .white)
                 }
-                .font(.system(size: 9, design: .monospaced))
+                .font(theme.typography.micro)
                 .lineLimit(2)
             }
         }
@@ -531,7 +531,7 @@ struct BLEDebugOverlay: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(.caption2, design: .monospaced))
+            .font(theme.typography.caption2)
             .fontWeight(.bold)
             .foregroundStyle(.blipAccentPurple)
     }
@@ -545,11 +545,11 @@ struct BLEDebugOverlay: View {
     private func metricBlock(label: String, value: String) -> some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(.system(.title3, design: .monospaced))
+                .font(theme.typography.title3)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
             Text(label)
-                .font(.system(.caption2, design: .monospaced))
+                .font(theme.typography.caption2)
                 .foregroundStyle(.gray)
         }
     }

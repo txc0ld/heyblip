@@ -113,7 +113,7 @@ struct StatusBadge: View {
 
     private var queuedIcon: some View {
         Image(systemName: "clock")
-            .font(.system(size: size, weight: .medium))
+            .font(statusIconFont)
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -124,7 +124,7 @@ struct StatusBadge: View {
 
     private var encryptingIcon: some View {
         Image(systemName: "lock")
-            .font(.system(size: size, weight: .medium))
+            .font(statusIconFont)
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -133,7 +133,7 @@ struct StatusBadge: View {
 
     private var failedIcon: some View {
         Image(systemName: "exclamationmark.circle.fill")
-            .font(.system(size: size, weight: .semibold))
+            .font(statusIconFont)
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -144,7 +144,7 @@ struct StatusBadge: View {
 
     private var sentIcon: some View {
         Image(systemName: "checkmark")
-            .font(.system(size: size, weight: .medium))
+            .font(statusIconFont)
             .foregroundStyle(resolvedColor)
             .scaleEffect(animationTrigger ? 1.0 : 0.5)
             .opacity(animationTrigger ? 1.0 : 0.0)
@@ -156,12 +156,12 @@ struct StatusBadge: View {
     private var deliveredIcon: some View {
         ZStack {
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .medium))
+                .font(statusIconFont)
                 .foregroundStyle(resolvedColor)
                 .offset(x: -size * 0.15)
 
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .medium))
+                .font(statusIconFont)
                 .foregroundStyle(resolvedColor)
                 .offset(x: size * 0.15)
         }
@@ -175,12 +175,12 @@ struct StatusBadge: View {
     private var readIcon: some View {
         ZStack {
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .bold))
+                .font(readIconFont)
                 .foregroundStyle(readColor)
                 .offset(x: -size * 0.15)
 
             Image(systemName: "checkmark")
-                .font(.system(size: size, weight: .bold))
+                .font(readIconFont)
                 .foregroundStyle(readColor)
                 .offset(x: size * 0.15)
         }
@@ -209,6 +209,29 @@ struct StatusBadge: View {
 
     private var readColor: Color {
         tintColor ?? Color.blipMint
+    }
+
+    private var statusIconFont: Font {
+        if size <= 11 {
+            return theme.typography.caption
+        }
+        if size <= 14 {
+            return theme.typography.subheadline
+        }
+        if size <= 17 {
+            return theme.typography.callout
+        }
+        return theme.typography.title3
+    }
+
+    private var readIconFont: Font {
+        if size <= 11 {
+            return theme.typography.caption
+        }
+        if size <= 14 {
+            return theme.typography.callout
+        }
+        return theme.typography.title3
     }
 
     private var accessibilityText: String {

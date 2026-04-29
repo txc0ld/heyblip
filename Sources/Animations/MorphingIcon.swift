@@ -29,6 +29,7 @@ struct MorphingIcon: View {
 
     @State private var rotation: Double = 0
     @State private var scale: CGFloat = 1.0
+    @Environment(\.theme) private var theme
 
     var body: some View {
         ZStack {
@@ -48,7 +49,7 @@ struct MorphingIcon: View {
         ZStack {
             // Microphone icon
             Image(systemName: "mic.fill")
-                .font(.system(size: size * 0.7, weight: .medium))
+                .font(microphoneFont)
                 .foregroundStyle(tintColor)
                 .opacity(isSendMode ? 0.0 : 1.0)
                 .scaleEffect(isSendMode ? 0.3 : 1.0)
@@ -56,7 +57,7 @@ struct MorphingIcon: View {
 
             // Send arrow icon
             Image(systemName: "arrow.up")
-                .font(.system(size: size * 0.7, weight: .bold))
+                .font(sendFont)
                 .foregroundStyle(tintColor)
                 .opacity(isSendMode ? 1.0 : 0.0)
                 .scaleEffect(isSendMode ? 1.0 : 0.3)
@@ -71,15 +72,27 @@ struct MorphingIcon: View {
         Group {
             if isSendMode {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: size * 0.7, weight: .bold))
+                    .font(sendFont)
                     .foregroundStyle(tintColor)
             } else {
                 Image(systemName: "mic.fill")
-                    .font(.system(size: size * 0.7, weight: .medium))
+                    .font(microphoneFont)
                     .foregroundStyle(tintColor)
             }
         }
         .animation(.easeInOut(duration: 0.15), value: isSendMode)
+    }
+
+    private var microphoneFont: Font {
+        iconPointSize <= 15 ? theme.typography.subheadline : theme.typography.body
+    }
+
+    private var sendFont: Font {
+        iconPointSize <= 15 ? theme.typography.callout : theme.typography.title3
+    }
+
+    private var iconPointSize: CGFloat {
+        size * 0.7
     }
 }
 

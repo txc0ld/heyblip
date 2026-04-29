@@ -326,7 +326,8 @@ struct SOSConfirmationSheet: View {
 
                     if redIsHolding {
                         Text("\(Int((1.0 - redHoldProgress) * redHoldDuration) + 1)s")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(theme.typography.caption)
+                            .fontWeight(.bold)
                             .foregroundStyle(theme.colors.statusRed)
                             .contentTransition(.numericText())
                     }
@@ -371,7 +372,7 @@ struct SOSConfirmationSheet: View {
                     cycleDuration: 2.4
                 )
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 60))
+                    .font(theme.typography.display)
                     .foregroundStyle(severityColor(selectedSeverity))
             }
 
@@ -423,7 +424,7 @@ struct SOSConfirmationSheet: View {
     private var proximityWarning: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "iphone.gen3.slash")
-                .font(.system(size: 48))
+                .font(theme.typography.display)
                 .foregroundStyle(theme.colors.mutedText)
 
             Text(SOSConfirmationL10n.pickUpPhone)

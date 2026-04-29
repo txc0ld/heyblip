@@ -272,7 +272,7 @@ struct ChatListView: View {
                 if availableFriends.isEmpty {
                     VStack(spacing: BlipSpacing.lg) {
                         Image(systemName: "person.2.slash")
-                            .font(.system(size: 48))
+                            .font(theme.typography.display)
                             .foregroundStyle(theme.colors.mutedText)
 
                         Text(ChatListL10n.noFriendsTitle)
@@ -366,7 +366,7 @@ struct ChatListView: View {
                 .frame(height: BlipSpacing.xxl * 2)
 
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(theme.typography.display)
                 .foregroundStyle(theme.colors.mutedText.opacity(0.5))
 
             Text(ChatListL10n.errorTitle)
@@ -673,7 +673,7 @@ extension ConversationPreview: Hashable {
                     VStack(spacing: BlipSpacing.lg) {
                         Spacer().frame(height: BlipSpacing.xxl * 2)
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 48))
+                            .font(Theme.shared.typography.display)
                             .foregroundStyle(Color.white.opacity(0.3))
                         Text(ChatListL10n.emptyTitle)
                             .font(Theme.shared.typography.headline)
