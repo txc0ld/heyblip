@@ -14,6 +14,7 @@ final class BackgroundTaskService {
     // MARK: - Constants
 
     static let meshSyncTaskID = "com.blip.mesh-sync"
+    static let meshProcessTaskID = "com.blip.mesh-process"
     private static let minimumInterval: TimeInterval = 15 * 60 // 15 minutes
 
     // MARK: - Dependencies
@@ -42,6 +43,17 @@ final class BackgroundTaskService {
             }
         }
         DebugLogger.shared.log("APP", "BGTask registered: \(Self.meshSyncTaskID)")
+
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.meshProcessTaskID,
+            using: nil
+        ) { [weak self] task in
+            guard let bgTask = task as? BGProcessingTask else { return }
+            Task { @MainActor in
+                await self?.handleMeshProcess(task: bgTask)
+            }
+        }
+        DebugLogger.shared.log("APP", "BGTask registered: \(Self.meshProcessTaskID)")
     }
 
     // MARK: - Scheduling
@@ -57,6 +69,23 @@ final class BackgroundTaskService {
             DebugLogger.shared.log("APP", "BGTask scheduled: next sync in ~15 min")
         } catch {
             DebugLogger.shared.log("APP", "BGTask schedule failed: \(error.localizedDescription)", isError: true)
+        }
+
+        scheduleNextProcessing()
+    }
+
+    /// Schedule the next background processing task for heavier mesh drain work.
+    func scheduleNextProcessing() {
+        let request = BGProcessingTaskRequest(identifier: Self.meshProcessTaskID)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: Self.minimumInterval)
+        request.requiresNetworkConnectivity = true
+        request.requiresExternalPower = false
+
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            DebugLogger.shared.log("APP", "BGTask scheduled: mesh processing in ~15 min")
+        } catch {
+            DebugLogger.shared.log("APP", "BGTask processing schedule failed: \(error.localizedDescription)", isError: true)
         }
     }
 
@@ -103,6 +132,49 @@ final class BackgroundTaskService {
 
         task.setTaskCompleted(success: true)
         DebugLogger.shared.log("APP", "BGTask completed: mesh-sync")
+    }
+
+    /// Handle a background mesh processing wake.
+    private func handleMeshProcess(task: BGProcessingTask) async {
+        DebugLogger.shared.log("APP", "BGTask executing: mesh-process")
+
+        // Schedule the next one immediately so it's queued even if this one fails.
+        scheduleNextProcessing()
+
+        // Set expiration handler — clean up if iOS kills the task early.
+        // Uses DebugLogger.emit (nonisolated) since this closure runs off MainActor.
+        task.expirationHandler = {
+            DebugLogger.emit("APP", "BGTask processing expired", isError: true)
+        }
+
+        // Check BLE state and reconnect if needed.
+        guard let coordinator else {
+            task.setTaskCompleted(success: false)
+            return
+        }
+
+        // If transports are stopped, restart them.
+        if coordinator.isReady, coordinator.bleService?.state != .running {
+            coordinator.start()
+            DebugLogger.shared.log("APP", "BGTask processing: restarted transports")
+        }
+
+        // Process any queued messages via the retry service.
+        if let retryService = coordinator.messageRetryService {
+            await retryService.triggerScan()
+            DebugLogger.shared.log("APP", "BGTask processing: processed message retry queue")
+        }
+
+        // Broadcast presence so peers know we're still alive.
+        do {
+            try await coordinator.messageService?.broadcastPresence()
+            DebugLogger.shared.log("APP", "BGTask processing: presence broadcast sent")
+        } catch {
+            DebugLogger.shared.log("APP", "BGTask processing: presence broadcast failed: \(error.localizedDescription)", isError: true)
+        }
+
+        task.setTaskCompleted(success: true)
+        DebugLogger.shared.log("APP", "BGTask completed: mesh-process")
     }
 
     // MARK: - Background Notification

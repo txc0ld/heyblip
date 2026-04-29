@@ -61,6 +61,7 @@
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
         <string>com.blip.mesh-sync</string>
+        <string>com.blip.mesh-process</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>HeyBlip uses Bluetooth to connect with people nearby and relay messages through the mesh network.</string>
