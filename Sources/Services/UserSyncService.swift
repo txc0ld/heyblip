@@ -16,6 +16,12 @@ final class UserSyncService: Sendable {
 
     private let logger = Logger(subsystem: "com.blip", category: "UserSync")
     private let authTokenProvider: @Sendable () async throws -> String
+    private let urlSession: URLSession?
+    private let challengeFlight = ChallengeFlight()
+
+    private var session: URLSession {
+        urlSession ?? ServerConfig.pinnedSession
+    }
 
     // MARK: - Errors
 
@@ -54,9 +60,11 @@ final class UserSyncService: Sendable {
     init(
         authTokenProvider: @escaping @Sendable () async throws -> String = {
             try await AuthTokenManager.shared.validToken()
-        }
+        },
+        urlSession: URLSession? = nil
     ) {
         self.authTokenProvider = authTokenProvider
+        self.urlSession = urlSession
     }
 
     // MARK: - Registration Gate
@@ -79,6 +87,30 @@ final class UserSyncService: Sendable {
 
         func release() {
             inProgress = false
+        }
+    }
+
+    private actor ChallengeFlight {
+        private var inFlightChallenge: Task<String, Error>?
+
+        func value(starting start: @escaping @Sendable () async throws -> String) async throws -> String {
+            if let existing = inFlightChallenge {
+                return try await existing.value
+            }
+
+            let task = Task<String, Error> {
+                try await start()
+            }
+            inFlightChallenge = task
+
+            do {
+                let challenge = try await task.value
+                inFlightChallenge = nil
+                return challenge
+            } catch {
+                inFlightChallenge = nil
+                throw error
+            }
         }
     }
 
@@ -605,7 +637,13 @@ final class UserSyncService: Sendable {
 
     // MARK: - Private
 
-    private func requestChallenge() async throws -> String {
+    func requestChallenge() async throws -> String {
+        try await challengeFlight.value { [self] in
+            try await performChallengeRequest()
+        }
+    }
+
+    private func performChallengeRequest() async throws -> String {
         let (data, response) = try await post(path: "/auth/challenge", body: [:])
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -697,7 +735,7 @@ final class UserSyncService: Sendable {
 
         _ = request.attachTraceID(category: "AUTH")
         do {
-            return try await ServerConfig.pinnedSession.data(for: request)
+            return try await session.data(for: request)
         } catch {
             throw SyncError.networkError(error.localizedDescription)
         }
@@ -714,7 +752,7 @@ final class UserSyncService: Sendable {
         _ = request.attachTraceID(category: "AUTH")
 
         do {
-            return try await ServerConfig.pinnedSession.data(for: request)
+            return try await session.data(for: request)
         } catch {
             throw SyncError.networkError(error.localizedDescription)
         }
@@ -740,7 +778,7 @@ final class UserSyncService: Sendable {
         }
 
         do {
-            let result = try await ServerConfig.pinnedSession.data(for: authorizedRequest)
+            let result = try await session.data(for: authorizedRequest)
             if allowRetry,
                let http = result.1 as? HTTPURLResponse,
                http.statusCode == 401 {
