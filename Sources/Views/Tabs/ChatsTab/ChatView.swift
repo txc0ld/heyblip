@@ -7,6 +7,8 @@ private enum ChatViewL10n {
     static let recording = String(localized: "chat.recording.label", defaultValue: "Recording...")
     static let unknown = String(localized: "common.unknown", defaultValue: "Unknown")
     static let recordingVoiceNote = String(localized: "chat.recording.voice_note", defaultValue: "Recording voice note")
+    static let stopAndSend = String(localized: "chat.recording.stop_and_send", defaultValue: "Stop & Send")
+    static let cancelRecording = String(localized: "chat.recording.cancel", defaultValue: "Cancel")
     static let deleteTitle = String(localized: "chat.delete_message.title", defaultValue: "Delete message?")
     static let delete = String(localized: "common.delete", defaultValue: "Delete")
     static let cancel = String(localized: "common.cancel", defaultValue: "Cancel")
@@ -88,6 +90,14 @@ struct ChatView: View {
                 .padding(.horizontal, BlipSpacing.md)
                 .padding(.vertical, BlipSpacing.xs)
                 .transition(.opacity)
+            }
+
+            // Voice note recording overlay — visible to the user so they know
+            // recording is active and can stop/cancel. Without this the record
+            // state was invisible, leaving users stranded with no way to send.
+            if isRecordingVoiceNote {
+                voiceNoteRecordingOverlay
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
             // PTT waveform overlay
@@ -193,7 +203,6 @@ struct ChatView: View {
                     }
                 }
             )
-            .accessibilityValue(isRecordingVoiceNote ? ChatViewL10n.recordingVoiceNote : "")
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -299,6 +308,7 @@ struct ChatView: View {
             }
         }
         .animation(SpringConstants.gentleAnimation, value: showPTTUnavailableToast)
+        .animation(SpringConstants.gentleAnimation, value: isRecordingVoiceNote)
         .task {
             await loadConversation()
         }
@@ -728,6 +738,60 @@ struct ChatView: View {
             .map { MessageSection(date: $0.key, messages: $0.value.sorted { $0.timestamp < $1.timestamp }) }
     }
 
+    // MARK: - Voice Note Recording Overlay
+
+    /// Visible recording indicator shown while a voice note is being recorded.
+    /// Exposes "Stop & Send" and "Cancel" actions so the user knows recording
+    /// is active and has a clear path to finish. Before this overlay existed the
+    /// recording state was invisible — users had no idea the mic was live and no
+    /// way to trigger the send, producing zero [AUDIO]/[TX] events in field logs.
+    private var voiceNoteRecordingOverlay: some View {
+        HStack(spacing: BlipSpacing.md) {
+            // Pulsing red dot
+            Circle()
+                .fill(theme.colors.statusRed)
+                .frame(width: 8, height: 8)
+
+            Text(ChatViewL10n.recordingVoiceNote)
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.text)
+
+            Spacer()
+
+            // Cancel — discard the recording
+            Button {
+                voiceNoteService.cancelRecording()
+                isRecordingVoiceNote = false
+                DebugLogger.shared.log("AUDIO", "Voice note recording cancelled by user")
+            } label: {
+                Text(ChatViewL10n.cancelRecording)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.mutedText)
+            }
+            .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
+
+            // Stop & Send — commit the recording
+            Button {
+                Task { await stopAndSendVoiceNote() }
+            } label: {
+                Text(ChatViewL10n.stopAndSend)
+                    .font(.custom(BlipFontName.semiBold, size: 13, relativeTo: .caption))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, BlipSpacing.sm)
+                    .padding(.vertical, BlipSpacing.xs)
+                    .background(
+                        Capsule().fill(Color.blipAccentPurple)
+                    )
+            }
+            .frame(minHeight: BlipSizing.minTapTarget)
+        }
+        .padding(.horizontal, BlipSpacing.md)
+        .padding(.vertical, BlipSpacing.sm)
+        .background(.ultraThinMaterial)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(ChatViewL10n.recordingVoiceNote)
+    }
+
     // MARK: - PTT Waveform
 
     /// Builds a 16-sample waveform from accumulated audio levels,
@@ -814,38 +878,41 @@ struct ChatView: View {
 
     // MARK: - Voice Note
 
+    /// Kick off voice note recording. Shows the recording overlay so the user
+    /// knows the mic is live. Stop & Send / Cancel are presented in the overlay
+    /// — this function only handles the START path now.
     private func recordAndSendVoiceNote() async {
-        let audioService = voiceNoteService
         guard !isRecordingVoiceNote else {
-            // Stop ongoing recording and send
-            do {
-                let (data, duration) = try audioService.stopRecording()
-                isRecordingVoiceNote = false
-                guard let channel = chatViewModel?.activeChannel else {
-                    DebugLogger.shared.log("AUDIO", "Cannot send voice note: no active channel", isError: true)
-                    return
-                }
-                do {
-                    try await coordinator.messageService?.sendVoiceNote(
-                        audioData: data,
-                        duration: duration,
-                        to: channel
-                    )
-                } catch {
-                    DebugLogger.shared.log("AUDIO", "Failed to send voice note: \(error)", isError: true)
-                }
-            } catch {
-                DebugLogger.shared.log("AUDIO", "Failed to stop recording: \(error)", isError: true)
-                isRecordingVoiceNote = false
-            }
+            // Already recording — the overlay's Stop & Send / Cancel buttons
+            // handle the stop path. Nothing to do here.
             return
         }
-        // Start recording
         do {
-            try audioService.startRecording(maxDuration: 60)
+            try voiceNoteService.startRecording(maxDuration: 60)
             isRecordingVoiceNote = true
+            DebugLogger.shared.log("AUDIO", "Voice note recording started")
         } catch {
             DebugLogger.shared.log("AUDIO", "Failed to start recording: \(error)", isError: true)
+        }
+    }
+
+    /// Stop the active recording, encode to Opus, and dispatch through ChatViewModel
+    /// so the message is persisted, appended to activeMessages, and broadcast via mesh.
+    /// Called by the "Stop & Send" button in voiceNoteRecordingOverlay.
+    private func stopAndSendVoiceNote() async {
+        do {
+            let (data, duration) = try voiceNoteService.stopRecording()
+            isRecordingVoiceNote = false
+            DebugLogger.shared.log("AUDIO", "Voice note recording stopped: \(String(format: "%.1f", duration))s, \(data.count)B encoded")
+            guard let vm = chatViewModel else {
+                DebugLogger.shared.log("AUDIO", "Cannot send voice note: chatViewModel is nil", isError: true)
+                return
+            }
+            DebugLogger.shared.log("AUDIO", "Sending voice note via chatViewModel")
+            await vm.sendVoiceNote(audioData: data, duration: duration)
+        } catch {
+            DebugLogger.shared.log("AUDIO", "Failed to stop recording: \(error)", isError: true)
+            isRecordingVoiceNote = false
         }
     }
 
