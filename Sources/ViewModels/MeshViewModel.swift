@@ -217,10 +217,18 @@ final class MeshViewModel {
 
         connectedPeerCount = connected.count
 
-        // Calculate average RSSI
-        if !connected.isEmpty {
-            let totalRSSI = connected.reduce(0) { $0 + $1.rssi }
-            averageRSSI = totalRSSI / connected.count
+        // Calculate average RSSI — only over peers with valid signal data.
+        // `PeerInfo.rssi` defaults to `Int.min` (the `noSignalRSSI` sentinel)
+        // for connected BLE peers whose first `peripheral.readRSSI()` sample
+        // hasn't arrived yet. Summing `Int + Int.min` underflow-traps the
+        // process (`EXC_BREAKPOINT 'overflow'`), which is BDEV-438 / Sentry
+        // APPLE-IOS-28. Filter on `hasSignalData` first so we average only
+        // over real samples and fall back to the existing -100 floor when
+        // no peer has reported signal yet.
+        let withSignal = connected.filter { $0.hasSignalData }
+        if !withSignal.isEmpty {
+            let totalRSSI = withSignal.reduce(0) { $0 + $1.rssi }
+            averageRSSI = totalRSSI / withSignal.count
         } else {
             averageRSSI = -100
         }
