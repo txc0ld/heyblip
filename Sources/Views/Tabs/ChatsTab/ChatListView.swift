@@ -141,9 +141,7 @@ struct ChatListView: View {
         }
         .onChange(of: coordinator.pendingNotificationNavigation) { _, destination in
             guard case .conversation(let channelID) = destination else { return }
-            if let match = conversations.first(where: { $0.id == channelID }) {
-                selectedConversation = match
-            }
+            selectedConversation = resolveChannel(for: channelID)
             coordinator.pendingNotificationNavigation = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: .channelListDidChange)) { _ in
@@ -513,6 +511,22 @@ struct ChatListView: View {
         case .delivered: return .delivered
         case .read: return .read
         }
+    }
+
+    // BDEV-441: relay encodes senderHex as a synthetic UUID; recover it to find the DM channel.
+    private func resolveChannel(for channelID: UUID) -> ConversationPreview? {
+        if let match = conversations.first(where: { $0.id == channelID }) {
+            return match
+        }
+        let stripped = channelID.uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+        let senderHex = String(stripped.prefix(16))
+        guard !senderHex.isEmpty else { return nil }
+        guard let channels = chatViewModel?.channels else { return nil }
+        guard let channel = channels.first(where: { ch in
+            guard ch.type == .dm else { return false }
+            return ch.memberships.contains(where: { $0.user?.peerIdHex == senderHex })
+        }) else { return nil }
+        return conversations.first(where: { $0.relatedChannelIDs.contains(channel.id) })
     }
 
     private func navigateToFriendDM(from notification: Notification) {

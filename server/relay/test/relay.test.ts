@@ -1,7 +1,7 @@
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import worker, { parseAuthHeader, derivePeerIdHex, validateAuthorizationHeader } from "../src/index";
-import { extractRecipient, RelayRoom } from "../src/relay-room";
+import { extractRecipient, RelayRoom, hexToSyntheticUUID } from "../src/relay-room";
 import {
   HEADER_SIZE,
   PEER_ID_LENGTH,
@@ -1323,7 +1323,7 @@ describe("Push dispatch in queuePacket / drainQueue", () => {
     expect(body.recipientPeerIdHex).toBe(recipientHex);
     expect(body.senderPeerIdHex).toBe(senderHex);
     expect(body.type).toBe("dm");
-    expect(body.threadId).toBe(senderHex); // zero-knowledge: sender hex = thread key
+    expect(body.threadId).toBe("AAAAAAAA-AAAA-AAAA-0000-000000000000"); // BDEV-441: synthetic UUID from senderHex
     expect(body.badgeCount).toBe(1);
   });
 
@@ -1797,5 +1797,47 @@ describe("/internal/badge/clear", () => {
     });
     const res = await room.fetch(req);
     expect(res.status).toBe(400);
+  });
+});
+
+// BDEV-441: blip.threadId must be a valid UUID string for iOS NotificationRouter
+describe("hexToSyntheticUUID", () => {
+  it("formats a 16-char PeerID hex as a UUID with trailing zeros", () => {
+    const result = hexToSyntheticUUID("deadbeefcafebabe");
+    expect(result).toBe("DEADBEEF-CAFE-BABE-0000-000000000000");
+  });
+
+  it("produces a string parseable by UUID(uuidString:) — correct format", () => {
+    const uuid = hexToSyntheticUUID("a1b2c3d4e5f60708");
+    // Must match UUID regex: 8-4-4-4-12 uppercase hex groups separated by dashes
+    expect(uuid).toMatch(/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/);
+  });
+
+  it("is stable — same input always produces the same UUID", () => {
+    const hex = "be90abcd12345678";
+    expect(hexToSyntheticUUID(hex)).toBe(hexToSyntheticUUID(hex));
+  });
+
+  it("is reversible — first 16 chars of stripped UUID equal the original hex", () => {
+    const senderHex = "deadbeefcafebabe";
+    const uuid = hexToSyntheticUUID(senderHex);
+    const stripped = uuid.replace(/-/g, "").toLowerCase().slice(0, 16);
+    expect(stripped).toBe(senderHex);
+  });
+
+  it("DM push payload threadId is a valid UUID (regression: was bare PeerID hex)", async () => {
+    // The relay sends threadId = hexToSyntheticUUID(senderHex) for dm pushes.
+    // Verify the resulting string parses as a UUID — iOS UUID(uuidString:) rejects
+    // bare 16-char hex like "a1b2c3d4e5f60708", which caused BDEV-441 routing failure.
+    const senderHex = "a1b2c3d4e5f60708";
+    const threadId = hexToSyntheticUUID(senderHex);
+
+    // iOS UUID(uuidString:) accepts exactly this format: 8-4-4-4-12
+    const uuidPattern = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+    expect(threadId).toMatch(uuidPattern);
+
+    // And iOS recovers senderHex from the UUID by stripping dashes and taking first 16 chars
+    const recovered = threadId.replace(/-/g, "").toLowerCase().slice(0, 16);
+    expect(recovered).toBe(senderHex);
   });
 });

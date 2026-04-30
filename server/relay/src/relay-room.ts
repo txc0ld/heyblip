@@ -59,6 +59,20 @@ const QUEUE_TTL_MS = 3600_000;
 /** Storage key prefix for queued packets. */
 const QUEUE_PREFIX = "q:";
 
+/**
+ * Format a hex PeerID string as a synthetic UUID so iOS NotificationRouter
+ * can parse it with UUID(uuidString:). Mirrors the iOS syntheticUUID(fromHex:)
+ * helper in NotificationRouter.swift — both sides must produce the same string
+ * for the DM fallback routing in ChatListView to work (BDEV-441).
+ *
+ * Algorithm: pad `hex` to 32 chars with trailing zeros, then insert UUID dashes.
+ * Example: "deadbeefcafebabe" → "DEADBEEF-CAFE-BABE-0000-000000000000"
+ */
+export function hexToSyntheticUUID(hex: string): string {
+  const padded = (hex + "00000000000000000000000000000000").slice(0, 32).toUpperCase();
+  return `${padded.slice(0, 8)}-${padded.slice(8, 12)}-${padded.slice(12, 16)}-${padded.slice(16, 20)}-${padded.slice(20, 32)}`;
+}
+
 export class RelayRoom implements DurableObject {
   /** Connected peers indexed by hex PeerID. Rebuilt lazily after hibernation. */
   private peers: Map<PeerIDHex, WebSocket> = new Map();
@@ -585,16 +599,23 @@ export class RelayRoom implements DurableObject {
   }
 
   /**
-   * Derive a threadId for the badge ledger. Because the relay is
-   * zero-knowledge, every pushable type uses the sender PeerID hex — it's a
-   * stable per-contact thread key that survives the DM/friend/SOS split. If
-   * iOS ever passes a plaintext hint byte (see push-dispatch TODO), we can
-   * switch to channel UUID for group traffic. For now, sender hex is the
-   * correct choice.
+   * Derive a threadId for the badge ledger and push dispatch.
+   *
+   * For "dm" pushes, the threadId is formatted as a synthetic UUID derived from
+   * senderHex so that iOS NotificationRouter can parse it with UUID(uuidString:).
+   * iOS recovers senderHex by stripping the dashes and taking the first 16 chars,
+   * then uses it to locate the DM channel by member peerIdHex (BDEV-441).
+   *
+   * For all other pushable types, the raw senderHex is returned.
+   * friend_request/friend_accept already use syntheticUUID(fromHex:) on the iOS
+   * side so raw hex is fine there. If iOS ever passes a plaintext hint byte (see
+   * push-dispatch TODO), we can switch group traffic to channel UUID.
    */
   private deriveThreadId(type: PushType, senderHex: string): string | null {
     switch (type) {
       case "dm":
+        // Format as UUID so iOS UUID(uuidString:) parsing succeeds (BDEV-441).
+        return hexToSyntheticUUID(senderHex);
       case "friend_request":
       case "friend_accept":
       case "sos":
