@@ -19,6 +19,7 @@ struct MessageTypeTests {
         #expect(MessageType.pttAudio.rawValue == 0x23)
         #expect(MessageType.orgAnnouncement.rawValue == 0x30)
         #expect(MessageType.channelUpdate.rawValue == 0x31)
+        #expect(MessageType.sessionLost.rawValue == 0x32)
         #expect(MessageType.sosAlert.rawValue == 0x40)
         #expect(MessageType.sosAccept.rawValue == 0x41)
         #expect(MessageType.sosPreciseLocation.rawValue == 0x42)
@@ -32,9 +33,9 @@ struct MessageTypeTests {
         #expect(MessageType.friendAccept.rawValue == 0x61)
     }
 
-    @Test("All cases count is 22")
+    @Test("All cases count is 23")
     func allCasesCount() {
-        #expect(MessageType.allCases.count == 22)
+        #expect(MessageType.allCases.count == 23)
     }
 
     @Test("SOS types identified correctly")

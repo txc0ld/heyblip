@@ -38,6 +38,8 @@ public enum MessageType: UInt8, Sendable, Codable, CaseIterable {
     case orgAnnouncement    = 0x30
     /// Location channel metadata.
     case channelUpdate      = 0x31
+    /// Unencrypted control: receiver has no Noise session for the sender — requests fresh handshake.
+    case sessionLost        = 0x32
 
     // MARK: - Medical / SOS
 
@@ -88,6 +90,7 @@ extension MessageType: CustomStringConvertible {
         case .pttAudio:           return "pttAudio"
         case .orgAnnouncement:    return "orgAnnouncement"
         case .channelUpdate:      return "channelUpdate"
+        case .sessionLost:        return "sessionLost"
         case .sosAlert:           return "sosAlert"
         case .sosAccept:          return "sosAccept"
         case .sosPreciseLocation: return "sosPreciseLocation"
