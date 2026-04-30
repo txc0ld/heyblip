@@ -129,7 +129,7 @@ struct MedicalDashboardView: View {
         GlassCard(thickness: .regular) {
             VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "cross.case.circle.fill")
-                    .font(.system(size: 42))
+                    .font(theme.typography.display)
                     .foregroundStyle(theme.colors.mutedText)
 
                 Text(MedicalDashboardL10n.notResponderTitle)

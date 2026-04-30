@@ -100,7 +100,7 @@ struct GroupInfoView: View {
         if sortedMemberships.isEmpty {
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "person.3")
-                    .font(.system(size: 32))
+                    .font(theme.typography.largeTitle)
                     .foregroundStyle(theme.colors.mutedText)
                 Text(GroupInfoL10n.emptyMembers)
                     .font(theme.typography.body)

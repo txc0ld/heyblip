@@ -276,7 +276,7 @@ struct MessageBubble: View {
                     .frame(width: 200, height: 150)
                     .overlay(
                         Image(systemName: "photo.fill")
-                            .font(.system(size: 24))
+                            .font(theme.typography.title2)
                             .foregroundStyle(
                                 message.isFromMe
                                     ? Color.white.opacity(0.4)
@@ -323,7 +323,7 @@ struct MessageBubble: View {
     private var reactionChip: some View {
         if let reaction = message.reaction, !reaction.isEmpty {
             Text(reaction)
-                .font(.system(size: 13))
+                .font(theme.typography.caption)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(

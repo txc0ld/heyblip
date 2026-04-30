@@ -208,7 +208,8 @@ struct AlertDetailSheet: View {
                                 .frame(width: 16, height: 16)
                                 .overlay(
                                     Image(systemName: "cross.fill")
-                                        .font(.system(size: 8, weight: .bold))
+                                        .font(theme.typography.micro)
+                                        .fontWeight(.bold)
                                         .foregroundStyle(.white)
                                 )
                                 .shadow(color: severityColor.opacity(0.5), radius: 4)
@@ -282,7 +283,8 @@ struct AlertDetailSheet: View {
                 Spacer()
 
                 Text(formattedTime)
-                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .font(theme.typography.title3)
+                    .fontWeight(.bold)
                     .foregroundStyle(theme.colors.text)
                     .contentTransition(.numericText())
             }

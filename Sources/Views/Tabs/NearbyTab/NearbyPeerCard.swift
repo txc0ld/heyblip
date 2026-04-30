@@ -161,7 +161,8 @@ struct NearbyPeerCard: View {
                     .frame(width: 12, height: 12)
                     .overlay(
                         Image(systemName: "person.fill")
-                            .font(.system(size: 6, weight: .bold))
+                            .font(theme.typography.micro)
+                            .fontWeight(.bold)
                             .foregroundStyle(.white)
                     )
                     .offset(x: -14, y: 14)

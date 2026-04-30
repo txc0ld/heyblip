@@ -169,7 +169,7 @@ struct ProfileView: View {
     private var emptyState: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "person.circle")
-                .font(.system(size: 48))
+                .font(theme.typography.display)
                 .foregroundStyle(theme.colors.mutedText)
 
             Text(ProfileViewL10n.noProfile)
@@ -214,7 +214,8 @@ struct ProfileView: View {
                             .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                             .overlay(
                                 Text(String(user.resolvedDisplayName.prefix(1)).uppercased())
-                                    .font(.system(size: 32, weight: .bold))
+                                    .font(theme.typography.largeTitle)
+                                    .fontWeight(.bold)
                                     .foregroundStyle(.white)
                             )
                             .overlay(

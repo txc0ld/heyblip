@@ -102,7 +102,7 @@ struct MeetingPointSheet: View {
                     Annotation(MeetingPointL10n.annotation, coordinate: pinCoordinate) {
                         VStack(spacing: 0) {
                             Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 30))
+                                .font(theme.typography.largeTitle)
                                 .foregroundStyle(.blipAccentPurple)
                                 .shadow(color: .blipAccentPurple.opacity(0.4), radius: 4)
 
