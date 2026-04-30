@@ -226,7 +226,8 @@ struct NewGroupChatSheet: View {
         EmptyStateView(
             icon: "person.2.slash",
             title: NewGroupChatL10n.noFriendsTitle,
-            subtitle: NewGroupChatL10n.noFriendsSubtitle
+            subtitle: NewGroupChatL10n.noFriendsSubtitle,
+            style: .inline
         )
         .padding(BlipSpacing.xl)
     }
