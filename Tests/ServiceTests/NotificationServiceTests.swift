@@ -16,7 +16,7 @@ import UserNotifications
 /// - A `newMessage` notification for *another* channel still fires the
 ///   banner.
 /// - Clearing the active channel restores default banner behaviour.
-/// - Concurrent `setActiveChannel` from a background queue is race-free.
+/// - Detached work hops to the MainActor before touching active-channel state.
 @MainActor
 final class NotificationServiceTests: XCTestCase {
 
@@ -147,17 +147,23 @@ final class NotificationServiceTests: XCTestCase {
 
     // MARK: - Concurrency
 
-    func test_concurrentSetActiveChannel_doesNotRace() async {
-        // Hammer setActiveChannel from many tasks while reads happen in
-        // parallel. The NSLock must prevent observable corruption; at the
-        // end we pin a known value and verify the last write wins.
+    func test_concurrentSetActiveChannel_usesMainActorIsolation() async throws {
+        // NotificationService is main-actor isolated because iOS may invoke
+        // UN delegate callbacks on arbitrary threads. Detached work must hop
+        // before touching active-channel state.
+        let service = try XCTUnwrap(service)
+
         await withTaskGroup(of: Void.self) { group in
             for _ in 0 ..< 100 {
-                group.addTask { [service] in
-                    service?.setActiveChannel(UUID())
+                group.addTask {
+                    await MainActor.run {
+                        service.setActiveChannel(UUID())
+                    }
                 }
-                group.addTask { [service] in
-                    _ = service?.currentActiveChannelID()
+                group.addTask {
+                    await MainActor.run {
+                        _ = service.currentActiveChannelID()
+                    }
                 }
             }
         }
