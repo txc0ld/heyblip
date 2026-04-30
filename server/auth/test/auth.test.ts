@@ -191,6 +191,66 @@ vi.mock("@neondatabase/serverless", () => ({
           .map((deviceToken) => ({ token: deviceToken.token }));
       }
 
+      if (normalized.includes("select id from users where noise_public_key =")) {
+        const requestedKey = values[0] as Uint8Array;
+        const user = users.find((candidate) =>
+          candidate.noise_public_key && bytesEqual(candidate.noise_public_key, requestedKey)
+        );
+        return user ? [{ id: user.id }] : [];
+      }
+
+      if (normalized.includes("insert into device_tokens")) {
+        if (normalized.includes("last_seen_at")) {
+          throw new Error('column "last_seen_at" of relation "device_tokens" does not exist');
+        }
+
+        const userID = values[0] as string;
+        const token = values[1] as string;
+        const platform = values[2] as string;
+        const bundleID = values[3] as string;
+        const locale = values[4] as string | null;
+        const appVersion = values[5] as string | null;
+        const sandbox = values[6] === true;
+        const existing = deviceTokens.find((deviceToken) =>
+          deviceToken.user_id === userID && deviceToken.token === token
+        );
+
+        if (existing) {
+          if (!normalized.includes("on conflict (user_id, token) do update")) {
+            const error = new Error(
+              'duplicate key value violates unique constraint "device_tokens_user_id_token_key"'
+            ) as Error & { code?: string };
+            error.code = "23505";
+            throw error;
+          }
+
+          const previousRegisteredAt = Date.parse(existing.last_registered_at);
+          existing.platform = platform;
+          existing.bundle_id = bundleID;
+          existing.locale = locale;
+          existing.app_version = appVersion;
+          existing.sandbox = sandbox;
+          existing.last_registered_at = new Date(previousRegisteredAt + 1000).toISOString();
+          existing.updated_at = new Date(previousRegisteredAt + 1000).toISOString();
+          return [];
+        }
+
+        const now = new Date().toISOString();
+        deviceTokens.push({
+          user_id: userID,
+          token,
+          platform,
+          bundle_id: bundleID,
+          locale,
+          app_version: appVersion,
+          sandbox,
+          last_registered_at: now,
+          created_at: now,
+          updated_at: now,
+        });
+        return [];
+      }
+
       if (normalized.includes("select username from users where peer_id_hex =")) {
         const senderPeerIdHex = values[0] as string;
         const user = users.find((candidate) => candidate.peer_id_hex === senderPeerIdHex);
@@ -252,6 +312,14 @@ interface MockUser {
 interface MockDeviceToken {
   user_id: string;
   token: string;
+  platform: string;
+  bundle_id: string;
+  locale: string | null;
+  app_version: string | null;
+  sandbox: boolean;
+  last_registered_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 async function request(
@@ -331,7 +399,19 @@ function resetMockDeviceTokens(): void {
 }
 
 function seedDeviceToken(userID: string, token = crypto.randomUUID()): MockDeviceToken {
-  const deviceToken: MockDeviceToken = { user_id: userID, token };
+  const now = new Date().toISOString();
+  const deviceToken: MockDeviceToken = {
+    user_id: userID,
+    token,
+    platform: "ios",
+    bundle_id: "au.heyblip.Blip",
+    locale: null,
+    app_version: null,
+    sandbox: false,
+    last_registered_at: now,
+    created_at: now,
+    updated_at: now,
+  };
   mockDeviceTokens().push(deviceToken);
   return deviceToken;
 }
@@ -925,6 +1005,103 @@ describe("JWT session tokens", () => {
     });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /v1/devices/register", () => {
+  it("treats duplicate device token registration as idempotent and advances last_registered_at", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { user, noisePublicKey } = await seedAuthUser();
+    const bearer = base64Encode(noisePublicKey);
+    const token = "apns-token-repeat";
+
+    const firstResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      { token, platform: "ios" },
+      { Authorization: `Bearer ${bearer}` }
+    );
+    expect(firstResponse.status).toBe(200);
+
+    const firstDeviceToken = mockDeviceTokens().find((deviceToken) =>
+      deviceToken.user_id === user.id && deviceToken.token === token
+    );
+    expect(firstDeviceToken).toBeDefined();
+    const firstLastRegisteredAt = firstDeviceToken!.last_registered_at;
+
+    const secondResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      { token, platform: "ios" },
+      { Authorization: `Bearer ${bearer}` }
+    );
+
+    expect(secondResponse.status).toBe(200);
+    expect(await json(secondResponse)).toEqual({ success: true });
+    expect(mockDeviceTokens()).toHaveLength(1);
+    expect(firstDeviceToken!.last_registered_at).not.toBe(firstLastRegisteredAt);
+    expect(Date.parse(firstDeviceToken!.last_registered_at)).toBeGreaterThan(Date.parse(firstLastRegisteredAt));
+  });
+
+  it("preserves sandbox routing metadata on insert and re-register", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { user, noisePublicKey } = await seedAuthUser();
+    const bearer = base64Encode(noisePublicKey);
+    const token = "apns-token-sandbox";
+
+    const firstResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      {
+        token,
+        platform: "ios",
+        bundleId: "au.heyblip.Blip.debug",
+        locale: "en-AU",
+        appVersion: "47",
+        sandbox: true,
+      },
+      { Authorization: `Bearer ${bearer}` }
+    );
+    expect(firstResponse.status).toBe(200);
+
+    const deviceToken = mockDeviceTokens().find((candidate) =>
+      candidate.user_id === user.id && candidate.token === token
+    );
+    expect(deviceToken).toEqual(
+      expect.objectContaining({
+        platform: "ios",
+        bundle_id: "au.heyblip.Blip.debug",
+        locale: "en-AU",
+        app_version: "47",
+        sandbox: true,
+      })
+    );
+
+    const secondResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      {
+        token,
+        platform: "ios",
+        bundleId: "au.heyblip.Blip",
+        locale: "en-US",
+        appVersion: "48",
+        sandbox: false,
+      },
+      { Authorization: `Bearer ${bearer}` }
+    );
+
+    expect(secondResponse.status).toBe(200);
+    expect(mockDeviceTokens()).toHaveLength(1);
+    expect(deviceToken).toEqual(
+      expect.objectContaining({
+        platform: "ios",
+        bundle_id: "au.heyblip.Blip",
+        locale: "en-US",
+        app_version: "48",
+        sandbox: false,
+      })
+    );
   });
 });
 

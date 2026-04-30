@@ -1396,8 +1396,7 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
       VALUES (
         ${userId}, ${body.token}, ${platform}, ${bundleId}, ${locale}, ${appVersion}, ${sandbox}, NOW()
       )
-      ON CONFLICT (token) DO UPDATE SET
-        user_id = EXCLUDED.user_id,
+      ON CONFLICT (user_id, token) DO UPDATE SET
         platform = EXCLUDED.platform,
         bundle_id = EXCLUDED.bundle_id,
         locale = EXCLUDED.locale,
