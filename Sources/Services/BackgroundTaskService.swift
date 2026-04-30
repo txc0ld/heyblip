@@ -179,28 +179,7 @@ final class BackgroundTaskService {
 
     // MARK: - Background Notification
 
-    /// Post a local notification informing the user that HeyBlip is active in the background.
-    func postBackgroundActiveNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "HeyBlip"
-        content.body = "HeyBlip is keeping you connected"
-        content.sound = nil
-        content.interruptionLevel = .passive
-
-        let request = UNNotificationRequest(
-            identifier: "com.blip.background-active",
-            content: content,
-            trigger: nil
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                DebugLogger.emit("APP", "Background notification failed: \(error.localizedDescription)", isError: true)
-            }
-        }
-    }
-
-    /// Remove the background-active notification when the app returns to foreground.
+    /// Remove any lingering background-active notifications posted by older builds.
     func removeBackgroundActiveNotification() {
         UNUserNotificationCenter.current().removeDeliveredNotifications(
             withIdentifiers: ["com.blip.background-active"]
