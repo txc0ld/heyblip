@@ -97,7 +97,7 @@ struct BeaconMapPinView: View {
 // MARK: - Hexagon Shape
 
 /// Regular 6-sided hexagon, point-up, inscribed in the bounding rect.
-struct HexagonShape: Shape {
+private struct HexagonShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         let cx = rect.midX
