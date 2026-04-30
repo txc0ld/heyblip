@@ -57,10 +57,8 @@ struct BlipApp: App {
             switch phase {
             case .background:
                 coordinator.backgroundTaskService?.scheduleNextSync()
-                if coordinator.bleService?.state == .running {
-                    coordinator.backgroundTaskService?.postBackgroundActiveNotification()
-                }
             case .active:
+                // Clear any lingering "keeping you connected" notifications from older builds.
                 coordinator.backgroundTaskService?.removeBackgroundActiveNotification()
             default:
                 break
