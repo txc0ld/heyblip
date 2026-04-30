@@ -453,6 +453,7 @@ extension MessageService {
         }
         guard let session else {
             DebugLogger.shared.log("NOISE", "Dropped .noiseEncrypted packet from \(senderHex): no active Noise session", isError: true)
+            try await sendSessionLostIfNeeded(to: peerID, peerHex: senderHex)
             return
         }
 
@@ -1218,5 +1219,78 @@ extension MessageService {
         return (priority, normalizedName)
     }
 
+    // MARK: - Session-lost control packet
+
+    /// Send a `.sessionLost` control packet to `peerID`, rate-limited to once per
+    /// `sessionLostCooldown` seconds.  Called when we drop a `.noiseEncrypted`
+    /// packet because no Noise session exists — the sender doesn't know our
+    /// session was torn down on restart and needs a prompt to re-handshake.
+    @MainActor
+    func sendSessionLostIfNeeded(to peerID: PeerID, peerHex: String) async throws {
+        let peerBytes = peerID.bytes
+        let now = Date()
+
+        let shouldSend: Bool = lock.withLock {
+            if let last = lastSessionLostSent[peerBytes],
+               now.timeIntervalSince(last) < Self.sessionLostCooldown {
+                return false
+            }
+            lastSessionLostSent[peerBytes] = now
+            return true
+        }
+
+        guard shouldSend else {
+            DebugLogger.shared.log(
+                "NOISE",
+                "sessionLost suppressed for \(peerHex): within \(Int(Self.sessionLostCooldown))s cooldown"
+            )
+            return
+        }
+
+        guard let identity = getIdentity() else { return }
+
+        let packet = MessagePayloadBuilder.buildPacket(
+            type: .sessionLost,
+            payload: Data(),
+            flags: [.hasRecipient],
+            senderID: identity.peerID,
+            recipientID: peerID
+        )
+
+        do {
+            try await sendPacket(packet)
+            DebugLogger.shared.log("NOISE", "→ sessionLost to \(peerHex)")
+        } catch {
+            DebugLogger.shared.log("NOISE", "sessionLost send failed to \(peerHex): \(error)", isError: true)
+        }
+    }
+
+    /// Handle an incoming `.sessionLost` control packet from a peer.
+    ///
+    /// The remote peer dropped our encrypted packet because their Noise session
+    /// is gone (app restart, crash, etc.).  Tear down our stale session and
+    /// kick off a fresh XX handshake so message delivery can resume.
+    @MainActor
+    func handleSessionLost(_ packet: Packet, from peerID: PeerID) async throws {
+        let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()
+        DebugLogger.shared.log("NOISE", "← sessionLost from \(peerHex): tearing down session and re-handshaking")
+
+        noiseSessionManager?.destroySession(for: peerID)
+
+        do {
+            let initiated = try await initiateHandshakeIfNeeded(with: peerID)
+            if initiated {
+                DebugLogger.shared.log("NOISE", "→ fresh handshake initiated to \(peerHex) after sessionLost")
+            } else {
+                DebugLogger.shared.log(
+                    "NOISE",
+                    "sessionLost from \(peerHex): session already active or handshake in progress — no new handshake needed"
+                )
+            }
+        } catch {
+            DebugLogger.shared.log("NOISE", "sessionLost re-handshake failed to \(peerHex): \(error)", isError: true)
+            throw error
+        }
+    }
 
 }

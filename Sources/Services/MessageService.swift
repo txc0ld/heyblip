@@ -178,6 +178,9 @@ final class MessageService: @unchecked Sendable {
     /// Last time automatic Noise session recovery was attempted for a sender.
     var lastRecoveryAttempt: [Data: Date] = [:]
 
+    /// Last time a sessionLost control packet was sent to a peer (keyed by PeerID bytes).
+    var lastSessionLostSent: [Data: Date] = [:]
+
     /// Check if an encrypted packet carries a friend request or accept payload.
     /// These are exempt from the unverified packet counter because they arrive
     /// before the peer has announced (no signing key available yet).
@@ -199,6 +202,9 @@ final class MessageService: @unchecked Sendable {
 
     /// Minimum interval between automatic session recovery attempts for one peer.
     static let decryptFailureRecoveryCooldown: TimeInterval = 30
+
+    /// Minimum interval between sessionLost control packets sent to the same peer.
+    static let sessionLostCooldown: TimeInterval = 30
 
     /// Free action types that don't consume message balance.
     private static let freeSubTypes: Set<EncryptedSubType> = [
@@ -861,6 +867,8 @@ final class MessageService: @unchecked Sendable {
                         try await self.handleFriendRequest(data: packet.payload, from: peerID)
                     case .friendAccept:
                         try await self.handleFriendAccept(data: packet.payload, from: peerID)
+                    case .sessionLost:
+                        try await self.handleSessionLost(packet, from: peerID)
                     }
                 } catch {
                     let peerHex = peerID.bytes.prefix(4).map { String(format: "%02x", $0) }.joined()

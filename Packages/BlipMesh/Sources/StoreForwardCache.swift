@@ -244,6 +244,11 @@ public final class StoreForwardCache: @unchecked Sendable {
 
         case .friendRequest, .friendAccept:
             return Self.dmDuration
+
+        // sessionLost is a tiny control packet — short cache window so the recipient
+        // sees it promptly and doesn't get stale recovery signals.
+        case .sessionLost:
+            return Self.channelDuration
         }
     }
 
