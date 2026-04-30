@@ -34,6 +34,7 @@ private enum ScheduleViewL10n {
 struct ScheduleView: View {
 
     let stages: [ScheduleStage]
+    let isInRange: Bool
 
     var onSaveAct: ((UUID) -> Void)?
     var onToggleReminder: ((UUID) -> Void)?
@@ -175,6 +176,7 @@ struct ScheduleView: View {
                     isLive: act.isLive,
                     isSaved: act.isSaved,
                     hasReminder: act.hasReminder,
+                    isInRange: isInRange,
                     onSave: { onSaveAct?(act.id) },
                     onToggleReminder: { onToggleReminder?(act.id) },
                     onShareGoing: { onShareGoing?(act.id) }
@@ -282,7 +284,7 @@ struct ScheduleAct: Identifiable {
 
     ZStack {
         GradientBackground()
-        ScheduleView(stages: stages)
+        ScheduleView(stages: stages, isInRange: true)
     }
     .preferredColorScheme(.dark)
     .blipTheme()
