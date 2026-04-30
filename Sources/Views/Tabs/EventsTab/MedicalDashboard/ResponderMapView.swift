@@ -251,6 +251,7 @@ private struct SOSPinView: View {
     let onTap: () -> Void
 
     @State private var isPulsing = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: onTap) {
@@ -273,7 +274,7 @@ private struct SOSPinView: View {
                     .frame(width: 16, height: 16)
                     .overlay(
                         Image(systemName: "cross.fill")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(theme.typography.micro)
                             .foregroundStyle(.white)
                     )
                     .shadow(color: alert.severityColor.opacity(0.5), radius: 4)
@@ -328,7 +329,8 @@ private struct MedicalTentPinView: View {
                 )
 
             Text(tent.name)
-                .font(.system(size: 8, weight: .bold))
+                .font(theme.typography.micro)
+                .fontWeight(.bold)
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
@@ -353,7 +355,8 @@ private struct ResponderPinView: View {
                 .foregroundStyle(.blipAccentPurple)
 
             Text(responder.callsign)
-                .font(.system(size: 8, weight: .bold))
+                .font(theme.typography.micro)
+                .fontWeight(.bold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
