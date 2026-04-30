@@ -1375,11 +1375,6 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     }
 
     const platform = body.platform ?? "ios";
-    const bundleId = body.bundleId ?? "au.heyblip.Blip";
-    const locale = typeof body.locale === "string" && body.locale.length <= 32 ? body.locale : null;
-    const appVersion =
-      typeof body.appVersion === "string" && body.appVersion.length <= 32 ? body.appVersion : null;
-    const sandbox = body.sandbox === true;
 
     const userResult = await sql`
       SELECT id FROM users WHERE noise_public_key = ${auth.noisePublicKey}
@@ -1390,21 +1385,10 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     const userId = userResult[0].id;
 
     await sql`
-      INSERT INTO device_tokens (
-        user_id, token, platform, bundle_id, locale, app_version, sandbox, last_registered_at
-      )
-      VALUES (
-        ${userId}, ${body.token}, ${platform}, ${bundleId}, ${locale}, ${appVersion}, ${sandbox}, NOW()
-      )
-      ON CONFLICT (token) DO UPDATE SET
-        user_id = EXCLUDED.user_id,
-        platform = EXCLUDED.platform,
-        bundle_id = EXCLUDED.bundle_id,
-        locale = EXCLUDED.locale,
-        app_version = EXCLUDED.app_version,
-        sandbox = EXCLUDED.sandbox,
-        last_registered_at = NOW(),
-        updated_at = NOW()
+      INSERT INTO device_tokens (user_id, token, platform, last_seen_at, created_at)
+      VALUES (${userId}, ${body.token}, ${platform}, NOW(), NOW())
+      ON CONFLICT (user_id, token) DO UPDATE
+        SET last_seen_at = NOW(), platform = EXCLUDED.platform
     `;
 
     return json({ success: true }, 200, env);

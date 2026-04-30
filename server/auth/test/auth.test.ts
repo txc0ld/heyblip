@@ -191,6 +191,47 @@ vi.mock("@neondatabase/serverless", () => ({
           .map((deviceToken) => ({ token: deviceToken.token }));
       }
 
+      if (normalized.includes("select id from users where noise_public_key =")) {
+        const requestedKey = values[0] as Uint8Array;
+        const user = users.find((candidate) =>
+          candidate.noise_public_key && bytesEqual(candidate.noise_public_key, requestedKey)
+        );
+        return user ? [{ id: user.id }] : [];
+      }
+
+      if (normalized.includes("insert into device_tokens")) {
+        const userID = values[0] as string;
+        const token = values[1] as string;
+        const platform = values[2] as string;
+        const existing = deviceTokens.find((deviceToken) =>
+          deviceToken.user_id === userID && deviceToken.token === token
+        );
+
+        if (existing) {
+          if (!normalized.includes("on conflict (user_id, token) do update")) {
+            const error = new Error(
+              'duplicate key value violates unique constraint "device_tokens_user_id_token_key"'
+            ) as Error & { code?: string };
+            error.code = "23505";
+            throw error;
+          }
+
+          const previousLastSeenAt = Date.parse(existing.last_seen_at);
+          existing.last_seen_at = new Date(previousLastSeenAt + 1000).toISOString();
+          existing.platform = platform;
+          return [];
+        }
+
+        deviceTokens.push({
+          user_id: userID,
+          token,
+          platform,
+          last_seen_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+        return [];
+      }
+
       if (normalized.includes("select username from users where peer_id_hex =")) {
         const senderPeerIdHex = values[0] as string;
         const user = users.find((candidate) => candidate.peer_id_hex === senderPeerIdHex);
@@ -252,6 +293,9 @@ interface MockUser {
 interface MockDeviceToken {
   user_id: string;
   token: string;
+  platform: string;
+  last_seen_at: string;
+  created_at: string;
 }
 
 async function request(
@@ -331,7 +375,14 @@ function resetMockDeviceTokens(): void {
 }
 
 function seedDeviceToken(userID: string, token = crypto.randomUUID()): MockDeviceToken {
-  const deviceToken: MockDeviceToken = { user_id: userID, token };
+  const now = new Date().toISOString();
+  const deviceToken: MockDeviceToken = {
+    user_id: userID,
+    token,
+    platform: "ios",
+    last_seen_at: now,
+    created_at: now,
+  };
   mockDeviceTokens().push(deviceToken);
   return deviceToken;
 }
@@ -925,6 +976,42 @@ describe("JWT session tokens", () => {
     });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /v1/devices/register", () => {
+  it("treats duplicate device token registration as idempotent and advances last_seen_at", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { user, noisePublicKey } = await seedAuthUser();
+    const bearer = base64Encode(noisePublicKey);
+    const token = "apns-token-repeat";
+
+    const firstResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      { token, platform: "ios" },
+      { Authorization: `Bearer ${bearer}` }
+    );
+    expect(firstResponse.status).toBe(200);
+
+    const firstDeviceToken = mockDeviceTokens().find((deviceToken) =>
+      deviceToken.user_id === user.id && deviceToken.token === token
+    );
+    expect(firstDeviceToken).toBeDefined();
+    const firstLastSeenAt = firstDeviceToken!.last_seen_at;
+
+    const secondResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      { token, platform: "ios" },
+      { Authorization: `Bearer ${bearer}` }
+    );
+
+    expect(secondResponse.status).toBe(200);
+    expect(await json(secondResponse)).toEqual({ success: true });
+    expect(mockDeviceTokens()).toHaveLength(1);
+    expect(firstDeviceToken!.last_seen_at).not.toBe(firstLastSeenAt);
+    expect(Date.parse(firstDeviceToken!.last_seen_at)).toBeGreaterThan(Date.parse(firstLastSeenAt));
   });
 });
 
