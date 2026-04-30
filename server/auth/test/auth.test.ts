@@ -200,9 +200,17 @@ vi.mock("@neondatabase/serverless", () => ({
       }
 
       if (normalized.includes("insert into device_tokens")) {
+        if (normalized.includes("last_seen_at")) {
+          throw new Error('column "last_seen_at" of relation "device_tokens" does not exist');
+        }
+
         const userID = values[0] as string;
         const token = values[1] as string;
         const platform = values[2] as string;
+        const bundleID = values[3] as string;
+        const locale = values[4] as string | null;
+        const appVersion = values[5] as string | null;
+        const sandbox = values[6] === true;
         const existing = deviceTokens.find((deviceToken) =>
           deviceToken.user_id === userID && deviceToken.token === token
         );
@@ -216,18 +224,29 @@ vi.mock("@neondatabase/serverless", () => ({
             throw error;
           }
 
-          const previousLastSeenAt = Date.parse(existing.last_seen_at);
-          existing.last_seen_at = new Date(previousLastSeenAt + 1000).toISOString();
+          const previousRegisteredAt = Date.parse(existing.last_registered_at);
           existing.platform = platform;
+          existing.bundle_id = bundleID;
+          existing.locale = locale;
+          existing.app_version = appVersion;
+          existing.sandbox = sandbox;
+          existing.last_registered_at = new Date(previousRegisteredAt + 1000).toISOString();
+          existing.updated_at = new Date(previousRegisteredAt + 1000).toISOString();
           return [];
         }
 
+        const now = new Date().toISOString();
         deviceTokens.push({
           user_id: userID,
           token,
           platform,
-          last_seen_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
+          bundle_id: bundleID,
+          locale,
+          app_version: appVersion,
+          sandbox,
+          last_registered_at: now,
+          created_at: now,
+          updated_at: now,
         });
         return [];
       }
@@ -294,8 +313,13 @@ interface MockDeviceToken {
   user_id: string;
   token: string;
   platform: string;
-  last_seen_at: string;
+  bundle_id: string;
+  locale: string | null;
+  app_version: string | null;
+  sandbox: boolean;
+  last_registered_at: string;
   created_at: string;
+  updated_at: string;
 }
 
 async function request(
@@ -380,8 +404,13 @@ function seedDeviceToken(userID: string, token = crypto.randomUUID()): MockDevic
     user_id: userID,
     token,
     platform: "ios",
-    last_seen_at: now,
+    bundle_id: "au.heyblip.Blip",
+    locale: null,
+    app_version: null,
+    sandbox: false,
+    last_registered_at: now,
     created_at: now,
+    updated_at: now,
   };
   mockDeviceTokens().push(deviceToken);
   return deviceToken;
@@ -980,7 +1009,7 @@ describe("JWT session tokens", () => {
 });
 
 describe("POST /v1/devices/register", () => {
-  it("treats duplicate device token registration as idempotent and advances last_seen_at", async () => {
+  it("treats duplicate device token registration as idempotent and advances last_registered_at", async () => {
     (env as Record<string, unknown>).DATABASE_URL = "mock://db";
     const { user, noisePublicKey } = await seedAuthUser();
     const bearer = base64Encode(noisePublicKey);
@@ -998,7 +1027,7 @@ describe("POST /v1/devices/register", () => {
       deviceToken.user_id === user.id && deviceToken.token === token
     );
     expect(firstDeviceToken).toBeDefined();
-    const firstLastSeenAt = firstDeviceToken!.last_seen_at;
+    const firstLastRegisteredAt = firstDeviceToken!.last_registered_at;
 
     const secondResponse = await request(
       "POST",
@@ -1010,8 +1039,69 @@ describe("POST /v1/devices/register", () => {
     expect(secondResponse.status).toBe(200);
     expect(await json(secondResponse)).toEqual({ success: true });
     expect(mockDeviceTokens()).toHaveLength(1);
-    expect(firstDeviceToken!.last_seen_at).not.toBe(firstLastSeenAt);
-    expect(Date.parse(firstDeviceToken!.last_seen_at)).toBeGreaterThan(Date.parse(firstLastSeenAt));
+    expect(firstDeviceToken!.last_registered_at).not.toBe(firstLastRegisteredAt);
+    expect(Date.parse(firstDeviceToken!.last_registered_at)).toBeGreaterThan(Date.parse(firstLastRegisteredAt));
+  });
+
+  it("preserves sandbox routing metadata on insert and re-register", async () => {
+    (env as Record<string, unknown>).DATABASE_URL = "mock://db";
+    const { user, noisePublicKey } = await seedAuthUser();
+    const bearer = base64Encode(noisePublicKey);
+    const token = "apns-token-sandbox";
+
+    const firstResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      {
+        token,
+        platform: "ios",
+        bundleId: "au.heyblip.Blip.debug",
+        locale: "en-AU",
+        appVersion: "47",
+        sandbox: true,
+      },
+      { Authorization: `Bearer ${bearer}` }
+    );
+    expect(firstResponse.status).toBe(200);
+
+    const deviceToken = mockDeviceTokens().find((candidate) =>
+      candidate.user_id === user.id && candidate.token === token
+    );
+    expect(deviceToken).toEqual(
+      expect.objectContaining({
+        platform: "ios",
+        bundle_id: "au.heyblip.Blip.debug",
+        locale: "en-AU",
+        app_version: "47",
+        sandbox: true,
+      })
+    );
+
+    const secondResponse = await request(
+      "POST",
+      "/v1/devices/register",
+      {
+        token,
+        platform: "ios",
+        bundleId: "au.heyblip.Blip",
+        locale: "en-US",
+        appVersion: "48",
+        sandbox: false,
+      },
+      { Authorization: `Bearer ${bearer}` }
+    );
+
+    expect(secondResponse.status).toBe(200);
+    expect(mockDeviceTokens()).toHaveLength(1);
+    expect(deviceToken).toEqual(
+      expect.objectContaining({
+        platform: "ios",
+        bundle_id: "au.heyblip.Blip",
+        locale: "en-US",
+        app_version: "48",
+        sandbox: false,
+      })
+    );
   });
 });
 
