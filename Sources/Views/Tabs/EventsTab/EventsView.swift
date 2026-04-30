@@ -1,5 +1,8 @@
 import SwiftUI
 import MapKit
+#if canImport(UIKit)
+import UIKit
+#endif
 
 private enum EventsViewL10n {
     static let you = String(localized: "common.you", defaultValue: "You")
@@ -10,6 +13,15 @@ private enum EventsViewL10n {
     static let hideCrowdDensity = String(localized: "events.crowd.hide", defaultValue: "Hide crowd density")
     static let showCrowdDensity = String(localized: "events.crowd.show", defaultValue: "Show crowd density")
     static let dropMeetingPoint = String(localized: "events.meeting_point.drop", defaultValue: "Drop meeting point")
+    static let meetingPointDetails = String(localized: "events.meeting_point.details", defaultValue: "Meeting point details")
+    static let meetingPointSaved = String(localized: "events.meeting_point.saved", defaultValue: "Saved meeting point")
+    static let meetingPointExpires = String(localized: "events.meeting_point.expires", defaultValue: "Expires")
+    static let meetingPointCreatedBy = String(localized: "events.meeting_point.created_by", defaultValue: "Created by")
+    static let meetingPointCopyLink = String(localized: "events.meeting_point.copy_link", defaultValue: "Copy link")
+    static let meetingPointRemoveSaved = String(localized: "events.meeting_point.remove_saved", defaultValue: "Remove saved point")
+    static let location = String(localized: "events.meeting_point.location", defaultValue: "Location")
+    static let done = String(localized: "common.done", defaultValue: "Done")
+    static let outOfRangeDetailBanner = String(localized: "events.out_of_range.detail_banner", defaultValue: "You're out of range - some actions are disabled")
     static let latestAnnouncements = String(localized: "events.announcements.latest", defaultValue: "Latest Announcements")
     static let seeAll = String(localized: "common.see_all", defaultValue: "See all")
     static let syncingTitle = String(localized: "events.syncing.title", defaultValue: "Event data is still syncing to this device.")
@@ -68,6 +80,7 @@ struct EventsView: View {
     @State private var shareSetTimeID: UUID?
     @State private var friendPins: [FriendMapPin] = []
     @State private var meetingPoints: [MeetingPointMapItem] = []
+    @State private var selectedMeetingPoint: MeetingPointMapItem?
     @State private var crowdPulseData: [CrowdPulseCell] = []
 
     @Environment(\.theme) private var theme
@@ -103,7 +116,8 @@ struct EventsView: View {
                             label: data.label,
                             coordinate: data.coordinate,
                             createdBy: EventsViewL10n.you,
-                            expiresAt: Date().addingTimeInterval(data.expiry.timeInterval)
+                            expiresAt: Date().addingTimeInterval(data.expiry.timeInterval),
+                            isSaved: true
                         )
                         meetingPoints.append(point)
                     }
@@ -118,6 +132,17 @@ struct EventsView: View {
                     ShareSheet(items: [shareText])
                         .presentationDetents([.medium])
                 }
+            }
+            .sheet(item: $selectedMeetingPoint) { point in
+                MeetingPointDetailSheet(
+                    point: point,
+                    isInRange: isInRange,
+                    onUnsave: {
+                        meetingPoints.removeAll { $0.id == point.id }
+                        selectedMeetingPoint = nil
+                    }
+                )
+                .presentationDetents([.medium])
             }
             .task {
                 await loadEventData()
@@ -141,15 +166,6 @@ struct EventsView: View {
 
         hasJoinedEvent = vm.activeEvent != nil
         isInRange = vm.isInsideEvent
-        stages = vm.stages.map { stage in
-            StageMapItem(
-                id: stage.id,
-                name: stage.name,
-                coordinate: CLLocationCoordinate2D(latitude: stage.latitude, longitude: stage.longitude),
-                isLive: stage.currentArtist != nil,
-                currentArtist: stage.currentArtist
-            )
-        }
         friendPins = []
 
         // Map ViewModel crowd pulse to view cells
@@ -163,7 +179,10 @@ struct EventsView: View {
             )
         }
 
-        // Map ViewModel schedule to view schedule stages
+        refreshStageAndScheduleData(from: vm)
+    }
+
+    private func refreshStageAndScheduleData(from vm: EventsViewModel) {
         scheduleStages = vm.schedule.map { stageSchedule in
             ScheduleStage(
                 id: stageSchedule.id,
@@ -179,6 +198,23 @@ struct EventsView: View {
                         hasReminder: set.hasReminder
                     )
                 }
+            )
+        }
+
+        let savedStageNames = Set(
+            scheduleStages
+                .filter { stageSchedule in stageSchedule.acts.contains { $0.isSaved } }
+                .map(\.name)
+        )
+
+        stages = vm.stages.map { stage in
+            StageMapItem(
+                id: stage.id,
+                name: stage.name,
+                coordinate: CLLocationCoordinate2D(latitude: stage.latitude, longitude: stage.longitude),
+                isLive: stage.currentArtist != nil,
+                currentArtist: stage.currentArtist,
+                isSaved: savedStageNames.contains(stage.name)
             )
         }
     }
@@ -227,11 +263,26 @@ struct EventsView: View {
                     case .schedule:
                         ScheduleView(
                             stages: scheduleStages,
+                            isInRange: isInRange,
                             onSaveAct: { setTimeID in
-                                Task { await eventsViewModel?.toggleSaveSetTime(setTimeID: setTimeID) }
+                                Task {
+                                    await eventsViewModel?.toggleSaveSetTime(setTimeID: setTimeID)
+                                    await MainActor.run {
+                                        if let eventsViewModel {
+                                            refreshStageAndScheduleData(from: eventsViewModel)
+                                        }
+                                    }
+                                }
                             },
                             onToggleReminder: { setTimeID in
-                                Task { await eventsViewModel?.toggleReminder(setTimeID: setTimeID) }
+                                Task {
+                                    await eventsViewModel?.toggleReminder(setTimeID: setTimeID)
+                                    await MainActor.run {
+                                        if let eventsViewModel {
+                                            refreshStageAndScheduleData(from: eventsViewModel)
+                                        }
+                                    }
+                                }
                             },
                             onShareGoing: { setTimeID in
                                 shareSetTimeID = setTimeID
@@ -252,8 +303,6 @@ struct EventsView: View {
                 }
                 .padding(.top, BlipSpacing.md)
             }
-            .opacity(isInRange ? 1.0 : 0.5)
-            .allowsHitTesting(isInRange)
         }
     }
 
@@ -321,6 +370,7 @@ struct EventsView: View {
                         meetingPoints: meetingPoints,
                         eventCenter: eventCenter,
                         eventRadiusMeters: eventRadius,
+                        isInRange: isInRange,
                         onStageTap: { stage in
                             guard let channel = eventsViewModel?.stageChannel(named: stage.name) else {
                                 selectedSection = .schedule
@@ -332,8 +382,8 @@ struct EventsView: View {
                                 coordinator.pendingNotificationNavigation = .conversation(channelID: channel.id)
                             }
                         },
-                        onMeetingPointTap: { _ in
-                            showMeetingPointSheet = true
+                        onMeetingPointTap: { point in
+                            selectedMeetingPoint = point
                         }
                     )
 
@@ -374,9 +424,11 @@ struct EventsView: View {
                 Button(action: { showMeetingPointSheet = true }) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(theme.typography.secondary)
-                        .foregroundStyle(.blipAccentPurple)
+                        .foregroundStyle(isInRange ? .blipAccentPurple : theme.colors.mutedText.opacity(0.35))
                         .frame(minWidth: BlipSizing.minTapTarget, minHeight: BlipSizing.minTapTarget)
                 }
+                .disabled(!isInRange)
+                .opacity(isInRange ? 1.0 : 0.5)
                 .accessibilityLabel(EventsViewL10n.dropMeetingPoint)
             }
             .padding(.horizontal, BlipSpacing.md)
@@ -592,14 +644,138 @@ private struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+// MARK: - Meeting Point Detail Sheet
+
+private struct MeetingPointDetailSheet: View {
+    let point: MeetingPointMapItem
+    let isInRange: Bool
+    let onUnsave: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: BlipSpacing.lg) {
+                if !isInRange {
+                    Label(EventsViewL10n.outOfRangeDetailBanner, systemImage: "location.slash.fill")
+                        .font(theme.typography.caption)
+                        .foregroundStyle(theme.colors.statusAmber)
+                        .padding(BlipSpacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.colors.statusAmber.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: BlipCornerRadius.md, style: .continuous))
+                }
+
+                VStack(alignment: .leading, spacing: BlipSpacing.xs) {
+                    Label(EventsViewL10n.meetingPointSaved, systemImage: "bookmark.fill")
+                        .font(theme.typography.caption)
+                        .foregroundStyle(.blipAccentPurple)
+
+                    Text(point.label)
+                        .font(theme.typography.title3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(theme.colors.text)
+                }
+
+                GlassCard(thickness: .ultraThin) {
+                    VStack(spacing: BlipSpacing.md) {
+                        detailRow(
+                            icon: "person.fill",
+                            label: EventsViewL10n.meetingPointCreatedBy,
+                            value: point.createdBy
+                        )
+
+                        Divider().opacity(0.15)
+
+                        detailRow(
+                            icon: "clock.fill",
+                            label: EventsViewL10n.meetingPointExpires,
+                            value: point.expiresAt.formatted(date: .omitted, time: .shortened)
+                        )
+
+                        Divider().opacity(0.15)
+
+                        detailRow(
+                            icon: "location.fill",
+                            label: EventsViewL10n.location,
+                            value: coordinateDescription
+                        )
+                    }
+                }
+
+                HStack(spacing: BlipSpacing.sm) {
+                    Button(action: copyLink) {
+                        Label(EventsViewL10n.meetingPointCopyLink, systemImage: "link")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: BlipSizing.minTapTarget)
+
+                    Button(role: .destructive, action: onUnsave) {
+                        Label(EventsViewL10n.meetingPointRemoveSaved, systemImage: "bookmark.slash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: BlipSizing.minTapTarget)
+                }
+
+                Spacer()
+            }
+            .padding(BlipSpacing.md)
+            .navigationTitle(EventsViewL10n.meetingPointDetails)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(EventsViewL10n.done) { dismiss() }
+                }
+            }
+            .background(GradientBackground().ignoresSafeArea())
+        }
+    }
+
+    private func detailRow(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: BlipSpacing.sm) {
+            Image(systemName: icon)
+                .font(theme.typography.secondary)
+                .foregroundStyle(.blipAccentPurple)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.mutedText)
+
+                Text(value)
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.text)
+            }
+
+            Spacer()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var coordinateDescription: String {
+        "\(point.coordinate.latitude.formatted(.number.precision(.fractionLength(5)))), \(point.coordinate.longitude.formatted(.number.precision(.fractionLength(5))))"
+    }
+
+    private func copyLink() {
+        let text = "heyblip://meeting-point/\(point.id.uuidString)"
+#if canImport(UIKit)
+        UIPasteboard.general.string = text
+#endif
+    }
+}
+
 // MARK: - Sample Data
 
 extension EventsView {
 
     static let sampleStages: [StageMapItem] = [
-        StageMapItem(id: UUID(), name: EventsViewL10n.previewPyramid, coordinate: CLLocationCoordinate2D(latitude: 51.0048, longitude: -2.5862), isLive: true, currentArtist: EventsViewL10n.previewBicep),
-        StageMapItem(id: UUID(), name: EventsViewL10n.previewOther, coordinate: CLLocationCoordinate2D(latitude: 51.0055, longitude: -2.5845), isLive: false, currentArtist: nil),
-        StageMapItem(id: UUID(), name: EventsViewL10n.previewWestHolts, coordinate: CLLocationCoordinate2D(latitude: 51.0038, longitude: -2.5870), isLive: true, currentArtist: EventsViewL10n.previewFloatingPoints),
+        StageMapItem(id: UUID(), name: EventsViewL10n.previewPyramid, coordinate: CLLocationCoordinate2D(latitude: 51.0048, longitude: -2.5862), isLive: true, currentArtist: EventsViewL10n.previewBicep, isSaved: true),
+        StageMapItem(id: UUID(), name: EventsViewL10n.previewOther, coordinate: CLLocationCoordinate2D(latitude: 51.0055, longitude: -2.5845), isLive: false, currentArtist: nil, isSaved: false),
+        StageMapItem(id: UUID(), name: EventsViewL10n.previewWestHolts, coordinate: CLLocationCoordinate2D(latitude: 51.0038, longitude: -2.5870), isLive: true, currentArtist: EventsViewL10n.previewFloatingPoints, isSaved: false),
     ]
 
     static let sampleAnnouncements: [AnnouncementItem] = [

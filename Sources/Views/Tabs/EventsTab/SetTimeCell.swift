@@ -7,6 +7,8 @@ private enum SetTimeCellL10n {
     static let saveAct = String(localized: "events.schedule.save.add", defaultValue: "Save act")
     static let removeReminder = String(localized: "events.schedule.reminder.remove", defaultValue: "Remove reminder")
     static let setReminder = String(localized: "events.schedule.reminder.add", defaultValue: "Set reminder")
+    static let savedOutOfRange = String(localized: "events.out_of_range.saved_badge", defaultValue: "Saved")
+    static let unavailableOutOfRange = String(localized: "events.out_of_range.item_unavailable", defaultValue: "Unavailable while out of range")
     static let currentlyLiveState = String(localized: "events.schedule.accessibility.currently_live", defaultValue: "currently live")
     static let saved = String(localized: "events.schedule.accessibility.saved", defaultValue: "saved")
     static let reminderSet = String(localized: "events.schedule.accessibility.reminder_set", defaultValue: "reminder set")
@@ -41,6 +43,7 @@ struct SetTimeCell: View {
     let isLive: Bool
     let isSaved: Bool
     let hasReminder: Bool
+    let isInRange: Bool
 
     var onSave: (() -> Void)?
     var onToggleReminder: (() -> Void)?
@@ -80,8 +83,23 @@ struct SetTimeCell: View {
                     lineWidth: BlipSizing.hairline
                 )
         )
+        .overlay(alignment: .topTrailing) {
+            if isSaved && !isInRange {
+                Label(SetTimeCellL10n.savedOutOfRange, systemImage: "bookmark.fill")
+                    .font(theme.typography.micro)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, BlipSpacing.xs)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(.blipAccentPurple))
+                    .padding(BlipSpacing.xs)
+                    .accessibilityHidden(true)
+            }
+        }
+        .opacity(isInteractionAllowed ? (isInRange ? 1.0 : 0.8) : 0.5)
+        .allowsHitTesting(isInteractionAllowed)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
+        .accessibilityHint(isInteractionAllowed ? "" : SetTimeCellL10n.unavailableOutOfRange)
     }
 
     // MARK: - Time Column
@@ -165,22 +183,24 @@ struct SetTimeCell: View {
             Button(action: { onToggleReminder?() }) {
                 Image(systemName: hasReminder ? "bell.fill" : "bell")
                     .font(theme.typography.secondary)
-                    .foregroundStyle(hasReminder ? .blipAccentPurple : theme.colors.mutedText)
+                    .foregroundStyle(eventActionsEnabled ? (hasReminder ? .blipAccentPurple : theme.colors.mutedText) : theme.colors.mutedText.opacity(0.35))
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(!eventActionsEnabled)
             .accessibilityLabel(hasReminder ? SetTimeCellL10n.removeReminder : SetTimeCellL10n.setReminder)
 
             // "I'm going" share
             Button(action: { onShareGoing?() }) {
                 Image(systemName: "hand.thumbsup.fill")
                     .font(theme.typography.secondary)
-                    .foregroundStyle(theme.colors.mutedText)
+                    .foregroundStyle(eventActionsEnabled ? theme.colors.mutedText : theme.colors.mutedText.opacity(0.35))
                     .frame(width: BlipSizing.minTapTarget, height: BlipSizing.minTapTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(!eventActionsEnabled)
             .accessibilityLabel(SetTimeCellL10n.shareGoing(artistName: artistName))
         }
     }
@@ -199,6 +219,14 @@ struct SetTimeCell: View {
             return "\(hours)h"
         }
         return "\(minutes)m"
+    }
+
+    private var isInteractionAllowed: Bool {
+        isInRange || isSaved
+    }
+
+    private var eventActionsEnabled: Bool {
+        isInRange
     }
 
     private var accessibilityDescription: String {
@@ -226,7 +254,8 @@ struct SetTimeCell: View {
                     endTime: now.addingTimeInterval(3600),
                     isLive: true,
                     isSaved: true,
-                    hasReminder: true
+                    hasReminder: true,
+                    isInRange: true
                 )
 
                 SetTimeCell(
@@ -236,7 +265,8 @@ struct SetTimeCell: View {
                     endTime: now.addingTimeInterval(9000),
                     isLive: false,
                     isSaved: false,
-                    hasReminder: false
+                    hasReminder: false,
+                    isInRange: false
                 )
 
                 SetTimeCell(
@@ -246,7 +276,8 @@ struct SetTimeCell: View {
                     endTime: now.addingTimeInterval(19800),
                     isLive: false,
                     isSaved: true,
-                    hasReminder: false
+                    hasReminder: false,
+                    isInRange: false
                 )
             }
             .padding()
