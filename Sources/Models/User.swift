@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftData
 
@@ -44,6 +45,15 @@ final class User {
 
     var resolvedDisplayName: String {
         displayName ?? username
+    }
+
+    /// The 8-byte PeerID derived from this user's Noise public key, as a 16-char
+    /// lowercase hex string. Returns nil when noisePublicKey is empty.
+    /// Used to match incoming push notifications to DM channels (BDEV-441).
+    var peerIdHex: String? {
+        guard !noisePublicKey.isEmpty else { return nil }
+        let hash = SHA256.hash(data: noisePublicKey)
+        return Data(hash.prefix(8)).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Init
