@@ -72,6 +72,7 @@ protocol NotificationServiceDelegate: AnyObject, Sendable {
 /// - Remote push taps and category actions (HEY1321)
 ///
 /// Uses UNUserNotificationCenter with categories and actions for rich notification interactions.
+@MainActor
 final class NotificationService: NSObject, @unchecked Sendable {
 
     // MARK: - Properties
@@ -180,7 +181,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
             )
             return granted
         } catch {
-            await DebugLogger.shared.log(
+            DebugLogger.shared.log(
                 "PUSH",
                 "Authorization request failed: \(error.localizedDescription)",
                 isError: true
@@ -469,7 +470,9 @@ final class NotificationService: NSObject, @unchecked Sendable {
                 notification.request.content.threadIdentifier == channelID.uuidString
             }
             let ids = matching.map(\.request.identifier)
-            self.center.removeDeliveredNotifications(withIdentifiers: ids)
+            Task { @MainActor [weak self] in
+                self?.center.removeDeliveredNotifications(withIdentifiers: ids)
+            }
         }
     }
 
@@ -526,7 +529,7 @@ final class NotificationService: NSObject, @unchecked Sendable {
 
 // MARK: - UNUserNotificationCenterDelegate
 
-extension NotificationService: UNUserNotificationCenterDelegate {
+extension NotificationService: @preconcurrency UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
