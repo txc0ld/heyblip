@@ -52,7 +52,7 @@ struct ImageViewer: View {
             } else {
                 VStack(spacing: BlipSpacing.md) {
                     Image(systemName: "photo.fill")
-                        .font(.system(size: 48))
+                        .font(theme.typography.display)
                         .foregroundStyle(.white.opacity(0.3))
                     Text(ImageViewerL10n.unavailable)
                         .font(theme.typography.secondary)

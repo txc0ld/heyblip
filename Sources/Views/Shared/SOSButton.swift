@@ -27,10 +27,10 @@ struct SOSButton: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.theme) private var theme
 
-    private var iconSize: CGFloat {
+    private var iconFont: Font {
         switch size {
-        case .compact: return 18
-        case .regular: return 22
+        case .compact: return theme.typography.title3
+        case .regular: return theme.typography.headline
         }
     }
 
@@ -50,7 +50,8 @@ struct SOSButton: View {
             showSOSSheet = true
         } label: {
             Image(systemName: "cross.case.fill")
-                .font(.system(size: iconSize, weight: .bold))
+                .font(iconFont)
+                .fontWeight(.bold)
                 .foregroundStyle(isPressed ? .white : Color.blipWarmCoral)
                 .frame(width: buttonSize, height: buttonSize)
                 .background(buttonBackground)

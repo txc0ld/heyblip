@@ -160,7 +160,7 @@ struct EventDetailView: View {
         GlassCard(thickness: .ultraThin) {
             VStack(spacing: BlipSpacing.sm) {
                 Image(systemName: "map")
-                    .font(.system(size: 32))
+                    .font(theme.typography.largeTitle)
                     .foregroundStyle(theme.colors.mutedText.opacity(0.5))
                 Text(EventDetailL10n.mapUnavailable)
                     .font(theme.typography.caption)

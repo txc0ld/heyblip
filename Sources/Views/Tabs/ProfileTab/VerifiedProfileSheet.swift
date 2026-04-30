@@ -59,7 +59,7 @@ struct VerifiedProfileSheet: View {
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 36))
+                    .font(theme.typography.largeTitle)
                     .foregroundStyle(.blipAccentPurple)
             }
 
@@ -131,7 +131,8 @@ struct VerifiedProfileSheet: View {
                         .foregroundStyle(theme.colors.mutedText)
 
                     Text("$14.99")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(theme.typography.title1)
+                        .fontWeight(.bold)
                         .foregroundStyle(.blipAccentPurple)
                 }
 

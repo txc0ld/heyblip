@@ -61,7 +61,8 @@ struct BeaconMapPinView: View {
                     )
                     .overlay(
                         Image(systemName: "mappin")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(theme.typography.caption)
+                            .fontWeight(.bold)
                             .foregroundStyle(.white)
                     )
                     .shadow(color: Color.blipElectricCyan.opacity(0.4), radius: 4)

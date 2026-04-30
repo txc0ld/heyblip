@@ -51,7 +51,7 @@ struct ResponderRegistrationView: View {
         GlassCard(thickness: .regular, cornerRadius: BlipCornerRadius.xl) {
             VStack(spacing: BlipSpacing.md) {
                 Image(systemName: "cross.circle.fill")
-                    .font(.system(size: 40))
+                    .font(theme.typography.display)
                     .foregroundStyle(.blipAccentPurple)
 
                 Text("Medical Responder Registration")

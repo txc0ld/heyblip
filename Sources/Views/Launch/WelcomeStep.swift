@@ -133,7 +133,7 @@ struct WelcomeStep: View {
 
                     // Central chat bubble
                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 48, weight: .medium))
+                        .font(theme.typography.display)
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [

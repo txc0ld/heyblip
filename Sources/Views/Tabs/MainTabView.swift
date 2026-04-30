@@ -154,7 +154,8 @@ struct MainTabView: View {
                     }
 
                     Image(systemName: tab.icon)
-                        .font(.system(size: 20, weight: selectedTab == tab ? .semibold : .regular))
+                        .font(theme.typography.title3)
+                        .fontWeight(selectedTab == tab ? .semibold : .regular)
                         .foregroundStyle(
                             selectedTab == tab
                                 ? Color.blipAccentPurple

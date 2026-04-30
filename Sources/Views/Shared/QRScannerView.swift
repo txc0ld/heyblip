@@ -94,7 +94,7 @@ struct QRScannerView: View {
     private var permissionDeniedView: some View {
         VStack(spacing: BlipSpacing.lg) {
             Image(systemName: "camera.fill")
-                .font(.system(size: 48))
+                .font(theme.typography.display)
                 .foregroundStyle(theme.colors.mutedText)
 
             Text(QRScannerL10n.cameraUnavailable)

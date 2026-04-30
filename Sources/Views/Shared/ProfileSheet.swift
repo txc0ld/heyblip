@@ -122,7 +122,8 @@ struct ProfileSheet: View {
                     .frame(width: BlipSizing.avatarLarge, height: BlipSizing.avatarLarge)
                     .overlay(
                         Text(String(displayName.prefix(1)).uppercased())
-                            .font(.system(size: 32, weight: .bold))
+                            .font(theme.typography.largeTitle)
+                            .fontWeight(.bold)
                             .foregroundStyle(.white)
                     )
             }

@@ -189,7 +189,7 @@ struct EventDiscoveryView: View {
     private func errorState(_ message: String) -> some View {
         VStack(spacing: BlipSpacing.lg) {
             Spacer()
-            Image(systemName: "exclamationmark.triangle").font(.system(size: 48)).foregroundStyle(theme.colors.mutedText.opacity(0.5))
+            Image(systemName: "exclamationmark.triangle").font(theme.typography.display).foregroundStyle(theme.colors.mutedText.opacity(0.5))
             Text(message).font(theme.typography.secondary).foregroundStyle(theme.colors.mutedText).multilineTextAlignment(.center)
             GlassButton(EventDiscoveryL10n.retry, icon: "arrow.clockwise") { Task { await eventsViewModel?.fetchDiscoveryEvents() } }
             Spacer()

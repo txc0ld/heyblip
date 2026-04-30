@@ -7,6 +7,7 @@ import SwiftUI
 struct VerifiedBadge: View {
 
     let size: CGFloat
+    @Environment(\.theme) private var theme
 
     init(size: CGFloat = 16) {
         self.size = size
@@ -14,10 +15,20 @@ struct VerifiedBadge: View {
 
     var body: some View {
         Image(systemName: "checkmark.seal.fill")
-            .font(.system(size: size))
+            .font(badgeFont)
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white, .blue)
             .accessibilityLabel("Verified")
+    }
+
+    private var badgeFont: Font {
+        if size >= 22 {
+            return theme.typography.title3
+        }
+        if size >= 16 {
+            return theme.typography.callout
+        }
+        return theme.typography.caption
     }
 }
 

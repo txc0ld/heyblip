@@ -192,7 +192,8 @@ private struct StageHotspotView: View {
         Button(action: onTap) {
             VStack(spacing: 2) {
                 Image(systemName: "music.note.house.fill")
-                    .font(.system(size: isSelected ? 22 : 18, weight: .bold))
+                    .font(isSelected ? theme.typography.headline : theme.typography.title3)
+                    .fontWeight(.bold)
                     .foregroundStyle(.blipAccentPurple)
                     .shadow(color: .blipAccentPurple.opacity(0.5), radius: isSelected ? 6 : 2)
 

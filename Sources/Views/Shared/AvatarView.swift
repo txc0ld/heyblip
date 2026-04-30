@@ -68,6 +68,7 @@ struct AvatarView: View {
 
     @State private var pulseScale: CGFloat = 1.0
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.theme) private var theme
 
     init(
         imageData: Data? = nil,
@@ -147,7 +148,8 @@ struct AvatarView: View {
             .fill(initialsGradient)
             .overlay(
                 Text(initials)
-                    .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
+                    .font(initialsFont)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.white)
             )
     }
@@ -248,6 +250,16 @@ struct AvatarView: View {
         return chars.isEmpty
             ? String(name.prefix(1)).uppercased()
             : String(chars).uppercased()
+    }
+
+    private var initialsFont: Font {
+        if size >= BlipSizing.avatarLarge {
+            return theme.typography.title1
+        }
+        if size >= BlipSizing.avatarMedium {
+            return theme.typography.title3
+        }
+        return theme.typography.callout
     }
 
     private var initialsGradient: LinearGradient {

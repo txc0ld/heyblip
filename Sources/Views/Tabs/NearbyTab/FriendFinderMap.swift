@@ -410,7 +410,7 @@ private struct BeaconPinView: View {
                         )
 
                     Text("\(minutesLeft)m left")
-                        .font(.system(size: 8, weight: .medium))
+                        .font(theme.typography.micro)
                         .foregroundStyle(countdownColor(minutesLeft: minutesLeft))
                 }
             }
